@@ -1,4 +1,4 @@
-import dev.detekt.gradle.Detekt
+import io.gitlab.arturbosch.detekt.Detekt
 
 plugins {
     alias(libs.plugins.android.application)
@@ -16,7 +16,7 @@ android {
     defaultConfig {
         applicationId = "com.example.kairo"
         minSdk = libs.versions.minSdk.get().toInt()
-        targetSdk = libs.versions.compileSdk.get().toInt()
+        targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
 
@@ -41,9 +41,6 @@ android {
     }
     buildFeatures {
         compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15"
     }
 }
 

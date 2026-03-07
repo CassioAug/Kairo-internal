@@ -50,6 +50,7 @@ fun FocusModeSideEffects(
 }
 
 @Composable
+@Suppress("DEPRECATION")
 fun SystemBarsStyleSideEffect(readerTheme: ReaderTheme) {
     val context = LocalContext.current
     val view = LocalView.current
