@@ -9,15 +9,15 @@ plugins {
 
 subprojects {
     pluginManager.withPlugin("org.jetbrains.kotlin.android") {
-        apply(plugin = "dev.detekt")
+        apply(plugin = "io.gitlab.arturbosch.detekt")
     }
     pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
-        apply(plugin = "dev.detekt")
+        apply(plugin = "io.gitlab.arturbosch.detekt")
     }
 }
 
 tasks.register("detektFull") {
     group = "verification"
-    description = "Runs Detekt with type resolution"
-    dependsOn(":app:detektFull") // the custom task we defined earlier
+    description = "Runs Detekt across the app module"
+    dependsOn(":app:detekt")
 }
