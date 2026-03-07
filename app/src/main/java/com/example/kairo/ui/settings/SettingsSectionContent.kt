@@ -463,6 +463,7 @@ fun RsvpSettingsContent(
     selectedProfileId: String,
     customProfiles: List<RsvpCustomProfile>,
     config: RsvpConfig,
+    estimatedWpmOverride: Int? = null,
     unlockExtremeSpeed: Boolean,
     rsvpFontSizeSp: Float,
     rsvpTextBrightness: Float,
@@ -496,9 +497,13 @@ fun RsvpSettingsContent(
         onDeleteCustomProfile = onDeleteCustomProfile,
     )
 
-    var estimatedWpm by remember { mutableStateOf(0) }
+    var estimatedWpm by remember(estimatedWpmOverride) { mutableStateOf(estimatedWpmOverride ?: 0) }
     val dispatcherProvider = LocalDispatcherProvider.current
-    LaunchedEffect(config) {
+    LaunchedEffect(config, estimatedWpmOverride) {
+        if (estimatedWpmOverride != null) {
+            estimatedWpm = estimatedWpmOverride
+            return@LaunchedEffect
+        }
         estimatedWpm =
             withContext(dispatcherProvider.default) {
                 RsvpPaceEstimator.estimateWpm(config)

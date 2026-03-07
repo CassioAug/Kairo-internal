@@ -48,6 +48,10 @@ internal fun ReaderHeader(
     compactMode: Boolean,
 ) {
     val context = LocalContext.current
+    val chapterProgress =
+        remember(book.chapters, chapterIndex) {
+            resolveReaderChapterProgress(book.chapters, chapterIndex)
+        }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -109,8 +113,8 @@ internal fun ReaderHeader(
                         text =
                         stringResource(
                             R.string.reader_chapter_of_total,
-                            chapterIndex + 1,
-                            book.chapters.size,
+                            chapterProgress.currentNumber,
+                            chapterProgress.totalNumber,
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.secondary,
