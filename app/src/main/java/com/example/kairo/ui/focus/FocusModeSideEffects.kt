@@ -7,6 +7,8 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -77,33 +79,82 @@ fun SystemBarsStyleSideEffect(readerTheme: ReaderTheme) {
 @Composable
 private fun FocusDndSideEffect(enabled: Boolean) {
     val context = LocalContext.current
+    val owner = remember { Any() }
     val notificationManager =
         remember(context) {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         }
 
-    DisposableEffect(enabled) {
-        var previousFilter: Int? = null
-        var didChange = false
-
-        if (enabled && notificationManager.isNotificationPolicyAccessGranted) {
-            previousFilter = notificationManager.currentInterruptionFilter
-            if (previousFilter != NotificationManager.INTERRUPTION_FILTER_NONE) {
-                notificationManager.setInterruptionFilter(
-                    NotificationManager.INTERRUPTION_FILTER_NONE
-                )
-                didChange = true
-            }
+    DisposableEffect(enabled, notificationManager, owner) {
+        if (enabled) {
+            FocusDndSessionController.acquire(owner, notificationManager)
+        } else {
+            FocusDndSessionController.release(owner, notificationManager)
         }
 
         onDispose {
-            if (didChange &&
-                previousFilter != null &&
-                notificationManager.isNotificationPolicyAccessGranted
-            ) {
-                notificationManager.setInterruptionFilter(previousFilter)
-            }
+            FocusDndSessionController.release(owner, notificationManager)
         }
+    }
+}
+
+private object FocusDndSessionController {
+    private val handler = Handler(Looper.getMainLooper())
+    private val activeOwners = linkedSetOf<Any>()
+    private var previousFilter: Int? = null
+    private var didChange = false
+    private var pendingRestore: Runnable? = null
+
+    fun acquire(
+        owner: Any,
+        notificationManager: NotificationManager,
+    ) {
+        cancelPendingRestore()
+        val added = activeOwners.add(owner)
+        if (!added || !notificationManager.isNotificationPolicyAccessGranted) return
+        if (didChange) return
+
+        val currentFilter = notificationManager.currentInterruptionFilter
+        previousFilter = currentFilter
+        if (currentFilter != NotificationManager.INTERRUPTION_FILTER_NONE) {
+            notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
+            didChange = true
+        }
+    }
+
+    fun release(
+        owner: Any,
+        notificationManager: NotificationManager,
+    ) {
+        val removed = activeOwners.remove(owner)
+        if (!removed || activeOwners.isNotEmpty()) return
+
+        scheduleRestore(notificationManager)
+    }
+
+    private fun scheduleRestore(notificationManager: NotificationManager) {
+        cancelPendingRestore()
+        val restoreRunnable =
+            Runnable {
+                pendingRestore = null
+                if (activeOwners.isNotEmpty()) return@Runnable
+
+                if (didChange &&
+                    previousFilter != null &&
+                    notificationManager.isNotificationPolicyAccessGranted
+                ) {
+                    notificationManager.setInterruptionFilter(previousFilter!!)
+                }
+                previousFilter = null
+                didChange = false
+            }
+        pendingRestore = restoreRunnable
+        handler.postDelayed(restoreRunnable, DND_RESTORE_GRACE_MS)
+    }
+
+    private fun cancelPendingRestore() {
+        pendingRestore?.let(handler::removeCallbacks)
+        pendingRestore = null
     }
 }
 
@@ -115,3 +166,4 @@ private tailrec fun Context.findActivity(): Activity? =
     }
 
 private const val MIN_CONTRAST_API = 29
+private const val DND_RESTORE_GRACE_MS = 1_500L
