@@ -273,6 +273,7 @@ private fun RsvpQuickSettingsAdvanced(
 private fun RsvpQuickSettingsAdvancedContent(context: RsvpUiContext) {
     val runtime = context.runtime
     val profile = context.state.profile
+    val liveEstimatedWpm = rememberRsvpEstimatedWpm(context.frameState.frames, context.timing.tempoScale)
 
     val configForSettings =
         remember(profile.config, runtime.currentTempoMsPerWord) {
@@ -282,6 +283,7 @@ private fun RsvpQuickSettingsAdvancedContent(context: RsvpUiContext) {
         selectedProfileId = profile.selectedProfileId,
         customProfiles = profile.customProfiles,
         config = configForSettings,
+        estimatedWpmOverride = liveEstimatedWpm,
         unlockExtremeSpeed = context.state.uiPrefs.extremeSpeedUnlocked,
         rsvpFontSizeSp = runtime.currentFontSizeSp,
         rsvpTextBrightness = runtime.currentTextBrightness,

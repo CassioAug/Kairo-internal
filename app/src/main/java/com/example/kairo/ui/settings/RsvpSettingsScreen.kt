@@ -49,6 +49,7 @@ fun RsvpSettingsScreen(
                 selectedProfileId = preferences.rsvpSelectedProfileId,
                 customProfiles = preferences.rsvpCustomProfiles,
                 config = preferences.rsvpConfig,
+                estimatedWpmOverride = null,
                 unlockExtremeSpeed = preferences.unlockExtremeSpeed,
                 rsvpFontSizeSp = preferences.rsvpFontSizeSp,
                 rsvpTextBrightness = preferences.rsvpTextBrightness,

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.example.kairo.core.model.RsvpFontFamily
 import com.example.kairo.core.model.RsvpFontWeight
 import com.example.kairo.core.model.TokenType
+import com.example.kairo.core.model.RsvpFrame
 import com.example.kairo.core.model.nearestWordIndex
 import com.example.kairo.core.model.prefersOrpWindowing
 import com.example.kairo.core.model.prefersSimplifiedOrpDisplay
@@ -78,7 +79,7 @@ internal fun RsvpPlaybackSurface(context: RsvpUiContext) {
         )
     val colors = rememberRsvpTextColors(runtime.currentTextBrightness)
     val interactionSource = remember { MutableInteractionSource() }
-    val estimatedWpm = rememberEstimatedWpm(frames, context.timing.tempoScale)
+    val estimatedWpm = rememberRsvpEstimatedWpm(frames, context.timing.tempoScale)
 
     Box(
         modifier =
@@ -103,8 +104,8 @@ internal fun RsvpPlaybackSurface(context: RsvpUiContext) {
 }
 
 @Composable
-private fun rememberEstimatedWpm(
-    frames: List<com.example.kairo.core.model.RsvpFrame>,
+internal fun rememberRsvpEstimatedWpm(
+    frames: List<RsvpFrame>,
     tempoScale: Double,
 ): Int {
     val baseFrameStats =
