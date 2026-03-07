@@ -45,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -59,6 +60,9 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.kairo.R
 import com.example.kairo.core.model.BlinkMode
 import com.example.kairo.core.model.ReaderTheme
@@ -130,9 +134,28 @@ fun FocusSettingsContent(
     onFocusApplyInRsvpChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    val hasDndAccess =
-        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .isNotificationPolicyAccessGranted
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasDndAccess by remember {
+        mutableStateOf(
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .isNotificationPolicyAccessGranted
+        )
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    hasDndAccess =
+                        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                            .isNotificationPolicyAccessGranted
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     SettingsSwitchRow(
         title = stringResource(R.string.focus_enable_title),
