@@ -575,6 +575,7 @@ data class UserPreferences(
     val rsvpConfig: RsvpConfig = RsvpConfig(),
     val rsvpSelectedProfileId: String = RsvpProfileIds.builtIn(RsvpProfile.BALANCED),
     val rsvpCustomProfiles: List<RsvpCustomProfile> = emptyList(),
+    val hasSeenStartingTutorial: Boolean = false,
     val readerFontSizeSp: Float = 20f,
     val readerTheme: ReaderTheme = ReaderTheme.SEPIA,
     val readerTextBrightness: Float = 0.88f,

@@ -56,7 +56,11 @@ internal fun BoxScope.RsvpProgressBar(context: RsvpUiContext) {
 }
 
 @Composable
-internal fun BoxScope.RsvpTopBar(context: RsvpUiContext) {
+internal fun BoxScope.RsvpTopBar(
+    context: RsvpUiContext,
+    settingsModifier: Modifier = Modifier,
+    closeModifier: Modifier = Modifier,
+) {
     val runtime = context.runtime
     val showSettings = runtime.isPositioningMode || !runtime.isPlaying
 
@@ -69,14 +73,17 @@ internal fun BoxScope.RsvpTopBar(context: RsvpUiContext) {
         horizontalArrangement = Arrangement.spacedBy(TOP_BAR_SPACING),
     ) {
         if (showSettings) {
-            IconButton(onClick = {
-                if (runtime.isPositioningMode) {
-                    finishPositioning(context, resumeIfWasPlaying = true)
-                } else {
-                    runtime.showQuickSettings = !runtime.showQuickSettings
-                    if (runtime.showQuickSettings) runtime.showControls = false
-                }
-            }) {
+            IconButton(
+                onClick = {
+                    if (runtime.isPositioningMode) {
+                        finishPositioning(context, resumeIfWasPlaying = true)
+                    } else {
+                        runtime.showQuickSettings = !runtime.showQuickSettings
+                        if (runtime.showQuickSettings) runtime.showControls = false
+                    }
+                },
+                modifier = settingsModifier,
+            ) {
                 Icon(
                     Icons.Default.Settings,
                     contentDescription = stringResource(R.string.content_desc_settings),
@@ -85,7 +92,10 @@ internal fun BoxScope.RsvpTopBar(context: RsvpUiContext) {
                 )
             }
         }
-        IconButton(onClick = { exitAndSavePosition(context) }) {
+        IconButton(
+            onClick = { exitAndSavePosition(context) },
+            modifier = closeModifier,
+        ) {
             Icon(
                 Icons.Default.Close,
                 contentDescription = stringResource(R.string.content_desc_close),

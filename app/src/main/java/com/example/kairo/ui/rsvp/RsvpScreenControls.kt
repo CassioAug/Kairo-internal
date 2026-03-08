@@ -33,7 +33,10 @@ import androidx.compose.ui.res.stringResource
 import com.example.kairo.R
 
 @Composable
-internal fun BoxScope.RsvpBottomControls(context: RsvpUiContext) {
+internal fun BoxScope.RsvpBottomControls(
+    context: RsvpUiContext,
+    controlsModifier: Modifier = Modifier,
+) {
     val runtime = context.runtime
 
     AnimatedVisibility(
@@ -54,7 +57,10 @@ internal fun BoxScope.RsvpBottomControls(context: RsvpUiContext) {
                 ).padding(CONTROLS_PADDING),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            RsvpPlaybackControlsRow(context)
+            RsvpPlaybackControlsRow(
+                context = context,
+                modifier = controlsModifier,
+            )
             Spacer(modifier = Modifier.height(CONTROLS_SPACER))
             Text(
                 stringResource(
@@ -76,10 +82,14 @@ internal fun BoxScope.RsvpBottomControls(context: RsvpUiContext) {
 }
 
 @Composable
-private fun RsvpPlaybackControlsRow(context: RsvpUiContext) {
+private fun RsvpPlaybackControlsRow(
+    context: RsvpUiContext,
+    modifier: Modifier = Modifier,
+) {
     val runtime = context.runtime
 
     Row(
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(CONTROLS_ROW_SPACING),
         verticalAlignment = Alignment.CenterVertically,
     ) {

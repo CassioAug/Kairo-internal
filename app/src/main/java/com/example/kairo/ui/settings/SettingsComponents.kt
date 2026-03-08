@@ -60,6 +60,7 @@ import com.example.kairo.ui.theme.SepiaBackground
 
 @Composable
 fun SettingsNavRow(
+    modifier: Modifier = Modifier,
     title: String,
     subtitle: String? = null,
     icon: ImageVector,
@@ -68,7 +69,7 @@ fun SettingsNavRow(
 ) {
     Surface(
         modifier =
-        Modifier
+        modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),

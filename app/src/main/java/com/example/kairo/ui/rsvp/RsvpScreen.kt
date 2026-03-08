@@ -15,6 +15,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.example.kairo.data.rsvp.RsvpFrameRepository
 import com.example.kairo.data.rsvp.RsvpFrameSet
+import com.example.kairo.ui.tutorial.StartingTutorialOverlayState
+import com.example.kairo.ui.tutorial.StartingTutorialTargetIds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -23,7 +25,12 @@ fun RsvpScreen(
     state: RsvpScreenState,
     callbacks: RsvpScreenCallbacks,
     dependencies: RsvpScreenDependencies,
+    tutorialState: StartingTutorialOverlayState? = null,
+    onTutorialNext: () -> Unit = {},
+    onTutorialPrevious: () -> Unit = {},
+    onTutorialSkip: () -> Unit = {},
 ) {
+    val isTutorialMode = tutorialState != null
     val hapticFeedback = LocalHapticFeedback.current
     val minTempoMsPerWord =
         if (state.uiPrefs.extremeSpeedUnlocked) {
@@ -76,8 +83,42 @@ fun RsvpScreen(
             ),
         )
 
-    RsvpBackHandler(context)
-    RsvpPlaybackEffects(context, sessionKey = sessionKey)
+    LaunchedEffect(tutorialState?.step?.targetId) {
+        when (tutorialState?.step?.targetId) {
+            StartingTutorialTargetIds.RSVP_PLAYBACK_CONTROLS -> {
+                runtime.isPlaying = false
+                runtime.completed = false
+                runtime.showControls = true
+                runtime.showQuickSettings = false
+            }
+
+            StartingTutorialTargetIds.RSVP_SURFACE,
+            StartingTutorialTargetIds.RSVP_EXIT,
+            StartingTutorialTargetIds.RSVP_TOP_SETTINGS -> {
+                runtime.isPlaying = false
+                runtime.completed = false
+                runtime.showControls = false
+                runtime.showQuickSettings = false
+            }
+
+            StartingTutorialTargetIds.RSVP_QUICK_SETTINGS,
+            StartingTutorialTargetIds.RSVP_SETTINGS_ROW -> {
+                runtime.isPlaying = false
+                runtime.completed = false
+                runtime.showControls = false
+                runtime.showQuickSettings = true
+            }
+
+            else -> Unit
+        }
+    }
+
+    RsvpBackHandler(context, enabled = !isTutorialMode)
+    RsvpPlaybackEffects(
+        context = context,
+        sessionKey = sessionKey,
+        isTutorialMode = isTutorialMode,
+    )
     RsvpIndicatorEffects(runtime)
 
     if (shouldShowLoading(frameState)) {
@@ -85,11 +126,21 @@ fun RsvpScreen(
         return
     }
     if (frameState.frames.isEmpty()) {
-        RsvpEmptyState { exitAndSavePosition(context) }
+        RsvpEmptyState {
+            if (!isTutorialMode) {
+                exitAndSavePosition(context)
+            }
+        }
         return
     }
 
-    RsvpPlaybackSurface(context)
+    RsvpPlaybackSurface(
+        context = context,
+        tutorialState = tutorialState,
+        onTutorialNext = onTutorialNext,
+        onTutorialPrevious = onTutorialPrevious,
+        onTutorialSkip = onTutorialSkip,
+    )
 }
 
 @Composable
@@ -323,16 +374,23 @@ private const val FRAME_LOAD_RETRY_DELAY_MS = 200L
 private const val MAX_FRAME_LOAD_RETRIES = 3
 
 @Composable
-private fun RsvpBackHandler(context: RsvpUiContext) {
-    BackHandler { exitAndSavePosition(context) }
+private fun RsvpBackHandler(
+    context: RsvpUiContext,
+    enabled: Boolean,
+) {
+    BackHandler(enabled = enabled) { exitAndSavePosition(context) }
 }
 
 @Composable
-private fun RsvpPlaybackEffects(context: RsvpUiContext, sessionKey: String) {
+private fun RsvpPlaybackEffects(
+    context: RsvpUiContext,
+    sessionKey: String,
+    isTutorialMode: Boolean,
+) {
     RsvpPositionSaveEffect(context)
     RsvpFrameAlignmentEffect(context)
-    RsvpSessionResetEffect(context, sessionKey)
-    RsvpPlaybackLoopEffect(context)
+    RsvpSessionResetEffect(context, sessionKey, autoPlay = !isTutorialMode)
+    RsvpPlaybackLoopEffect(context, enabled = !isTutorialMode)
 }
 
 @Composable

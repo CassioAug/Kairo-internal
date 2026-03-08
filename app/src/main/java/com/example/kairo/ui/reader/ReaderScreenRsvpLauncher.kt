@@ -46,6 +46,7 @@ internal fun ReaderRsvpLauncher(
     progressFraction: Float,
     onFocusChange: (Int) -> Unit,
     onStartRsvp: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
@@ -54,7 +55,7 @@ internal fun ReaderRsvpLauncher(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier =
-            Modifier
+            modifier
                 .pointerInput(focusListIndex) {
                     detectTapGestures(
                         onLongPress = {

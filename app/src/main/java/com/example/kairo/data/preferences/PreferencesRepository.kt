@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.Flow
 interface PreferencesRepository {
     val preferences: Flow<UserPreferences>
 
+    suspend fun updateHasSeenStartingTutorial(seen: Boolean)
+
     suspend fun updateRsvpConfig(updater: (RsvpConfig) -> RsvpConfig)
 
     suspend fun selectRsvpProfile(profileId: String)

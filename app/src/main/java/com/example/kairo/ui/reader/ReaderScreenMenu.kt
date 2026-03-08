@@ -54,6 +54,7 @@ internal fun ReaderMenuOverlay(
     onOpenBookmarks: () -> Unit,
     onShowToc: () -> Unit,
     onDismiss: () -> Unit,
+    readerSettingsRowModifier: Modifier = Modifier,
 ) {
     var showReaderSettings by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
@@ -108,6 +109,7 @@ internal fun ReaderMenuOverlay(
                     )
 
                     SettingsNavRow(
+                        modifier = readerSettingsRowModifier,
                         title = stringResource(R.string.reader_settings_title),
                         subtitle = stringResource(R.string.reader_settings_subtitle),
                         icon = Icons.Default.Settings,

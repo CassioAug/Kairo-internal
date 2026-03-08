@@ -41,6 +41,8 @@ import com.example.kairo.ui.settings.ThemeSelector
 internal fun BoxScope.RsvpQuickSettingsPanel(
     context: RsvpUiContext,
     estimatedWpm: Int,
+    panelModifier: Modifier = Modifier,
+    settingsRowModifier: Modifier = Modifier,
 ) {
     val runtime = context.runtime
 
@@ -52,7 +54,7 @@ internal fun BoxScope.RsvpQuickSettingsPanel(
     ) {
         Column(
             modifier =
-            Modifier
+            panelModifier
                 .fillMaxWidth()
                 .fillMaxHeight(QUICK_SETTINGS_HEIGHT_FRACTION)
                 .navigationBarsPadding()
@@ -79,6 +81,7 @@ internal fun BoxScope.RsvpQuickSettingsPanel(
                     context = context,
                     estimatedWpm = estimatedWpm,
                     onOpenRsvpSettings = { showRsvpSettings = true },
+                    settingsRowModifier = settingsRowModifier,
                 )
             }
         }
@@ -90,9 +93,14 @@ private fun RsvpQuickSettingsMain(
     context: RsvpUiContext,
     estimatedWpm: Int,
     onOpenRsvpSettings: () -> Unit,
+    settingsRowModifier: Modifier = Modifier,
 ) {
     RsvpQuickSettingsHeader()
-    RsvpQuickSettingsBookmarks(context, onOpenRsvpSettings)
+    RsvpQuickSettingsBookmarks(
+        context = context,
+        onOpenRsvpSettings = onOpenRsvpSettings,
+        settingsRowModifier = settingsRowModifier,
+    )
     RsvpQuickSettingsThemeAndFocus(context)
     RsvpQuickSettingsPositioningToggle(context)
     RsvpQuickSettingsTempoControls(context, estimatedWpm)
@@ -113,6 +121,7 @@ private fun RsvpQuickSettingsHeader() {
 private fun RsvpQuickSettingsBookmarks(
     context: RsvpUiContext,
     onOpenRsvpSettings: () -> Unit,
+    settingsRowModifier: Modifier = Modifier,
 ) {
     val runtime = context.runtime
 
@@ -133,6 +142,7 @@ private fun RsvpQuickSettingsBookmarks(
         onClick = { addBookmarkNow(context) },
     )
     SettingsNavRow(
+        modifier = settingsRowModifier,
         title = stringResource(R.string.rsvp_settings_title),
         subtitle = stringResource(R.string.rsvp_settings_subtitle),
         icon = Icons.Default.Settings,

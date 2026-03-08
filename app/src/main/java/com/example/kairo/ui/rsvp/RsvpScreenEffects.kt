@@ -61,7 +61,11 @@ internal fun RsvpFrameAlignmentEffect(context: RsvpUiContext) {
 }
 
 @Composable
-internal fun RsvpSessionResetEffect(context: RsvpUiContext, sessionKey: String) {
+internal fun RsvpSessionResetEffect(
+    context: RsvpUiContext,
+    sessionKey: String,
+    autoPlay: Boolean,
+) {
     val runtime = context.runtime
     val book = context.state.book
     val profile = context.state.profile
@@ -80,7 +84,7 @@ internal fun RsvpSessionResetEffect(context: RsvpUiContext, sessionKey: String) 
         runtime.rampStartFrameIndex = runtime.frameIndex
         runtime.scheduledFrameIndex = -1
         runtime.nextFrameAtMs = 0L
-        runtime.isPlaying = true
+        runtime.isPlaying = autoPlay
         runtime.completed = false
         runtime.currentTempoMsPerWord = profile.config.tempoMsPerWord
         runtime.currentFontSizeSp = textStyle.fontSizeSp
@@ -104,14 +108,18 @@ internal fun RsvpSessionResetEffect(context: RsvpUiContext, sessionKey: String) 
 }
 
 @Composable
-internal fun RsvpPlaybackLoopEffect(context: RsvpUiContext) {
+internal fun RsvpPlaybackLoopEffect(
+    context: RsvpUiContext,
+    enabled: Boolean,
+) {
     val runtime = context.runtime
     val frames = context.frameState.frames
     val tokens = context.state.book.tokens
     val tempoScale = context.timing.tempoScale
     val config = context.state.profile.config
 
-    LaunchedEffect(runtime.isPlaying, runtime.frameIndex, runtime.completed, frames, tempoScale) {
+    LaunchedEffect(enabled, runtime.isPlaying, runtime.frameIndex, runtime.completed, frames, tempoScale) {
+        if (!enabled) return@LaunchedEffect
         if (!runtime.isPlaying || runtime.completed) return@LaunchedEffect
         if (runtime.frameIndex >= frames.size) return@LaunchedEffect
         val frame = frames[runtime.frameIndex]

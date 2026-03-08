@@ -35,11 +35,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -49,6 +51,10 @@ import com.example.kairo.core.language.BookLanguageResolver
 import com.example.kairo.core.model.Book
 import com.example.kairo.core.model.ReaderTheme
 import com.example.kairo.core.model.nearestWordIndex
+import com.example.kairo.ui.tutorial.StartingTutorialOverlay
+import com.example.kairo.ui.tutorial.StartingTutorialOverlayState
+import com.example.kairo.ui.tutorial.StartingTutorialTargetIds
+import com.example.kairo.ui.tutorial.startingTutorialTarget
 import java.util.Locale
 
 private val READER_MIN_BOTTOM_CONTENT_PADDING = 24.dp
@@ -94,6 +100,10 @@ fun ReaderScreen(
     onStartRsvp: (Int) -> Unit,
     onChapterChange: (Int, Int?) -> Unit,
     onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
+    tutorialState: StartingTutorialOverlayState? = null,
+    onTutorialNext: () -> Unit = {},
+    onTutorialPrevious: () -> Unit = {},
+    onTutorialSkip: () -> Unit = {},
 ) {
     val chapterIndex = uiState.chapterIndex
     val focusIndex = uiState.focusIndex
@@ -155,6 +165,14 @@ fun ReaderScreen(
     val showChapterList = remember { mutableStateOf(false) }
     var showReaderMenu by remember { mutableStateOf(false) }
     var fullScreenImagePath by remember { mutableStateOf<String?>(null) }
+    val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
+    val tutorialTargetId = tutorialState?.step?.targetId
+
+    LaunchedEffect(tutorialTargetId) {
+        if (tutorialState == null) return@LaunchedEffect
+        showReaderMenu =
+            tutorialTargetId == StartingTutorialTargetIds.READER_MENU_SETTINGS
+    }
 
     val isRsvpEnabled =
         !uiState.isLoading && renderState.firstWordIndex != -1 && renderState.tokens.isNotEmpty()
@@ -234,6 +252,20 @@ fun ReaderScreen(
                 onNext = navigationState.onNextPage,
                 onShowMenu = { showReaderMenu = !showReaderMenu },
                 compactMode = chromeCollapsed,
+                navigationModifier =
+                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_NAVIGATION) {
+                        targetId,
+                        bounds,
+                        ->
+                        tutorialTargets[targetId] = bounds
+                    },
+                menuModifier =
+                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_MENU) {
+                        targetId,
+                        bounds,
+                        ->
+                        tutorialTargets[targetId] = bounds
+                    },
             )
 
             AnimatedVisibility(visible = !chromeCollapsed && progressState.hasProgressMeta) {
@@ -323,6 +355,13 @@ fun ReaderScreen(
                     showChapterList.value = true
                 },
                 onDismiss = { showReaderMenu = false },
+                readerSettingsRowModifier =
+                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_MENU_SETTINGS) {
+                        targetId,
+                        bounds,
+                        ->
+                        tutorialTargets[targetId] = bounds
+                    },
             )
         }
 
@@ -344,6 +383,23 @@ fun ReaderScreen(
                 progressFraction = progressState.progressFraction,
                 onFocusChange = onFocusChange,
                 onStartRsvp = onStartRsvp,
+                modifier =
+                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_RSVP_LAUNCHER) {
+                        targetId,
+                        bounds,
+                        ->
+                        tutorialTargets[targetId] = bounds
+                    },
+            )
+        }
+
+        tutorialState?.let { overlayState ->
+            StartingTutorialOverlay(
+                state = overlayState,
+                targetBounds = overlayState.step.targetId?.let(tutorialTargets::get),
+                onNext = onTutorialNext,
+                onPrevious = onTutorialPrevious,
+                onSkip = onTutorialSkip,
             )
         }
 

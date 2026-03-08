@@ -44,10 +44,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +67,10 @@ import com.example.kairo.R
 import com.example.kairo.core.model.Book
 import com.example.kairo.core.model.BookmarkItem
 import com.example.kairo.ui.format.formatShortDurationMinutes
+import com.example.kairo.ui.tutorial.StartingTutorialOverlay
+import com.example.kairo.ui.tutorial.StartingTutorialOverlayState
+import com.example.kairo.ui.tutorial.StartingTutorialTargetIds
+import com.example.kairo.ui.tutorial.startingTutorialTarget
 import kotlin.math.roundToInt
 
 @Composable
@@ -80,6 +86,10 @@ fun LibraryScreen(
     onImportFile: (Uri) -> Unit,
     onSettings: () -> Unit,
     onDelete: (Book) -> Unit,
+    tutorialState: StartingTutorialOverlayState? = null,
+    onTutorialNext: () -> Unit = {},
+    onTutorialPrevious: () -> Unit = {},
+    onTutorialSkip: () -> Unit = {},
 ) {
     // File picker launcher for EPUB/MOBI files
     val filePickerLauncher =
@@ -90,6 +100,7 @@ fun LibraryScreen(
         }
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab.ordinal) }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
+    val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -117,7 +128,16 @@ fun LibraryScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onSettings) {
+                IconButton(
+                    onClick = onSettings,
+                    modifier =
+                        Modifier.startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_SETTINGS) {
+                            targetId,
+                            bounds,
+                            ->
+                            tutorialTargets[targetId] = bounds
+                        },
+                ) {
                     Icon(
                         Icons.Default.Settings,
                         contentDescription = stringResource(R.string.content_desc_settings),
@@ -125,7 +145,16 @@ fun LibraryScreen(
                 }
             }
 
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
+            PrimaryTabRow(
+                selectedTabIndex = selectedTab,
+                modifier =
+                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_TABS) {
+                        targetId,
+                        bounds,
+                        ->
+                        tutorialTargets[targetId] = bounds
+                    },
+            ) {
                 Tab(
                     selected = selectedTab == LibraryTab.Library.ordinal,
                     onClick = { selectedTab = LibraryTab.Library.ordinal },
@@ -151,7 +180,15 @@ fun LibraryScreen(
                             ),
                         )
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
+                                targetId,
+                                bounds,
+                                ->
+                                tutorialTargets[targetId] = bounds
+                            },
                     enabled = !importState.isImporting,
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
@@ -222,6 +259,15 @@ fun LibraryScreen(
             }
         }
         ImportProgressOverlay(state = importState)
+        tutorialState?.let { overlayState ->
+            StartingTutorialOverlay(
+                state = overlayState,
+                targetBounds = overlayState.step.targetId?.let(tutorialTargets::get),
+                onNext = onTutorialNext,
+                onPrevious = onTutorialPrevious,
+                onSkip = onTutorialSkip,
+            )
+        }
     }
 
     pendingDeleteBook?.let { book ->

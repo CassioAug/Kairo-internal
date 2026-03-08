@@ -46,6 +46,8 @@ internal fun ReaderHeader(
     onNext: () -> Unit,
     onShowMenu: () -> Unit,
     compactMode: Boolean,
+    navigationModifier: Modifier = Modifier,
+    menuModifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val chapterProgress =
@@ -123,31 +125,36 @@ internal fun ReaderHeader(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(onClick = onPrev, enabled = canGoPrev) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.content_desc_previous_page),
-                    tint =
-                    if (canGoPrev) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                    },
-                )
+            Row(
+                modifier = navigationModifier,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                IconButton(onClick = onPrev, enabled = canGoPrev) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.content_desc_previous_page),
+                        tint =
+                        if (canGoPrev) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        },
+                    )
+                }
+                IconButton(onClick = onNext, enabled = canGoNext) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = stringResource(R.string.content_desc_next_page),
+                        tint =
+                        if (canGoNext) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        },
+                    )
+                }
             }
-            IconButton(onClick = onNext, enabled = canGoNext) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = stringResource(R.string.content_desc_next_page),
-                    tint =
-                    if (canGoNext) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                    },
-                )
-            }
-            IconButton(onClick = onShowMenu) {
+            IconButton(onClick = onShowMenu, modifier = menuModifier) {
                 Icon(
                     Icons.Default.Settings,
                     contentDescription = stringResource(R.string.content_desc_reader_menu),

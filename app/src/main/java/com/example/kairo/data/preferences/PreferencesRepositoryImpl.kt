@@ -80,6 +80,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
         return defaults
             .withRsvpState(rsvpConfig, selectedProfileId, customProfiles)
+            .withTutorialState(prefs, defaults)
             .withReaderSettings(prefs, defaults)
             .withRsvpDisplaySettings(prefs, defaults, rsvpConfig)
             .withFocusSettings(prefs, defaults)
@@ -94,6 +95,18 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             rsvpConfig = config,
             rsvpSelectedProfileId = selectedProfileId,
             rsvpCustomProfiles = customProfiles,
+        )
+
+    private fun UserPreferences.withTutorialState(
+        prefs: Preferences,
+        defaults: UserPreferences,
+    ): UserPreferences =
+        copy(
+            hasSeenStartingTutorial =
+                prefs.readOrDefault(
+                    keys.hasSeenStartingTutorial,
+                    defaults.hasSeenStartingTutorial,
+                ),
         )
 
     private fun UserPreferences.withReaderSettings(
@@ -161,6 +174,10 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             prefs[keys.rsvpProfile] = RsvpProfileIds.CUSTOM_UNSAVED
             writeRsvpConfig(prefs, updated)
         }
+    }
+
+    override suspend fun updateHasSeenStartingTutorial(seen: Boolean) {
+        context.dataStore.edit { prefs -> prefs[keys.hasSeenStartingTutorial] = seen }
     }
 
     override suspend fun selectRsvpProfile(profileId: String) {
@@ -1104,6 +1121,7 @@ private object PrefKeys {
     val tempoMsPerWord = longPreferencesKey("tempo_ms_per_word")
     val rsvpProfile = stringPreferencesKey("rsvp_profile")
     val customRsvpProfilesJson = stringPreferencesKey("custom_rsvp_profiles_json")
+    val hasSeenStartingTutorial = booleanPreferencesKey("has_seen_starting_tutorial")
     val minWordMs = longPreferencesKey("min_word_ms")
     val longWordMinMs = longPreferencesKey("long_word_min_ms")
     val longWordChars = intPreferencesKey("long_word_chars")

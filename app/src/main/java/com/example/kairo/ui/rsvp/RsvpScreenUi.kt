@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalDensity
@@ -48,6 +50,10 @@ import com.example.kairo.core.model.prefersOrpWindowing
 import com.example.kairo.core.model.prefersSimplifiedOrpDisplay
 import com.example.kairo.ui.theme.InterFontFamily
 import com.example.kairo.ui.theme.RobotoFontFamily
+import com.example.kairo.ui.tutorial.StartingTutorialOverlay
+import com.example.kairo.ui.tutorial.StartingTutorialOverlayState
+import com.example.kairo.ui.tutorial.StartingTutorialTargetIds
+import com.example.kairo.ui.tutorial.startingTutorialTarget
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -66,7 +72,13 @@ private data class PreviewCandidate(
 )
 
 @Composable
-internal fun RsvpPlaybackSurface(context: RsvpUiContext) {
+internal fun RsvpPlaybackSurface(
+    context: RsvpUiContext,
+    tutorialState: StartingTutorialOverlayState? = null,
+    onTutorialNext: () -> Unit = {},
+    onTutorialPrevious: () -> Unit = {},
+    onTutorialSkip: () -> Unit = {},
+) {
     val runtime = context.runtime
     val frames = context.frameState.frames
     val currentFrame = frames.getOrNull(runtime.frameIndex)
@@ -80,12 +92,19 @@ internal fun RsvpPlaybackSurface(context: RsvpUiContext) {
     val colors = rememberRsvpTextColors(runtime.currentTextBrightness)
     val interactionSource = remember { MutableInteractionSource() }
     val estimatedWpm = rememberRsvpEstimatedWpm(frames, context.timing.tempoScale)
+    val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
 
     Box(
         modifier =
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .startingTutorialTarget(StartingTutorialTargetIds.RSVP_SURFACE) {
+                targetId,
+                bounds,
+                ->
+                tutorialTargets[targetId] = bounds
+            }
             .rsvpGestureModifier(context, interactionSource),
         contentAlignment = Alignment.Center,
     ) {
@@ -93,13 +112,64 @@ internal fun RsvpPlaybackSurface(context: RsvpUiContext) {
         RsvpParagraphPreview(context, typography, colors, bottomChromeInset)
         RsvpPositionGuide(context, bottomChromeInset)
         RsvpProgressBar(context)
-        RsvpTopBar(context)
+        RsvpTopBar(
+            context = context,
+            settingsModifier =
+                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_TOP_SETTINGS) {
+                    targetId,
+                    bounds,
+                    ->
+                    tutorialTargets[targetId] = bounds
+                },
+            closeModifier =
+                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_EXIT) {
+                    targetId,
+                    bounds,
+                    ->
+                    tutorialTargets[targetId] = bounds
+                },
+        )
         RsvpTempoIndicator(context, estimatedWpm)
         RsvpFontSizeIndicator(context)
         RsvpPositioningIndicator(context)
         RsvpScrubTargetIndicator(context)
-        RsvpQuickSettingsPanel(context, estimatedWpm)
-        RsvpBottomControls(context)
+        RsvpQuickSettingsPanel(
+            context = context,
+            estimatedWpm = estimatedWpm,
+            panelModifier =
+                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_QUICK_SETTINGS) {
+                    targetId,
+                    bounds,
+                    ->
+                    tutorialTargets[targetId] = bounds
+                },
+            settingsRowModifier =
+                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_SETTINGS_ROW) {
+                    targetId,
+                    bounds,
+                    ->
+                    tutorialTargets[targetId] = bounds
+                },
+        )
+        RsvpBottomControls(
+            context = context,
+            controlsModifier =
+                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_PLAYBACK_CONTROLS) {
+                    targetId,
+                    bounds,
+                    ->
+                    tutorialTargets[targetId] = bounds
+                },
+        )
+        tutorialState?.let { overlayState ->
+            StartingTutorialOverlay(
+                state = overlayState,
+                targetBounds = overlayState.step.targetId?.let(tutorialTargets::get),
+                onNext = onTutorialNext,
+                onPrevious = onTutorialPrevious,
+                onSkip = onTutorialSkip,
+            )
+        }
     }
 }
 
