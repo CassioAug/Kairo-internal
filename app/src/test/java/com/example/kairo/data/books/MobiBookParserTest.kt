@@ -37,6 +37,25 @@ class MobiBookParserTest {
     }
 
     @Test
+    fun extractPlainTextRemovesClosedClassPageBreakContent() {
+        val html =
+            "<p><span class=\"pagebreak\">12</span><span class=\"char-first\">T<span class=\"smallcaps\">HE OPENING WORDS </span></span>remain intact.</p>"
+
+        val text = contentProcessor.extractPlainText(html)
+
+        assertTrue(text.contains("THE OPENING WORDS remain intact."))
+    }
+
+    @Test
+    fun extractPlainTextRemovesClosedMbpPageBreakContent() {
+        val html = "<p>Start<mbp:pagebreak>12</mbp:pagebreak> end.</p>"
+
+        val text = contentProcessor.extractPlainText(html)
+
+        assertTrue(text.contains("Start end."))
+    }
+
+    @Test
     fun extractPlainTextDecodesEntitiesAndPreservesParagraphs() {
         val html = "<p>Hello&nbsp;world &amp; friends.</p><p>Next&nbsp;para.</p>"
 
@@ -45,6 +64,16 @@ class MobiBookParserTest {
         assertTrue(text.contains("Hello world & friends."))
         assertTrue(text.contains("Next para."))
         assertTrue(text.contains("friends.\n\nNext"))
+    }
+
+    @Test
+    fun stripNoiseTitleBlocksOnlyRemovesLeadingFileLabels() {
+        val html =
+            "<p>Real opening.</p><p>Chapter 100</p><p>Should stay.</p>"
+
+        val cleaned: String = contentProcessor.callPrivate("stripNoiseTitleBlocks", html)
+
+        assertTrue(cleaned.contains("<p>Chapter 100</p>"))
     }
 
     @Test

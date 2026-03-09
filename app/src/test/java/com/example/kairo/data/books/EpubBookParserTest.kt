@@ -60,6 +60,51 @@ class EpubBookParserTest {
     }
 
     @Test
+    fun extractPlainTextPreservesLeadingWordsAfterAnchorImageAndDropCap() {
+        val html =
+            """
+            <html xmlns="http://www.w3.org/1999/xhtml">
+              <body>
+                <a id="d1-d2s6"/>
+                <div class="page_top_padding">
+                  <span epub:type="pagebreak" id="page_3" title="3"/>
+                  <div class="figure figure_heading">
+                    <div class="squeeze">
+                      <img alt="Prelude The Comet" class="image" src="../images/chapter.jpg"/>
+                    </div>
+                  </div>
+                  <p class="para-pf"><span class="char-first">T<span class="smallcaps">HE WOMAN WHO DISCOVERED THE </span></span>comet, Yumiko Sakamoto, age twenty-eight, was an amateur astronomer.</p>
+                  <p class="para-p">The discovery changed her life.</p>
+                </div>
+              </body>
+            </html>
+            """.trimIndent()
+
+        val text: String = parser.callPrivate("extractPlainText", html)
+
+        assertTrue(
+            "Expected chapter opening to be preserved, but was: $text",
+            text.contains("THE WOMAN WHO DISCOVERED THE comet, Yumiko Sakamoto"),
+        )
+        assertTrue(text.contains("The discovery changed her life."))
+    }
+
+    @Test
+    fun extractPlainTextPreservesLeadingWordsAfterSelfClosingClassPageBreak() {
+        val html =
+            """
+            <p><span class="pagebreak" id="page_3"/><span class="char-first">T<span class="smallcaps">HE OPENING WORDS </span></span>remain intact.</p>
+            """.trimIndent()
+
+        val text: String = parser.callPrivate("extractPlainText", html)
+
+        assertTrue(
+            "Expected class-based self-closing pagebreak to preserve opening words, but was: $text",
+            text.contains("THE OPENING WORDS remain intact."),
+        )
+    }
+
+    @Test
     fun extractPlainTextDecodesNamedEntities() {
         val html = "<p>&ldquo;Hello&rdquo; &mdash; a test&hellip;</p>"
 

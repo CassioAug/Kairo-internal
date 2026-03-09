@@ -33,6 +33,8 @@ internal object EpubMarkupInspector {
         )
 
     private val SKIP_TEXT_TAGS = setOf("script", "style", "noscript")
+    private val PAGE_BREAK_CLASS_TOKENS = setOf("pagebreak", "page-break")
+    private val PAGE_BREAK_TYPES = setOf("pagebreak", "doc-pagebreak")
 
     fun renderPlainText(document: EpubMarkupDocument): String {
         val out = StringBuilder()
@@ -161,6 +163,10 @@ internal object EpubMarkupInspector {
             is EpubMarkupTextNode -> out.append(node.text)
             is EpubMarkupElementNode -> {
                 if (SKIP_TEXT_TAGS.contains(node.name)) return
+                if (isPageBreakNode(node)) {
+                    appendInlineSpace(out)
+                    return
+                }
 
                 if (node.name == "br") {
                     appendLineBreak(out)
@@ -196,5 +202,34 @@ internal object EpubMarkupInspector {
 
     private fun appendLineBreak(out: StringBuilder) {
         out.append('\n')
+    }
+
+    private fun appendInlineSpace(out: StringBuilder) {
+        if (out.isEmpty() || out.last().isWhitespace()) return
+        out.append(' ')
+    }
+
+    private fun isPageBreakNode(node: EpubMarkupElementNode): Boolean {
+        val epubType = node.attributes["epub:type"].orEmpty()
+        val role = node.attributes["role"].orEmpty()
+        val className = node.attributes["class"].orEmpty()
+
+        return hasPageBreakType(epubType) ||
+            hasPageBreakType(role) ||
+            hasPageBreakClass(className)
+    }
+
+    private fun hasPageBreakType(value: String): Boolean {
+        if (value.isBlank()) return false
+        return value
+            .split(Regex("\\s+"))
+            .any { token -> token.lowercase(Locale.ROOT) in PAGE_BREAK_TYPES }
+    }
+
+    private fun hasPageBreakClass(value: String): Boolean {
+        if (value.isBlank()) return false
+        return value
+            .split(Regex("\\s+"))
+            .any { token -> token.lowercase(Locale.ROOT) in PAGE_BREAK_CLASS_TOKENS }
     }
 }

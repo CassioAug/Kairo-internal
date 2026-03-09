@@ -667,19 +667,50 @@ internal class MobiContentProcessor {
     private fun stripNoiseTitleBlocks(html: String): String {
         if (html.isBlank()) return html
         val blockRegex = Regex("(?is)<(h[1-6]|p|div)[^>]*>([\\s\\S]*?)</\\1>")
-        return blockRegex.replace(html) { match ->
+        var result = html
+        repeat(2) {
+            val match = blockRegex.find(result) ?: return@repeat
+            val leading = result.take(match.range.first)
+            if (leading.any { !it.isWhitespace() }) return@repeat
             val inner = match.groupValues[2]
-            val text = inner.replace(Regex("<[^>]+>"), " ").replace("&nbsp;", " ").trim()
-            if (text.length <= 32 && isLikelyFileLabel(text)) "" else match.value
+            val text =
+                inner
+                    .replace(Regex("<[^>]+>"), " ")
+                    .replace("&nbsp;", " ")
+                    .trim()
+            if (text.length <= 32 && isLikelyFileLabel(text)) {
+                result = result.removeRange(match.range.first, match.range.last + 1)
+            } else {
+                return@repeat
+            }
         }
+        return result
     }
 
     private fun normalizePageBreakElements(html: String): String =
         html
-            .replace(Regex("""<\s*mbp:pagebreak\s*/?>""", RegexOption.IGNORE_CASE), " ")
             .replace(
                 Regex(
-                    """<[^>]+\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*>""",
+                    """<\s*mbp:pagebreak\b[^>]*/>""",
+                    RegexOption.IGNORE_CASE,
+                ),
+                " ",
+            ).replace(
+                Regex(
+                    """<\s*mbp:pagebreak\b[^>]*>[\s\S]*?</\s*mbp:pagebreak\s*>""",
+                    RegexOption.IGNORE_CASE,
+                ),
+                " ",
+            ).replace(
+                Regex(
+                    """<[^>]+\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*/>""",
+                    RegexOption.IGNORE_CASE,
+                ),
+                " ",
+            )
+            .replace(
+                Regex(
+                    """<([a-zA-Z0-9:._-]+)\b[^>]*\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*>[\s\S]*?</\1>""",
                     RegexOption.IGNORE_CASE,
                 ),
                 " ",
