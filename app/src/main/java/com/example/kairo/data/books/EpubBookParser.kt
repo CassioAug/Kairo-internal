@@ -114,24 +114,6 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             RegexOption.IGNORE_CASE,
         )
 
-        // Page break patterns
-        private val EPUB_PAGE_BREAK_REGEX = Regex(
-            "<([a-zA-Z0-9]+)\\b[^>]*\\b(epub:type|role)\\s*=\\s*['\"](?:pagebreak|doc-pagebreak)['\"][^>]*>[\\s\\S]*?</\\1>",
-            RegexOption.IGNORE_CASE,
-        )
-        private val EPUB_PAGE_BREAK_SELF_CLOSING_REGEX = Regex(
-            "<[^>]+\\b(epub:type|role)\\s*=\\s*['\"](?:pagebreak|doc-pagebreak)['\"][^>]*/>",
-            RegexOption.IGNORE_CASE,
-        )
-        private val CLASS_PAGE_BREAK_REGEX = Regex(
-            "<([a-zA-Z0-9]+)\\b[^>]*\\bclass\\s*=\\s*['\"][^'\"]*(?:pagebreak|page-break)[^'\"]*['\"][^>]*>[\\s\\S]*?</\\1>",
-            RegexOption.IGNORE_CASE,
-        )
-        private val CLASS_PAGE_BREAK_SELF_CLOSING_REGEX = Regex(
-            "<[^>]+\\bclass\\s*=\\s*['\"][^'\"]*(?:pagebreak|page-break)[^'\"]*['\"][^>]*/>",
-            RegexOption.IGNORE_CASE,
-        )
-
         // Noise title block pattern
         private val BLOCK_ELEMENT_REGEX = Regex("(?is)<(h[1-6]|p|div)[^>]*>([\\s\\S]*?)</\\1>")
     }
@@ -1016,7 +998,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
      * Extracts plain text from HTML/XHTML content.
      */
     private fun extractPlainText(html: String): String =
-        parseMarkupDocument(normalizePageBreakElements(html))
+        parseMarkupDocument(html)
             .let(EpubMarkupInspector::renderPlainText)
             // Decode common HTML entities
             .let(::decodeHtmlEntities)
@@ -1024,15 +1006,6 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             .replace(HORIZONTAL_WHITESPACE_REGEX, " ")
             .replace(MULTIPLE_NEWLINES_REGEX, "\n\n")
             .trim()
-
-    private fun normalizePageBreakElements(html: String): String {
-        val pageBreakToken = " "
-        return html
-            .replace(EPUB_PAGE_BREAK_REGEX, pageBreakToken)
-            .replace(EPUB_PAGE_BREAK_SELF_CLOSING_REGEX, pageBreakToken)
-            .replace(CLASS_PAGE_BREAK_REGEX, pageBreakToken)
-            .replace(CLASS_PAGE_BREAK_SELF_CLOSING_REGEX, pageBreakToken)
-    }
 
     /**
      * Extracts chapter title from HTML content.
