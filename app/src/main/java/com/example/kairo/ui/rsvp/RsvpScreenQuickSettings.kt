@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.example.kairo.R
+import com.example.kairo.core.rsvp.RsvpSpeedControl
 import com.example.kairo.ui.settings.RsvpSettingsContent
 import com.example.kairo.ui.settings.SettingsNavRow
 import com.example.kairo.ui.settings.SettingsSliderRow
@@ -40,7 +41,7 @@ import com.example.kairo.ui.settings.ThemeSelector
 @Composable
 internal fun BoxScope.RsvpQuickSettingsPanel(
     context: RsvpUiContext,
-    estimatedWpm: Int,
+    speedPercent: Int,
     panelModifier: Modifier = Modifier,
     settingsRowModifier: Modifier = Modifier,
 ) {
@@ -79,7 +80,7 @@ internal fun BoxScope.RsvpQuickSettingsPanel(
             } else {
                 RsvpQuickSettingsMain(
                     context = context,
-                    estimatedWpm = estimatedWpm,
+                    speedPercent = speedPercent,
                     onOpenRsvpSettings = { showRsvpSettings = true },
                     settingsRowModifier = settingsRowModifier,
                 )
@@ -91,7 +92,7 @@ internal fun BoxScope.RsvpQuickSettingsPanel(
 @Composable
 private fun RsvpQuickSettingsMain(
     context: RsvpUiContext,
-    estimatedWpm: Int,
+    speedPercent: Int,
     onOpenRsvpSettings: () -> Unit,
     settingsRowModifier: Modifier = Modifier,
 ) {
@@ -103,7 +104,7 @@ private fun RsvpQuickSettingsMain(
     )
     RsvpQuickSettingsThemeAndFocus(context)
     RsvpQuickSettingsPositioningToggle(context)
-    RsvpQuickSettingsTempoControls(context, estimatedWpm)
+    RsvpQuickSettingsTempoControls(context, speedPercent)
     RsvpQuickSettingsTextSizeControls(context)
     RsvpQuickSettingsHints()
 }
@@ -185,30 +186,43 @@ private fun RsvpQuickSettingsPositioningToggle(context: RsvpUiContext) {
 @Composable
 private fun RsvpQuickSettingsTempoControls(
     context: RsvpUiContext,
-    estimatedWpm: Int,
+    speedPercent: Int,
 ) {
     val runtime = context.runtime
     val minTempoMs = context.timing.minTempoMs
     val maxTempoMs = context.timing.maxTempoMs
+    val speedLabel =
+        stringResource(
+            rsvpSpeedBandLabelRes(
+                speed = speedPercent.toFloat(),
+                extremeUnlocked = context.state.uiPrefs.extremeSpeedUnlocked,
+            ),
+        )
+    val speedValueLabel =
+        stringResource(R.string.rsvp_reading_speed_indicator, speedLabel, speedPercent)
 
     Text(
-        stringResource(R.string.format_estimated_wpm, estimatedWpm),
+        stringResource(R.string.rsvp_reading_speed_summary, speedLabel, speedPercent),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     SettingsSliderRow(
-        title = stringResource(R.string.rsvp_tempo_title),
-        subtitle = stringResource(R.string.rsvp_tempo_subtitle),
-        valueLabel =
-        stringResource(R.string.format_ms, runtime.currentTempoMsPerWord),
-        value = runtime.currentTempoMsPerWord.toFloat(),
+        title = stringResource(R.string.rsvp_reading_speed_title),
+        subtitle = stringResource(R.string.rsvp_reading_speed_subtitle),
+        valueLabel = speedValueLabel,
+        value = speedPercent.toFloat(),
         onValueChange = { newValue ->
-            runtime.currentTempoMsPerWord = newValue.toLong().coerceIn(minTempoMs, maxTempoMs)
+            runtime.currentTempoMsPerWord =
+                RsvpSpeedControl.tempoForSpeed(
+                    speed = newValue,
+                    minTempoMsPerWord = minTempoMs,
+                    maxTempoMsPerWord = maxTempoMs,
+                )
         },
         onValueChangeFinished = {
             context.callbacks.playback.onTempoChange(runtime.currentTempoMsPerWord)
         },
-        valueRange = minTempoMs.toFloat()..maxTempoMs.toFloat(),
+        valueRange = RsvpSpeedControl.MIN_SPEED..RsvpSpeedControl.MAX_SPEED,
     )
     SettingsSwitchRow(
         title = stringResource(R.string.rsvp_unlock_extreme_speeds_title),
@@ -283,17 +297,12 @@ private fun RsvpQuickSettingsAdvanced(
 private fun RsvpQuickSettingsAdvancedContent(context: RsvpUiContext) {
     val runtime = context.runtime
     val profile = context.state.profile
-    val liveEstimatedWpm = rememberRsvpEstimatedWpm(context.frameState.frames, context.timing.tempoScale)
-
-    val configForSettings =
-        remember(profile.config, runtime.currentTempoMsPerWord) {
-            profile.config.copy(tempoMsPerWord = runtime.currentTempoMsPerWord)
-        }
     RsvpSettingsContent(
         selectedProfileId = profile.selectedProfileId,
         customProfiles = profile.customProfiles,
-        config = configForSettings,
-        estimatedWpmOverride = liveEstimatedWpm,
+        config = profile.config,
+        tempoMsPerWord = runtime.currentTempoMsPerWord,
+        profileComparisonConfig = profile.config,
         unlockExtremeSpeed = context.state.uiPrefs.extremeSpeedUnlocked,
         rsvpFontSizeSp = runtime.currentFontSizeSp,
         rsvpTextBrightness = runtime.currentTextBrightness,
@@ -304,8 +313,11 @@ private fun RsvpQuickSettingsAdvancedContent(context: RsvpUiContext) {
         onSelectProfile = context.callbacks.preferences.onSelectProfile,
         onSaveCustomProfile = context.callbacks.preferences.onSaveCustomProfile,
         onDeleteCustomProfile = context.callbacks.preferences.onDeleteCustomProfile,
+        onTempoMsPerWordChange = { updatedTempoMsPerWord ->
+            runtime.currentTempoMsPerWord = updatedTempoMsPerWord
+            context.callbacks.playback.onTempoChange(updatedTempoMsPerWord)
+        },
         onConfigChange = { updated ->
-            runtime.currentTempoMsPerWord = updated.tempoMsPerWord
             context.callbacks.preferences.onRsvpConfigChange(updated)
         },
         onUnlockExtremeSpeedChange = context.callbacks.preferences.onExtremeSpeedUnlockedChange,

@@ -12,6 +12,7 @@ import com.example.kairo.data.rsvp.RsvpFrameRepository
 data class RsvpScreenState(
     val book: RsvpBookContext,
     val profile: RsvpProfileContext,
+    val launchTempoMsPerWord: Long? = null,
     val uiPrefs: RsvpUiPreferences,
     val textStyle: RsvpTextStyle,
     val layoutBias: RsvpLayoutBias,
@@ -56,6 +57,7 @@ data class RsvpResumePoint(
     val tokenIndex: Int,
     val resumeCursor: Int = -1,
     val chapterIndex: Int? = null,
+    val tempoMsPerWord: Long = -1L,
 )
 
 data class RsvpPlaybackCallbacks(

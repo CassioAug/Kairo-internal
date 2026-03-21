@@ -34,6 +34,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -41,13 +42,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.kairo.R
+import com.example.kairo.core.model.RsvpConfig
 import com.example.kairo.core.model.RsvpFontFamily
 import com.example.kairo.core.model.RsvpFontWeight
-import com.example.kairo.core.model.TokenType
-import com.example.kairo.core.model.RsvpFrame
 import com.example.kairo.core.model.nearestWordIndex
 import com.example.kairo.core.model.prefersOrpWindowing
 import com.example.kairo.core.model.prefersSimplifiedOrpDisplay
+import com.example.kairo.core.rsvp.RsvpSpeedControl
 import com.example.kairo.ui.theme.InterFontFamily
 import com.example.kairo.ui.theme.RobotoFontFamily
 import com.example.kairo.ui.tutorial.StartingTutorialOverlay
@@ -55,7 +57,6 @@ import com.example.kairo.ui.tutorial.StartingTutorialOverlayState
 import com.example.kairo.ui.tutorial.StartingTutorialTargetIds
 import com.example.kairo.ui.tutorial.startingTutorialTarget
 import kotlin.math.abs
-import kotlin.math.roundToLong
 
 internal enum class PreviewSide { ABOVE, BELOW }
 
@@ -91,7 +92,25 @@ internal fun RsvpPlaybackSurface(
         )
     val colors = rememberRsvpTextColors(runtime.currentTextBrightness)
     val interactionSource = remember { MutableInteractionSource() }
-    val estimatedWpm = rememberRsvpEstimatedWpm(frames, context.timing.tempoScale)
+    val displayedSpeed =
+        rememberRsvpDisplayedSpeed(
+            currentTempoMsPerWord = runtime.currentTempoMsPerWord,
+            minTempoMs = context.timing.minTempoMs,
+            maxTempoMs = context.timing.maxTempoMs,
+        )
+    val speedBandLabel =
+        stringResource(
+            rsvpSpeedBandLabelRes(
+                speed = displayedSpeed.toFloat(),
+                extremeUnlocked = context.state.uiPrefs.extremeSpeedUnlocked,
+            ),
+        )
+    val speedIndicatorText =
+        stringResource(
+            R.string.rsvp_reading_speed_indicator,
+            speedBandLabel,
+            displayedSpeed,
+        )
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
 
     Box(
@@ -129,13 +148,13 @@ internal fun RsvpPlaybackSurface(
                     tutorialTargets[targetId] = bounds
                 },
         )
-        RsvpTempoIndicator(context, estimatedWpm)
+        RsvpTempoIndicator(context, speedIndicatorText)
         RsvpFontSizeIndicator(context)
         RsvpPositioningIndicator(context)
         RsvpScrubTargetIndicator(context)
         RsvpQuickSettingsPanel(
             context = context,
-            estimatedWpm = estimatedWpm,
+            speedPercent = displayedSpeed,
             panelModifier =
                 Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_QUICK_SETTINGS) {
                     targetId,
@@ -174,39 +193,20 @@ internal fun RsvpPlaybackSurface(
 }
 
 @Composable
-internal fun rememberRsvpEstimatedWpm(
-    frames: List<RsvpFrame>,
-    tempoScale: Double,
-): Int {
-    val baseFrameStats =
-        remember(frames) {
-            val wordUnits =
-                frames
-                    .sumOf { frame -> frame.tokens.sumOf { it.wordUnitWeight() } }
-                    .coerceAtLeast(MIN_WORD_COUNT.toDouble())
-            val totalMs = frames.sumOf { it.durationMs }.coerceAtLeast(MIN_TOTAL_MS)
-            wordUnits to totalMs
-        }
-    return remember(baseFrameStats, tempoScale) {
-        val wordCount = baseFrameStats.first
-        val totalMs =
-            (baseFrameStats.second * tempoScale)
-                .roundToLong()
-                .coerceAtLeast(MIN_TOTAL_MS)
-        ((wordCount * MS_PER_MINUTE) / totalMs.toDouble()).toInt().coerceAtLeast(MIN_WORD_COUNT)
+internal fun rememberRsvpDisplayedSpeed(
+    currentTempoMsPerWord: Long,
+    minTempoMs: Long,
+    maxTempoMs: Long,
+): Int =
+    remember(currentTempoMsPerWord, minTempoMs, maxTempoMs) {
+        RsvpSpeedControl.displaySpeed(
+            RsvpSpeedControl.speedForTempoMs(
+                tempoMsPerWord = currentTempoMsPerWord,
+                minTempoMsPerWord = minTempoMs,
+                maxTempoMsPerWord = maxTempoMs,
+            ),
+        )
     }
-}
-
-private fun com.example.kairo.core.model.Token.wordUnitWeight(): Double {
-    if (type != TokenType.WORD) return 0.0
-    if (!isSubwordChunk) return 1.0
-    val start = highlightStart
-    val end = highlightEndExclusive
-    if (start == null || end == null || end <= start || text.isEmpty()) return 1.0
-    val chunkLength = (end - start).toDouble().coerceAtLeast(1.0)
-    val fullLength = text.length.toDouble().coerceAtLeast(chunkLength)
-    return (chunkLength / fullLength).coerceIn(0.1, 1.0)
-}
 
 @Composable
 private fun rememberRsvpTextColors(textBrightness: Float): OrpColors {

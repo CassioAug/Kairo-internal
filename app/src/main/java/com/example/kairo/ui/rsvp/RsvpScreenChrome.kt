@@ -109,7 +109,7 @@ internal fun BoxScope.RsvpTopBar(
 @Composable
 internal fun BoxScope.RsvpTempoIndicator(
     context: RsvpUiContext,
-    estimatedWpm: Int,
+    indicatorText: String,
 ) {
     val runtime = context.runtime
 
@@ -134,7 +134,7 @@ internal fun BoxScope.RsvpTempoIndicator(
                 ),
         ) {
             Text(
-                text = stringResource(R.string.format_estimated_wpm, estimatedWpm),
+                text = indicatorText,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )

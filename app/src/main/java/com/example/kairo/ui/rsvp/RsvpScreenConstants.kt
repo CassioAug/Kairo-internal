@@ -3,6 +3,7 @@ package com.example.kairo.ui.rsvp
 import androidx.compose.ui.unit.dp
 import com.example.kairo.core.model.RsvpFontFamily
 import com.example.kairo.core.model.RsvpFontWeight
+import com.example.kairo.core.rsvp.RsvpSpeedControl
 
 const val DEFAULT_FONT_SIZE_SP = 44f
 val DEFAULT_FONT_FAMILY = RsvpFontFamily.INTER
@@ -11,15 +12,16 @@ const val DEFAULT_TEXT_BRIGHTNESS = 0.88f
 const val DEFAULT_VERTICAL_BIAS = -0.15f
 const val DEFAULT_HORIZONTAL_BIAS = 0f
 
-const val SAFE_MIN_TEMPO_MS_PER_WORD = 30L
-const val EXTREME_MIN_TEMPO_MS_PER_WORD = 10L
-const val MAX_TEMPO_MS_PER_WORD = 240L
+const val SAFE_MIN_TEMPO_MS_PER_WORD = RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
+const val EXTREME_MIN_TEMPO_MS_PER_WORD = RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
+const val MAX_TEMPO_MS_PER_WORD = RsvpSpeedControl.MAX_TEMPO_MS_PER_WORD
 const val DEFAULT_TEMPO_SCALE = 1.0
 const val TEMPO_SCALE_MIN = 0.1
 const val TEMPO_SCALE_MAX = 4.0
 const val MIN_FRAME_DELAY_MS = 16L
 const val POSITION_SAVE_INTERVAL_MS = 750L
 const val TEMPO_STEP_MS = 5L
+const val SPEED_STEP_PERCENT = 2f
 const val TEMPO_SWIPE_THRESHOLD_PX = 30f
 const val DRAG_AXIS_LOCK_THRESHOLD_PX = 12f
 const val SWEEP_SWIPE_THRESHOLD_PX = 30f

@@ -14,6 +14,8 @@ interface PreferencesRepository {
 
     suspend fun updateRsvpConfig(updater: (RsvpConfig) -> RsvpConfig)
 
+    suspend fun updateRsvpTempoMsPerWord(tempoMsPerWord: Long)
+
     suspend fun selectRsvpProfile(profileId: String)
 
     suspend fun saveRsvpCustomProfile(

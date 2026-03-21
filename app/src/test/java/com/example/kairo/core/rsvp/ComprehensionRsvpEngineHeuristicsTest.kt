@@ -207,6 +207,49 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun dashAndColonKeepAVisibleBreathInNonClauseContext() {
+        val contourConfig =
+            punctuationConfig.copy(
+                commaPauseMs = 0L,
+                periodPauseMs = 0L,
+                sentenceEndPauseMs = 0L,
+                semicolonPauseMs = 0L,
+                colonPauseMs = 0L,
+                dashPauseMs = 0L,
+                usePunctuationLandingHold = false,
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useProsodyPacing = false,
+            )
+
+        val plain = engine.generateFrames(
+            tokens = listOf(w("Wait"), w("again")),
+            startIndex = 0,
+            config = contourConfig,
+        )[0].durationMs
+        val comma = engine.generateFrames(
+            tokens = listOf(w("Wait"), p(","), w("again")),
+            startIndex = 0,
+            config = contourConfig,
+        )[0].durationMs
+        val colon = engine.generateFrames(
+            tokens = listOf(w("Wait"), p(":"), w("again")),
+            startIndex = 0,
+            config = contourConfig,
+        )[0].durationMs
+        val dash = engine.generateFrames(
+            tokens = listOf(w("Wait"), p("—"), w("again")),
+            startIndex = 0,
+            config = contourConfig,
+        )[0].durationMs
+
+        assertTrue("Expected plain word baseline", plain > 0L)
+        assertTrue("Expected comma to stay above plain", comma > plain)
+        assertTrue("Expected colon to stay above comma", colon > comma)
+        assertTrue("Expected em dash to stay above colon", dash > colon)
+    }
+
+    @Test
     fun boundaryContourLiftsLastWordBeforeStrongerStops() {
         val contourConfig =
             punctuationConfig.copy(
@@ -244,8 +287,8 @@ class ComprehensionRsvpEngineHeuristicsTest {
         )[0].durationMs
 
         assertTrue("Expected plain word baseline", plain > 0L)
-        assertTrue("Expected non-clause comma not to contour like a hard stop", comma <= plain + 3L)
-        assertTrue("Expected semicolon tail lift over plain", semicolon > plain + 3L)
+        assertTrue("Expected non-clause comma to add a soft lift", comma > plain + 1L)
+        assertTrue("Expected semicolon tail lift to stay above comma", semicolon > comma + 2L)
         assertTrue("Expected period tail lift over semicolon", period > semicolon + 3L)
     }
 

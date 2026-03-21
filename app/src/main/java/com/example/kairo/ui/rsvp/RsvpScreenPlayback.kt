@@ -74,7 +74,11 @@ internal fun currentResumePoint(context: RsvpUiContext): RsvpResumePoint {
             frameIndex = runtime.frameIndex,
             fallbackCursor = book.startResumeCursor.takeIf { it >= 0 } ?: -1,
         )
-    return RsvpResumePoint(tokenIndex = safeIndex, resumeCursor = resumeCursor)
+    return RsvpResumePoint(
+        tokenIndex = safeIndex,
+        resumeCursor = resumeCursor,
+        tempoMsPerWord = runtime.currentTempoMsPerWord,
+    )
 }
 
 internal fun exitAndSavePosition(context: RsvpUiContext) {
@@ -117,6 +121,7 @@ internal fun completePlayback(context: RsvpUiContext) {
         RsvpResumePoint(
             tokenIndex = rawNextIndex,
             chapterIndex = context.state.book.chapterIndex,
+            tempoMsPerWord = runtime.currentTempoMsPerWord,
         ),
     )
 }

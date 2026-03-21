@@ -448,6 +448,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 prevWord = prevWord,
                 nextWord = nextWord,
                 config = config,
+                speedStrength = speedStrength,
             )
 
         var duration = 0.0
@@ -480,7 +481,10 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     val dialogueMultiplier = if (config.useDialogueDetection &&
                         inDialogue
                     ) {
-                        config.dialogueMultiplier
+                        contextShapingMultiplier(
+                            targetMultiplier = config.dialogueMultiplier,
+                            speedStrength = speedStrength,
+                        )
                     } else {
                         1.0
                     }
@@ -810,81 +814,14 @@ class ComprehensionRsvpEngine : RsvpEngine {
     ): Double {
         val ch = token.text.firstOrNull() ?: return 0.0
         val prevText = prevWord?.text.orEmpty()
-        val prevIsNumeric = prevWord?.text?.all { it.isDigit() } == true
 
         if (ch == '.' && isDecimalPoint(prevText, nextToken)) {
             return 0.0
         }
 
-        var base =
-            when {
-                ch == '.' ->
-                    if (isAbbreviationDot(prevText, nextToken)) {
-                        config.commaPauseMs * 0.35
-                    } else {
-                        config.periodPauseMs.toDouble()
-                    }
-                ch == '\u2026' -> ellipsisPauseBaseMs(nextToken = nextToken, config = config)
-                isSentenceEndingPunctuation(ch) -> config.sentenceEndPauseMs.toDouble()
-                ch == ',' -> if (isThousandSeparator(
-                        prevText,
-                        nextToken
-                    )
-                ) {
-                    0.0
-                } else {
-                    config.commaPauseMs.toDouble()
-                }
-                ch == ';' -> config.semicolonPauseMs.toDouble()
-                ch == ':' -> config.colonPauseMs.toDouble()
-                ch == '\u2014' || ch == '\u2013' || ch == '-' -> config.dashPauseMs.toDouble()
-                ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}' -> config.parenthesesPauseMs.toDouble()
-                ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019' -> config.quotePauseMs.toDouble()
-                isMidSentencePunctuation(ch) -> config.commaPauseMs * 0.85
-                else -> 0.0
-            }
-
-        var floor =
-            when {
-                ch == '.' -> {
-                    if (isDecimalPoint(prevText, nextToken) ||
-                        isAbbreviationDot(prevText, nextToken)
-                    ) {
-                        0.0
-                    } else {
-                        config.periodPauseMs * config.minPauseScale
-                    }
-                }
-                ch == '\u2026' ->
-                    ellipsisPauseBaseMs(nextToken = nextToken, config = config) * config.minPauseScale
-                isSentenceEndingPunctuation(ch) -> config.sentenceEndPauseMs * config.minPauseScale
-                ch == ',' ->
-                    if (isThousandSeparator(prevText, nextToken)) {
-                        0.0
-                    } else {
-                        config.commaPauseMs * config.minPauseScale
-                    }
-                ch == ';' -> config.semicolonPauseMs * config.minPauseScale
-                ch == ':' -> config.colonPauseMs * config.minPauseScale
-                ch == '\u2014' || ch == '\u2013' || ch == '-' ->
-                    config.dashPauseMs * config.minPauseScale
-                ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}' ->
-                    config.parenthesesPauseMs * config.minPauseScale
-                ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019' ->
-                    config.quotePauseMs * config.minPauseScale
-                isMidSentencePunctuation(ch) -> (config.commaPauseMs * 0.85) * config.minPauseScale
-                else -> 0.0
-            }
-
-        if (ch == '.' &&
-            isLikelySentenceContinuation(nextToken) &&
-            !prevIsNumeric &&
-            !isDecimalPoint(prevText, nextToken) &&
-            !isAbbreviationDot(prevText, nextToken)
-        ) {
-            base = min(base, config.commaPauseMs * 0.8)
-            floor = min(floor, (config.commaPauseMs * 0.8) * config.minPauseScale)
-        }
+        val timing = RsvpPunctuationTimingPolicy.resolvePauseTiming(token, prevWord, nextToken, config)
+        var base = timing.baseMs
+        var floor = timing.floorMs
 
         val speedStrength = speedStrength(msPerWord)
         if (isClauseLeadPunctuation(ch, nextToken)) {
@@ -908,7 +845,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
             pauseScale(
                 msPerWord = msPerWord,
                 config = config,
-                extraRetention = punctuationRetentionBoost(ch = ch, nextToken = nextToken),
+                extraRetention = timing.scaleRetentionBoost,
             )
         val scaled = base * punctuationScale
         return max(scaled, floor)
@@ -927,15 +864,19 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
         val weight =
             frameTokens
-                .asSequence()
-                .filter { it.type == TokenType.PUNCTUATION }
-                .map { token ->
+                .mapIndexedNotNull { index, token ->
+                    if (token.type != TokenType.PUNCTUATION) return@mapIndexedNotNull null
+                    val prevWord =
+                        frameTokens
+                            .subList(0, index)
+                            .lastOrNull { it.type == TokenType.WORD }
                     boundaryLandingWeight(
                         token = token,
+                        prevWord = prevWord,
                         nextToken = nextToken,
                     )
                 }.maxOrNull()
-                ?: return 0.0
+              ?: return 0.0
         if (weight <= 0.0) return 0.0
 
         val base = (msPerWord * weight).coerceIn(MIN_LANDING_HOLD_MS, MAX_LANDING_HOLD_MS)
@@ -945,49 +886,14 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
     private fun boundaryLandingWeight(
         token: Token,
-        nextToken: Token?,
-    ): Double {
-        val ch = token.text.firstOrNull() ?: return 0.0
-        val contourStrength =
-            boundaryContourWeight(
-                token = token,
-                prevWord = null,
-                nextToken = nextToken,
-            )
-        if (contourStrength <= 0.0) return 0.0
-        val base =
-            when {
-                ch == '\u2026' -> ELLIPSIS_LANDING_HOLD_WEIGHT
-                ch == '.' || isSentenceEndingPunctuation(ch) -> STRONG_LANDING_HOLD_WEIGHT
-                ch == ';' -> SEMICOLON_LANDING_HOLD_WEIGHT
-                else -> CLAUSE_LANDING_HOLD_WEIGHT
-            }
-        return base * contourStrength
-    }
-
-    private fun boundaryContourWeight(
-        token: Token,
         prevWord: Token?,
         nextToken: Token?,
     ): Double {
-        val ch = token.text.firstOrNull() ?: return 0.0
-        val prevText = prevWord?.text.orEmpty()
-        return when {
-            ch == '.' -> {
-                when {
-                    isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> 0.0
-                    isLikelySentenceContinuation(nextToken) -> 0.55
-                    else -> 0.92
-                }
-            }
-            ch == '\u2026' -> 1.0
-            isSentenceEndingPunctuation(ch) -> 0.88
-            ch == ';' -> 0.74
-            ch == ':' -> 0.60
-            ch == '\u2014' || ch == '\u2013' || ch == '-' -> 0.56
-            ch == ',' && isClauseLeadPunctuation(ch, nextToken) -> 0.42
-            else -> 0.0
-        }
+        return RsvpPunctuationTimingPolicy.boundaryLandingWeight(
+            token = token,
+            prevWord = prevWord,
+            nextToken = nextToken,
+        )
     }
 
     private fun pauseScale(
@@ -1002,44 +908,6 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 .coerceIn(config.minPauseScale, 0.97)
         val scaled = preservedFloor + ((1.0 - preservedFloor) * compressed)
         return scaled.coerceIn(config.minPauseScale, 1.35)
-    }
-
-    private fun punctuationRetentionBoost(
-        ch: Char,
-        nextToken: Token?,
-    ): Double =
-        when {
-            ch == '\u2026' -> ELLIPSIS_RETENTION_BOOST
-            ch == '.' || isSentenceEndingPunctuation(ch) -> STRONG_PUNCTUATION_RETENTION_BOOST
-            ch == ';' -> SEMICOLON_RETENTION_BOOST
-            ch == ':' || ch == '\u2014' || ch == '\u2013' || ch == '-' ->
-                CLAUSE_PUNCTUATION_RETENTION_BOOST
-            ch == ',' && isClauseLeadPunctuation(ch, nextToken) ->
-                CLAUSE_PUNCTUATION_RETENTION_BOOST
-            ch == ',' -> COMMA_RETENTION_BOOST
-            ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019' ->
-                QUOTE_RETENTION_BOOST
-            ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}' ->
-                PARENTHESIS_RETENTION_BOOST
-            isMidSentencePunctuation(ch) -> COMMA_RETENTION_BOOST
-            else -> 0.0
-        }
-
-    private fun ellipsisPauseBaseMs(
-        nextToken: Token?,
-        config: RsvpConfig,
-    ): Double {
-        val nextWord = nextToken?.takeIf { it.type == TokenType.WORD }?.text
-        val nextStartsSentenceLike =
-            nextWord?.filter { it.isLetter() }?.firstOrNull()?.isUpperCase() == true ||
-                nextWord?.lowercase() in SENTENCE_STARTERS
-        val breakAfterEllipsis =
-            nextToken?.type == TokenType.PARAGRAPH_BREAK || nextToken?.type == TokenType.PAGE_BREAK
-        return if (nextStartsSentenceLike || breakAfterEllipsis || nextWord == null) {
-            max(config.commaPauseMs * 1.15, config.periodPauseMs * 0.72)
-        } else {
-            config.commaPauseMs * 1.15
-        }
     }
 
     private fun emphasisMultiplier(
@@ -1162,6 +1030,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
         prevWord: Token?,
         nextWord: Token?,
         config: RsvpConfig,
+        speedStrength: Double,
     ): Double {
         if (!config.useDialogueDetection) return 1.0
 
@@ -1199,7 +1068,28 @@ class ComprehensionRsvpEngine : RsvpEngine {
         }
 
         val matchesTag = candidates.any { DialogueAnalyzer.isSpeakerTag(it) }
-        return if (matchesTag) DialogueAnalyzer.SPEAKER_TAG_MULTIPLIER else 1.0
+        return if (matchesTag) {
+            val dialogueSpeedStrength =
+                max(
+                    0.15,
+                    speedStrength + (speedStrength * speedStrength),
+                )
+            contextShapingMultiplier(
+                targetMultiplier = DialogueAnalyzer.SPEAKER_TAG_MULTIPLIER,
+                speedStrength = dialogueSpeedStrength,
+            )
+        } else {
+            1.0
+        }
+    }
+
+    private fun contextShapingMultiplier(
+        targetMultiplier: Double,
+        speedStrength: Double,
+    ): Double {
+        if (targetMultiplier == 1.0) return 1.0
+        val effectStrength = speedStrength.coerceIn(0.0, 1.0)
+        return 1.0 + ((targetMultiplier - 1.0) * effectStrength)
     }
 
     private fun transitionHoldMs(
@@ -1375,7 +1265,13 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val adjacentSentencePunct =
             nextIsPunct &&
                 nextCh != null &&
-                (isSentenceEndingPunctuation(nextCh) || isMidSentencePunctuation(nextCh))
+                (
+                    isSentenceEndingPunctuation(nextCh) ||
+                        isMidSentencePunctuation(nextCh) ||
+                        nextCh == ')' ||
+                        nextCh == ']' ||
+                        nextCh == '}'
+                    )
 
         return adjacentSentencePunct || (prevWord != null && nextToken?.type == TokenType.WORD)
     }
@@ -1463,23 +1359,11 @@ class ComprehensionRsvpEngine : RsvpEngine {
         prevWord: Token?,
         nextToken: Token?,
     ): Double {
-        val ch = token.text.firstOrNull() ?: return 0.0
-        val prevText = prevWord?.text.orEmpty()
-        return when {
-            ch == '.' ->
-                when {
-                    isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> 0.0
-                    isLikelySentenceContinuation(nextToken) -> 1.18
-                    else -> 1.34
-                }
-            ch == '\u2026' -> 1.40
-            isSentenceEndingPunctuation(ch) -> 1.26
-            ch == ';' -> 0.62
-            ch == ':' -> 0.58
-            ch == '\u2014' || ch == '\u2013' || ch == '-' -> 0.46
-            ch == ',' && isClauseLeadPunctuation(ch, nextToken) -> 0.24
-            else -> 0.0
-        }
+        return RsvpPunctuationTimingPolicy.boundaryTailLiftWeight(
+            token = token,
+            prevWord = prevWord,
+            nextToken = nextToken,
+        )
     }
 
     private fun breakMarkerToken(type: TokenType): Token =
@@ -2149,17 +2033,8 @@ class ComprehensionRsvpEngine : RsvpEngine {
         private const val MIN_LANDING_HOLD_MS = 8.0
         private const val MAX_LANDING_HOLD_MS = 30.0
         private const val LANDING_HOLD_SPEED_BOOST = 0.35
-        private const val CLAUSE_LANDING_HOLD_WEIGHT = 0.18
-        private const val SEMICOLON_LANDING_HOLD_WEIGHT = 0.20
-        private const val STRONG_LANDING_HOLD_WEIGHT = 0.22
-        private const val ELLIPSIS_LANDING_HOLD_WEIGHT = 0.24
-        private const val COMMA_RETENTION_BOOST = 0.03
-        private const val QUOTE_RETENTION_BOOST = 0.04
-        private const val PARENTHESIS_RETENTION_BOOST = 0.05
         private const val CLAUSE_PUNCTUATION_RETENTION_BOOST = 0.10
-        private const val SEMICOLON_RETENTION_BOOST = 0.12
         private const val STRONG_PUNCTUATION_RETENTION_BOOST = 0.18
-        private const val ELLIPSIS_RETENTION_BOOST = 0.20
         private const val PARAGRAPH_BREAK_RETENTION_BOOST = 0.22
         private const val PAGE_BREAK_RETENTION_BOOST = 0.26
 

@@ -202,7 +202,8 @@ data class RsvpConfig(
     val baseWpm: Int = 500,
     val wordsPerFrame: Int = 1,
     val maxChunkLength: Int = 10,
-    val punctuationPauseFactor: Double = 1.6,
+    /** Global punctuation breathing multiplier. 1.0 is neutral. */
+    val punctuationPauseFactor: Double = 1.0,
     val longWordMultiplier: Double = 1.2,
     val useAdaptiveTiming: Boolean = true,
     val adaptiveDifficultyMaxHoldMs: Long = 70L,
@@ -573,6 +574,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
 
 data class UserPreferences(
     val rsvpConfig: RsvpConfig = RsvpConfig(),
+    val rsvpTempoMsPerWord: Long = RsvpConfig().tempoMsPerWord,
     val rsvpSelectedProfileId: String = RsvpProfileIds.builtIn(RsvpProfile.BALANCED),
     val rsvpCustomProfiles: List<RsvpCustomProfile> = emptyList(),
     val hasSeenStartingTutorial: Boolean = false,

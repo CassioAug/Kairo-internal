@@ -72,8 +72,14 @@ import com.example.kairo.core.model.RsvpFontFamily
 import com.example.kairo.core.model.RsvpFontWeight
 import com.example.kairo.core.model.RsvpProfile
 import com.example.kairo.core.model.RsvpProfileIds
-import com.example.kairo.core.rsvp.RsvpPaceEstimator
+import com.example.kairo.core.model.defaultConfig
+import com.example.kairo.core.rsvp.RsvpEstimatedReadingPace
+import com.example.kairo.core.rsvp.RsvpSpeedControl
+import com.example.kairo.core.rsvp.RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
+import com.example.kairo.core.rsvp.RsvpSpeedControl.MAX_TEMPO_MS_PER_WORD
+import com.example.kairo.core.rsvp.RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
 import com.example.kairo.ui.LocalDispatcherProvider
+import com.example.kairo.ui.rsvp.rsvpSpeedBandLabelRes
 import kotlin.math.roundToInt
 import kotlinx.coroutines.withContext
 
@@ -238,7 +244,9 @@ private fun DeferredSliderRow(
         valueLabel = valueLabel(coercedValue),
         value = coercedValue,
         onValueChange = { localValue = it },
-        onValueChangeFinished = { onCommit(coercedValue) },
+        onValueChangeFinished = {
+            onCommit(localValue.coerceIn(valueRange.start, valueRange.endInclusive))
+        },
         valueRange = valueRange,
     )
 }
@@ -486,6 +494,8 @@ fun RsvpSettingsContent(
     selectedProfileId: String,
     customProfiles: List<RsvpCustomProfile>,
     config: RsvpConfig,
+    tempoMsPerWord: Long,
+    profileComparisonConfig: RsvpConfig = config,
     estimatedWpmOverride: Int? = null,
     unlockExtremeSpeed: Boolean,
     rsvpFontSizeSp: Float,
@@ -497,6 +507,7 @@ fun RsvpSettingsContent(
     onSelectProfile: (String) -> Unit,
     onSaveCustomProfile: (String, RsvpConfig) -> Unit,
     onDeleteCustomProfile: (String) -> Unit,
+    onTempoMsPerWordChange: (Long) -> Unit,
     onConfigChange: (RsvpConfig) -> Unit,
     onUnlockExtremeSpeedChange: (Boolean) -> Unit,
     onRsvpFontSizeChange: (Float) -> Unit,
@@ -507,6 +518,11 @@ fun RsvpSettingsContent(
     onRsvpHorizontalBiasChange: (Float) -> Unit,
 ) {
     val context = LocalContext.current
+    val effectiveConfig =
+        remember(config, tempoMsPerWord) {
+            config.withLiveTempo(tempoMsPerWord)
+        }
+
     fun updateConfig(updater: (RsvpConfig) -> RsvpConfig) {
         onConfigChange(updater(config))
     }
@@ -514,7 +530,8 @@ fun RsvpSettingsContent(
     RsvpProfileSelector(
         selectedProfileId = selectedProfileId,
         customProfiles = customProfiles,
-        config = config,
+        config = effectiveConfig,
+        profileComparisonConfig = profileComparisonConfig,
         onSelectProfile = onSelectProfile,
         onSaveCustomProfile = onSaveCustomProfile,
         onDeleteCustomProfile = onDeleteCustomProfile,
@@ -522,14 +539,14 @@ fun RsvpSettingsContent(
 
     var estimatedWpm by remember(estimatedWpmOverride) { mutableStateOf(estimatedWpmOverride ?: 0) }
     val dispatcherProvider = LocalDispatcherProvider.current
-    LaunchedEffect(config, estimatedWpmOverride) {
+    LaunchedEffect(effectiveConfig, estimatedWpmOverride) {
         if (estimatedWpmOverride != null) {
             estimatedWpm = estimatedWpmOverride
             return@LaunchedEffect
         }
         estimatedWpm =
             withContext(dispatcherProvider.default) {
-                RsvpPaceEstimator.estimateWpm(config)
+                RsvpEstimatedReadingPace.estimateWpm(effectiveConfig)
             }
     }
     val estimatedText =
@@ -541,20 +558,47 @@ fun RsvpSettingsContent(
     Text(estimatedText, style = MaterialTheme.typography.bodyMedium)
     Spacer(modifier = Modifier.height(10.dp))
 
-    val minTempoMs = if (unlockExtremeSpeed) 10L else 30L
+    val minTempoMs = if (unlockExtremeSpeed) EXTREME_MIN_TEMPO_MS_PER_WORD else SAFE_MIN_TEMPO_MS_PER_WORD
+    val speedPercent =
+        remember(tempoMsPerWord, minTempoMs) {
+            RsvpSpeedControl.displaySpeed(
+                RsvpSpeedControl.speedForTempoMs(
+                    tempoMsPerWord = tempoMsPerWord,
+                    minTempoMsPerWord = minTempoMs,
+                    maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
+                ),
+            )
+        }
     SettingsCard(
         title = stringResource(R.string.rsvp_quick_tune_title),
         subtitle = stringResource(R.string.rsvp_quick_tune_subtitle),
     ) {
         DeferredSliderRow(
-            title = stringResource(R.string.rsvp_tempo_title),
-            subtitle = stringResource(R.string.rsvp_tempo_details_subtitle),
-            valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
-            rawValue = config.tempoMsPerWord.toFloat(),
-            onCommit = { newValue ->
-                updateConfig { it.copy(tempoMsPerWord = newValue.toLong().coerceIn(minTempoMs, 240L)) }
+            title = stringResource(R.string.rsvp_reading_speed_title),
+            subtitle = stringResource(R.string.rsvp_reading_speed_details_subtitle),
+            valueLabel = {
+                context.getString(
+                    R.string.rsvp_reading_speed_indicator,
+                    context.getString(
+                        rsvpSpeedBandLabelRes(
+                            speed = it,
+                            extremeUnlocked = unlockExtremeSpeed,
+                        ),
+                    ),
+                    it.roundToInt(),
+                )
             },
-            valueRange = minTempoMs.toFloat()..240f,
+            rawValue = speedPercent.toFloat(),
+            onCommit = { newValue ->
+                onTempoMsPerWordChange(
+                    RsvpSpeedControl.tempoForSpeed(
+                        speed = newValue,
+                        minTempoMsPerWord = minTempoMs,
+                        maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
+                    ),
+                )
+            },
+            valueRange = RsvpSpeedControl.MIN_SPEED..RsvpSpeedControl.MAX_SPEED,
         )
         DeferredSliderRow(
             title = stringResource(R.string.rsvp_min_word_time_title),
@@ -653,8 +697,8 @@ fun RsvpSettingsContent(
                     checked = unlockExtremeSpeed,
                     onCheckedChange = { enabled ->
                         onUnlockExtremeSpeedChange(enabled)
-                        if (!enabled && config.tempoMsPerWord < 30L) {
-                            updateConfig { it.copy(tempoMsPerWord = 30L) }
+                        if (!enabled && tempoMsPerWord < SAFE_MIN_TEMPO_MS_PER_WORD) {
+                            onTempoMsPerWordChange(SAFE_MIN_TEMPO_MS_PER_WORD)
                         }
                     },
                 )
@@ -738,11 +782,24 @@ fun RsvpSettingsContent(
                 summary =
                 stringResource(
                     R.string.rsvp_punctuation_pauses_summary,
+                    formatMultiplier(context, config.punctuationPauseFactor),
                     config.commaPauseMs,
                     config.periodPauseMs,
                     config.paragraphPauseMs,
                 ),
             ) {
+                DeferredSliderRow(
+                    title = stringResource(R.string.rsvp_punctuation_breathing_title),
+                    subtitle = stringResource(R.string.rsvp_punctuation_breathing_subtitle),
+                    valueLabel = { context.getString(R.string.format_multiplier, it) },
+                    rawValue = config.punctuationPauseFactor.toFloat(),
+                    onCommit = { newValue ->
+                        updateConfig {
+                            it.copy(punctuationPauseFactor = newValue.toDouble().coerceIn(0.5, 1.75))
+                        }
+                    },
+                    valueRange = 0.5f..1.75f,
+                )
                 DeferredSliderRow(
                     title = stringResource(R.string.rsvp_punctuation_comma),
                     valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
@@ -1076,6 +1133,7 @@ private fun RsvpProfileSelector(
     selectedProfileId: String,
     customProfiles: List<RsvpCustomProfile>,
     config: RsvpConfig,
+    profileComparisonConfig: RsvpConfig,
     onSelectProfile: (String) -> Unit,
     onSaveCustomProfile: (String, RsvpConfig) -> Unit,
     onDeleteCustomProfile: (String) -> Unit,
@@ -1086,19 +1144,24 @@ private fun RsvpProfileSelector(
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val builtInOptions = remember { RsvpProfile.entries.toList() }
-    val selectedBuiltIn =
-        remember(selectedProfileId) { RsvpProfileIds.parseBuiltIn(selectedProfileId) }
-    val selectedCustom =
-        remember(selectedProfileId, customProfiles) {
-            customProfiles.firstOrNull { it.id == selectedProfileId }
+    val selectionState =
+        remember(selectedProfileId, customProfiles, profileComparisonConfig) {
+            resolveRsvpProfileSelectionState(
+                selectedProfileId = selectedProfileId,
+                customProfiles = customProfiles,
+                profileComparisonConfig = profileComparisonConfig,
+            )
         }
+    val effectiveSelectedProfileId = selectionState.effectiveSelectedProfileId
+    val selectedBuiltIn = selectionState.selectedBuiltIn
+    val selectedCustom = selectionState.selectedCustom
     val isCustomSelected =
-        selectedProfileId == RsvpProfileIds.CUSTOM_UNSAVED || selectedCustom != null
+        effectiveSelectedProfileId == RsvpProfileIds.CUSTOM_UNSAVED || selectedCustom != null
     val isUserProfileSelected = selectedCustom != null
 
     val selectedLabel =
         when {
-            selectedProfileId == RsvpProfileIds.CUSTOM_UNSAVED ->
+            effectiveSelectedProfileId == RsvpProfileIds.CUSTOM_UNSAVED ->
                 stringResource(R.string.rsvp_profile_custom)
             selectedBuiltIn != null -> stringResource(rsvpProfileNameRes(selectedBuiltIn))
             selectedCustom != null -> selectedCustom.name
@@ -1106,7 +1169,7 @@ private fun RsvpProfileSelector(
         }
     val selectedDescription =
         when {
-            selectedProfileId == RsvpProfileIds.CUSTOM_UNSAVED ->
+            effectiveSelectedProfileId == RsvpProfileIds.CUSTOM_UNSAVED ->
                 stringResource(R.string.rsvp_profile_unsaved_tweaks)
             selectedBuiltIn != null -> stringResource(rsvpProfileDescriptionRes(selectedBuiltIn))
             selectedCustom != null -> stringResource(R.string.rsvp_profile_saved_profile)
@@ -1254,7 +1317,7 @@ private fun RsvpProfileSelector(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onSaveCustomProfile(saveName, config)
+                        onSaveCustomProfile(saveName, config.asProfileIdentityConfig())
                         showSaveDialog = false
                         saveName = ""
                     },
@@ -1294,6 +1357,60 @@ private fun RsvpProfileSelector(
             },
         )
     }
+}
+
+internal data class RsvpProfileSelectionState(
+    val effectiveSelectedProfileId: String,
+    val selectedBuiltIn: RsvpProfile?,
+    val selectedCustom: RsvpCustomProfile?,
+)
+
+internal fun resolveRsvpProfileSelectionState(
+    selectedProfileId: String,
+    customProfiles: List<RsvpCustomProfile>,
+    profileComparisonConfig: RsvpConfig,
+): RsvpProfileSelectionState {
+    val selectedBuiltIn = RsvpProfileIds.parseBuiltIn(selectedProfileId)
+    val selectedCustom = customProfiles.firstOrNull { it.id == selectedProfileId }
+    val comparableConfig = profileComparisonConfig.asProfileIdentityConfig()
+    val matchesSelectedProfile =
+        when {
+            selectedProfileId == RsvpProfileIds.CUSTOM_UNSAVED -> false
+            selectedBuiltIn != null ->
+                selectedBuiltIn.defaultConfig().asProfileIdentityConfig() == comparableConfig
+            selectedCustom != null ->
+                selectedCustom.config.asProfileIdentityConfig() == comparableConfig
+            else -> false
+        }
+    return if (matchesSelectedProfile) {
+        RsvpProfileSelectionState(
+            effectiveSelectedProfileId = selectedProfileId,
+            selectedBuiltIn = selectedBuiltIn,
+            selectedCustom = selectedCustom,
+        )
+    } else {
+        RsvpProfileSelectionState(
+            effectiveSelectedProfileId = RsvpProfileIds.CUSTOM_UNSAVED,
+            selectedBuiltIn = null,
+            selectedCustom = null,
+        )
+    }
+}
+
+private fun RsvpConfig.withLiveTempo(tempoMsPerWord: Long): RsvpConfig {
+    val safeTempoMsPerWord = tempoMsPerWord.coerceAtLeast(EXTREME_MIN_TEMPO_MS_PER_WORD)
+    return copy(
+        tempoMsPerWord = safeTempoMsPerWord,
+        baseWpm = (60_000.0 / safeTempoMsPerWord.toDouble()).roundToInt().coerceAtLeast(1),
+    )
+}
+
+private fun RsvpConfig.asProfileIdentityConfig(): RsvpConfig {
+    val defaults = RsvpConfig()
+    return copy(
+        tempoMsPerWord = defaults.tempoMsPerWord,
+        baseWpm = defaults.baseWpm,
+    )
 }
 
 @Composable

@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import com.example.kairo.core.model.nearestWordIndex
+import com.example.kairo.core.rsvp.RsvpSpeedControl
 import kotlin.math.abs
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -194,13 +195,26 @@ private fun handleDragEnd(context: RsvpUiContext) {
 
 private fun handleTempoDrag(context: RsvpUiContext) {
     val runtime = context.runtime
-    val tempoDeltaMs =
-        (runtime.dragAccumulator / TEMPO_SWIPE_THRESHOLD_PX).toInt() * TEMPO_STEP_MS
-    if (tempoDeltaMs == 0L) return
+    val speedDelta =
+        (runtime.dragAccumulator / TEMPO_SWIPE_THRESHOLD_PX).toInt() * SPEED_STEP_PERCENT
+    if (speedDelta == ZERO_FLOAT) return
+
+    val dragStartSpeed =
+        RsvpSpeedControl.speedForTempoMs(
+            tempoMsPerWord = runtime.dragStartTempoMsPerWord,
+            minTempoMsPerWord = context.timing.minTempoMs,
+            maxTempoMsPerWord = context.timing.maxTempoMs,
+        )
+    val newSpeed =
+        (dragStartSpeed - speedDelta)
+            .coerceIn(RsvpSpeedControl.MIN_SPEED, RsvpSpeedControl.MAX_SPEED)
 
     val newTempo =
-        (runtime.dragStartTempoMsPerWord + tempoDeltaMs)
-            .coerceIn(context.timing.minTempoMs, context.timing.maxTempoMs)
+        RsvpSpeedControl.tempoForSpeed(
+            speed = newSpeed,
+            minTempoMsPerWord = context.timing.minTempoMs,
+            maxTempoMsPerWord = context.timing.maxTempoMs,
+        )
     if (newTempo != runtime.currentTempoMsPerWord) {
         runtime.currentTempoMsPerWord = newTempo
         runtime.showTempoIndicator = true
