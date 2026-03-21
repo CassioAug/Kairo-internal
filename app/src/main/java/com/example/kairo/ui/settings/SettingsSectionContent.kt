@@ -606,9 +606,9 @@ fun RsvpSettingsContent(
             valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
             rawValue = config.minWordMs.toFloat(),
             onCommit = { newValue ->
-                updateConfig { it.copy(minWordMs = newValue.toLong().coerceIn(30L, 140L)) }
+                updateConfig { it.copy(minWordMs = newValue.toLong().coerceIn(20L, 140L)) }
             },
-            valueRange = 30f..140f,
+            valueRange = 20f..140f,
         )
         DeferredSliderRow(
             title = stringResource(R.string.rsvp_long_word_min_title),
@@ -616,9 +616,9 @@ fun RsvpSettingsContent(
             valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
             rawValue = config.longWordMinMs.toFloat(),
             onCommit = { newValue ->
-                updateConfig { it.copy(longWordMinMs = newValue.toLong().coerceIn(80L, 300L)) }
+                updateConfig { it.copy(longWordMinMs = newValue.toLong().coerceIn(60L, 300L)) }
             },
-            valueRange = 80f..300f,
+            valueRange = 60f..300f,
         )
         DeferredSliderRow(
             title = stringResource(R.string.rsvp_sentence_end_pause_title),

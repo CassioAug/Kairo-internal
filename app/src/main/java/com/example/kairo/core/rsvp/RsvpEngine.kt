@@ -23,6 +23,7 @@ import com.example.kairo.core.model.effectiveBlinkMode
 import com.example.kairo.core.model.isMidSentencePunctuation
 import com.example.kairo.core.model.isSentenceEndingPunctuation
 import com.example.kairo.core.model.splitTokenForRsvp
+import com.example.kairo.core.model.wordFloorMsForReadability
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -1501,11 +1502,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
     private fun wordFloorMs(
         word: Token,
         config: RsvpConfig,
-    ): Long {
-        if (word.isSubwordChunk) return config.longWordMinMs
-        val letters = word.text.count { it.isLetterOrDigit() }
-        return if (letters >= config.longWordChars) config.longWordMinMs else config.minWordMs
-    }
+    ): Long = config.wordFloorMsForReadability(word)
 
     private fun pageBreakBasePauseMs(config: RsvpConfig): Double =
         max(
@@ -2028,8 +2025,8 @@ class ComprehensionRsvpEngine : RsvpEngine {
         private const val FLOW_MAX_BOOST = 0.04
         private const val FLOW_MAX_SLOWDOWN = 0.05
         private const val FLOW_STRENGTH = 0.12
-        private const val MAX_BOUNDARY_TAIL_LIFT = 0.12
-        private const val MIN_BOUNDARY_TAIL_LIFT_STRENGTH = 0.35
+        private const val MAX_BOUNDARY_TAIL_LIFT = 0.30
+        private const val MIN_BOUNDARY_TAIL_LIFT_STRENGTH = 0.85
         private const val MIN_LANDING_HOLD_MS = 8.0
         private const val MAX_LANDING_HOLD_MS = 30.0
         private const val LANDING_HOLD_SPEED_BOOST = 0.35
