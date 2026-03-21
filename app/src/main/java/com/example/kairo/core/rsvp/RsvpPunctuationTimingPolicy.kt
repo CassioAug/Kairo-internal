@@ -5,6 +5,7 @@ import com.example.kairo.core.model.RsvpConfig
 import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.TokenType
 import com.example.kairo.core.model.isMidSentencePunctuation
+import com.example.kairo.core.model.speedNarrowingFactor
 import kotlin.math.max
 import kotlin.math.min
 
@@ -153,10 +154,11 @@ internal object RsvpPunctuationTimingPolicy {
             }
 
         val breathingScale = punctuationBreathingScale(config)
+        val speedScale = config.speedNarrowingFactor(config.tempoMsPerWord)
 
         return RsvpPunctuationPauseTiming(
-            baseMs = base * breathingScale,
-            floorMs = floor * breathingScale,
+            baseMs = base * breathingScale * speedScale,
+            floorMs = floor * breathingScale * speedScale,
             scaleRetentionBoost = scaleRetentionBoost,
         )
     }

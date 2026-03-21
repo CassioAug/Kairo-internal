@@ -9,7 +9,7 @@ object RsvpSpeedControl {
     const val MIN_SPEED = 0f
     const val MAX_SPEED = 100f
     const val SAFE_MIN_TEMPO_MS_PER_WORD = 20L
-    const val EXTREME_MIN_TEMPO_MS_PER_WORD = 5L
+    const val EXTREME_MIN_TEMPO_MS_PER_WORD = 3L
     const val MAX_TEMPO_MS_PER_WORD = 240L
 
     enum class SpeedBand {

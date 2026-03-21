@@ -2,6 +2,7 @@ package com.example.kairo.core.rsvp
 
 import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.TokenType
+import com.example.kairo.core.model.RsvpConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,6 +54,35 @@ class RsvpPunctuationTimingPolicyTest {
             )
 
         assertEquals(RsvpPunctuationTier.NONE, tier)
+    }
+
+    @Test
+    fun punctuationTimingNarrowsAtHigherSpeed() {
+        val slow =
+            RsvpPunctuationTimingPolicy.resolvePauseTiming(
+                token = punctuation(","),
+                prevWord = word("Wait"),
+                nextToken = word("again"),
+                config =
+                    RsvpConfig(
+                        tempoMsPerWord = 120L,
+                        commaPauseMs = 100L,
+                    ),
+            )
+        val fast =
+            RsvpPunctuationTimingPolicy.resolvePauseTiming(
+                token = punctuation(","),
+                prevWord = word("Wait"),
+                nextToken = word("again"),
+                config =
+                    RsvpConfig(
+                        tempoMsPerWord = 55L,
+                        commaPauseMs = 100L,
+                    ),
+            )
+
+        assertTrue(fast.baseMs < slow.baseMs)
+        assertTrue(fast.floorMs < slow.floorMs)
     }
 
     @Test
