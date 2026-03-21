@@ -6,8 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -42,6 +42,7 @@ fun RsvpScreen(
     val runtime =
         rememberRsvpRuntimeState(
             profile = state.profile,
+            launchTempoMsPerWord = state.launchTempoMsPerWord,
             textStyle = state.textStyle,
             layoutBias = state.layoutBias,
             startIndex = state.book.startIndex,
@@ -146,6 +147,7 @@ fun RsvpScreen(
 @Composable
 private fun rememberRsvpRuntimeState(
     profile: RsvpProfileContext,
+    launchTempoMsPerWord: Long?,
     textStyle: RsvpTextStyle,
     layoutBias: RsvpLayoutBias,
     startIndex: Int,
@@ -157,7 +159,7 @@ private fun rememberRsvpRuntimeState(
     var savedIsPlaying by rememberSaveable(sessionKey) { mutableStateOf(true) }
     var savedCompleted by rememberSaveable(sessionKey) { mutableStateOf(false) }
     var savedTempoMsPerWord by rememberSaveable(sessionKey) {
-        mutableStateOf(profile.config.tempoMsPerWord)
+        mutableStateOf(launchTempoMsPerWord ?: profile.config.tempoMsPerWord)
     }
     var savedFontSizeSp by rememberSaveable(sessionKey) { mutableStateOf(textStyle.fontSizeSp) }
     var savedFontWeight by rememberSaveable(sessionKey) { mutableStateOf(textStyle.fontWeight) }
@@ -169,12 +171,15 @@ private fun rememberRsvpRuntimeState(
     var savedHorizontalBias by rememberSaveable(sessionKey) {
         mutableStateOf(layoutBias.horizontalBias)
     }
-    val prefsFingerprint =
-        remember(profile, textStyle, layoutBias) {
-            buildPrefsFingerprint(profile, textStyle, layoutBias)
+    val appearanceFingerprint =
+        remember(textStyle, layoutBias) {
+            buildAppearanceFingerprint(textStyle, layoutBias)
         }
-    var lastPrefsFingerprint by rememberSaveable(sessionKey) {
-        mutableStateOf(prefsFingerprint)
+    var lastAppearanceFingerprint by rememberSaveable(sessionKey) {
+        mutableStateOf(appearanceFingerprint)
+    }
+    var lastPersistedProfileId by rememberSaveable(sessionKey) {
+        mutableStateOf(profile.selectedProfileId)
     }
     val state =
         remember(sessionKey) {
@@ -211,10 +216,8 @@ private fun rememberRsvpRuntimeState(
         }
     }
 
-    LaunchedEffect(prefsFingerprint) {
-        if (prefsFingerprint != lastPrefsFingerprint) {
-            state.currentTempoMsPerWord = profile.config.tempoMsPerWord
-            state.dragStartTempoMsPerWord = profile.config.tempoMsPerWord
+    LaunchedEffect(appearanceFingerprint) {
+        if (appearanceFingerprint != lastAppearanceFingerprint) {
             state.currentFontFamily = textStyle.fontFamily
             state.currentTextBrightness = textStyle.textBrightness
             state.currentFontSizeSp = textStyle.fontSizeSp
@@ -223,15 +226,31 @@ private fun rememberRsvpRuntimeState(
             state.currentHorizontalBias = layoutBias.horizontalBias
             state.dragStartBias = layoutBias.verticalBias
             state.dragStartHorizontalBias = layoutBias.horizontalBias
-            savedTempoMsPerWord = state.currentTempoMsPerWord
             savedFontSizeSp = state.currentFontSizeSp
             savedFontWeight = state.currentFontWeight
             savedFontFamily = state.currentFontFamily
             savedTextBrightness = state.currentTextBrightness
             savedVerticalBias = state.currentVerticalBias
             savedHorizontalBias = state.currentHorizontalBias
-            lastPrefsFingerprint = prefsFingerprint
+            lastAppearanceFingerprint = appearanceFingerprint
         }
+    }
+
+    LaunchedEffect(profile.selectedProfileId, profile.config.tempoMsPerWord) {
+        val incomingTempoMsPerWord = profile.config.tempoMsPerWord
+        if (
+            shouldApplyPersistedTempo(
+                currentTempoMsPerWord = state.currentTempoMsPerWord,
+                incomingTempoMsPerWord = incomingTempoMsPerWord,
+                lastSelectedProfileId = lastPersistedProfileId,
+                incomingSelectedProfileId = profile.selectedProfileId,
+            )
+        ) {
+            state.currentTempoMsPerWord = incomingTempoMsPerWord
+            state.dragStartTempoMsPerWord = incomingTempoMsPerWord
+            savedTempoMsPerWord = incomingTempoMsPerWord
+        }
+        lastPersistedProfileId = profile.selectedProfileId
     }
 
     LaunchedEffect(
@@ -267,6 +286,20 @@ private fun rememberRsvpRuntimeState(
     }
 
     return state
+}
+
+internal fun shouldApplyPersistedTempo(
+    currentTempoMsPerWord: Long,
+    incomingTempoMsPerWord: Long,
+    lastSelectedProfileId: String,
+    incomingSelectedProfileId: String,
+): Boolean {
+    if (currentTempoMsPerWord <= 0L) return true
+    if (currentTempoMsPerWord == incomingTempoMsPerWord) return true
+    if (currentTempoMsPerWord < com.example.kairo.core.rsvp.RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD) {
+        return false
+    }
+    return incomingSelectedProfileId != lastSelectedProfileId
 }
 
 @Composable
@@ -349,13 +382,11 @@ private fun shouldShowLoading(frameState: RsvpFrameLoadState): Boolean =
 private fun buildSessionKey(book: RsvpBookContext): String =
     "${book.bookId.value}:${book.chapterIndex}:${book.startIndex}:${book.startResumeCursor}"
 
-private fun buildPrefsFingerprint(
-    profile: RsvpProfileContext,
+private fun buildAppearanceFingerprint(
     textStyle: RsvpTextStyle,
     layoutBias: RsvpLayoutBias,
 ): String =
     listOf(
-        profile.config.tempoMsPerWord,
         textStyle.fontSizeSp,
         textStyle.fontWeight.name,
         textStyle.fontFamily.name,
@@ -365,10 +396,7 @@ private fun buildPrefsFingerprint(
     ).joinToString("|")
 
 internal fun frameLoadConfigKey(config: com.example.kairo.core.model.RsvpConfig):
-    com.example.kairo.core.model.RsvpConfig = config.copy(
-        tempoMsPerWord = 0L,
-        baseWpm = 0,
-    )
+    com.example.kairo.core.model.RsvpConfig = config.copy(baseWpm = 0)
 
 private const val FRAME_LOAD_RETRY_DELAY_MS = 200L
 private const val MAX_FRAME_LOAD_RETRIES = 3

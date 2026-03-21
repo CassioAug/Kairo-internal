@@ -13,10 +13,10 @@ import com.example.kairo.core.model.RsvpConfig
 import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.TokenType
 import com.example.kairo.core.model.effectiveBlinkMode
-import com.example.kairo.core.model.isMidSentencePunctuation
 import com.example.kairo.core.model.isSentenceEndingPunctuation
 import com.example.kairo.core.model.nearestWordIndex
 import com.example.kairo.core.model.wordFloorMsForReadability
+import com.example.kairo.core.rsvp.RsvpPunctuationTimingPolicy
 import kotlin.math.max
 import kotlin.math.roundToLong
 import kotlinx.coroutines.delay
@@ -86,7 +86,8 @@ internal fun RsvpSessionResetEffect(
         runtime.nextFrameAtMs = 0L
         runtime.isPlaying = autoPlay
         runtime.completed = false
-        runtime.currentTempoMsPerWord = profile.config.tempoMsPerWord
+        runtime.currentTempoMsPerWord =
+            context.state.launchTempoMsPerWord ?: profile.config.tempoMsPerWord
         runtime.currentFontSizeSp = textStyle.fontSizeSp
         runtime.currentFontWeight = textStyle.fontWeight
         runtime.currentFontFamily = textStyle.fontFamily
@@ -271,37 +272,10 @@ private fun punctuationFloorMs(
     }
 
     val prevWord = tokens.subList(0, index).lastOrNull { it.type == TokenType.WORD }
-    val prevText = prevWord?.text.orEmpty()
-
-    val pauseFloorScale = config.minPauseScale.coerceIn(0.0, 1.0)
-    val sentenceFloor = (config.sentenceEndPauseMs * pauseFloorScale).roundToLong()
-    val periodFloor = (config.periodPauseMs * pauseFloorScale).roundToLong()
-    val commaFloor = (config.commaPauseMs * pauseFloorScale).roundToLong()
-    val semicolonFloor = (config.semicolonPauseMs * pauseFloorScale).roundToLong()
-    val colonFloor = (config.colonPauseMs * pauseFloorScale).roundToLong()
-    val dashFloor = (config.dashPauseMs * pauseFloorScale).roundToLong()
-    val parenFloor = (config.parenthesesPauseMs * pauseFloorScale).roundToLong()
-    val quoteFloor = (config.quotePauseMs * pauseFloorScale).roundToLong()
-    val ellipsisFloor = commaFloor
-
-    return when {
-        ch == '.' ->
-            if (isDecimalPoint(prevText, nextToken) || isThousandSeparator(prevText, nextToken)) {
-                0L
-            } else {
-                periodFloor
-            }
-        ch == '\u2026' -> ellipsisFloor
-        isSentenceEndingPunctuation(ch) -> sentenceFloor
-        ch == ',' -> if (isThousandSeparator(prevText, nextToken)) 0L else commaFloor
-        ch == ';' -> semicolonFloor
-        ch == ':' -> colonFloor
-        ch == '\u2014' || ch == '\u2013' || ch == '-' -> dashFloor
-        ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}' -> parenFloor
-        ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019' -> quoteFloor
-        isMidSentencePunctuation(ch) -> commaFloor
-        else -> 0L
-    }
+    return RsvpPunctuationTimingPolicy
+        .resolvePauseTiming(token, prevWord, nextToken, config)
+        .floorMs
+        .roundToLong()
 }
 
 private fun isOpeningPunctuationChar(ch: Char): Boolean = ch == '"' || ch in ORP_OPENING_PUNCTUATION
@@ -318,25 +292,6 @@ private fun isQuoteOrBracket(ch: Char): Boolean =
         ch == ']' ||
         ch == '{' ||
         ch == '}'
-
-private fun isDecimalPoint(
-    prevText: String,
-    nextToken: Token?,
-): Boolean {
-    if (!prevText.any { it.isDigit() }) return false
-    val nextText = nextToken?.text ?: return false
-    return nextText.any { it.isDigit() }
-}
-
-private fun isThousandSeparator(
-    prevText: String,
-    nextToken: Token?,
-): Boolean {
-    if (prevText.isEmpty() || nextToken?.type != TokenType.WORD) return false
-    if (!prevText.all { it.isDigit() }) return false
-    val nextText = nextToken.text
-    return nextText.length == 3 && nextText.all { it.isDigit() }
-}
 
 private fun shouldSkipBlinkFrame(
     frame: com.example.kairo.core.model.RsvpFrame,
