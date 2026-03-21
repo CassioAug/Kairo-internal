@@ -105,13 +105,7 @@ fun isMidSentencePunctuation(char: Char): Boolean =
         char == '‧' ||
         char == '،' ||
         char == '؛' ||
-        char == '־' ||
-        char == '״' ||
-        char == '׳' ||
-        // Em-dash — and en-dash –
-        char == ')' ||
-        char == ']' ||
-        char == '}' // Closing brackets get a slight pause
+        char == '־'
 
 fun normalizeWhitespace(input: String): String =
     input

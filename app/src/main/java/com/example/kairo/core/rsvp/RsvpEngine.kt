@@ -448,6 +448,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 prevWord = prevWord,
                 nextWord = nextWord,
                 config = config,
+                speedStrength = speedStrength,
             )
 
         var duration = 0.0
@@ -480,7 +481,10 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     val dialogueMultiplier = if (config.useDialogueDetection &&
                         inDialogue
                     ) {
-                        config.dialogueMultiplier
+                        contextShapingMultiplier(
+                            targetMultiplier = config.dialogueMultiplier,
+                            speedStrength = speedStrength,
+                        )
                     } else {
                         1.0
                     }
@@ -982,10 +986,16 @@ class ComprehensionRsvpEngine : RsvpEngine {
             }
             ch == '\u2026' -> 1.0
             isSentenceEndingPunctuation(ch) -> 0.88
-            ch == ';' -> 0.74
-            ch == ':' -> 0.60
-            ch == '\u2014' || ch == '\u2013' || ch == '-' -> 0.56
-            ch == ',' && isClauseLeadPunctuation(ch, nextToken) -> 0.42
+            ch == ';' -> 0.72
+            ch == ':' -> 0.76
+            ch == '\u2014' || ch == '\u2013' || ch == '-' -> 0.82
+            // Commas need a baseline linger even when they are not clause-leading.
+            ch == ',' ->
+                if (isClauseLeadPunctuation(ch, nextToken)) {
+                    0.42
+                } else {
+                    0.24
+                }
             else -> 0.0
         }
     }
@@ -1014,9 +1024,12 @@ class ComprehensionRsvpEngine : RsvpEngine {
             ch == ';' -> SEMICOLON_RETENTION_BOOST
             ch == ':' || ch == '\u2014' || ch == '\u2013' || ch == '-' ->
                 CLAUSE_PUNCTUATION_RETENTION_BOOST
-            ch == ',' && isClauseLeadPunctuation(ch, nextToken) ->
-                CLAUSE_PUNCTUATION_RETENTION_BOOST
-            ch == ',' -> COMMA_RETENTION_BOOST
+            ch == ',' ->
+                if (isClauseLeadPunctuation(ch, nextToken)) {
+                    CLAUSE_PUNCTUATION_RETENTION_BOOST
+                } else {
+                    COMMA_RETENTION_BOOST
+                }
             ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019' ->
                 QUOTE_RETENTION_BOOST
             ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}' ->
@@ -1162,6 +1175,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
         prevWord: Token?,
         nextWord: Token?,
         config: RsvpConfig,
+        speedStrength: Double,
     ): Double {
         if (!config.useDialogueDetection) return 1.0
 
@@ -1199,7 +1213,23 @@ class ComprehensionRsvpEngine : RsvpEngine {
         }
 
         val matchesTag = candidates.any { DialogueAnalyzer.isSpeakerTag(it) }
-        return if (matchesTag) DialogueAnalyzer.SPEAKER_TAG_MULTIPLIER else 1.0
+        return if (matchesTag) {
+            contextShapingMultiplier(
+                targetMultiplier = DialogueAnalyzer.SPEAKER_TAG_MULTIPLIER,
+                speedStrength = speedStrength,
+            )
+        } else {
+            1.0
+        }
+    }
+
+    private fun contextShapingMultiplier(
+        targetMultiplier: Double,
+        speedStrength: Double,
+    ): Double {
+        if (targetMultiplier == 1.0) return 1.0
+        val effectStrength = speedStrength.coerceIn(0.0, 1.0)
+        return 1.0 + ((targetMultiplier - 1.0) * effectStrength)
     }
 
     private fun transitionHoldMs(
@@ -1375,7 +1405,13 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val adjacentSentencePunct =
             nextIsPunct &&
                 nextCh != null &&
-                (isSentenceEndingPunctuation(nextCh) || isMidSentencePunctuation(nextCh))
+                (
+                    isSentenceEndingPunctuation(nextCh) ||
+                        isMidSentencePunctuation(nextCh) ||
+                        nextCh == ')' ||
+                        nextCh == ']' ||
+                        nextCh == '}'
+                    )
 
         return adjacentSentencePunct || (prevWord != null && nextToken?.type == TokenType.WORD)
     }
@@ -1474,10 +1510,16 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 }
             ch == '\u2026' -> 1.40
             isSentenceEndingPunctuation(ch) -> 1.26
-            ch == ';' -> 0.62
-            ch == ':' -> 0.58
-            ch == '\u2014' || ch == '\u2013' || ch == '-' -> 0.46
-            ch == ',' && isClauseLeadPunctuation(ch, nextToken) -> 0.24
+            ch == ';' -> 0.64
+            ch == ':' -> 0.68
+            ch == '\u2014' || ch == '\u2013' || ch == '-' -> 0.74
+            // Keep a small tail lift on commas so short words do not make them vanish.
+            ch == ',' ->
+                if (isClauseLeadPunctuation(ch, nextToken)) {
+                    0.24
+                } else {
+                    0.12
+                }
             else -> 0.0
         }
     }
