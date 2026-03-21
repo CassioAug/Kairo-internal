@@ -152,7 +152,9 @@
     <string name="rsvp_rarity_boost_title">Rarity boost</string>
     <string name="rsvp_complexity_strength_title">Complexity strength</string>
     <string name="rsvp_punctuation_pauses_title">Punctuation pauses</string>
-    <string name="rsvp_punctuation_pauses_summary">Comma %1$dms | Period %2$dms | Paragraph %3$dms</string>
+    <string name="rsvp_punctuation_pauses_summary">Breathing %1$s | Comma %2$dms | Period %3$dms | Paragraph %4$dms</string>
+    <string name="rsvp_punctuation_breathing_title">Punctuation breathing</string>
+    <string name="rsvp_punctuation_breathing_subtitle">Scales punctuation pauses as a group.</string>
     <string name="rsvp_punctuation_comma">Comma</string>
     <string name="rsvp_punctuation_period">Period</string>
     <string name="rsvp_punctuation_dash">Dash</string>

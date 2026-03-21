@@ -147,9 +147,11 @@ internal object RsvpPunctuationTimingPolicy {
                 else -> 0.0
             }
 
+        val breathingScale = punctuationBreathingScale(config)
+
         return RsvpPunctuationPauseTiming(
-            baseMs = base,
-            floorMs = floor,
+            baseMs = base * breathingScale,
+            floorMs = floor * breathingScale,
             scaleRetentionBoost = scaleRetentionBoost,
         )
     }
@@ -308,6 +310,9 @@ internal object RsvpPunctuationTimingPolicy {
                 RsvpPunctuationTier.SOFT_SEPARATOR
             else -> if (isMidSentencePunctuation(ch)) RsvpPunctuationTier.SOFT_SEPARATOR else RsvpPunctuationTier.NONE
         }
+
+    private fun punctuationBreathingScale(config: RsvpConfig): Double =
+        config.punctuationPauseFactor.coerceIn(0.5, 1.75)
 
     internal fun resolveTier(
         token: Token,

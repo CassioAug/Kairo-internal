@@ -738,11 +738,24 @@ fun RsvpSettingsContent(
                 summary =
                 stringResource(
                     R.string.rsvp_punctuation_pauses_summary,
+                    formatMultiplier(context, config.punctuationPauseFactor),
                     config.commaPauseMs,
                     config.periodPauseMs,
                     config.paragraphPauseMs,
                 ),
             ) {
+                DeferredSliderRow(
+                    title = stringResource(R.string.rsvp_punctuation_breathing_title),
+                    subtitle = stringResource(R.string.rsvp_punctuation_breathing_subtitle),
+                    valueLabel = { context.getString(R.string.format_multiplier, it) },
+                    rawValue = config.punctuationPauseFactor.toFloat(),
+                    onCommit = { newValue ->
+                        updateConfig {
+                            it.copy(punctuationPauseFactor = newValue.toDouble().coerceIn(0.5, 1.75))
+                        }
+                    },
+                    valueRange = 0.5f..1.75f,
+                )
                 DeferredSliderRow(
                     title = stringResource(R.string.rsvp_punctuation_comma),
                     valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
