@@ -3,6 +3,7 @@ package com.example.kairo.core.rsvp
 import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.TokenType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RsvpPunctuationTimingPolicyTest {
@@ -52,6 +53,23 @@ class RsvpPunctuationTimingPolicyTest {
             )
 
         assertEquals(RsvpPunctuationTier.NONE, tier)
+    }
+
+    @Test
+    fun sentenceEndContourDampensTailLiftWhenLandingIsActive() {
+        val contour =
+            RsvpPunctuationTimingPolicy.resolveBoundaryContour(
+                token = punctuation("."),
+                prevWord = word("Hello"),
+                nextToken = word("Now"),
+            )
+
+        assertTrue(contour.landingHoldWeight > 0.0)
+        assertTrue(contour.tailLiftWeight > 0.0)
+        assertTrue(
+            "Expected landing settle to temper the tail lift a little",
+            contour.tailLiftWeight < (1.26 * 0.92),
+        )
     }
 
     private fun word(text: String) = Token(text = text, type = TokenType.WORD)

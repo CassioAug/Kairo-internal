@@ -14,7 +14,7 @@ data class LibraryBookProgress(
 suspend fun buildLibraryProgress(
     books: List<Book>,
     positions: List<ReadingPosition>,
-    estimatedWpm: Int,
+    estimatedWpmByBookId: Map<String, Int>,
 ): Map<String, LibraryBookProgress> {
     if (books.isEmpty()) return emptyMap()
     val positionsByBook = positions.associateBy { it.bookId.value }
@@ -59,9 +59,10 @@ suspend fun buildLibraryProgress(
             }
 
         val remainingMinutes =
-            if (estimatedWpm > 0 && totalWords > 0) {
+            if (totalWords > 0) {
+                val estimatedWpm = estimatedWpmByBookId[book.id.value] ?: 0
                 val remainingWords = (totalWords - wordsRead).coerceAtLeast(0)
-                if (remainingWords == 0) {
+                if (estimatedWpm <= 0 || remainingWords == 0) {
                     null
                 } else {
                     estimateMinutesForWords(remainingWords, estimatedWpm)

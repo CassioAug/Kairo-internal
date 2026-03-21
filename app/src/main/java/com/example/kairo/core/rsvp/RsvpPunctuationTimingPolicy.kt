@@ -14,6 +14,11 @@ internal data class RsvpPunctuationPauseTiming(
     val scaleRetentionBoost: Double,
 )
 
+internal data class RsvpBoundaryContour(
+    val landingHoldWeight: Double,
+    val tailLiftWeight: Double,
+)
+
 internal enum class RsvpPunctuationTier {
     SENTENCE_END,
     CLAUSE_BREAK,
@@ -161,19 +166,47 @@ internal object RsvpPunctuationTimingPolicy {
         prevWord: Token?,
         nextToken: Token?,
     ): Double {
-        val ch = token.text.firstOrNull() ?: return 0.0
+        return resolveBoundaryContour(
+            token = token,
+            prevWord = prevWord,
+            nextToken = nextToken,
+        ).landingHoldWeight
+    }
+
+    fun boundaryTailLiftWeight(
+        token: Token,
+        prevWord: Token?,
+        nextToken: Token?,
+    ): Double {
+        return resolveBoundaryContour(
+            token = token,
+            prevWord = prevWord,
+            nextToken = nextToken,
+        ).tailLiftWeight
+    }
+
+    internal fun resolveBoundaryContour(
+        token: Token,
+        prevWord: Token?,
+        nextToken: Token?,
+    ): RsvpBoundaryContour {
+        val ch = token.text.firstOrNull() ?: return ZERO_BOUNDARY_CONTOUR
         val prevText = prevWord?.text.orEmpty()
         val tier = resolveTier(token = token, prevWord = prevWord, nextToken = nextToken)
-        if (tier == RsvpPunctuationTier.NONE) return 0.0
+        if (tier == RsvpPunctuationTier.NONE) return ZERO_BOUNDARY_CONTOUR
         if (ch == '.' &&
             (isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken))
         ) {
-            return 0.0
+            return ZERO_BOUNDARY_CONTOUR
         }
         if (ch == ',' && isThousandSeparator(prevText, nextToken)) {
-            return 0.0
+            return ZERO_BOUNDARY_CONTOUR
         }
-        val base =
+
+        val contourStrength = boundaryTierContourWeight(token = token, nextToken = nextToken, tier = tier)
+        if (contourStrength <= 0.0) return ZERO_BOUNDARY_CONTOUR
+
+        val landingHoldWeight =
             when {
                 tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' ->
                     ELLIPSIS_LANDING_HOLD_WEIGHT
@@ -183,43 +216,37 @@ internal object RsvpPunctuationTimingPolicy {
                     SEMICOLON_LANDING_HOLD_WEIGHT
                 tier == RsvpPunctuationTier.CLAUSE_BREAK ->
                     CLAUSE_LANDING_HOLD_WEIGHT
-                else -> return 0.0
-            }
-        val contourStrength = boundaryTierContourWeight(token = token, nextToken = nextToken, tier = tier)
-        if (contourStrength <= 0.0) return 0.0
-        return base * contourStrength
-    }
+                else -> 0.0
+            } * contourStrength
 
-    fun boundaryTailLiftWeight(
-        token: Token,
-        prevWord: Token?,
-        nextToken: Token?,
-    ): Double {
-        val ch = token.text.firstOrNull() ?: return 0.0
-        val prevText = prevWord?.text.orEmpty()
-        val tier = resolveTier(token = token, prevWord = prevWord, nextToken = nextToken)
-        if (tier == RsvpPunctuationTier.NONE) return 0.0
-        return when {
-            tier == RsvpPunctuationTier.SENTENCE_END && ch == '.' ->
-                when {
-                    isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> 0.0
-                    isLikelySentenceContinuation(nextToken) -> 1.18
-                    else -> 1.34
-                }
-            tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' -> 1.40
-            tier == RsvpPunctuationTier.SENTENCE_END -> 1.26
-            tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ';' -> 0.64
-            tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ':' -> 0.68
-            tier == RsvpPunctuationTier.CLAUSE_BREAK &&
-                (ch == '\u2014' || ch == '\u2013' || ch == '-') -> 0.74
-            tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ',' ->
-                if (isClauseLeadPunctuation(ch, nextToken)) {
-                    0.36
-                } else {
-                    0.24
-                }
-            else -> 0.0
-        }
+        val tailLiftWeight =
+            when {
+                tier == RsvpPunctuationTier.SENTENCE_END && ch == '.' ->
+                    when {
+                        isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> 0.0
+                        isLikelySentenceContinuation(nextToken) -> 1.18
+                        else -> 1.34
+                    }
+                tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' -> 1.40
+                tier == RsvpPunctuationTier.SENTENCE_END -> 1.26
+                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ';' -> 0.64
+                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ':' -> 0.68
+                tier == RsvpPunctuationTier.CLAUSE_BREAK &&
+                    (ch == '\u2014' || ch == '\u2013' || ch == '-') -> 0.74
+                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ',' ->
+                    if (isClauseLeadPunctuation(ch, nextToken)) {
+                        0.36
+                    } else {
+                        0.24
+                    }
+                else -> 0.0
+            } * contourStrength
+
+        return balanceBoundaryContour(
+            tier = tier,
+            landingHoldWeight = landingHoldWeight,
+            tailLiftWeight = tailLiftWeight,
+        )
     }
 
     private fun boundaryTierContourWeight(
@@ -258,6 +285,39 @@ internal object RsvpPunctuationTimingPolicy {
             RsvpPunctuationTier.SOFT_SEPARATOR -> 0.0
             RsvpPunctuationTier.NONE -> 0.0
         }
+    }
+
+    private fun balanceBoundaryContour(
+        tier: RsvpPunctuationTier,
+        landingHoldWeight: Double,
+        tailLiftWeight: Double,
+    ): RsvpBoundaryContour {
+        if (landingHoldWeight <= 0.0 || tailLiftWeight <= 0.0) {
+            return RsvpBoundaryContour(
+                landingHoldWeight = landingHoldWeight,
+                tailLiftWeight = tailLiftWeight,
+            )
+        }
+
+        val overlapPressure =
+            when (tier) {
+                RsvpPunctuationTier.SENTENCE_END -> 0.48
+                RsvpPunctuationTier.CLAUSE_BREAK -> 0.32
+                RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 0.0
+            }
+
+        if (overlapPressure <= 0.0) {
+            return RsvpBoundaryContour(
+                landingHoldWeight = landingHoldWeight,
+                tailLiftWeight = tailLiftWeight,
+            )
+        }
+
+        val dampening = min(0.16, landingHoldWeight.coerceIn(0.0, 0.35) * overlapPressure)
+        return RsvpBoundaryContour(
+            landingHoldWeight = landingHoldWeight,
+            tailLiftWeight = tailLiftWeight * (1.0 - dampening),
+        )
     }
 
     private fun ellipsisPauseBaseMs(
@@ -407,6 +467,8 @@ internal object RsvpPunctuationTimingPolicy {
     private const val SEMICOLON_LANDING_HOLD_WEIGHT = 0.20
     private const val STRONG_LANDING_HOLD_WEIGHT = 0.22
     private const val ELLIPSIS_LANDING_HOLD_WEIGHT = 0.24
+
+    private val ZERO_BOUNDARY_CONTOUR = RsvpBoundaryContour(0.0, 0.0)
 
     private val TITLE_ABBREVIATIONS =
         setOf(

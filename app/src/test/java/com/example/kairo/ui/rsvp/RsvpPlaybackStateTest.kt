@@ -14,10 +14,10 @@ import org.junit.Test
 
 class RsvpPlaybackStateTest {
     @Test
-    fun frameLoadConfigKeyIgnoresTempoButKeepsOtherConfigChanges() {
+    fun frameLoadConfigKeyTracksTempoAndOtherConfigChanges() {
         val baseConfig = RsvpConfig(tempoMsPerWord = 120L, baseWpm = 500, commaPauseMs = 95L)
 
-        assertEquals(
+        assertNotEquals(
             frameLoadConfigKey(baseConfig),
             frameLoadConfigKey(baseConfig.copy(tempoMsPerWord = 180L, baseWpm = 333)),
         )
@@ -52,6 +52,7 @@ class RsvpPlaybackStateTest {
             )
         context.runtime.frameIndex = 1
         context.runtime.isPlaying = true
+        context.runtime.currentTempoMsPerWord = 18L
 
         completePlayback(context)
 
@@ -60,6 +61,7 @@ class RsvpPlaybackStateTest {
         assertEquals(1, finishedPoint.tokenIndex)
         assertEquals(-1, finishedPoint.resumeCursor)
         assertEquals(0, finishedPoint.chapterIndex)
+        assertEquals(18L, finishedPoint.tempoMsPerWord)
     }
 
     @Test
@@ -124,6 +126,58 @@ class RsvpPlaybackStateTest {
         assertEquals(-1, runtime.scheduledFrameIndex)
         assertEquals(0L, runtime.nextFrameAtMs)
         assertTrue(runtime.isPlaying)
+    }
+
+    @Test
+    fun persistedTempoDoesNotOverrideLocalTempoOverride() {
+        val shouldApply =
+            shouldApplyPersistedTempo(
+                currentTempoMsPerWord = 10L,
+                incomingTempoMsPerWord = 115L,
+                lastSelectedProfileId = "builtin:BALANCED",
+                incomingSelectedProfileId = "builtin:SPRINT",
+            )
+
+        assertFalse(shouldApply)
+    }
+
+    @Test
+    fun persistedTempoAppliesWhenSessionStillMatchesPersistedTempo() {
+        val shouldApply =
+            shouldApplyPersistedTempo(
+                currentTempoMsPerWord = 115L,
+                incomingTempoMsPerWord = 90L,
+                lastSelectedProfileId = "builtin:BALANCED",
+                incomingSelectedProfileId = "builtin:SPRINT",
+            )
+
+        assertTrue(shouldApply)
+    }
+
+    @Test
+    fun persistedTempoAcknowledgesMatchingIncomingTempo() {
+        val shouldApply =
+            shouldApplyPersistedTempo(
+                currentTempoMsPerWord = 10L,
+                incomingTempoMsPerWord = 10L,
+                lastSelectedProfileId = "builtin:SPRINT",
+                incomingSelectedProfileId = "custom:unsaved",
+            )
+
+        assertTrue(shouldApply)
+    }
+
+    @Test
+    fun persistedTempoDoesNotReapplyForSameProfileWhenLiveTempoDiffers() {
+        val shouldApply =
+            shouldApplyPersistedTempo(
+                currentTempoMsPerWord = 80L,
+                incomingTempoMsPerWord = 115L,
+                lastSelectedProfileId = "custom:unsaved",
+                incomingSelectedProfileId = "custom:unsaved",
+            )
+
+        assertFalse(shouldApply)
     }
 
     private fun createContext(

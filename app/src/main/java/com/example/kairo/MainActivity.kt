@@ -46,6 +46,8 @@ import com.example.kairo.core.model.UserPreferences
 import com.example.kairo.core.model.buildWordCountByToken
 import com.example.kairo.core.model.nearestWordIndex
 import com.example.kairo.core.model.wordIndexForToken
+import com.example.kairo.core.rsvp.RsvpEstimatedReadingPace
+import com.example.kairo.core.rsvp.RsvpEffectivePace
 import com.example.kairo.ui.LocalDispatcherProvider
 import com.example.kairo.ui.focus.FocusModeSideEffects
 import com.example.kairo.ui.focus.SystemBarsStyleSideEffect
@@ -81,7 +83,6 @@ import com.example.kairo.ui.theme.KairoTheme
 import com.example.kairo.ui.tutorial.StartingTutorialOverlayState
 import com.example.kairo.ui.tutorial.StartingTutorialRoute
 import com.example.kairo.ui.tutorial.startingTutorialSteps
-import com.example.kairo.core.rsvp.RsvpPaceEstimator
 import com.example.kairo.core.rsvp.RsvpConfigResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -90,6 +91,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -133,7 +135,6 @@ class MainActivity : AppCompatActivity() {
 private const val RSVP_RESULT_CHAPTER_INDEX_KEY = "rsvp_result_chapter_index"
 private const val RSVP_RESULT_TOKEN_INDEX_KEY = "rsvp_result_token_index"
 private const val RSVP_RESULT_RESUME_CURSOR_KEY = "rsvp_result_resume_cursor"
-
 private data class RsvpReturnTarget(
     val chapterIndex: Int,
     val tokenIndex: Int,
@@ -145,6 +146,16 @@ private data class StartingTutorialLaunchContext(
     val chapterIndex: Int,
     val tokenIndex: Int,
 )
+
+private fun buildRsvpRoute(
+    bookId: String,
+    chapterIndex: Int,
+    tokenIndex: Int,
+    tempoMsPerWord: Long? = null,
+): String {
+    val encodedTempoMs = tempoMsPerWord?.takeIf { it > 0L } ?: -1L
+    return "rsvp/$bookId/$chapterIndex/$tokenIndex?tempoMs=$encodedTempoMs"
+}
 
 private fun resolveRsvpReturnTarget(
     resumePoint: RsvpResumePoint,
@@ -193,6 +204,31 @@ private fun resolveWordIndex(
 ): Int {
     if (wordCountByToken == null || wordCountByToken.isEmpty()) return -1
     return wordIndexForToken(wordCountByToken, tokenIndex)
+}
+
+@Composable
+private fun rememberReaderEstimatedWpm(
+    baseConfig: com.example.kairo.core.model.RsvpConfig,
+    sessionTempoMsPerWord: Long?,
+    fallbackEstimatedWpm: Int,
+    dispatcherProvider: com.example.kairo.core.dispatchers.DispatcherProvider,
+): Int {
+    val estimatedWpm by produceState(
+        initialValue = fallbackEstimatedWpm,
+        baseConfig,
+        sessionTempoMsPerWord,
+        fallbackEstimatedWpm,
+    ) {
+        value =
+            withContext(dispatcherProvider.default) {
+                RsvpEstimatedReadingPace.estimateWpm(
+                    config = baseConfig,
+                    sessionTempoMsPerWord = sessionTempoMsPerWord,
+                    fallbackEstimatedWpm = fallbackEstimatedWpm,
+                )
+            }
+    }
+    return estimatedWpm
 }
 
 private fun resolveStartingTutorialLaunchContext(
@@ -277,25 +313,53 @@ private fun KairoNavHost(
     var tutorialActive by rememberSaveable { mutableStateOf(false) }
     var tutorialAutoStarted by rememberSaveable { mutableStateOf(false) }
 
-    val estimatedWpm by produceState(initialValue = 0, prefs.rsvpConfig) {
+    val selectedWpm by produceState(initialValue = 0, prefs.rsvpConfig) {
         value =
             withContext(dispatcherProvider.default) {
-                runCatching { RsvpPaceEstimator.estimateWpm(prefs.rsvpConfig) }
-                    .getOrElse { 0 }
+                RsvpEffectivePace.estimateWpm(prefs.rsvpConfig)
+            }
+    }
+    val estimatedWpm by produceState(initialValue = selectedWpm, prefs.rsvpConfig, selectedWpm) {
+        value =
+            withContext(dispatcherProvider.default) {
+                RsvpEstimatedReadingPace.estimateWpm(
+                    config = prefs.rsvpConfig,
+                    fallbackEstimatedWpm = selectedWpm,
+                )
+            }
+    }
+    val libraryEstimatedWpmByBook by produceState(
+        initialValue = emptyMap<String, Int>(),
+        books,
+        prefs.rsvpConfig,
+        estimatedWpm,
+        selectedWpm,
+    ) {
+        value =
+            withContext(dispatcherProvider.default) {
+                books.associate { book ->
+                    val resolvedRsvpConfig =
+                        RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
+                    book.id.value to
+                        RsvpEstimatedReadingPace.estimateWpm(
+                            config = resolvedRsvpConfig,
+                            fallbackEstimatedWpm = selectedWpm,
+                        )
+                }
             }
     }
     val libraryProgress by produceState(
         initialValue = emptyMap<String, LibraryBookProgress>(),
         books,
         positions,
-        estimatedWpm,
+        libraryEstimatedWpmByBook,
     ) {
         value =
             withContext(dispatcherProvider.io) {
                 buildLibraryProgress(
                     books = books,
                     positions = positions,
-                    estimatedWpm = estimatedWpm,
+                    estimatedWpmByBookId = libraryEstimatedWpmByBook,
                 )
             }
     }
@@ -309,6 +373,8 @@ private fun KairoNavHost(
             "reader/{bookId}", "reader/{bookId}/{chapterIndex}/{tokenIndex}" ->
                 StartingTutorialRoute.READER
             "rsvp/{bookId}/{chapterIndex}/{tokenIndex}" -> StartingTutorialRoute.RSVP
+            "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}" ->
+                StartingTutorialRoute.RSVP
             else -> null
         }
 
@@ -475,6 +541,8 @@ private fun KairoNavHost(
                 "reader/{bookId}" -> prefs.focusApplyInReader
                 "reader/{bookId}/{chapterIndex}/{tokenIndex}" -> prefs.focusApplyInReader
                 "rsvp/{bookId}/{chapterIndex}/{tokenIndex}" -> prefs.focusApplyInRsvp
+                "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}" ->
+                    prefs.focusApplyInRsvp
                 else -> false
             }
     FocusModeSideEffects(
@@ -748,6 +816,13 @@ private fun KairoNavHost(
 
             val resolvedRsvpConfig =
                 RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
+            val readerEstimatedWpm =
+                rememberReaderEstimatedWpm(
+                    baseConfig = resolvedRsvpConfig,
+                    sessionTempoMsPerWord = null,
+                    fallbackEstimatedWpm = estimatedWpm,
+                    dispatcherProvider = dispatcherProvider,
+                )
             LaunchedEffect(uiState.chapterIndex, uiState.chapterData, resolvedRsvpConfig) {
                 if (!hasInitialized) return@LaunchedEffect
                 val chapterData = uiState.chapterData ?: return@LaunchedEffect
@@ -767,7 +842,7 @@ private fun KairoNavHost(
                 invertedScroll = prefs.invertedScroll,
                 readerTheme = prefs.readerTheme,
                 textBrightness = prefs.readerTextBrightness,
-                estimatedWpm = estimatedWpm,
+                estimatedWpm = readerEstimatedWpm,
                 onFontSizeChange = { size ->
                     coroutineScope.launch {
                         container.preferencesRepository.updateFontSize(size)
@@ -860,7 +935,13 @@ private fun KairoNavHost(
                                 rsvpResumeCursor = resumeCursor,
                             ),
                         )
-                        navController.navigate("rsvp/$bookId/${uiState.chapterIndex}/$start")
+                        navController.navigate(
+                            buildRsvpRoute(
+                                bookId = bookId,
+                                chapterIndex = uiState.chapterIndex,
+                                tokenIndex = start,
+                            )
+                        )
                     }
                 },
                 onChapterChange = { newIndex, focusIndex ->
@@ -1074,6 +1155,13 @@ private fun KairoNavHost(
 
             val resolvedRsvpConfig =
                 RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
+            val readerEstimatedWpm =
+                rememberReaderEstimatedWpm(
+                    baseConfig = resolvedRsvpConfig,
+                    sessionTempoMsPerWord = null,
+                    fallbackEstimatedWpm = estimatedWpm,
+                    dispatcherProvider = dispatcherProvider,
+                )
             LaunchedEffect(uiState.chapterIndex, uiState.chapterData, resolvedRsvpConfig) {
                 if (!hasInitialized) return@LaunchedEffect
                 val chapterData = uiState.chapterData ?: return@LaunchedEffect
@@ -1093,7 +1181,7 @@ private fun KairoNavHost(
                 invertedScroll = prefs.invertedScroll,
                 readerTheme = prefs.readerTheme,
                 textBrightness = prefs.readerTextBrightness,
-                estimatedWpm = estimatedWpm,
+                estimatedWpm = readerEstimatedWpm,
                 onFontSizeChange = { size ->
                     coroutineScope.launch {
                         container.preferencesRepository.updateFontSize(size)
@@ -1185,7 +1273,13 @@ private fun KairoNavHost(
                                 rsvpResumeCursor = resumeCursor,
                             ),
                         )
-                        navController.navigate("rsvp/$bookId/${uiState.chapterIndex}/$start")
+                        navController.navigate(
+                            buildRsvpRoute(
+                                bookId = bookId,
+                                chapterIndex = uiState.chapterIndex,
+                                tokenIndex = start,
+                            )
+                        )
                     }
                 },
                 onChapterChange = { newIndex, focusIndex ->
@@ -1202,18 +1296,21 @@ private fun KairoNavHost(
         }
 
         composable(
-            route = "rsvp/{bookId}/{chapterIndex}/{tokenIndex}",
+            route = "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}",
             arguments =
             listOf(
                 navArgument("bookId") { type = NavType.StringType },
                 navArgument("chapterIndex") { type = NavType.IntType },
                 navArgument("tokenIndex") { type = NavType.IntType },
+                navArgument("tempoMs") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                },
             ),
         ) { backStackEntry ->
             val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
             val chapterIndex = backStackEntry.arguments?.getInt("chapterIndex") ?: 0
             val startIndex = backStackEntry.arguments?.getInt("tokenIndex") ?: 0
-
             val tokensState =
                 produceState(
                     initialValue = emptyList(),
@@ -1398,9 +1495,7 @@ private fun KairoNavHost(
                                     languageTagState.value,
                                 )
                             coroutineScope.launch {
-                                container.preferencesRepository.updateRsvpConfig {
-                                    it.copy(tempoMsPerWord = baseTempoMs)
-                                }
+                                container.preferencesRepository.updateRsvpTempoMsPerWord(baseTempoMs)
                             }
                         },
                         onExit = { resumePoint ->
@@ -1449,17 +1544,8 @@ private fun KairoNavHost(
                             }
                         },
                         onSaveCustomProfile = { name, config ->
-                            val baseTempoMs =
-                                RsvpConfigResolver.toBaseTempoMs(
-                                    config.tempoMsPerWord,
-                                    languageTagState.value,
-                                )
-                            val baseConfig = config.copy(tempoMsPerWord = baseTempoMs)
                             coroutineScope.launch {
-                                container.preferencesRepository.saveRsvpCustomProfile(
-                                    name,
-                                    baseConfig
-                                )
+                                container.preferencesRepository.saveRsvpCustomProfile(name, config)
                             }
                         },
                         onDeleteCustomProfile = { profileId ->
@@ -1470,14 +1556,8 @@ private fun KairoNavHost(
                             }
                         },
                         onRsvpConfigChange = { updated ->
-                            val baseTempoMs =
-                                RsvpConfigResolver.toBaseTempoMs(
-                                    updated.tempoMsPerWord,
-                                    languageTagState.value,
-                                )
-                            val baseConfig = updated.copy(tempoMsPerWord = baseTempoMs)
                             coroutineScope.launch {
-                                container.preferencesRepository.updateRsvpConfig { baseConfig }
+                                container.preferencesRepository.updateRsvpConfig { updated }
                             }
                         },
                     ),
@@ -1599,6 +1679,11 @@ private fun KairoNavHost(
                 onDeleteRsvpProfile = { profileId ->
                     coroutineScope.launch {
                         container.preferencesRepository.deleteRsvpCustomProfile(profileId)
+                    }
+                },
+                onRsvpTempoMsPerWordChange = { tempoMsPerWord ->
+                    coroutineScope.launch {
+                        container.preferencesRepository.updateRsvpTempoMsPerWord(tempoMsPerWord)
                     }
                 },
                 onRsvpConfigChange = { config ->

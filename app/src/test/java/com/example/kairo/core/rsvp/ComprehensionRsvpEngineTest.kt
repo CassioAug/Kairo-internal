@@ -261,6 +261,113 @@ class ComprehensionRsvpEngineTest {
     }
 
     @Test
+    fun slowTempoKeepsDialogueWordsNearNarrationPace() {
+        val config =
+            RsvpConfig(
+                tempoMsPerWord = 150L,
+                rarityExtraMaxMs = 0L,
+                syllableExtraMs = 0L,
+                complexityStrength = 0.0,
+                lengthStrength = 0.0,
+                lengthExponent = 1.0,
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useProsodyPacing = false,
+                smoothingAlpha = 1.0,
+                maxSpeedupFactor = 1000.0,
+                maxSlowdownFactor = 1000.0,
+                startDelayMs = 0L,
+                endDelayMs = 0L,
+                rampUpFrames = 0,
+                rampDownFrames = 0,
+                enablePhraseChunking = false,
+            )
+
+        val narration =
+            engine.generateFrames(
+                tokens = listOf(Token(text = "Hello", type = TokenType.WORD, frequencyScore = 1.0)),
+                startIndex = 0,
+                config = config,
+            ).first().durationMs
+
+        val dialogue =
+            engine.generateFrames(
+                tokens = listOf(
+                    Token(
+                        text = "Hello",
+                        type = TokenType.WORD,
+                        frequencyScore = 1.0,
+                        isDialogue = true,
+                    ),
+                ),
+                startIndex = 0,
+                config = config,
+            ).first().durationMs
+
+        assertTrue(
+            "Expected slow dialogue pacing to stay close to narration pace",
+            narration - dialogue <= 3L,
+        )
+    }
+
+    @Test
+    fun speakerTagsOnlyAccelerateStronglyAtHighSpeeds() {
+        val baseConfig =
+            RsvpConfig(
+                rarityExtraMaxMs = 0L,
+                syllableExtraMs = 0L,
+                complexityStrength = 0.0,
+                lengthStrength = 0.0,
+                lengthExponent = 1.0,
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useProsodyPacing = false,
+                smoothingAlpha = 1.0,
+                maxSpeedupFactor = 1000.0,
+                maxSlowdownFactor = 1000.0,
+                startDelayMs = 0L,
+                endDelayMs = 0L,
+                rampUpFrames = 0,
+                rampDownFrames = 0,
+                enablePhraseChunking = false,
+            )
+        val tagTokens =
+            listOf(
+                Token(text = "he", type = TokenType.WORD, frequencyScore = 1.0),
+                Token(text = "said", type = TokenType.WORD, frequencyScore = 1.0),
+            )
+        val plainTokens =
+            listOf(
+                Token(text = "he", type = TokenType.WORD, frequencyScore = 1.0),
+                Token(text = "walked", type = TokenType.WORD, frequencyScore = 1.0),
+            )
+
+        val slowConfig = baseConfig.copy(tempoMsPerWord = 150L)
+        val fastConfig = baseConfig.copy(tempoMsPerWord = 70L)
+
+        val slowTag =
+            engine.generateFrames(tagTokens, 0, slowConfig).first().durationMs
+        val slowPlain =
+            engine.generateFrames(plainTokens, 0, slowConfig).first().durationMs
+        val fastTag =
+            engine.generateFrames(tagTokens, 0, fastConfig).first().durationMs
+        val fastPlain =
+            engine.generateFrames(plainTokens, 0, fastConfig).first().durationMs
+
+        val slowSpeedup = slowPlain - slowTag
+        val fastSpeedup = fastPlain - fastTag
+
+        assertTrue(
+            "Expected slow speaker tags to stay close to the surrounding pace",
+            slowSpeedup <= 4L,
+        )
+        assertTrue(
+            "Expected speaker-tag acceleration to remain available at higher speeds",
+            fastSpeedup >= slowSpeedup + 4L,
+        )
+    }
+
+    @Test
     fun rhythmClampsAbruptSpeedupsAfterSlowUnits() {
         val config =
             RsvpConfig(

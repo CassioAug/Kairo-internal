@@ -574,6 +574,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
 
 data class UserPreferences(
     val rsvpConfig: RsvpConfig = RsvpConfig(),
+    val rsvpTempoMsPerWord: Long = RsvpConfig().tempoMsPerWord,
     val rsvpSelectedProfileId: String = RsvpProfileIds.builtIn(RsvpProfile.BALANCED),
     val rsvpCustomProfiles: List<RsvpCustomProfile> = emptyList(),
     val hasSeenStartingTutorial: Boolean = false,

@@ -33,6 +33,7 @@ import com.example.kairo.core.model.RsvpProfile
 import com.example.kairo.core.model.RsvpProfileIds
 import com.example.kairo.core.model.UserPreferences
 import com.example.kairo.core.model.defaultConfig
+import com.example.kairo.core.rsvp.RsvpSpeedControl
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -76,10 +77,11 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         val defaults = UserPreferences()
         val customProfiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
         val selectedProfileId = migrateAndReadSelectedProfileId(prefs, customProfiles)
+        val timingInfo = readTimingInfo(prefs, defaults.rsvpConfig)
         val rsvpConfig = readRsvpConfig(prefs)
 
         return defaults
-            .withRsvpState(rsvpConfig, selectedProfileId, customProfiles)
+            .withRsvpState(rsvpConfig, timingInfo.tempoMsPerWord, selectedProfileId, customProfiles)
             .withTutorialState(prefs, defaults)
             .withReaderSettings(prefs, defaults)
             .withRsvpDisplaySettings(prefs, defaults, rsvpConfig)
@@ -88,11 +90,13 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     private fun UserPreferences.withRsvpState(
         config: RsvpConfig,
+        tempoMsPerWord: Long,
         selectedProfileId: String,
         customProfiles: List<RsvpCustomProfile>,
     ): UserPreferences =
         copy(
             rsvpConfig = config,
+            rsvpTempoMsPerWord = tempoMsPerWord,
             rsvpSelectedProfileId = selectedProfileId,
             rsvpCustomProfiles = customProfiles,
         )
@@ -136,7 +140,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         val rsvpFontFamily =
             parseRsvpFontFamily(prefs[keys.rsvpFontFamily], defaults.rsvpFontFamily)
         val unlockExtremeSpeed =
-            prefs[keys.unlockExtremeSpeed] ?: (rsvpConfig.tempoMsPerWord < 30L)
+            prefs[keys.unlockExtremeSpeed]
+                ?: (rsvpConfig.tempoMsPerWord < RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD)
         return copy(
             rsvpFontSizeSp = prefs.readOrDefault(keys.rsvpFontSize, defaults.rsvpFontSizeSp),
             rsvpTextBrightness = rsvpTextBrightness,
@@ -170,9 +175,21 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     override suspend fun updateRsvpConfig(updater: (RsvpConfig) -> RsvpConfig) {
         context.dataStore.edit { prefs ->
-            val updated = updater(readRsvpConfig(prefs))
+            val current = readRsvpConfig(prefs)
+            val timingInfo = readTimingInfo(prefs, current)
+            val updated =
+                updater(current)
+                    .withTiming(timingInfo)
             prefs[keys.rsvpProfile] = RsvpProfileIds.CUSTOM_UNSAVED
-            writeRsvpConfig(prefs, updated)
+            writeRsvpConfig(prefs, updated, includeTiming = false)
+        }
+    }
+
+    override suspend fun updateRsvpTempoMsPerWord(tempoMsPerWord: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[keys.tempoMsPerWord] =
+                tempoMsPerWord.coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
+            prefs.remove(legacyBaseWpmKey)
         }
     }
 
@@ -190,16 +207,26 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
                 RsvpProfileIds.isBuiltIn(normalized) -> {
                     val builtIn = RsvpProfileIds.parseBuiltIn(normalized) ?: RsvpProfile.BALANCED
+                    val currentTiming = readTimingInfo(prefs, builtIn.defaultConfig())
                     prefs[keys.rsvpProfile] = RsvpProfileIds.builtIn(builtIn)
-                    writeRsvpConfig(prefs, builtIn.defaultConfig())
+                    writeRsvpConfig(
+                        prefs,
+                        builtIn.defaultConfig().withTiming(currentTiming),
+                        includeTiming = false,
+                    )
                 }
 
                 RsvpProfileIds.isCustom(normalized) -> {
+                    val currentTiming = readTimingInfo(prefs, RsvpConfig())
                     val profiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
                     val match = profiles.firstOrNull { it.id == normalized }
                     prefs[keys.rsvpProfile] = normalized
                     if (match != null) {
-                        writeRsvpConfig(prefs, match.config)
+                        writeRsvpConfig(
+                            prefs,
+                            match.config.withTiming(currentTiming),
+                            includeTiming = false,
+                        )
                     } else {
                         prefs[keys.rsvpProfile] = RsvpProfileIds.CUSTOM_UNSAVED
                     }
@@ -335,7 +362,10 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         when {
             legacyWpm == null -> defaultTempoMs
             legacyWpm <= 0 -> defaultTempoMs
-            else -> (60_000.0 / legacyWpm.toDouble()).toLong().coerceAtLeast(10L)
+            else ->
+                (60_000.0 / legacyWpm.toDouble())
+                    .toLong()
+                    .coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
         }
 
     private fun normalizeClausePauseFactor(value: Double?, fallback: Double): Double {
@@ -756,9 +786,12 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     private fun writeRsvpConfig(
         prefs: MutablePreferences,
         config: RsvpConfig,
+        includeTiming: Boolean = true,
     ) {
         val defaults = RsvpConfig()
-        writeTiming(prefs, config)
+        if (includeTiming) {
+            writeTiming(prefs, config)
+        }
         writeWordFloors(prefs, config)
         writeDifficulty(prefs, config)
         writeLengthCurve(prefs, config)
@@ -776,7 +809,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     }
 
     private fun writeTiming(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.tempoMsPerWord] = config.tempoMsPerWord.coerceAtLeast(10L)
+        prefs[keys.tempoMsPerWord] =
+            config.tempoMsPerWord.coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
         prefs.remove(legacyBaseWpmKey)
     }
 
@@ -893,7 +927,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                         legacyWpm = prefs[legacyBaseWpmKey],
                         defaultTempoMs = defaults.tempoMsPerWord,
                     )
-                ).coerceAtLeast(10L)
+                ).coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
         val baseWpm = (60_000.0 / tempoMsPerWord.toDouble()).toInt().coerceAtLeast(1)
         return TimingInfo(tempoMsPerWord = tempoMsPerWord, baseWpm = baseWpm)
     }
