@@ -83,6 +83,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
             } else {
                 emptySet()
             }
+        val phraseContours = computePhraseContours(expanded)
 
         val startCursor = expanded.indexOfFirst { it.originalIndex >= startIndex }
         val fallbackCursor =
@@ -206,8 +207,12 @@ class ComprehensionRsvpEngine : RsvpEngine {
             )?.token
             cursor = nextCursor
 
+            val contourWord = expanded[wordCursor].token
             val focalSuppression =
-                if (config.useFocalStress && wordCursor !in focalWordIndices) {
+                if (config.useFocalStress &&
+                    wordCursor !in focalWordIndices &&
+                    !shouldKeepFullFocalDuration(contourWord)
+                ) {
                     config.focalSupportCompression.coerceIn(MIN_FOCAL_SUPPORT_COMPRESSION, 1.0)
                 } else {
                     1.0
@@ -220,6 +225,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 }
             val emDashAside =
                 config.useParentheticalAside && wordCursor in emDashAsideIndices
+            val phraseContour = phraseContours[wordCursor] ?: PhraseContour.NONE
 
             val durationMs =
                 computeUnitDurationMs(
@@ -236,6 +242,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     focalSuppression = focalSuppression,
                     anticipatoryLanding = anticipatoryLanding,
                     emDashAside = emDashAside,
+                    phraseContour = phraseContour,
                 )
 
             frames +=
@@ -411,6 +418,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
         focalSuppression: Double = 1.0,
         anticipatoryLanding: Double = 1.0,
         emDashAside: Boolean = false,
+        phraseContour: PhraseContour = PhraseContour.NONE,
     ): Long {
         val msPerWord = config.tempoMsPerWord.toDouble()
         val pauseScale = pauseScale(msPerWord, config)
@@ -450,19 +458,20 @@ class ComprehensionRsvpEngine : RsvpEngine {
             } else {
                 0.0
             }
+        val firstWord = words.firstOrNull()
         val boundaryForBoost =
             if (boundaryBefore == BoundaryBefore.NONE &&
                 prevToken?.type == TokenType.PUNCTUATION &&
                 boundaryBeforeForPunctuation(
                     token = prevToken,
                     prevWord = prevWord,
-                    nextToken = nextToken,
+                    nextToken = firstWord ?: nextToken,
                 ) != BoundaryBefore.NONE
             ) {
                 boundaryBeforeForPunctuation(
                     token = prevToken,
                     prevWord = prevWord,
-                    nextToken = nextToken,
+                    nextToken = firstWord ?: nextToken,
                 )
             } else {
                 boundaryBefore
@@ -591,6 +600,11 @@ class ComprehensionRsvpEngine : RsvpEngine {
                         } else {
                             1.0
                         }
+                    val phraseContourMultiplier =
+                        phraseContourMultiplier(
+                            contour = phraseContour,
+                            speedStrength = speedStrength,
+                        )
 
                     val wordMs =
                         wordDurationMs(token, msPerWord, config) *
@@ -603,7 +617,8 @@ class ComprehensionRsvpEngine : RsvpEngine {
                             dialogueEntryMultiplier *
                             speakerTagMultiplier *
                             focalSuppression *
-                            anticipatoryLanding
+                            anticipatoryLanding *
+                            phraseContourMultiplier
                     duration += max(wordMs, wordFloorMs(token, config).toDouble())
                     if (token.pauseAfterMs > 0L) {
                         duration += token.pauseAfterMs * pauseScale
@@ -616,7 +631,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val transitionHold =
             transitionHoldMs(
                 frameTokens = frameTokens,
-                firstWord = words.firstOrNull(),
+                firstWord = firstWord,
                 nextWord = nextWord,
                 speedStrength = speedStrength,
                 prosodyStrength = prosodyStrength,
@@ -892,6 +907,15 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val timing = RsvpPunctuationTimingPolicy.resolvePauseTiming(token, prevWord, nextToken, config)
         var base = timing.baseMs
         var floor = timing.floorMs
+        val tier =
+            RsvpPunctuationTimingPolicy.resolveTier(
+                token = token,
+                prevWord = prevWord,
+                nextToken = nextToken,
+            )
+        if (prevWord != null && nextToken?.type == TokenType.WORD) {
+            base *= phraseContourPauseRedistributionFactor(tier)
+        }
 
         val speedStrength = speedStrength(msPerWord)
         if (isClauseLeadPunctuation(ch, nextToken)) {
@@ -932,6 +956,13 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val scaled = base * punctuationScale * dialogueScale * asideScale
         return max(scaled, floor)
     }
+
+    private fun phraseContourPauseRedistributionFactor(tier: RsvpPunctuationTier): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END -> SENTENCE_CONTOUR_PAUSE_RETAINED
+            RsvpPunctuationTier.CLAUSE_BREAK -> CLAUSE_CONTOUR_PAUSE_RETAINED
+            RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 1.0
+        }
 
     private fun punctuationLandingHoldMs(
         frameTokens: List<Token>,
@@ -1107,6 +1138,9 @@ class ComprehensionRsvpEngine : RsvpEngine {
     private fun normalizeWord(text: String): String =
         text.lowercase().trim('"', '\'', '\u2018', '\u2019')
 
+    private fun shouldKeepFullFocalDuration(token: Token): Boolean =
+        token.isSubwordChunk || token.text.endsWith("-")
+
     /**
      * Walks the expanded token list, groups words between boundary punctuations (commas, semicolons,
      * colons, dashes, sentence-end punctuation, and paragraph/page breaks), and returns the set of
@@ -1202,6 +1236,172 @@ class ComprehensionRsvpEngine : RsvpEngine {
             )
         return tier == RsvpPunctuationTier.SENTENCE_END ||
             tier == RsvpPunctuationTier.CLAUSE_BREAK
+    }
+
+    /**
+     * Adds a shallow spoken-phrase contour around real punctuation boundaries:
+     * the approach words ease into the boundary, and the first restart word gets a small settle.
+     * This deliberately uses the punctuation policy so abbreviations, decimals, and thousands
+     * separators do not create a false contour.
+     */
+    private fun computePhraseContours(expanded: List<ExpandedToken>): Map<Int, PhraseContour> {
+        if (expanded.isEmpty()) return emptyMap()
+        val contours = HashMap<Int, PhraseContour>()
+
+        expanded.forEachIndexed { index, entry ->
+            val token = entry.token
+            if (token.type != TokenType.PUNCTUATION) return@forEachIndexed
+
+            val prevWord = findPrevWord(expanded, beforeIndex = index)
+            val nextToken = expanded.getOrNull(index + 1)?.token
+            val tier =
+                RsvpPunctuationTimingPolicy.resolveTier(
+                    token = token,
+                    prevWord = prevWord,
+                    nextToken = nextToken,
+                )
+            if (tier != RsvpPunctuationTier.SENTENCE_END &&
+                tier != RsvpPunctuationTier.CLAUSE_BREAK
+            ) {
+                return@forEachIndexed
+            }
+
+            previousWordsForContour(expanded, index).forEachIndexed { distanceIndex, word ->
+                val distance = distanceIndex + 1
+                val weight = preBoundaryContourWeight(tier = tier, distance = distance)
+                if (weight > 0.0) {
+                    contours.mergeContour(word.expandedIndex, preBoundaryWeight = weight)
+                }
+            }
+
+            nextWordsForContour(expanded, index).forEachIndexed { distanceIndex, word ->
+                val distance = distanceIndex + 1
+                val weight = restartContourWeight(tier = tier, distance = distance)
+                if (weight > 0.0) {
+                    contours.mergeContour(word.expandedIndex, restartWeight = weight)
+                }
+            }
+        }
+
+        return contours
+    }
+
+    private fun previousWordsForContour(
+        expanded: List<ExpandedToken>,
+        boundaryIndex: Int,
+    ): List<ExpandedToken> {
+        val words = ArrayList<ExpandedToken>(PHRASE_CONTOUR_WORD_WINDOW)
+        var cursor = boundaryIndex - 1
+        var shouldStop = false
+        while (cursor >= 0 && words.size < PHRASE_CONTOUR_WORD_WINDOW) {
+            val token = expanded[cursor].token
+            when (token.type) {
+                TokenType.WORD -> words += expanded[cursor]
+                TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> shouldStop = true
+                TokenType.PUNCTUATION -> {
+                    if (isBreathGroupBoundary(
+                            token = token,
+                            prevWord = findPrevWord(expanded, beforeIndex = cursor),
+                            nextToken = expanded.getOrNull(cursor + 1)?.token,
+                        )
+                    ) {
+                        shouldStop = true
+                    }
+                }
+            }
+            if (shouldStop) break
+            cursor--
+        }
+        return words
+    }
+
+    private fun nextWordsForContour(
+        expanded: List<ExpandedToken>,
+        boundaryIndex: Int,
+    ): List<ExpandedToken> {
+        val words = ArrayList<ExpandedToken>(PHRASE_CONTOUR_WORD_WINDOW)
+        var cursor = boundaryIndex + 1
+        var shouldStop = false
+        while (cursor < expanded.size && words.size < PHRASE_CONTOUR_WORD_WINDOW) {
+            val token = expanded[cursor].token
+            when (token.type) {
+                TokenType.WORD -> words += expanded[cursor]
+                TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> shouldStop = true
+                TokenType.PUNCTUATION -> {
+                    if (isBreathGroupBoundary(
+                            token = token,
+                            prevWord = findPrevWord(expanded, beforeIndex = cursor),
+                            nextToken = expanded.getOrNull(cursor + 1)?.token,
+                        )
+                    ) {
+                        shouldStop = true
+                    }
+                }
+            }
+            if (shouldStop) break
+            cursor++
+        }
+        return words
+    }
+
+    private fun MutableMap<Int, PhraseContour>.mergeContour(
+        expandedIndex: Int,
+        preBoundaryWeight: Double = 0.0,
+        restartWeight: Double = 0.0,
+    ) {
+        val current = this[expandedIndex] ?: PhraseContour.NONE
+        this[expandedIndex] =
+            PhraseContour(
+                preBoundaryWeight = max(current.preBoundaryWeight, preBoundaryWeight),
+                restartWeight = max(current.restartWeight, restartWeight),
+            )
+    }
+
+    private fun preBoundaryContourWeight(
+        tier: RsvpPunctuationTier,
+        distance: Int,
+    ): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END ->
+                when (distance) {
+                    1 -> SENTENCE_PRE_BOUNDARY_CONTOUR
+                    2 -> SENTENCE_ANTICIPATORY_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.CLAUSE_BREAK ->
+                when (distance) {
+                    1 -> CLAUSE_PRE_BOUNDARY_CONTOUR
+                    2 -> CLAUSE_ANTICIPATORY_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 0.0
+        }
+
+    private fun restartContourWeight(
+        tier: RsvpPunctuationTier,
+        distance: Int,
+    ): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END ->
+                when (distance) {
+                    1 -> SENTENCE_RESTART_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.CLAUSE_BREAK ->
+                when (distance) {
+                    1 -> CLAUSE_RESTART_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 0.0
+        }
+
+    private fun phraseContourMultiplier(
+        contour: PhraseContour,
+        speedStrength: Double,
+    ): Double {
+        if (contour == PhraseContour.NONE || speedStrength <= 0.0) return 1.0
+        val weight = contour.preBoundaryWeight + contour.restartWeight
+        return 1.0 + (weight * speedStrength)
     }
 
     /**
@@ -2089,6 +2289,15 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val expandedIndex: Int,
     )
 
+    private data class PhraseContour(
+        val preBoundaryWeight: Double,
+        val restartWeight: Double,
+    ) {
+        companion object {
+            val NONE = PhraseContour(preBoundaryWeight = 0.0, restartWeight = 0.0)
+        }
+    }
+
     private data class UnitBuildResult(val tokens: List<Token>, val originalWordIndex: Int, val nextCursor: Int,)
 
     private enum class BoundaryBefore {
@@ -2335,6 +2544,15 @@ class ComprehensionRsvpEngine : RsvpEngine {
         private const val LANDING_HOLD_SPEED_BOOST = 0.35
         private const val MIN_FOCAL_SUPPORT_COMPRESSION = 0.75
         private const val MAX_ANTICIPATORY_LANDING_BOOST = 1.2
+        private const val PHRASE_CONTOUR_WORD_WINDOW = 2
+        private const val SENTENCE_PRE_BOUNDARY_CONTOUR = 0.07
+        private const val SENTENCE_ANTICIPATORY_CONTOUR = 0.04
+        private const val SENTENCE_RESTART_CONTOUR = 0.08
+        private const val SENTENCE_CONTOUR_PAUSE_RETAINED = 0.94
+        private const val CLAUSE_PRE_BOUNDARY_CONTOUR = 0.035
+        private const val CLAUSE_ANTICIPATORY_CONTOUR = 0.018
+        private const val CLAUSE_RESTART_CONTOUR = 0.04
+        private const val CLAUSE_CONTOUR_PAUSE_RETAINED = 0.96
         private const val PARAGRAPH_BREAK_RETENTION_BOOST = 0.22
         private const val PAGE_BREAK_RETENTION_BOOST = 0.26
 

@@ -185,6 +185,12 @@
     <string name="rsvp_context_shaping_summary">Parentheticals %1$s | Dialogue %2$s</string>
     <string name="rsvp_parentheticals_title">Parentheticals</string>
     <string name="rsvp_dialogue_pace_title">Dialogue pace</string>
+    <string name="rsvp_dialogue_punctuation_title">Dialogue punctuation</string>
+    <string name="rsvp_dialogue_punctuation_subtitle">Scales pauses inside quoted speech separately from narration.</string>
+    <string name="rsvp_parenthetical_aside_title">Parenthetical aside mode</string>
+    <string name="rsvp_parenthetical_aside_subtitle">Reads bracketed or dash-bounded asides as faster, quieter side remarks.</string>
+    <string name="rsvp_parenthetical_aside_pace_title">Aside pace</string>
+    <string name="rsvp_parenthetical_aside_pace_subtitle">Lower = faster parenthetical aside words and punctuation.</string>
     <string name="rsvp_difficulty_boost_title">Difficulty boost</string>
     <string name="rsvp_difficulty_boost_subtitle">Max extra hold for difficult words.</string>
     <string name="rsvp_complex_word_boost_title">Complex word boost</string>
@@ -195,6 +201,14 @@
     <string name="rsvp_rhythm_summary">Stability %1$s | Clause %2$s | Blink %3$s</string>
     <string name="rsvp_stability_title">Stability</string>
     <string name="rsvp_stability_subtitle">Higher = more responsive; lower = steadier cadence.</string>
+    <string name="rsvp_focal_stress_title">Focal stress</string>
+    <string name="rsvp_focal_stress_subtitle">Compresses supporting words so each breath group has one clearer emphasis peak.</string>
+    <string name="rsvp_focal_support_title">Supporting-word compression</string>
+    <string name="rsvp_focal_support_subtitle">Lower = faster supporting words around each focal word.</string>
+    <string name="rsvp_anticipatory_landing_title">Anticipatory landing</string>
+    <string name="rsvp_anticipatory_landing_subtitle">Slightly stretches the approach into punctuation so stops feel less abrupt.</string>
+    <string name="rsvp_anticipatory_landing_strength_title">Landing approach strength</string>
+    <string name="rsvp_anticipatory_landing_strength_subtitle">Extra time on the word before a punctuation landing.</string>
     <string name="rsvp_clause_pacing_title">Clause pacing</string>
     <string name="rsvp_clause_pacing_subtitle">Adds tiny hesitations at clause starts for more natural phrasing.</string>
     <string name="rsvp_clause_strength_title">Clause strength</string>

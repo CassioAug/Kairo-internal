@@ -940,6 +940,43 @@ fun RsvpSettingsContent(
                     },
                     valueRange = 85f..105f,
                 )
+                DeferredSliderRow(
+                    title = stringResource(R.string.rsvp_dialogue_punctuation_title),
+                    subtitle = stringResource(R.string.rsvp_dialogue_punctuation_subtitle),
+                    valueLabel = { context.getString(R.string.format_percent, it.toInt()) },
+                    rawValue = (config.dialoguePunctuationScale * 100).toFloat(),
+                    onCommit = { newValue ->
+                        updateConfig {
+                            it.copy(dialoguePunctuationScale = (newValue / 100.0).coerceIn(50.0, 100.0))
+                        }
+                    },
+                    valueRange = 50f..100f,
+                )
+                SettingsSwitchRow(
+                    title = stringResource(R.string.rsvp_parenthetical_aside_title),
+                    subtitle = stringResource(R.string.rsvp_parenthetical_aside_subtitle),
+                    checked = config.useParentheticalAside,
+                    onCheckedChange = { enabled ->
+                        updateConfig { it.copy(useParentheticalAside = enabled) }
+                    },
+                )
+                if (config.useParentheticalAside) {
+                    DeferredSliderRow(
+                        title = stringResource(R.string.rsvp_parenthetical_aside_pace_title),
+                        subtitle = stringResource(R.string.rsvp_parenthetical_aside_pace_subtitle),
+                        valueLabel = { context.getString(R.string.format_percent, it.toInt()) },
+                        rawValue = (config.parentheticalAsideMultiplier * 100).toFloat(),
+                        onCommit = { newValue ->
+                            updateConfig {
+                                it.copy(
+                                    parentheticalAsideMultiplier =
+                                    (newValue / 100.0).coerceIn(50.0, 100.0),
+                                )
+                            }
+                        },
+                        valueRange = 50f..100f,
+                    )
+                }
             }
 
             ExpandableSettingsSection(
@@ -1008,6 +1045,54 @@ fun RsvpSettingsContent(
                     },
                     valueRange = 0f..100f,
                 )
+
+                SettingsSwitchRow(
+                    title = stringResource(R.string.rsvp_focal_stress_title),
+                    subtitle = stringResource(R.string.rsvp_focal_stress_subtitle),
+                    checked = config.useFocalStress,
+                    onCheckedChange = { enabled ->
+                        updateConfig { it.copy(useFocalStress = enabled) }
+                    },
+                )
+
+                if (config.useFocalStress) {
+                    DeferredSliderRow(
+                        title = stringResource(R.string.rsvp_focal_support_title),
+                        subtitle = stringResource(R.string.rsvp_focal_support_subtitle),
+                        valueLabel = { context.getString(R.string.format_percent, it.toInt()) },
+                        rawValue = (config.focalSupportCompression * 100).toFloat(),
+                        onCommit = { newValue ->
+                            updateConfig {
+                                it.copy(focalSupportCompression = (newValue / 100.0).coerceIn(75.0, 100.0))
+                            }
+                        },
+                        valueRange = 75f..100f,
+                    )
+                }
+
+                SettingsSwitchRow(
+                    title = stringResource(R.string.rsvp_anticipatory_landing_title),
+                    subtitle = stringResource(R.string.rsvp_anticipatory_landing_subtitle),
+                    checked = config.useAnticipatoryLanding,
+                    onCheckedChange = { enabled ->
+                        updateConfig { it.copy(useAnticipatoryLanding = enabled) }
+                    },
+                )
+
+                if (config.useAnticipatoryLanding) {
+                    DeferredSliderRow(
+                        title = stringResource(R.string.rsvp_anticipatory_landing_strength_title),
+                        subtitle = stringResource(R.string.rsvp_anticipatory_landing_strength_subtitle),
+                        valueLabel = { context.getString(R.string.format_plus_percent, it.toInt()) },
+                        rawValue = ((config.anticipatoryLandingBoost - 1.0) * 100).toFloat(),
+                        onCommit = { newValue ->
+                            updateConfig {
+                                it.copy(anticipatoryLandingBoost = (1.0 + newValue / 100.0).coerceIn(1.0, 1.2))
+                            }
+                        },
+                        valueRange = 0f..20f,
+                    )
+                }
 
                 SettingsSwitchRow(
                     title = stringResource(R.string.rsvp_clause_pacing_title),

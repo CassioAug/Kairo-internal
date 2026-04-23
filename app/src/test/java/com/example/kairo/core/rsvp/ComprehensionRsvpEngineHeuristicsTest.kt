@@ -691,6 +691,91 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun sentenceRestartGetsPhraseContourAtHighSpeed() {
+        val config =
+            stableConfig.copy(
+                tempoMsPerWord = 60L,
+                rarityExtraMaxMs = 0L,
+                syllableExtraMs = 0L,
+                complexityStrength = 0.0,
+                lengthStrength = 0.0,
+                lengthExponent = 1.0,
+                sentenceEndPauseMs = 0L,
+                periodPauseMs = 0L,
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useDialogueDetection = false,
+                useProsodyPacing = false,
+                useFocalStress = false,
+                useAnticipatoryLanding = false,
+            )
+
+        val plainNext =
+            engine
+                .generateFrames(
+                    tokens = listOf(w("Hello"), w("Next")),
+                    startIndex = 0,
+                    config = config,
+                )[1]
+                .durationMs
+        val sentenceNext =
+            engine
+                .generateFrames(
+                    tokens = listOf(w("Hello"), p("."), w("Next")),
+                    startIndex = 0,
+                    config = config,
+                )[1]
+                .durationMs
+
+        assertTrue(
+            "Expected phrase contour to settle the restart word after a sentence",
+            sentenceNext > plainNext,
+        )
+    }
+
+    @Test
+    fun abbreviationDotDoesNotCreatePhraseContourRestart() {
+        val config =
+            stableConfig.copy(
+                tempoMsPerWord = 60L,
+                rarityExtraMaxMs = 0L,
+                syllableExtraMs = 0L,
+                complexityStrength = 0.0,
+                lengthStrength = 0.0,
+                lengthExponent = 1.0,
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useDialogueDetection = false,
+                useProsodyPacing = false,
+                useFocalStress = false,
+                useAnticipatoryLanding = false,
+            )
+
+        val plainAlice =
+            engine
+                .generateFrames(
+                    tokens = listOf(w("I"), w("met"), w("Dr"), w("Alice")),
+                    startIndex = 0,
+                    config = config,
+                ).first { frame -> frame.tokens.any { it.text == "Alice" } }
+                .durationMs
+        val abbreviationAlice =
+            engine
+                .generateFrames(
+                    tokens = listOf(w("I"), w("met"), w("Dr"), p("."), w("Alice")),
+                    startIndex = 0,
+                    config = config,
+                ).first { frame -> frame.tokens.any { it.text == "Alice" } }
+                .durationMs
+
+        assertEquals(
+            "Abbreviation dot should not make the following word restart like a new sentence",
+            plainAlice,
+            abbreviationAlice,
+        )
+    }
+
+    @Test
     fun clauseStartersGetExtraTimeAtHighSpeed() {
         val baseConfig =
             stableConfig.copy(
