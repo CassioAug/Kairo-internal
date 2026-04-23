@@ -205,7 +205,13 @@ internal object RsvpPunctuationTimingPolicy {
             return ZERO_BOUNDARY_CONTOUR
         }
 
-        val contourStrength = boundaryTierContourWeight(token = token, nextToken = nextToken, tier = tier)
+        val contourStrength =
+            boundaryTierContourWeight(
+                token = token,
+                prevWord = prevWord,
+                nextToken = nextToken,
+                tier = tier,
+            )
         if (contourStrength <= 0.0) return ZERO_BOUNDARY_CONTOUR
 
         val landingHoldWeight =
@@ -253,11 +259,12 @@ internal object RsvpPunctuationTimingPolicy {
 
     private fun boundaryTierContourWeight(
         token: Token,
+        prevWord: Token?,
         nextToken: Token?,
         tier: RsvpPunctuationTier,
     ): Double {
         val ch = token.text.firstOrNull() ?: return 0.0
-        val prevText = ""
+        val prevText = prevWord?.text.orEmpty()
         return when (tier) {
             RsvpPunctuationTier.SENTENCE_END ->
                 when {
@@ -461,9 +468,7 @@ internal object RsvpPunctuationTimingPolicy {
     private const val COMMA_RETENTION_BOOST = 0.03
     private const val QUOTE_RETENTION_BOOST = 0.04
     private const val PARENTHESIS_RETENTION_BOOST = 0.05
-    private const val CLAUSE_PUNCTUATION_RETENTION_BOOST = 0.10
     private const val SEMICOLON_RETENTION_BOOST = 0.12
-    private const val STRONG_PUNCTUATION_RETENTION_BOOST = 0.18
     private const val ELLIPSIS_RETENTION_BOOST = 0.20
     private const val CLAUSE_LANDING_HOLD_WEIGHT = 0.18
     private const val SEMICOLON_LANDING_HOLD_WEIGHT = 0.20
@@ -472,79 +477,82 @@ internal object RsvpPunctuationTimingPolicy {
 
     private val ZERO_BOUNDARY_CONTOUR = RsvpBoundaryContour(0.0, 0.0)
 
-    private val TITLE_ABBREVIATIONS =
-        setOf(
-            "mr",
-            "mrs",
-            "ms",
-            "dr",
-            "prof",
-            "sr",
-            "jr",
-            "st",
-            "rev",
-            "fr",
-        )
-
-    private val KNOWN_ABBREVIATIONS =
-        setOf(
-            "mr",
-            "mrs",
-            "ms",
-            "dr",
-            "prof",
-            "sr",
-            "jr",
-            "st",
-            "vs",
-            "etc",
-            "e.g",
-            "i.e",
-            "eg",
-            "ie",
-            "no",
-            "vol",
-            "fig",
-            "al",
-            "inc",
-            "ltd",
-            "dept",
-            "est",
-            "approx",
-            "misc",
-            "jan",
-            "feb",
-            "mar",
-            "apr",
-            "jun",
-            "jul",
-            "aug",
-            "sep",
-            "sept",
-            "oct",
-            "nov",
-            "dec",
-            "u.s",
-            "u.k",
-            "u.n",
-        )
-
-    private val SENTENCE_STARTERS =
-        setOf(
-            "i",
-            "he",
-            "she",
-            "they",
-            "we",
-            "it",
-            "the",
-            "a",
-            "an",
-            "this",
-            "that",
-            "these",
-            "those",
-        )
-
     private val ZERO_PAUSE_TIMING = RsvpPunctuationPauseTiming(0.0, 0.0, 0.0)
 }
+
+internal const val CLAUSE_PUNCTUATION_RETENTION_BOOST = 0.10
+internal const val STRONG_PUNCTUATION_RETENTION_BOOST = 0.18
+
+internal val TITLE_ABBREVIATIONS =
+    setOf(
+        "mr",
+        "mrs",
+        "ms",
+        "dr",
+        "prof",
+        "sr",
+        "jr",
+        "st",
+        "rev",
+        "fr",
+    )
+
+internal val KNOWN_ABBREVIATIONS =
+    setOf(
+        "mr",
+        "mrs",
+        "ms",
+        "dr",
+        "prof",
+        "sr",
+        "jr",
+        "st",
+        "vs",
+        "etc",
+        "e.g",
+        "i.e",
+        "eg",
+        "ie",
+        "no",
+        "vol",
+        "fig",
+        "al",
+        "inc",
+        "ltd",
+        "dept",
+        "est",
+        "approx",
+        "misc",
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "jun",
+        "jul",
+        "aug",
+        "sep",
+        "sept",
+        "oct",
+        "nov",
+        "dec",
+        "u.s",
+        "u.k",
+        "u.n",
+    )
+
+internal val SENTENCE_STARTERS =
+    setOf(
+        "i",
+        "he",
+        "she",
+        "they",
+        "we",
+        "it",
+        "the",
+        "a",
+        "an",
+        "this",
+        "that",
+        "these",
+        "those",
+    )

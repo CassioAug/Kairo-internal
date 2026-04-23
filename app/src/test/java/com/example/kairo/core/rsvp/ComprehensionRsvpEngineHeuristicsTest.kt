@@ -63,6 +63,57 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun abbreviationDotsDoNotTriggerAnticipatoryLanding() {
+        val config =
+            punctuationConfig.copy(
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useProsodyPacing = false,
+                useFocalStress = true,
+                useAnticipatoryLanding = true,
+            )
+        val withoutLanding = config.copy(useAnticipatoryLanding = false)
+        val tokens = listOf(w("I"), w("met"), w("Dr"), p("."), w("Alice"))
+
+        val withFrames = engine.generateFrames(tokens, 0, config)
+        val withoutFrames = engine.generateFrames(tokens, 0, withoutLanding)
+
+        val withMet =
+            withFrames.first { frame -> frame.tokens.any { it.text == "met" } }.durationMs
+        val withoutMet =
+            withoutFrames.first { frame -> frame.tokens.any { it.text == "met" } }.durationMs
+        assertEquals(
+            "Abbreviation punctuation should not create a pre-boundary landing boost",
+            withoutMet,
+            withMet,
+        )
+    }
+
+    @Test
+    fun singleWordFramesAreNotCompressedByFocalStress() {
+        val config =
+            punctuationConfig.copy(
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useProsodyPacing = false,
+                useFocalStress = true,
+            )
+
+        val withFocal = engine.generateFrames(listOf(w("steady")), 0, config).first().durationMs
+        val withoutFocal =
+            engine
+                .generateFrames(listOf(w("steady")), 0, config.copy(useFocalStress = false))
+                .first()
+                .durationMs
+
+        assertEquals(
+            "A single visible word is already the focal word and should not be shortened",
+            withoutFocal,
+            withFocal,
+        )
+    }
+
+    @Test
     fun abbreviationAtSentenceEndKeepsSentencePause() {
         val config =
             stableConfig.copy(

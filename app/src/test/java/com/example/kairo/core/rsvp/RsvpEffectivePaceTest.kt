@@ -1,6 +1,9 @@
 package com.example.kairo.core.rsvp
 
 import com.example.kairo.core.model.RsvpConfig
+import com.example.kairo.core.model.RsvpFrame
+import com.example.kairo.core.model.Token
+import com.example.kairo.core.model.TokenType
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -43,5 +46,34 @@ class RsvpEffectivePaceTest {
 
         assertEquals(545, base)
         assertEquals(364, adjusted)
+    }
+
+    @Test
+    fun frameFloorMs_usesEffectiveTempoForPunctuationFloor() {
+        val frame =
+            RsvpFrame(
+                tokens =
+                    listOf(
+                        Token(text = "Wait", type = TokenType.WORD),
+                        Token(text = ".", type = TokenType.PUNCTUATION),
+                    ),
+                durationMs = 1L,
+                originalTokenIndex = 0,
+            )
+        val config = RsvpConfig(tempoMsPerWord = 150L)
+        val effectiveTempoMs = 60L
+
+        assertEquals(
+            frameFloorMs(
+                frame = frame,
+                config = config.copy(tempoMsPerWord = effectiveTempoMs),
+                effectiveTempoMs = effectiveTempoMs,
+            ),
+            frameFloorMs(
+                frame = frame,
+                config = config,
+                effectiveTempoMs = effectiveTempoMs,
+            ),
+        )
     }
 }

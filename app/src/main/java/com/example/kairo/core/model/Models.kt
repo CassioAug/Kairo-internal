@@ -215,6 +215,36 @@ data class RsvpConfig(
     val complexWordThreshold: Double = 1.3,
     val clausePauseFactor: Double = 1.25,
     val blinkMode: BlinkMode = BlinkMode.OFF,
+    /**
+     * Breath-group focal stress: within each phrase (words between boundary punctuations),
+     * one "focal" word keeps its natural length while the supporting words are compressed.
+     * Creates a single peak per breath rather than treating every word as equally weighted.
+     */
+    val useFocalStress: Boolean = true,
+    /** Duration multiplier applied to non-focal words in each breath group. 1.0 disables. */
+    val focalSupportCompression: Double = 0.94,
+    /**
+     * Anticipatory landing: the word two positions before a clause/sentence boundary gets a small
+     * stretch so the descent into punctuation feels like an approach rather than an abrupt stop.
+     * The word immediately before the boundary already stretches via the tail-lift contour.
+     */
+    val useAnticipatoryLanding: Boolean = true,
+    /** Duration multiplier applied to the N-2 word before a landing punctuation. 1.0 disables. */
+    val anticipatoryLandingBoost: Double = 1.07,
+    /**
+     * Punctuation pause scaling applied when inside quoted speech. Dialogue typically flows
+     * faster in the inner voice — commas and periods inside quotes get compressed so the
+     * speech rhythm feels distinct from narration. 1.0 disables.
+     */
+    val dialoguePunctuationScale: Double = 0.88,
+    /**
+     * Parenthetical aside mode: words inside (), [], {}, or between em-dashes are compressed
+     * so they feel like a faster, quieter side-remark. When enabled, overrides
+     * [parentheticalMultiplier] for duration and suppresses the parenthetical hold.
+     */
+    val useParentheticalAside: Boolean = false,
+    /** Duration multiplier applied to words inside an aside span. 1.0 disables. */
+    val parentheticalAsideMultiplier: Double = 0.88,
 )
 
 enum class BlinkMode { OFF, SUBTLE, ADAPTIVE }

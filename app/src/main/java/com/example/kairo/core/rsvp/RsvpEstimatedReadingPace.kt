@@ -119,7 +119,7 @@ object RsvpEstimatedReadingPace {
     }
 }
 
-private fun frameFloorMs(
+internal fun frameFloorMs(
     frame: RsvpFrame,
     config: RsvpConfig,
     effectiveTempoMs: Long,
@@ -130,12 +130,13 @@ private fun frameFloorMs(
     val firstWordIndex = tokens.indexOfFirst { it.type == TokenType.WORD }
     if (firstWordIndex == -1) return frame.durationMs
 
+    val effectiveConfig = config.copy(tempoMsPerWord = effectiveTempoMs)
     var total = 0L
     tokens.forEachIndexed { index, token ->
         when (token.type) {
             TokenType.WORD -> total += config.wordFloorMsForReadability(token, effectiveTempoMs)
             TokenType.PUNCTUATION ->
-                total += punctuationFloorMs(tokens, token, index, firstWordIndex, config)
+                total += punctuationFloorMs(tokens, token, index, firstWordIndex, effectiveConfig)
             TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> Unit
         }
     }
@@ -172,7 +173,7 @@ private fun punctuationFloorMs(
         .roundToLong()
 }
 
-private fun shouldSkipBlinkFrame(
+internal fun shouldSkipBlinkFrame(
     frame: RsvpFrame,
     config: RsvpConfig,
     effectiveTempoMs: Long,
