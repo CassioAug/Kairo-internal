@@ -73,15 +73,13 @@ import com.example.kairo.core.model.RsvpFontWeight
 import com.example.kairo.core.model.RsvpProfile
 import com.example.kairo.core.model.RsvpProfileIds
 import com.example.kairo.core.model.defaultConfig
-import com.example.kairo.core.rsvp.RsvpEstimatedReadingPace
+import com.example.kairo.core.rsvp.RsvpEffectivePace
 import com.example.kairo.core.rsvp.RsvpSpeedControl
 import com.example.kairo.core.rsvp.RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
 import com.example.kairo.core.rsvp.RsvpSpeedControl.MAX_TEMPO_MS_PER_WORD
 import com.example.kairo.core.rsvp.RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
-import com.example.kairo.ui.LocalDispatcherProvider
 import com.example.kairo.ui.rsvp.rsvpSpeedBandLabelRes
 import kotlin.math.roundToInt
-import kotlinx.coroutines.withContext
 
 @Composable
 fun ReaderSettingsContent(
@@ -537,18 +535,10 @@ fun RsvpSettingsContent(
         onDeleteCustomProfile = onDeleteCustomProfile,
     )
 
-    var estimatedWpm by remember(estimatedWpmOverride) { mutableStateOf(estimatedWpmOverride ?: 0) }
-    val dispatcherProvider = LocalDispatcherProvider.current
-    LaunchedEffect(effectiveConfig, estimatedWpmOverride) {
-        if (estimatedWpmOverride != null) {
-            estimatedWpm = estimatedWpmOverride
-            return@LaunchedEffect
+    val estimatedWpm =
+        remember(effectiveConfig, estimatedWpmOverride) {
+            estimatedWpmOverride ?: RsvpEffectivePace.estimateWpm(effectiveConfig)
         }
-        estimatedWpm =
-            withContext(dispatcherProvider.default) {
-                RsvpEstimatedReadingPace.estimateWpm(effectiveConfig)
-            }
-    }
     val estimatedText =
         if (estimatedWpm > 0) {
             stringResource(R.string.rsvp_estimated_pace, estimatedWpm)
@@ -581,7 +571,12 @@ fun RsvpSettingsContent(
                     R.string.rsvp_reading_speed_indicator,
                     context.getString(
                         rsvpSpeedBandLabelRes(
-                            speed = it,
+                            tempoMsPerWord =
+                                RsvpSpeedControl.tempoForSpeed(
+                                    speed = it,
+                                    minTempoMsPerWord = minTempoMs,
+                                    maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
+                                ),
                             extremeUnlocked = unlockExtremeSpeed,
                         ),
                     ),

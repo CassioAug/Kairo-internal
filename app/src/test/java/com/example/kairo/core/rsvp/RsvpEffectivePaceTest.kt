@@ -76,4 +76,69 @@ class RsvpEffectivePaceTest {
             ),
         )
     }
+
+    @Test
+    fun estimateChapterPreviewWpm_doesNotDoubleCountSplitWordFrames() {
+        val config =
+            RsvpConfig(
+                tempoMsPerWord = 100L,
+                minWordMs = 1L,
+                longWordMinMs = 1L,
+            )
+        val frames =
+            listOf(
+                RsvpFrame(
+                    tokens = listOf(Token(text = "self-", type = TokenType.WORD)),
+                    durationMs = 100L,
+                    originalTokenIndex = 4,
+                ),
+                RsvpFrame(
+                    tokens = listOf(Token(text = "aware", type = TokenType.WORD)),
+                    durationMs = 100L,
+                    originalTokenIndex = 4,
+                ),
+            )
+
+        assertEquals(
+            300,
+            RsvpEstimatedReadingPace.estimateChapterPreviewWpm(
+                config = config,
+                frames = frames,
+                baseTempoMsPerWord = 100L,
+                sessionTempoMsPerWord = null,
+            ),
+        )
+    }
+
+    @Test
+    fun estimateChapterPreviewWpm_countsMultiWordFrames() {
+        val config =
+            RsvpConfig(
+                tempoMsPerWord = 100L,
+                minWordMs = 1L,
+                longWordMinMs = 1L,
+            )
+        val frames =
+            listOf(
+                RsvpFrame(
+                    tokens =
+                        listOf(
+                            Token(text = "in", type = TokenType.WORD),
+                            Token(text = "time", type = TokenType.WORD),
+                        ),
+                    durationMs = 200L,
+                    originalTokenIndex = 0,
+                ),
+            )
+
+        assertEquals(
+            600,
+            RsvpEstimatedReadingPace.estimateChapterPreviewWpm(
+                config = config,
+                frames = frames,
+                baseTempoMsPerWord = 100L,
+                sessionTempoMsPerWord = null,
+            ),
+        )
+    }
 }

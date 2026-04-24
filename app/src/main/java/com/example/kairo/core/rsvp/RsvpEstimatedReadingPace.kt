@@ -92,9 +92,11 @@ object RsvpEstimatedReadingPace {
             }
 
         var wordCount = 0
+        var lastSingleWordOriginalIndex: Int? = null
         var totalMs = 0L
         frames.forEach { frame ->
-            wordCount += frame.tokens.count { it.type == TokenType.WORD }
+            wordCount += countPreviewWords(frame, lastSingleWordOriginalIndex)
+            lastSingleWordOriginalIndex = nextSingleWordOriginalIndex(frame, lastSingleWordOriginalIndex)
             if (shouldSkipBlinkFrame(frame, config, effectiveTempoMsPerWord, tempoScale)) {
                 return@forEach
             }
@@ -116,6 +118,30 @@ object RsvpEstimatedReadingPace {
         }
 
         return ((wordCount * 60_000.0) / totalMs.toDouble()).roundToInt().coerceAtLeast(1)
+    }
+}
+
+private fun countPreviewWords(
+    frame: RsvpFrame,
+    lastSingleWordOriginalIndex: Int?,
+): Int {
+    val words = frame.tokens.filter { it.type == TokenType.WORD }
+    if (words.isEmpty()) return 0
+    if (words.size > 1) return words.size
+
+    val duplicateSplitFrame = frame.originalTokenIndex == lastSingleWordOriginalIndex
+    return if (duplicateSplitFrame) 0 else 1
+}
+
+private fun nextSingleWordOriginalIndex(
+    frame: RsvpFrame,
+    current: Int?,
+): Int? {
+    val wordCount = frame.tokens.count { it.type == TokenType.WORD }
+    return when (wordCount) {
+        0 -> current
+        1 -> frame.originalTokenIndex
+        else -> null
     }
 }
 

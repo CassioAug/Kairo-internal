@@ -60,14 +60,42 @@ object RsvpSpeedControl {
         speed: Float,
         extremeUnlocked: Boolean,
     ): SpeedBand {
-        val displaySpeed = displaySpeed(speed)
+        val minTempoMsPerWord =
+            if (extremeUnlocked) {
+                EXTREME_MIN_TEMPO_MS_PER_WORD
+            } else {
+                SAFE_MIN_TEMPO_MS_PER_WORD
+            }
+        return bandForTempoMs(
+            tempoMsPerWord =
+                tempoForSpeed(
+                    speed = speed,
+                    minTempoMsPerWord = minTempoMsPerWord,
+                    maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
+                ),
+            extremeUnlocked = extremeUnlocked,
+        )
+    }
+
+    fun bandForTempoMs(
+        tempoMsPerWord: Long,
+        extremeUnlocked: Boolean,
+    ): SpeedBand {
+        val selectedWpm = MS_PER_MINUTE / tempoMsPerWord.coerceAtLeast(1L).toDouble()
         return when {
-            extremeUnlocked && displaySpeed >= 95 -> SpeedBand.EXTREME
-            displaySpeed >= 82 -> SpeedBand.VERY_FAST
-            displaySpeed >= 64 -> SpeedBand.FAST
-            displaySpeed >= 38 -> SpeedBand.STEADY
-            displaySpeed >= 18 -> SpeedBand.SLOW
+            extremeUnlocked && selectedWpm >= EXTREME_MIN_WPM -> SpeedBand.EXTREME
+            selectedWpm >= VERY_FAST_MIN_WPM -> SpeedBand.VERY_FAST
+            selectedWpm >= FAST_MIN_WPM -> SpeedBand.FAST
+            selectedWpm >= STEADY_MIN_WPM -> SpeedBand.STEADY
+            selectedWpm >= SLOW_MIN_WPM -> SpeedBand.SLOW
             else -> SpeedBand.VERY_SLOW
         }
     }
+
+    private const val MS_PER_MINUTE = 60_000.0
+    private const val SLOW_MIN_WPM = 300
+    private const val STEADY_MIN_WPM = 450
+    private const val FAST_MIN_WPM = 650
+    private const val VERY_FAST_MIN_WPM = 950
+    private const val EXTREME_MIN_WPM = 1_800
 }

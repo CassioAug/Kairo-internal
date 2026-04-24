@@ -194,7 +194,7 @@ private fun RsvpQuickSettingsTempoControls(
     val speedLabel =
         stringResource(
             rsvpSpeedBandLabelRes(
-                speed = speedPercent.toFloat(),
+                tempoMsPerWord = runtime.currentTempoMsPerWord,
                 extremeUnlocked = context.state.uiPrefs.extremeSpeedUnlocked,
             ),
         )

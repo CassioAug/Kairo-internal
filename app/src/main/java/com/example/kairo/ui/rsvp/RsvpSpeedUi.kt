@@ -6,10 +6,10 @@ import com.example.kairo.core.rsvp.RsvpSpeedControl
 
 @StringRes
 internal fun rsvpSpeedBandLabelRes(
-    speed: Float,
+    tempoMsPerWord: Long,
     extremeUnlocked: Boolean,
 ): Int =
-    when (RsvpSpeedControl.bandForSpeed(speed, extremeUnlocked)) {
+    when (RsvpSpeedControl.bandForTempoMs(tempoMsPerWord, extremeUnlocked)) {
         RsvpSpeedControl.SpeedBand.VERY_SLOW -> R.string.rsvp_speed_band_very_slow
         RsvpSpeedControl.SpeedBand.SLOW -> R.string.rsvp_speed_band_slow
         RsvpSpeedControl.SpeedBand.STEADY -> R.string.rsvp_speed_band_steady
