@@ -662,6 +662,47 @@ fun RsvpSettingsContent(
             onCommit = { onRsvpTextBrightnessChange(it.coerceIn(0.55f, 1.0f)) },
             valueRange = 0.55f..1.0f,
         )
+
+        SettingsSwitchRow(
+            title = stringResource(R.string.rsvp_orp_guide_title),
+            subtitle = stringResource(R.string.rsvp_orp_guide_subtitle),
+            checked = config.orpGuideEnabled,
+            onCheckedChange = { enabled ->
+                updateConfig { it.copy(orpGuideEnabled = enabled) }
+            },
+        )
+
+        if (config.orpGuideEnabled) {
+            DeferredSliderRow(
+                title = stringResource(R.string.rsvp_orp_guide_brightness_title),
+                subtitle = stringResource(R.string.rsvp_orp_guide_brightness_subtitle),
+                valueLabel = {
+                    context.getString(
+                        R.string.format_percent,
+                        it.coerceIn(25f, 200f).toInt(),
+                    )
+                },
+                rawValue = (config.orpGuideBrightness * 100.0).toFloat(),
+                onCommit = { newValue ->
+                    updateConfig {
+                        it.copy(orpGuideBrightness = (newValue / 100.0).coerceIn(0.25, 2.0))
+                    }
+                },
+                valueRange = 25f..200f,
+            )
+            DeferredSliderRow(
+                title = stringResource(R.string.rsvp_orp_guide_thickness_title),
+                subtitle = stringResource(R.string.rsvp_orp_guide_thickness_subtitle),
+                valueLabel = { context.getString(R.string.format_multiplier, it) },
+                rawValue = config.orpGuideThickness.toFloat(),
+                onCommit = { newValue ->
+                    updateConfig {
+                        it.copy(orpGuideThickness = newValue.toDouble().coerceIn(0.5, 3.0))
+                    }
+                },
+                valueRange = 0.5f..3.0f,
+            )
+        }
     }
 
     Spacer(modifier = Modifier.height(12.dp))

@@ -6,13 +6,18 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -29,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.example.kairo.R
 import com.example.kairo.core.rsvp.RsvpSpeedControl
 import com.example.kairo.ui.settings.RsvpSettingsContent
@@ -53,39 +60,73 @@ internal fun BoxScope.RsvpQuickSettingsPanel(
         exit = fadeOut(),
         modifier = Modifier.align(Alignment.BottomCenter),
     ) {
-        Column(
+        Box(
             modifier =
-            panelModifier
-                .fillMaxWidth()
-                .fillMaxHeight(QUICK_SETTINGS_HEIGHT_FRACTION)
-                .navigationBarsPadding()
-                .background(
-                    MaterialTheme.colorScheme.surface.copy(
-                        alpha = QUICK_SETTINGS_BACKGROUND_ALPHA,
-                    ),
-                    RoundedCornerShape(
-                        topStart = QUICK_SETTINGS_CORNER,
-                        topEnd = QUICK_SETTINGS_CORNER,
-                    ),
-                ).verticalScroll(rememberScrollState())
-                .padding(
-                    horizontal = QUICK_SETTINGS_HORIZONTAL_PADDING,
-                    vertical = QUICK_SETTINGS_VERTICAL_PADDING,
-                ),
-            verticalArrangement = Arrangement.spacedBy(QUICK_SETTINGS_SPACING),
+                panelModifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(QUICK_SETTINGS_OUTER_PADDING),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            var showRsvpSettings by remember { mutableStateOf(false) }
-            if (showRsvpSettings) {
-                RsvpQuickSettingsAdvanced(context) { showRsvpSettings = false }
-            } else {
-                RsvpQuickSettingsMain(
-                    context = context,
-                    speedPercent = speedPercent,
-                    onOpenRsvpSettings = { showRsvpSettings = true },
-                    settingsRowModifier = settingsRowModifier,
-                )
+            Column(
+                modifier =
+                    Modifier
+                        .widthIn(max = QUICK_SETTINGS_MAX_WIDTH)
+                        .fillMaxWidth()
+                        .fillMaxHeight(QUICK_SETTINGS_HEIGHT_FRACTION)
+                        .clip(RoundedCornerShape(QUICK_SETTINGS_CORNER))
+                        .background(
+                            MaterialTheme.colorScheme.surface.copy(alpha = QUICK_SETTINGS_BACKGROUND_ALPHA),
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = QUICK_SETTINGS_BORDER_ALPHA),
+                            shape = RoundedCornerShape(QUICK_SETTINGS_CORNER),
+                        )
+                        .verticalScroll(rememberScrollState())
+                        .padding(
+                            horizontal = QUICK_SETTINGS_HORIZONTAL_PADDING,
+                            vertical = QUICK_SETTINGS_VERTICAL_PADDING,
+                        ),
+                verticalArrangement = Arrangement.spacedBy(QUICK_SETTINGS_SPACING),
+                horizontalAlignment = Alignment.Start,
+            ) {
+                RsvpQuickSettingsHandle()
+                var showRsvpSettings by remember { mutableStateOf(false) }
+                if (showRsvpSettings) {
+                    RsvpQuickSettingsAdvanced(context) { showRsvpSettings = false }
+                } else {
+                    RsvpQuickSettingsMain(
+                        context = context,
+                        speedPercent = speedPercent,
+                        onOpenRsvpSettings = { showRsvpSettings = true },
+                        settingsRowModifier = settingsRowModifier,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun RsvpQuickSettingsHandle() {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = QUICK_SETTINGS_HANDLE_BOTTOM_PADDING),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .width(QUICK_SETTINGS_HANDLE_WIDTH)
+                    .height(QUICK_SETTINGS_HANDLE_HEIGHT)
+                    .clip(RoundedCornerShape(QUICK_SETTINGS_HANDLE_HEIGHT))
+                    .background(
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = QUICK_SETTINGS_HANDLE_ALPHA),
+                    ),
+        )
     }
 }
 

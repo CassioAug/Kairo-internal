@@ -121,19 +121,26 @@ internal fun OrpAlignedTextLayout(
                 layoutResult.translationX
             }
 
+        val guideThickness = ORP_LINE_HEIGHT * layout.guideThickness
+        val pointerThickness = ORP_POINTER_WIDTH * layout.guideThickness
+
         Column(modifier = Modifier.fillMaxWidth()) {
-            OrpStaticLine(colors.pivotLineColor)
-            OrpPointer(layoutResult.guideBias, colors.pivotLineColor)
-            Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
+            if (layout.guideVisible) {
+                OrpStaticLine(colors.pivotLineColor, guideThickness)
+                OrpPointer(layoutResult.guideBias, colors.pivotLineColor, pointerThickness)
+                Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
+            }
             OrpTextLine(
                 display.annotatedText,
                 display.textStyle,
                 colors.textColor,
                 translationX,
             )
-            Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
-            OrpPointer(layoutResult.guideBias, colors.pivotLineColor)
-            OrpStaticLine(colors.pivotLineColor)
+            if (layout.guideVisible) {
+                Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
+                OrpPointer(layoutResult.guideBias, colors.pivotLineColor, pointerThickness)
+                OrpStaticLine(colors.pivotLineColor, guideThickness)
+            }
         }
     }
 }

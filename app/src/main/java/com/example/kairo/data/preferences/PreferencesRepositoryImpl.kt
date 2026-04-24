@@ -563,6 +563,9 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     private fun JSONObject.putOrpAndDelays(config: RsvpConfig) {
         put("orpEnabled", config.orpEnabled)
+        put("orpGuideEnabled", config.orpGuideEnabled)
+        put("orpGuideBrightness", config.orpGuideBrightness)
+        put("orpGuideThickness", config.orpGuideThickness)
         put("startDelayMs", config.startDelayMs)
         put("endDelayMs", config.endDelayMs)
     }
@@ -748,6 +751,9 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     ): RsvpConfig =
         copy(
             orpEnabled = obj.optBoolean("orpEnabled", defaults.orpEnabled),
+            orpGuideEnabled = obj.optBoolean("orpGuideEnabled", defaults.orpGuideEnabled),
+            orpGuideBrightness = obj.optDouble("orpGuideBrightness", defaults.orpGuideBrightness),
+            orpGuideThickness = obj.optDouble("orpGuideThickness", defaults.orpGuideThickness),
             startDelayMs = obj.optLong("startDelayMs", defaults.startDelayMs),
             endDelayMs = obj.optLong("endDelayMs", defaults.endDelayMs),
         )
@@ -912,6 +918,9 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     private fun writeOrpAndDelays(prefs: MutablePreferences, config: RsvpConfig) {
         prefs[keys.orpEnabled] = config.orpEnabled
+        prefs[keys.orpGuideEnabled] = config.orpGuideEnabled
+        prefs[keys.orpGuideBrightness] = config.orpGuideBrightness
+        prefs[keys.orpGuideThickness] = config.orpGuideThickness
         prefs[keys.startDelayMs] = config.startDelayMs
         prefs[keys.endDelayMs] = config.endDelayMs
     }
@@ -1209,6 +1218,12 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     ): RsvpConfig =
         copy(
             orpEnabled = prefs.readOrDefault(keys.orpEnabled, defaults.orpEnabled),
+            orpGuideEnabled =
+                prefs.readOrDefault(keys.orpGuideEnabled, defaults.orpGuideEnabled),
+            orpGuideBrightness =
+                prefs.readOrDefault(keys.orpGuideBrightness, defaults.orpGuideBrightness),
+            orpGuideThickness =
+                prefs.readOrDefault(keys.orpGuideThickness, defaults.orpGuideThickness),
             startDelayMs = prefs.readOrDefault(keys.startDelayMs, defaults.startDelayMs),
             endDelayMs = prefs.readOrDefault(keys.endDelayMs, defaults.endDelayMs),
         )
@@ -1262,6 +1277,9 @@ private object PrefKeys {
     val useProsodyPacing = booleanPreferencesKey("use_prosody_pacing")
     val prosodyStrength = doublePreferencesKey("prosody_strength")
     val orpEnabled = booleanPreferencesKey("orp_enabled")
+    val orpGuideEnabled = booleanPreferencesKey("orp_guide_enabled")
+    val orpGuideBrightness = doublePreferencesKey("orp_guide_brightness")
+    val orpGuideThickness = doublePreferencesKey("orp_guide_thickness")
     val startDelayMs = longPreferencesKey("start_delay_ms")
     val endDelayMs = longPreferencesKey("end_delay_ms")
     val rampUpFrames = intPreferencesKey("ramp_up_frames")
