@@ -20,14 +20,18 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 
 @Composable
-internal fun OrpStaticLine(color: Color) {
+internal fun OrpStaticLine(
+    color: Color,
+    thickness: Dp,
+) {
     Box(
         modifier =
         Modifier
             .fillMaxWidth()
-            .height(ORP_LINE_HEIGHT)
+            .height(thickness)
             .background(color),
     )
 }
@@ -36,6 +40,7 @@ internal fun OrpStaticLine(color: Color) {
 internal fun OrpPointer(
     guideBias: Float,
     color: Color,
+    thickness: Dp,
 ) {
     Box(
         modifier =
@@ -47,7 +52,7 @@ internal fun OrpPointer(
             modifier =
             Modifier
                 .align(BiasAlignment(horizontalBias = guideBias, verticalBias = CENTER_BIAS))
-                .width(ORP_POINTER_WIDTH)
+                .width(thickness)
                 .fillMaxHeight()
                 .background(color),
         )

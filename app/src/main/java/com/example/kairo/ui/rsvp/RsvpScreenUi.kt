@@ -90,7 +90,11 @@ internal fun RsvpPlaybackSurface(
             fontFamily = resolveFontFamily(runtime.currentFontFamily),
             fontWeight = resolveFontWeight(runtime.currentFontWeight),
         )
-    val colors = rememberRsvpTextColors(runtime.currentTextBrightness)
+    val colors =
+        rememberRsvpTextColors(
+            textBrightness = runtime.currentTextBrightness,
+            config = context.state.profile.config,
+        )
     val interactionSource = remember { MutableInteractionSource() }
     val displayedSpeed =
         rememberRsvpDisplayedSpeed(
@@ -172,6 +176,7 @@ internal fun RsvpPlaybackSurface(
         )
         RsvpBottomControls(
             context = context,
+            speedIndicatorText = speedIndicatorText,
             controlsModifier =
                 Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_PLAYBACK_CONTROLS) {
                     targetId,
@@ -209,10 +214,17 @@ internal fun rememberRsvpDisplayedSpeed(
     }
 
 @Composable
-private fun rememberRsvpTextColors(textBrightness: Float): OrpColors {
+private fun rememberRsvpTextColors(
+    textBrightness: Float,
+    config: RsvpConfig,
+): OrpColors {
     val clampedBrightness = textBrightness.coerceIn(TEXT_BRIGHTNESS_MIN, TEXT_BRIGHTNESS_MAX)
+    val guideBrightness =
+        config.orpGuideBrightness
+            .toFloat()
+            .coerceIn(ORP_GUIDE_BRIGHTNESS_MIN, ORP_GUIDE_BRIGHTNESS_MAX)
     val pivotLineAlpha =
-        (PIVOT_LINE_ALPHA_BASE * clampedBrightness)
+        (PIVOT_LINE_ALPHA_BASE * clampedBrightness * guideBrightness)
             .coerceIn(PIVOT_LINE_ALPHA_MIN, PIVOT_LINE_ALPHA_MAX)
     return OrpColors(
         pivotColor = MaterialTheme.colorScheme.primary,
@@ -263,6 +275,11 @@ private fun RsvpFocusWord(
                 preferWindowing = profile.config.prefersOrpWindowing(runtime.currentTempoMsPerWord),
                 simplifyPunctuation =
                     profile.config.prefersSimplifiedOrpDisplay(runtime.currentTempoMsPerWord),
+                guideVisible = profile.config.orpGuideEnabled,
+                guideThickness =
+                    profile.config.orpGuideThickness
+                        .toFloat()
+                        .coerceIn(ORP_GUIDE_THICKNESS_MIN, ORP_GUIDE_THICKNESS_MAX),
             ),
         )
     }
@@ -346,7 +363,7 @@ private fun RsvpParagraphPreview(
         val backgroundColor = MaterialTheme.colorScheme.background
         val previewSurfaceColor =
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = PARAGRAPH_PREVIEW_SURFACE_ALPHA)
-        val previewBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        val previewBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f)
         val clampedVerticalBias = runtime.currentVerticalBias.coerceIn(VERTICAL_BIAS_MIN, VERTICAL_BIAS_MAX)
         BoxWithConstraints(
             modifier =
@@ -621,7 +638,10 @@ private fun RsvpPositionGuide(
 
 @Composable
 private fun rememberBottomChromeInset(runtime: RsvpRuntimeState): Dp {
-    if (!runtime.showControls) return 0.dp
+    val shouldProtectLowOrp =
+        runtime.showControls &&
+            runtime.currentVerticalBias > CONTROLS_COLLISION_VERTICAL_BIAS
+    if (!shouldProtectLowOrp) return 0.dp
 
     val density = LocalDensity.current
     val navigationBarsInset = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }

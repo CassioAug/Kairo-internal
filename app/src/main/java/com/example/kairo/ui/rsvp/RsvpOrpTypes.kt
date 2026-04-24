@@ -19,6 +19,8 @@ internal data class OrpTextLayout(
     val smoothTranslation: Boolean,
     val preferWindowing: Boolean,
     val simplifyPunctuation: Boolean,
+    val guideVisible: Boolean,
+    val guideThickness: Float,
 )
 
 internal data class OrpTextContent(

@@ -189,6 +189,9 @@ data class RsvpConfig(
      * ORP + session ramping.
      */
     val orpEnabled: Boolean = true,
+    val orpGuideEnabled: Boolean = true,
+    val orpGuideBrightness: Double = 1.0,
+    val orpGuideThickness: Double = 1.0,
     val startDelayMs: Long = 250L,
     val endDelayMs: Long = 350L,
     val rampUpFrames: Int = 5,

@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +18,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +31,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,6 +42,8 @@ import kotlin.math.roundToInt
 @Composable
 internal fun BoxScope.RsvpProgressBar(context: RsvpUiContext) {
     val runtime = context.runtime
+    if (runtime.showControls || runtime.showQuickSettings) return
+
     val frames = context.frameState.frames
     val progress = (runtime.frameIndex + 1).toFloat() / frames.size.toFloat()
     val progressAlpha = if (runtime.isPlaying) 0.52f else 0.78f
@@ -49,6 +55,11 @@ internal fun BoxScope.RsvpProgressBar(context: RsvpUiContext) {
             .fillMaxWidth()
             .align(Alignment.BottomCenter)
             .navigationBarsPadding()
+            .padding(
+                horizontal = PROGRESS_HORIZONTAL_PADDING,
+                vertical = PROGRESS_BOTTOM_PADDING,
+            )
+            .clip(RoundedCornerShape(PROGRESS_CORNER_RADIUS))
             .height(PROGRESS_HEIGHT),
         color = MaterialTheme.colorScheme.primary.copy(alpha = progressAlpha),
         trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = PROGRESS_TRACK_ALPHA),
@@ -67,13 +78,31 @@ internal fun BoxScope.RsvpTopBar(
     Row(
         modifier =
         Modifier
+            .align(Alignment.TopStart)
+            .statusBarsPadding()
+            .padding(TOP_BAR_PADDING),
+        horizontalArrangement = Arrangement.spacedBy(TOP_BAR_SPACING),
+    ) {
+        RsvpTopIconButton(
+            imageVector = Icons.Default.KeyboardArrowDown,
+            contentDescription = stringResource(R.string.content_desc_close),
+            onClick = { exitAndSavePosition(context) },
+            modifier = closeModifier,
+        )
+    }
+
+    Row(
+        modifier =
+        Modifier
             .align(Alignment.TopEnd)
             .statusBarsPadding()
             .padding(TOP_BAR_PADDING),
         horizontalArrangement = Arrangement.spacedBy(TOP_BAR_SPACING),
     ) {
         if (showSettings) {
-            IconButton(
+            RsvpTopIconButton(
+                imageVector = Icons.Default.Settings,
+                contentDescription = stringResource(R.string.content_desc_settings),
                 onClick = {
                     if (runtime.isPositioningMode) {
                         finishPositioning(context, resumeIfWasPlaying = true)
@@ -83,26 +112,39 @@ internal fun BoxScope.RsvpTopBar(
                     }
                 },
                 modifier = settingsModifier,
-            ) {
-                Icon(
-                    Icons.Default.Settings,
-                    contentDescription = stringResource(R.string.content_desc_settings),
-                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = TOP_BAR_ICON_ALPHA),
-                    modifier = Modifier.size(TOP_BAR_ICON_SIZE),
-                )
-            }
-        }
-        IconButton(
-            onClick = { exitAndSavePosition(context) },
-            modifier = closeModifier,
-        ) {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = stringResource(R.string.content_desc_close),
-                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = TOP_BAR_ICON_ALPHA),
-                modifier = Modifier.size(TOP_BAR_ICON_SIZE),
             )
         }
+    }
+}
+
+@Composable
+private fun RsvpTopIconButton(
+    imageVector: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier =
+            modifier
+                .size(TOP_BAR_BUTTON_SIZE)
+                .clip(CircleShape)
+                .background(
+                    MaterialTheme.colorScheme.surface.copy(alpha = TOP_BAR_BUTTON_BACKGROUND_ALPHA),
+                )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = TOP_BAR_BUTTON_BORDER_ALPHA),
+                    shape = CircleShape,
+                ),
+    ) {
+        Icon(
+            imageVector,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = TOP_BAR_ICON_ALPHA),
+            modifier = Modifier.size(TOP_BAR_ICON_SIZE),
+        )
     }
 }
 
