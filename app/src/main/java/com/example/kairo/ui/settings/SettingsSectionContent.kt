@@ -73,15 +73,13 @@ import com.example.kairo.core.model.RsvpFontWeight
 import com.example.kairo.core.model.RsvpProfile
 import com.example.kairo.core.model.RsvpProfileIds
 import com.example.kairo.core.model.defaultConfig
-import com.example.kairo.core.rsvp.RsvpEstimatedReadingPace
+import com.example.kairo.core.rsvp.RsvpEffectivePace
 import com.example.kairo.core.rsvp.RsvpSpeedControl
 import com.example.kairo.core.rsvp.RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
 import com.example.kairo.core.rsvp.RsvpSpeedControl.MAX_TEMPO_MS_PER_WORD
 import com.example.kairo.core.rsvp.RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
-import com.example.kairo.ui.LocalDispatcherProvider
 import com.example.kairo.ui.rsvp.rsvpSpeedBandLabelRes
 import kotlin.math.roundToInt
-import kotlinx.coroutines.withContext
 
 @Composable
 fun ReaderSettingsContent(
@@ -537,18 +535,10 @@ fun RsvpSettingsContent(
         onDeleteCustomProfile = onDeleteCustomProfile,
     )
 
-    var estimatedWpm by remember(estimatedWpmOverride) { mutableStateOf(estimatedWpmOverride ?: 0) }
-    val dispatcherProvider = LocalDispatcherProvider.current
-    LaunchedEffect(effectiveConfig, estimatedWpmOverride) {
-        if (estimatedWpmOverride != null) {
-            estimatedWpm = estimatedWpmOverride
-            return@LaunchedEffect
+    val estimatedWpm =
+        remember(effectiveConfig, estimatedWpmOverride) {
+            estimatedWpmOverride ?: RsvpEffectivePace.estimateWpm(effectiveConfig)
         }
-        estimatedWpm =
-            withContext(dispatcherProvider.default) {
-                RsvpEstimatedReadingPace.estimateWpm(effectiveConfig)
-            }
-    }
     val estimatedText =
         if (estimatedWpm > 0) {
             stringResource(R.string.rsvp_estimated_pace, estimatedWpm)
@@ -581,7 +571,12 @@ fun RsvpSettingsContent(
                     R.string.rsvp_reading_speed_indicator,
                     context.getString(
                         rsvpSpeedBandLabelRes(
-                            speed = it,
+                            tempoMsPerWord =
+                                RsvpSpeedControl.tempoForSpeed(
+                                    speed = it,
+                                    minTempoMsPerWord = minTempoMs,
+                                    maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
+                                ),
                             extremeUnlocked = unlockExtremeSpeed,
                         ),
                     ),
@@ -940,6 +935,43 @@ fun RsvpSettingsContent(
                     },
                     valueRange = 85f..105f,
                 )
+                DeferredSliderRow(
+                    title = stringResource(R.string.rsvp_dialogue_punctuation_title),
+                    subtitle = stringResource(R.string.rsvp_dialogue_punctuation_subtitle),
+                    valueLabel = { context.getString(R.string.format_percent, it.toInt()) },
+                    rawValue = (config.dialoguePunctuationScale * 100).toFloat(),
+                    onCommit = { newValue ->
+                        updateConfig {
+                            it.copy(dialoguePunctuationScale = (newValue / 100.0).coerceIn(50.0, 100.0))
+                        }
+                    },
+                    valueRange = 50f..100f,
+                )
+                SettingsSwitchRow(
+                    title = stringResource(R.string.rsvp_parenthetical_aside_title),
+                    subtitle = stringResource(R.string.rsvp_parenthetical_aside_subtitle),
+                    checked = config.useParentheticalAside,
+                    onCheckedChange = { enabled ->
+                        updateConfig { it.copy(useParentheticalAside = enabled) }
+                    },
+                )
+                if (config.useParentheticalAside) {
+                    DeferredSliderRow(
+                        title = stringResource(R.string.rsvp_parenthetical_aside_pace_title),
+                        subtitle = stringResource(R.string.rsvp_parenthetical_aside_pace_subtitle),
+                        valueLabel = { context.getString(R.string.format_percent, it.toInt()) },
+                        rawValue = (config.parentheticalAsideMultiplier * 100).toFloat(),
+                        onCommit = { newValue ->
+                            updateConfig {
+                                it.copy(
+                                    parentheticalAsideMultiplier =
+                                    (newValue / 100.0).coerceIn(50.0, 100.0),
+                                )
+                            }
+                        },
+                        valueRange = 50f..100f,
+                    )
+                }
             }
 
             ExpandableSettingsSection(
@@ -1008,6 +1040,54 @@ fun RsvpSettingsContent(
                     },
                     valueRange = 0f..100f,
                 )
+
+                SettingsSwitchRow(
+                    title = stringResource(R.string.rsvp_focal_stress_title),
+                    subtitle = stringResource(R.string.rsvp_focal_stress_subtitle),
+                    checked = config.useFocalStress,
+                    onCheckedChange = { enabled ->
+                        updateConfig { it.copy(useFocalStress = enabled) }
+                    },
+                )
+
+                if (config.useFocalStress) {
+                    DeferredSliderRow(
+                        title = stringResource(R.string.rsvp_focal_support_title),
+                        subtitle = stringResource(R.string.rsvp_focal_support_subtitle),
+                        valueLabel = { context.getString(R.string.format_percent, it.toInt()) },
+                        rawValue = (config.focalSupportCompression * 100).toFloat(),
+                        onCommit = { newValue ->
+                            updateConfig {
+                                it.copy(focalSupportCompression = (newValue / 100.0).coerceIn(75.0, 100.0))
+                            }
+                        },
+                        valueRange = 75f..100f,
+                    )
+                }
+
+                SettingsSwitchRow(
+                    title = stringResource(R.string.rsvp_anticipatory_landing_title),
+                    subtitle = stringResource(R.string.rsvp_anticipatory_landing_subtitle),
+                    checked = config.useAnticipatoryLanding,
+                    onCheckedChange = { enabled ->
+                        updateConfig { it.copy(useAnticipatoryLanding = enabled) }
+                    },
+                )
+
+                if (config.useAnticipatoryLanding) {
+                    DeferredSliderRow(
+                        title = stringResource(R.string.rsvp_anticipatory_landing_strength_title),
+                        subtitle = stringResource(R.string.rsvp_anticipatory_landing_strength_subtitle),
+                        valueLabel = { context.getString(R.string.format_plus_percent, it.toInt()) },
+                        rawValue = ((config.anticipatoryLandingBoost - 1.0) * 100).toFloat(),
+                        onCommit = { newValue ->
+                            updateConfig {
+                                it.copy(anticipatoryLandingBoost = (1.0 + newValue / 100.0).coerceIn(1.0, 1.2))
+                            }
+                        },
+                        valueRange = 0f..20f,
+                    )
+                }
 
                 SettingsSwitchRow(
                     title = stringResource(R.string.rsvp_clause_pacing_title),

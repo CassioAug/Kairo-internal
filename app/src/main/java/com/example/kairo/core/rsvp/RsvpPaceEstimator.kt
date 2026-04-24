@@ -4,6 +4,7 @@ import com.example.kairo.core.model.Chapter
 import com.example.kairo.core.model.RsvpConfig
 import com.example.kairo.core.model.TokenType
 import com.example.kairo.core.tokenization.Tokenizer
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
@@ -39,13 +40,34 @@ object RsvpPaceEstimator {
 
         val wordCount = tokens.count { it.type == TokenType.WORD }.coerceAtLeast(1)
         val frames = engine.generateFrames(tokens, startIndex = 0, config = steadyConfig)
-        val totalMs = frames.sumOf { it.durationMs }.coerceAtLeast(1L)
+        val totalMs =
+            frames.sumOf { frame ->
+                if (shouldSkipBlinkFrame(
+                        frame = frame,
+                        config = steadyConfig,
+                        effectiveTempoMs = steadyConfig.tempoMsPerWord,
+                        tempoScale = STEADY_TEMPO_SCALE,
+                    )
+                ) {
+                    0L
+                } else {
+                    max(
+                        frame.durationMs,
+                        frameFloorMs(
+                            frame = frame,
+                            config = steadyConfig,
+                            effectiveTempoMs = steadyConfig.tempoMsPerWord,
+                        ),
+                    )
+                }
+            }.coerceAtLeast(1L)
 
         val wpm = (wordCount * MS_PER_MINUTE) / totalMs.toDouble()
         return wpm.roundToInt().coerceAtLeast(1)
     }
 
     private const val MS_PER_MINUTE = 60_000.0
+    private const val STEADY_TEMPO_SCALE = 1.0
     private const val SAMPLE_TEXT =
         "Kairo is built for calm comprehension, even at high speed. " +
             "When a sentence turns—unexpectedly—your eyes should not feel rushed. " +

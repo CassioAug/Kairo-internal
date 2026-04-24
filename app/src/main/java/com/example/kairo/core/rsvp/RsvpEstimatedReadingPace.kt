@@ -92,9 +92,11 @@ object RsvpEstimatedReadingPace {
             }
 
         var wordCount = 0
+        var lastSingleWordOriginalIndex: Int? = null
         var totalMs = 0L
         frames.forEach { frame ->
-            wordCount += frame.tokens.count { it.type == TokenType.WORD }
+            wordCount += countPreviewWords(frame, lastSingleWordOriginalIndex)
+            lastSingleWordOriginalIndex = nextSingleWordOriginalIndex(frame, lastSingleWordOriginalIndex)
             if (shouldSkipBlinkFrame(frame, config, effectiveTempoMsPerWord, tempoScale)) {
                 return@forEach
             }
@@ -119,7 +121,31 @@ object RsvpEstimatedReadingPace {
     }
 }
 
-private fun frameFloorMs(
+private fun countPreviewWords(
+    frame: RsvpFrame,
+    lastSingleWordOriginalIndex: Int?,
+): Int {
+    val words = frame.tokens.filter { it.type == TokenType.WORD }
+    if (words.isEmpty()) return 0
+    if (words.size > 1) return words.size
+
+    val duplicateSplitFrame = frame.originalTokenIndex == lastSingleWordOriginalIndex
+    return if (duplicateSplitFrame) 0 else 1
+}
+
+private fun nextSingleWordOriginalIndex(
+    frame: RsvpFrame,
+    current: Int?,
+): Int? {
+    val wordCount = frame.tokens.count { it.type == TokenType.WORD }
+    return when (wordCount) {
+        0 -> current
+        1 -> frame.originalTokenIndex
+        else -> null
+    }
+}
+
+internal fun frameFloorMs(
     frame: RsvpFrame,
     config: RsvpConfig,
     effectiveTempoMs: Long,
@@ -130,12 +156,13 @@ private fun frameFloorMs(
     val firstWordIndex = tokens.indexOfFirst { it.type == TokenType.WORD }
     if (firstWordIndex == -1) return frame.durationMs
 
+    val effectiveConfig = config.copy(tempoMsPerWord = effectiveTempoMs)
     var total = 0L
     tokens.forEachIndexed { index, token ->
         when (token.type) {
             TokenType.WORD -> total += config.wordFloorMsForReadability(token, effectiveTempoMs)
             TokenType.PUNCTUATION ->
-                total += punctuationFloorMs(tokens, token, index, firstWordIndex, config)
+                total += punctuationFloorMs(tokens, token, index, firstWordIndex, effectiveConfig)
             TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> Unit
         }
     }
@@ -172,7 +199,7 @@ private fun punctuationFloorMs(
         .roundToLong()
 }
 
-private fun shouldSkipBlinkFrame(
+internal fun shouldSkipBlinkFrame(
     frame: RsvpFrame,
     config: RsvpConfig,
     effectiveTempoMs: Long,

@@ -10,14 +10,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.example.kairo.core.model.RsvpConfig
-import com.example.kairo.core.model.Token
-import com.example.kairo.core.model.TokenType
-import com.example.kairo.core.model.effectiveBlinkMode
-import com.example.kairo.core.model.isSentenceEndingPunctuation
-import com.example.kairo.core.model.nearestWordIndex
-import com.example.kairo.core.model.wordFloorMsForReadability
-import com.example.kairo.core.rsvp.RsvpPunctuationTimingPolicy
-import kotlin.math.max
+import com.example.kairo.core.rsvp.frameFloorMs
+import com.example.kairo.core.rsvp.shouldSkipBlinkFrame
 import kotlin.math.roundToLong
 import kotlinx.coroutines.delay
 
@@ -115,7 +109,6 @@ internal fun RsvpPlaybackLoopEffect(
 ) {
     val runtime = context.runtime
     val frames = context.frameState.frames
-    val tokens = context.state.book.tokens
     val tempoScale = context.timing.tempoScale
     val config = context.state.profile.config
 
@@ -125,10 +118,7 @@ internal fun RsvpPlaybackLoopEffect(
         if (runtime.frameIndex >= frames.size) return@LaunchedEffect
         val frame = frames[runtime.frameIndex]
         val effectiveTempoMs = (config.tempoMsPerWord * tempoScale).roundToLong()
-        val effectiveBlinkMode = config.effectiveBlinkMode(effectiveTempoMs)
-        if (effectiveBlinkMode == com.example.kairo.core.model.BlinkMode.OFF &&
-            shouldSkipBlinkFrame(frame, tempoScale, config)
-        ) {
+        if (shouldSkipBlinkFrame(frame, config, effectiveTempoMs, tempoScale)) {
             if (runtime.frameIndex >= frames.lastIndex) {
                 completePlayback(context)
             } else {
@@ -191,7 +181,7 @@ internal fun RsvpPlaybackLoopEffect(
 }
 
 private fun rampMultiplier(
-    config: com.example.kairo.core.model.RsvpConfig,
+    config: RsvpConfig,
     frameIndex: Int,
     rampStartIndex: Int,
 ): Double {
@@ -218,98 +208,6 @@ private fun resumeDelayMs(
 }
 
 private const val CATCH_UP_FACTOR = 0.25
-
-private fun frameFloorMs(
-    frame: com.example.kairo.core.model.RsvpFrame,
-    config: RsvpConfig,
-    effectiveTempoMs: Long,
-): Long {
-    val tokens = frame.tokens
-    if (tokens.isEmpty()) return frame.durationMs
-
-    val firstWordIndex = tokens.indexOfFirst { it.type == TokenType.WORD }
-    if (firstWordIndex == -1) return frame.durationMs
-
-    var total = 0L
-    tokens.forEachIndexed { index, token ->
-        when (token.type) {
-            TokenType.WORD -> total += wordFloorMs(token, config, effectiveTempoMs)
-            TokenType.PUNCTUATION ->
-                total += punctuationFloorMs(tokens, token, index, firstWordIndex, config)
-            TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> Unit
-        }
-    }
-    return max(total, MIN_FRAME_DELAY_MS)
-}
-
-private fun wordFloorMs(
-    word: Token,
-    config: RsvpConfig,
-    effectiveTempoMs: Long,
-): Long = config.wordFloorMsForReadability(word, effectiveTempoMs)
-
-private fun punctuationFloorMs(
-    tokens: List<Token>,
-    token: Token,
-    index: Int,
-    firstWordIndex: Int,
-    config: RsvpConfig,
-): Long {
-    val ch = token.text.firstOrNull() ?: return 0L
-    if (index < firstWordIndex && isOpeningPunctuationChar(ch)) return 0L
-
-    val prevToken = tokens.getOrNull(index - 1)
-    val nextToken = tokens.getOrNull(index + 1)
-    val prevCh = prevToken?.text?.firstOrNull()
-    val prevIsSentenceEnd =
-        prevCh != null && (isSentenceEndingPunctuation(prevCh) || prevCh == '.')
-    val isSentenceEnd = isSentenceEndingPunctuation(ch) || ch == '.'
-    if (isSentenceEnd && prevIsSentenceEnd) return 0L
-    if (isQuoteOrBracket(ch) &&
-        (prevToken?.type == TokenType.PUNCTUATION || nextToken?.type == TokenType.PUNCTUATION)
-    ) {
-        return 0L
-    }
-
-    val prevWord = tokens.subList(0, index).lastOrNull { it.type == TokenType.WORD }
-    return RsvpPunctuationTimingPolicy
-        .resolvePauseTiming(token, prevWord, nextToken, config)
-        .floorMs
-        .roundToLong()
-}
-
-private fun isOpeningPunctuationChar(ch: Char): Boolean = ch == '"' || ch in ORP_OPENING_PUNCTUATION
-
-private fun isQuoteOrBracket(ch: Char): Boolean =
-    ch == '"' ||
-        ch == '\u201C' ||
-        ch == '\u201D' ||
-        ch == '\u2018' ||
-        ch == '\u2019' ||
-        ch == '(' ||
-        ch == ')' ||
-        ch == '[' ||
-        ch == ']' ||
-        ch == '{' ||
-        ch == '}'
-
-private fun shouldSkipBlinkFrame(
-    frame: com.example.kairo.core.model.RsvpFrame,
-    tempoScale: Double,
-    config: RsvpConfig,
-): Boolean {
-    val effectiveTempoMs = (config.tempoMsPerWord * tempoScale).roundToLong()
-    if (effectiveTempoMs >= BLINK_SKIP_TEMPO_MS) return false
-    if (frame.tokens.any { it.type == TokenType.WORD }) return false
-    if (frame.tokens.size != 1) return false
-    val token = frame.tokens.first()
-    if (token.type != TokenType.PUNCTUATION || token.text != " ") return false
-    val scaledMs = (frame.durationMs * tempoScale).roundToLong()
-    return scaledMs <= BLINK_SKIP_MAX_MS
-}
-
-private const val BLINK_SKIP_TEMPO_MS = 200L
-private const val BLINK_SKIP_MAX_MS = 48L
 
 @Composable
 internal fun RsvpAutoHideControlsEffect(runtime: RsvpRuntimeState) {

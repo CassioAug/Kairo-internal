@@ -69,6 +69,22 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 expandedToken.copy(expandedIndex = expandedIndex)
             }
 
+        val focalWordIndices =
+            if (config.useFocalStress) computeFocalWordIndices(expanded) else emptySet()
+        val landingWordIndices =
+            if (config.useAnticipatoryLanding) {
+                computeAnticipatoryLandingIndices(expanded)
+            } else {
+                emptySet()
+            }
+        val emDashAsideIndices =
+            if (config.useParentheticalAside) {
+                computeEmDashAsideIndices(expanded)
+            } else {
+                emptySet()
+            }
+        val phraseContours = computePhraseContours(expanded)
+
         val startCursor = expanded.indexOfFirst { it.originalIndex >= startIndex }
         val fallbackCursor =
             expanded.indexOfLast { it.originalIndex <= startIndex }
@@ -191,6 +207,26 @@ class ComprehensionRsvpEngine : RsvpEngine {
             )?.token
             cursor = nextCursor
 
+            val contourWord = expanded[wordCursor].token
+            val focalSuppression =
+                if (config.useFocalStress &&
+                    wordCursor !in focalWordIndices &&
+                    !shouldKeepFullFocalDuration(contourWord)
+                ) {
+                    config.focalSupportCompression.coerceIn(MIN_FOCAL_SUPPORT_COMPRESSION, 1.0)
+                } else {
+                    1.0
+                }
+            val anticipatoryLanding =
+                if (config.useAnticipatoryLanding && wordCursor in landingWordIndices) {
+                    config.anticipatoryLandingBoost.coerceIn(1.0, MAX_ANTICIPATORY_LANDING_BOOST)
+                } else {
+                    1.0
+                }
+            val emDashAside =
+                config.useParentheticalAside && wordCursor in emDashAsideIndices
+            val phraseContour = phraseContours[wordCursor] ?: PhraseContour.NONE
+
             val durationMs =
                 computeUnitDurationMs(
                     frameTokens = frameTokens,
@@ -203,6 +239,10 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     nextToken = nextTokenGlobal,
                     nextWord = nextWordGlobal,
                     boundaryBefore = boundaryBefore,
+                    focalSuppression = focalSuppression,
+                    anticipatoryLanding = anticipatoryLanding,
+                    emDashAside = emDashAside,
+                    phraseContour = phraseContour,
                 )
 
             frames +=
@@ -285,12 +325,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
         cursor++
 
         // Optionally add more words for phrase chunking (only across "soft" boundaries).
-        val maxWordsInUnit =
-            if (config.enablePhraseChunking) {
-                config.maxWordsPerUnit.coerceAtLeast(1)
-            } else {
-                config.maxWordsPerUnit.coerceAtLeast(1)
-            }
+        val maxWordsInUnit = config.maxWordsPerUnit.coerceAtLeast(1)
         val maxCharsInUnit = config.maxCharsPerUnit.coerceAtLeast(1)
         if (config.enablePhraseChunking && maxWordsInUnit > 1) {
             var wordsInUnit = 1
@@ -380,6 +415,10 @@ class ComprehensionRsvpEngine : RsvpEngine {
         nextToken: Token?,
         nextWord: Token?,
         boundaryBefore: BoundaryBefore,
+        focalSuppression: Double = 1.0,
+        anticipatoryLanding: Double = 1.0,
+        emDashAside: Boolean = false,
+        phraseContour: PhraseContour = PhraseContour.NONE,
     ): Long {
         val msPerWord = config.tempoMsPerWord.toDouble()
         val pauseScale = pauseScale(msPerWord, config)
@@ -419,19 +458,20 @@ class ComprehensionRsvpEngine : RsvpEngine {
             } else {
                 0.0
             }
+        val firstWord = words.firstOrNull()
         val boundaryForBoost =
             if (boundaryBefore == BoundaryBefore.NONE &&
                 prevToken?.type == TokenType.PUNCTUATION &&
                 boundaryBeforeForPunctuation(
                     token = prevToken,
                     prevWord = prevWord,
-                    nextToken = nextToken,
+                    nextToken = firstWord ?: nextToken,
                 ) != BoundaryBefore.NONE
             ) {
                 boundaryBeforeForPunctuation(
                     token = prevToken,
                     prevWord = prevWord,
-                    nextToken = nextToken,
+                    nextToken = firstWord ?: nextToken,
                 )
             } else {
                 boundaryBefore
@@ -489,10 +529,16 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     } else {
                         1.0
                     }
-                    val contextWordMultiplier =
-                        (if (parentheticalDepth > 0) config.parentheticalMultiplier else 1.0) *
-                            dialogueMultiplier
-                    if (parentheticalDepth > 0) {
+                    val inAside =
+                        config.useParentheticalAside && (parentheticalDepth > 0 || emDashAside)
+                    val parentheticalFactor =
+                        when {
+                            inAside -> config.parentheticalAsideMultiplier.coerceIn(0.5, 1.0)
+                            parentheticalDepth > 0 -> config.parentheticalMultiplier
+                            else -> 1.0
+                        }
+                    val contextWordMultiplier = parentheticalFactor * dialogueMultiplier
+                    if (parentheticalDepth > 0 && !inAside) {
                         sawParentheticalWord = true
                     }
                     val boosted = if (index == firstWordIndex) startBoost else 1.0
@@ -554,6 +600,11 @@ class ComprehensionRsvpEngine : RsvpEngine {
                         } else {
                             1.0
                         }
+                    val phraseContourMultiplier =
+                        phraseContourMultiplier(
+                            contour = phraseContour,
+                            speedStrength = speedStrength,
+                        )
 
                     val wordMs =
                         wordDurationMs(token, msPerWord, config) *
@@ -564,7 +615,10 @@ class ComprehensionRsvpEngine : RsvpEngine {
                             emphasisMultiplier *
                             prosodyMultiplier *
                             dialogueEntryMultiplier *
-                            speakerTagMultiplier
+                            speakerTagMultiplier *
+                            focalSuppression *
+                            anticipatoryLanding *
+                            phraseContourMultiplier
                     duration += max(wordMs, wordFloorMs(token, config).toDouble())
                     if (token.pauseAfterMs > 0L) {
                         duration += token.pauseAfterMs * pauseScale
@@ -577,7 +631,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val transitionHold =
             transitionHoldMs(
                 frameTokens = frameTokens,
-                firstWord = words.firstOrNull(),
+                firstWord = firstWord,
                 nextWord = nextWord,
                 speedStrength = speedStrength,
                 prosodyStrength = prosodyStrength,
@@ -623,8 +677,27 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 boundaryBefore = boundaryForBoost,
             )
         }
+        var punctuationParentheticalDepth = contextBefore.parentheticalDepth
+        var punctuationInDialogue = contextBefore.inDialogue
         frameTokens.forEachIndexed { index, token ->
+            if (token.type == TokenType.WORD) {
+                if (token.isDialogue) punctuationInDialogue = true
+                return@forEachIndexed
+            }
             if (token.type != TokenType.PUNCTUATION) return@forEachIndexed
+
+            val punctuationChar = token.text.firstOrNull()
+            val punctuationInsideAside =
+                config.useParentheticalAside &&
+                    (
+                        punctuationParentheticalDepth > 0 ||
+                            emDashAside ||
+                            punctuationChar == ')' ||
+                            punctuationChar == ']' ||
+                            punctuationChar == '}'
+                        )
+            val punctuationInsideDialogue =
+                config.useDialogueDetection && (punctuationInDialogue || token.isDialogue)
 
             val prevTokenInFrame = frameTokens.getOrNull(index - 1)
             val nextTokenInFrame = frameTokens.getOrNull(index + 1)
@@ -636,6 +709,9 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     nextToken = nextTokenInFrame,
                 )
             ) {
+                punctuationParentheticalDepth =
+                    updateParentheticalDepthAfterPunctuation(punctuationParentheticalDepth, token)
+                punctuationInDialogue = token.isDialogue
                 return@forEachIndexed
             }
 
@@ -655,7 +731,13 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     nextToken = nextWordInFrame ?: nextToken,
                     msPerWord = msPerWord,
                     config = config,
+                    insideAside = punctuationInsideAside,
+                    insideDialogue = punctuationInsideDialogue,
                 )
+
+            punctuationParentheticalDepth =
+                updateParentheticalDepthAfterPunctuation(punctuationParentheticalDepth, token)
+            punctuationInDialogue = token.isDialogue
         }
         if (config.usePunctuationLandingHold) {
             totalDuration +=
@@ -812,6 +894,8 @@ class ComprehensionRsvpEngine : RsvpEngine {
         nextToken: Token?,
         msPerWord: Double,
         config: RsvpConfig,
+        insideAside: Boolean = false,
+        insideDialogue: Boolean = false,
     ): Double {
         val ch = token.text.firstOrNull() ?: return 0.0
         val prevText = prevWord?.text.orEmpty()
@@ -823,6 +907,15 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val timing = RsvpPunctuationTimingPolicy.resolvePauseTiming(token, prevWord, nextToken, config)
         var base = timing.baseMs
         var floor = timing.floorMs
+        val tier =
+            RsvpPunctuationTimingPolicy.resolveTier(
+                token = token,
+                prevWord = prevWord,
+                nextToken = nextToken,
+            )
+        if (prevWord != null && nextToken?.type == TokenType.WORD) {
+            base *= phraseContourPauseRedistributionFactor(tier)
+        }
 
         val speedStrength = speedStrength(msPerWord)
         if (isClauseLeadPunctuation(ch, nextToken)) {
@@ -848,9 +941,28 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 config = config,
                 extraRetention = timing.scaleRetentionBoost,
             )
-        val scaled = base * punctuationScale
+        val dialogueScale =
+            if (config.useDialogueDetection && insideDialogue && !isQuoteChar(ch)) {
+                config.dialoguePunctuationScale.coerceIn(0.5, 1.0)
+            } else {
+                1.0
+            }
+        val asideScale =
+            if (insideAside && !isQuoteChar(ch)) {
+                config.parentheticalAsideMultiplier.coerceIn(0.5, 1.0)
+            } else {
+                1.0
+            }
+        val scaled = base * punctuationScale * dialogueScale * asideScale
         return max(scaled, floor)
     }
+
+    private fun phraseContourPauseRedistributionFactor(tier: RsvpPunctuationTier): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END -> SENTENCE_CONTOUR_PAUSE_RETAINED
+            RsvpPunctuationTier.CLAUSE_BREAK -> CLAUSE_CONTOUR_PAUSE_RETAINED
+            RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 1.0
+        }
 
     private fun punctuationLandingHoldMs(
         frameTokens: List<Token>,
@@ -1025,6 +1137,385 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
     private fun normalizeWord(text: String): String =
         text.lowercase().trim('"', '\'', '\u2018', '\u2019')
+
+    private fun shouldKeepFullFocalDuration(token: Token): Boolean =
+        token.isSubwordChunk || token.text.endsWith("-")
+
+    /**
+     * Walks the expanded token list, groups words between boundary punctuations (commas, semicolons,
+     * colons, dashes, sentence-end punctuation, and paragraph/page breaks), and returns the set of
+     * expanded indices corresponding to the single "focal" word in each group. Non-focal words get
+     * their duration compressed by [RsvpConfig.focalSupportCompression] to produce one peak per
+     * breath rather than a flat per-word weighting.
+     */
+    private fun computeFocalWordIndices(expanded: List<ExpandedToken>): Set<Int> {
+        if (expanded.isEmpty()) return emptySet()
+        val focal = HashSet<Int>()
+        val group = ArrayList<ExpandedToken>()
+        var previousWord: Token? = null
+
+        fun flush() {
+            if (group.size <= 1) {
+                group.firstOrNull()?.let { focal += it.expandedIndex }
+                group.clear()
+                return
+            }
+            var bestIndex = -1
+            var bestScore = Double.NEGATIVE_INFINITY
+            group.forEachIndexed { positionInGroup, entry ->
+                val score = focalScore(entry.token, positionInGroup, group.size)
+                // Tiebreak: prefer later positions (English tends to be end-weighted).
+                if (score > bestScore || (score == bestScore && bestIndex != -1)) {
+                    bestScore = score
+                    bestIndex = entry.expandedIndex
+                }
+            }
+            if (bestIndex >= 0 && bestScore != Double.NEGATIVE_INFINITY) {
+                focal += bestIndex
+            } else {
+                group.forEach { focal += it.expandedIndex }
+            }
+            group.clear()
+        }
+
+        expanded.forEach { entry ->
+            val token = entry.token
+            when (token.type) {
+                TokenType.WORD -> {
+                    group += entry
+                    previousWord = token
+                }
+                TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> {
+                    flush()
+                    previousWord = null
+                }
+                TokenType.PUNCTUATION -> {
+                    if (isBreathGroupBoundary(
+                            token = token,
+                            prevWord = previousWord,
+                            nextToken = nextTokenAfter(expanded, entry.expandedIndex),
+                        )
+                    ) {
+                        flush()
+                    }
+                }
+            }
+        }
+        flush()
+        return focal
+    }
+
+    private fun focalScore(
+        token: Token,
+        positionInGroup: Int,
+        groupSize: Int,
+    ): Double {
+        if (token.isSubwordChunk) return Double.NEGATIVE_INFINITY
+        val normalized = normalizeWord(token.text)
+        if (normalized.isEmpty()) return Double.NEGATIVE_INFINITY
+        val letters = normalized.count { it.isLetterOrDigit() }
+        if (letters == 0) return Double.NEGATIVE_INFINITY
+
+        val functionPenalty = if (isFunctionWord(normalized)) 0.25 else 1.0
+        val anchorBonus = if (isSemanticAnchor(normalized)) 1.5 else 1.0
+        // Tiny end-weighting so the final content word of a breath wins ties.
+        val endWeight = 1.0 + (positionInGroup.toDouble() / (groupSize * 20.0))
+        return letters.toDouble() * functionPenalty * anchorBonus * endWeight
+    }
+
+    private fun isBreathGroupBoundary(
+        token: Token,
+        prevWord: Token?,
+        nextToken: Token?,
+    ): Boolean {
+        val tier =
+            RsvpPunctuationTimingPolicy.resolveTier(
+                token = token,
+                prevWord = prevWord,
+                nextToken = nextToken,
+            )
+        return tier == RsvpPunctuationTier.SENTENCE_END ||
+            tier == RsvpPunctuationTier.CLAUSE_BREAK
+    }
+
+    /**
+     * Adds a shallow spoken-phrase contour around real punctuation boundaries:
+     * the approach words ease into the boundary, and the first restart word gets a small settle.
+     * This deliberately uses the punctuation policy so abbreviations, decimals, and thousands
+     * separators do not create a false contour.
+     */
+    private fun computePhraseContours(expanded: List<ExpandedToken>): Map<Int, PhraseContour> {
+        if (expanded.isEmpty()) return emptyMap()
+        val contours = HashMap<Int, PhraseContour>()
+
+        expanded.forEachIndexed { index, entry ->
+            val token = entry.token
+            if (token.type != TokenType.PUNCTUATION) return@forEachIndexed
+
+            val prevWord = findPrevWord(expanded, beforeIndex = index)
+            val nextToken = expanded.getOrNull(index + 1)?.token
+            val tier =
+                RsvpPunctuationTimingPolicy.resolveTier(
+                    token = token,
+                    prevWord = prevWord,
+                    nextToken = nextToken,
+                )
+            if (tier != RsvpPunctuationTier.SENTENCE_END &&
+                tier != RsvpPunctuationTier.CLAUSE_BREAK
+            ) {
+                return@forEachIndexed
+            }
+
+            previousWordsForContour(expanded, index).forEachIndexed { distanceIndex, word ->
+                val distance = distanceIndex + 1
+                val weight = preBoundaryContourWeight(tier = tier, distance = distance)
+                if (weight > 0.0) {
+                    contours.mergeContour(word.expandedIndex, preBoundaryWeight = weight)
+                }
+            }
+
+            nextWordsForContour(expanded, index).forEachIndexed { distanceIndex, word ->
+                val distance = distanceIndex + 1
+                val weight = restartContourWeight(tier = tier, distance = distance)
+                if (weight > 0.0) {
+                    contours.mergeContour(word.expandedIndex, restartWeight = weight)
+                }
+            }
+        }
+
+        return contours
+    }
+
+    private fun previousWordsForContour(
+        expanded: List<ExpandedToken>,
+        boundaryIndex: Int,
+    ): List<ExpandedToken> {
+        val words = ArrayList<ExpandedToken>(PHRASE_CONTOUR_WORD_WINDOW)
+        var cursor = boundaryIndex - 1
+        var shouldStop = false
+        while (cursor >= 0 && words.size < PHRASE_CONTOUR_WORD_WINDOW) {
+            val token = expanded[cursor].token
+            when (token.type) {
+                TokenType.WORD -> words += expanded[cursor]
+                TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> shouldStop = true
+                TokenType.PUNCTUATION -> {
+                    if (isBreathGroupBoundary(
+                            token = token,
+                            prevWord = findPrevWord(expanded, beforeIndex = cursor),
+                            nextToken = expanded.getOrNull(cursor + 1)?.token,
+                        )
+                    ) {
+                        shouldStop = true
+                    }
+                }
+            }
+            if (shouldStop) break
+            cursor--
+        }
+        return words
+    }
+
+    private fun nextWordsForContour(
+        expanded: List<ExpandedToken>,
+        boundaryIndex: Int,
+    ): List<ExpandedToken> {
+        val words = ArrayList<ExpandedToken>(PHRASE_CONTOUR_WORD_WINDOW)
+        var cursor = boundaryIndex + 1
+        var shouldStop = false
+        while (cursor < expanded.size && words.size < PHRASE_CONTOUR_WORD_WINDOW) {
+            val token = expanded[cursor].token
+            when (token.type) {
+                TokenType.WORD -> words += expanded[cursor]
+                TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> shouldStop = true
+                TokenType.PUNCTUATION -> {
+                    if (isBreathGroupBoundary(
+                            token = token,
+                            prevWord = findPrevWord(expanded, beforeIndex = cursor),
+                            nextToken = expanded.getOrNull(cursor + 1)?.token,
+                        )
+                    ) {
+                        shouldStop = true
+                    }
+                }
+            }
+            if (shouldStop) break
+            cursor++
+        }
+        return words
+    }
+
+    private fun MutableMap<Int, PhraseContour>.mergeContour(
+        expandedIndex: Int,
+        preBoundaryWeight: Double = 0.0,
+        restartWeight: Double = 0.0,
+    ) {
+        val current = this[expandedIndex] ?: PhraseContour.NONE
+        this[expandedIndex] =
+            PhraseContour(
+                preBoundaryWeight = max(current.preBoundaryWeight, preBoundaryWeight),
+                restartWeight = max(current.restartWeight, restartWeight),
+            )
+    }
+
+    private fun preBoundaryContourWeight(
+        tier: RsvpPunctuationTier,
+        distance: Int,
+    ): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END ->
+                when (distance) {
+                    1 -> SENTENCE_PRE_BOUNDARY_CONTOUR
+                    2 -> SENTENCE_ANTICIPATORY_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.CLAUSE_BREAK ->
+                when (distance) {
+                    1 -> CLAUSE_PRE_BOUNDARY_CONTOUR
+                    2 -> CLAUSE_ANTICIPATORY_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 0.0
+        }
+
+    private fun restartContourWeight(
+        tier: RsvpPunctuationTier,
+        distance: Int,
+    ): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END ->
+                when (distance) {
+                    1 -> SENTENCE_RESTART_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.CLAUSE_BREAK ->
+                when (distance) {
+                    1 -> CLAUSE_RESTART_CONTOUR
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 0.0
+        }
+
+    private fun phraseContourMultiplier(
+        contour: PhraseContour,
+        speedStrength: Double,
+    ): Double {
+        if (contour == PhraseContour.NONE || speedStrength <= 0.0) return 1.0
+        val weight = contour.preBoundaryWeight + contour.restartWeight
+        return 1.0 + (weight * speedStrength)
+    }
+
+    /**
+     * Scans for words that sit exactly two words before a landing punctuation (the N-2 position)
+     * and returns their expanded indices. The N-1 position already stretches via
+     * [terminalWordMultiplier]'s tail-lift contour; adding N-2 creates the "approach" feel.
+     * Skips decimal points and thousand separators so "3.14" and "1,000" don't trigger a glide.
+     */
+    private fun computeAnticipatoryLandingIndices(expanded: List<ExpandedToken>): Set<Int> {
+        if (expanded.isEmpty()) return emptySet()
+        val landings = HashSet<Int>()
+        expanded.forEachIndexed { i, entry ->
+            if (entry.token.type != TokenType.WORD) return@forEachIndexed
+            if (isAnticipatoryLandingWord(expanded, i)) {
+                landings += entry.expandedIndex
+            }
+        }
+        return landings
+    }
+
+    private fun isAnticipatoryLandingWord(
+        expanded: List<ExpandedToken>,
+        wordIndex: Int,
+    ): Boolean {
+        val thisWord = expanded[wordIndex].token
+        var wordsAhead = 0
+        var nextWordToken: Token? = null
+        for (j in (wordIndex + 1) until expanded.size) {
+            val t = expanded[j].token
+            when (t.type) {
+                TokenType.WORD -> {
+                    wordsAhead++
+                    if (wordsAhead == 1) nextWordToken = t
+                    if (wordsAhead > 1) return false
+                }
+                TokenType.PUNCTUATION -> {
+                    if (!isBreathGroupBoundary(
+                            token = t,
+                            prevWord = nextWordToken ?: thisWord,
+                            nextToken = nextTokenAfter(expanded, j),
+                        )
+                    ) {
+                        continue
+                    }
+                    val ch = t.text.firstOrNull() ?: continue
+                    if (wordsAhead != 1) return false
+                    val tokenAfter = expanded.getOrNull(j + 1)?.token
+                    if (ch == ',' && isThousandSeparator(nextWordToken?.text ?: thisWord.text, tokenAfter)) {
+                        return false
+                    }
+                    if (ch == '.' && isDecimalPoint(nextWordToken?.text ?: thisWord.text, tokenAfter)) {
+                        return false
+                    }
+                    return true
+                }
+                TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> return false
+            }
+        }
+        return false
+    }
+
+    private fun nextTokenAfter(
+        expanded: List<ExpandedToken>,
+        index: Int,
+    ): Token? = expanded.getOrNull(index + 1)?.token
+
+    /**
+     * Returns expanded indices of words that sit inside an em-dash aside span (text flanked
+     * by two em-dashes within the same sentence). Em-dashes don't have open/close pairs, so
+     * a span is only counted when a matching closing em-dash appears before a sentence end or
+     * break. Bracketed asides are handled separately via [ContextSnapshot.parentheticalDepth].
+     */
+    private fun computeEmDashAsideIndices(expanded: List<ExpandedToken>): Set<Int> {
+        if (expanded.isEmpty()) return emptySet()
+        val indices = HashSet<Int>()
+        var i = 0
+        while (i < expanded.size) {
+            val token = expanded[i].token
+            if (token.type == TokenType.PUNCTUATION && isEmDashChar(token.text.firstOrNull())) {
+                val close = findEmDashAsideClose(expanded, i + 1)
+                if (close > i) {
+                    for (k in (i + 1) until close) {
+                        val inner = expanded[k].token
+                        if (inner.type == TokenType.WORD) {
+                            indices += expanded[k].expandedIndex
+                        }
+                    }
+                    i = close + 1
+                    continue
+                }
+            }
+            i++
+        }
+        return indices
+    }
+
+    private fun findEmDashAsideClose(expanded: List<ExpandedToken>, startIndex: Int): Int {
+        for (j in startIndex until expanded.size) {
+            val t = expanded[j].token
+            when (t.type) {
+                TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> return -1
+                TokenType.PUNCTUATION -> {
+                    val ch = t.text.firstOrNull() ?: continue
+                    if (isEmDashChar(ch)) return j
+                    if (isSentenceEndingPunctuation(ch)) return -1
+                }
+                TokenType.WORD -> Unit
+            }
+        }
+        return -1
+    }
+
+    private fun isEmDashChar(ch: Char?): Boolean =
+        ch == '\u2014' || ch == '\u2013'
 
     private fun speakerTagMultiplier(
         wordsInFrame: List<Token>,
@@ -1415,6 +1906,18 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
     private fun isOpeningPunctuationChar(ch: Char): Boolean = ch == '"' || ch in OPENING_PUNCTUATION
 
+    private fun updateParentheticalDepthAfterPunctuation(
+        currentDepth: Int,
+        token: Token,
+    ): Int {
+        val ch = token.text.firstOrNull() ?: return currentDepth
+        return when (ch) {
+            '(', '[', '{' -> currentDepth + 1
+            ')', ']', '}' -> max(0, currentDepth - 1)
+            else -> currentDepth
+        }
+    }
+
     private fun isCurrencyPrefixPunctuation(
         token: Token,
         nextToken: Token?,
@@ -1786,6 +2289,15 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val expandedIndex: Int,
     )
 
+    private data class PhraseContour(
+        val preBoundaryWeight: Double,
+        val restartWeight: Double,
+    ) {
+        companion object {
+            val NONE = PhraseContour(preBoundaryWeight = 0.0, restartWeight = 0.0)
+        }
+    }
+
     private data class UnitBuildResult(val tokens: List<Token>, val originalWordIndex: Int, val nextCursor: Int,)
 
     private enum class BoundaryBefore {
@@ -2030,8 +2542,17 @@ class ComprehensionRsvpEngine : RsvpEngine {
         private const val MIN_LANDING_HOLD_MS = 8.0
         private const val MAX_LANDING_HOLD_MS = 30.0
         private const val LANDING_HOLD_SPEED_BOOST = 0.35
-        private const val CLAUSE_PUNCTUATION_RETENTION_BOOST = 0.10
-        private const val STRONG_PUNCTUATION_RETENTION_BOOST = 0.18
+        private const val MIN_FOCAL_SUPPORT_COMPRESSION = 0.75
+        private const val MAX_ANTICIPATORY_LANDING_BOOST = 1.2
+        private const val PHRASE_CONTOUR_WORD_WINDOW = 2
+        private const val SENTENCE_PRE_BOUNDARY_CONTOUR = 0.07
+        private const val SENTENCE_ANTICIPATORY_CONTOUR = 0.04
+        private const val SENTENCE_RESTART_CONTOUR = 0.08
+        private const val SENTENCE_CONTOUR_PAUSE_RETAINED = 0.94
+        private const val CLAUSE_PRE_BOUNDARY_CONTOUR = 0.035
+        private const val CLAUSE_ANTICIPATORY_CONTOUR = 0.018
+        private const val CLAUSE_RESTART_CONTOUR = 0.04
+        private const val CLAUSE_CONTOUR_PAUSE_RETAINED = 0.96
         private const val PARAGRAPH_BREAK_RETENTION_BOOST = 0.22
         private const val PAGE_BREAK_RETENTION_BOOST = 0.26
 
@@ -2067,80 +2588,6 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 '\u201D',
                 '\u2018',
                 '\u2019',
-            )
-
-        private val TITLE_ABBREVIATIONS =
-            setOf(
-                "mr",
-                "mrs",
-                "ms",
-                "dr",
-                "prof",
-                "sr",
-                "jr",
-                "st",
-                "rev",
-                "fr",
-            )
-
-        private val KNOWN_ABBREVIATIONS =
-            setOf(
-                "mr",
-                "mrs",
-                "ms",
-                "dr",
-                "prof",
-                "sr",
-                "jr",
-                "st",
-                "vs",
-                "etc",
-                "e.g",
-                "i.e",
-                "eg",
-                "ie",
-                "no",
-                "vol",
-                "fig",
-                "al",
-                "inc",
-                "ltd",
-                "dept",
-                "est",
-                "approx",
-                "misc",
-                "jan",
-                "feb",
-                "mar",
-                "apr",
-                "jun",
-                "jul",
-                "aug",
-                "sep",
-                "sept",
-                "oct",
-                "nov",
-                "dec",
-                "u.s",
-                "u.k",
-                "u.n",
-            )
-
-        private val SENTENCE_STARTERS =
-            setOf(
-                "i",
-                "he",
-                "she",
-                "they",
-                "we",
-                "it",
-                "the",
-                "a",
-                "an",
-                "this",
-                "that",
-                "these",
-                "those",
             )
 
         private val GLUE_WORDS =

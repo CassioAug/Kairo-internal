@@ -495,6 +495,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             putRamping(config)
             putAdaptiveTiming(config)
             putLegacyFields(config)
+            putNaturalFlow(config)
             putBlink(config)
         }
 
@@ -587,6 +588,16 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         put("clausePauseFactor", config.clausePauseFactor)
     }
 
+    private fun JSONObject.putNaturalFlow(config: RsvpConfig) {
+        put("useFocalStress", config.useFocalStress)
+        put("focalSupportCompression", config.focalSupportCompression)
+        put("useAnticipatoryLanding", config.useAnticipatoryLanding)
+        put("anticipatoryLandingBoost", config.anticipatoryLandingBoost)
+        put("dialoguePunctuationScale", config.dialoguePunctuationScale)
+        put("useParentheticalAside", config.useParentheticalAside)
+        put("parentheticalAsideMultiplier", config.parentheticalAsideMultiplier)
+    }
+
     private fun JSONObject.putBlink(config: RsvpConfig) {
         put("blinkMode", config.blinkMode.name)
         put("blinkEnabled", config.blinkMode != BlinkMode.OFF)
@@ -613,6 +624,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             .withRampingFromJson(obj, defaults)
             .withAdaptiveTimingFromJson(obj, defaults)
             .withLegacyFieldsFromJson(obj, defaults)
+            .withNaturalFlowFromJson(obj, defaults)
             .withBlinkMode(blinkMode)
     }
 
@@ -783,6 +795,26 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                 ),
         )
 
+    private fun RsvpConfig.withNaturalFlowFromJson(
+        obj: JSONObject,
+        defaults: RsvpConfig,
+    ): RsvpConfig =
+        copy(
+            useFocalStress = obj.optBoolean("useFocalStress", defaults.useFocalStress),
+            focalSupportCompression =
+                obj.optDouble("focalSupportCompression", defaults.focalSupportCompression),
+            useAnticipatoryLanding =
+                obj.optBoolean("useAnticipatoryLanding", defaults.useAnticipatoryLanding),
+            anticipatoryLandingBoost =
+                obj.optDouble("anticipatoryLandingBoost", defaults.anticipatoryLandingBoost),
+            dialoguePunctuationScale =
+                obj.optDouble("dialoguePunctuationScale", defaults.dialoguePunctuationScale),
+            useParentheticalAside =
+                obj.optBoolean("useParentheticalAside", defaults.useParentheticalAside),
+            parentheticalAsideMultiplier =
+                obj.optDouble("parentheticalAsideMultiplier", defaults.parentheticalAsideMultiplier),
+        )
+
     private fun writeRsvpConfig(
         prefs: MutablePreferences,
         config: RsvpConfig,
@@ -805,6 +837,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         writeRamping(prefs, config)
         writeAdaptiveTiming(prefs, config)
         writeLegacyFields(prefs, config, defaults)
+        writeNaturalFlow(prefs, config)
         writeBlink(prefs, config)
     }
 
@@ -909,6 +942,16 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             normalizeClausePauseFactor(config.clausePauseFactor, defaults.clausePauseFactor)
     }
 
+    private fun writeNaturalFlow(prefs: MutablePreferences, config: RsvpConfig) {
+        prefs[keys.useFocalStress] = config.useFocalStress
+        prefs[keys.focalSupportCompression] = config.focalSupportCompression
+        prefs[keys.useAnticipatoryLanding] = config.useAnticipatoryLanding
+        prefs[keys.anticipatoryLandingBoost] = config.anticipatoryLandingBoost
+        prefs[keys.dialoguePunctuationScale] = config.dialoguePunctuationScale
+        prefs[keys.useParentheticalAside] = config.useParentheticalAside
+        prefs[keys.parentheticalAsideMultiplier] = config.parentheticalAsideMultiplier
+    }
+
     private fun writeBlink(prefs: MutablePreferences, config: RsvpConfig) {
         prefs[keys.blinkMode] = config.blinkMode.name
         prefs[keys.blinkEnabled] = config.blinkMode != BlinkMode.OFF
@@ -961,6 +1004,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             .withRamping(prefs, defaults)
             .withAdaptiveTiming(prefs, defaults)
             .withLegacyFields(prefs, defaults)
+            .withNaturalFlow(prefs, defaults)
             .withOrpAndDelays(prefs, defaults)
             .withBlinkMode(blinkMode)
     }
@@ -1133,6 +1177,32 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                 normalizeClausePauseFactor(prefs[keys.clausePauseFactor], defaults.clausePauseFactor),
         )
 
+    private fun RsvpConfig.withNaturalFlow(
+        prefs: Preferences,
+        defaults: RsvpConfig,
+    ): RsvpConfig =
+        copy(
+            useFocalStress = prefs.readOrDefault(keys.useFocalStress, defaults.useFocalStress),
+            focalSupportCompression =
+                prefs.readOrDefault(
+                    keys.focalSupportCompression,
+                    defaults.focalSupportCompression,
+                ),
+            useAnticipatoryLanding =
+                prefs.readOrDefault(keys.useAnticipatoryLanding, defaults.useAnticipatoryLanding),
+            anticipatoryLandingBoost =
+                prefs.readOrDefault(keys.anticipatoryLandingBoost, defaults.anticipatoryLandingBoost),
+            dialoguePunctuationScale =
+                prefs.readOrDefault(keys.dialoguePunctuationScale, defaults.dialoguePunctuationScale),
+            useParentheticalAside =
+                prefs.readOrDefault(keys.useParentheticalAside, defaults.useParentheticalAside),
+            parentheticalAsideMultiplier =
+                prefs.readOrDefault(
+                    keys.parentheticalAsideMultiplier,
+                    defaults.parentheticalAsideMultiplier,
+                ),
+        )
+
     private fun RsvpConfig.withOrpAndDelays(
         prefs: Preferences,
         defaults: RsvpConfig,
@@ -1202,6 +1272,13 @@ private object PrefKeys {
     val complexWordThreshold = doublePreferencesKey("complex_word_threshold")
     val useClausePausing = booleanPreferencesKey("use_clause_pausing")
     val clausePauseFactor = doublePreferencesKey("clause_pause_factor")
+    val useFocalStress = booleanPreferencesKey("use_focal_stress")
+    val focalSupportCompression = doublePreferencesKey("focal_support_compression")
+    val useAnticipatoryLanding = booleanPreferencesKey("use_anticipatory_landing")
+    val anticipatoryLandingBoost = doublePreferencesKey("anticipatory_landing_boost")
+    val dialoguePunctuationScale = doublePreferencesKey("dialogue_punctuation_scale")
+    val useParentheticalAside = booleanPreferencesKey("use_parenthetical_aside")
+    val parentheticalAsideMultiplier = doublePreferencesKey("parenthetical_aside_multiplier")
     val blinkMode = stringPreferencesKey("blink_mode")
     val blinkEnabled = booleanPreferencesKey("blink_enabled")
     val readerFontSize = floatPreferencesKey("reader_font_size")

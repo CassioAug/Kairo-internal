@@ -101,7 +101,7 @@ internal fun RsvpPlaybackSurface(
     val speedBandLabel =
         stringResource(
             rsvpSpeedBandLabelRes(
-                speed = displayedSpeed.toFloat(),
+                tempoMsPerWord = runtime.currentTempoMsPerWord,
                 extremeUnlocked = context.state.uiPrefs.extremeSpeedUnlocked,
             ),
         )
