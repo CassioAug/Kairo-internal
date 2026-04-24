@@ -57,6 +57,43 @@ class RsvpPunctuationTimingPolicyTest {
     }
 
     @Test
+    fun multilingualSentenceMarksResolveToSentenceEnd() {
+        val cjkTier =
+            RsvpPunctuationTimingPolicy.resolveTier(
+                token = punctuation("。"),
+                prevWord = word("待って"),
+                nextToken = word("次"),
+            )
+        val arabicTier =
+            RsvpPunctuationTimingPolicy.resolveTier(
+                token = punctuation("؟"),
+                prevWord = word("مرحبا"),
+                nextToken = word("التالي"),
+            )
+
+        assertEquals(RsvpPunctuationTier.SENTENCE_END, cjkTier)
+        assertEquals(RsvpPunctuationTier.SENTENCE_END, arabicTier)
+    }
+
+    @Test
+    fun multilingualSentenceMarksReceiveSentencePauseTiming() {
+        val timing =
+            RsvpPunctuationTimingPolicy.resolvePauseTiming(
+                token = punctuation("。"),
+                prevWord = word("待って"),
+                nextToken = word("次"),
+                config =
+                    RsvpConfig(
+                        sentenceEndPauseMs = 220L,
+                        minPauseScale = 0.6,
+                    ),
+            )
+
+        assertTrue(timing.baseMs > 0.0)
+        assertTrue(timing.floorMs > 0.0)
+    }
+
+    @Test
     fun punctuationTimingNarrowsAtHigherSpeed() {
         val slow =
             RsvpPunctuationTimingPolicy.resolvePauseTiming(
