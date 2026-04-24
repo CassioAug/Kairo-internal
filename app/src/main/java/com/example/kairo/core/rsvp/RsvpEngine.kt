@@ -53,6 +53,17 @@ class ComprehensionRsvpEngine : RsvpEngine {
         tokens: List<Token>,
         startIndex: Int,
         config: RsvpConfig,
+    ): List<RsvpFrame> =
+        generateFramesWithConfig(
+            tokens = tokens,
+            startIndex = startIndex,
+            config = config.normalizedForPlayback(),
+        )
+
+    private fun generateFramesWithConfig(
+        tokens: List<Token>,
+        startIndex: Int,
+        config: RsvpConfig,
     ): List<RsvpFrame> {
         if (tokens.isEmpty()) return emptyList()
 
@@ -1014,13 +1025,15 @@ class ComprehensionRsvpEngine : RsvpEngine {
         config: RsvpConfig,
         extraRetention: Double = 0.0,
     ): Double {
+        val minPauseScale = config.minPauseScale.coerceIn(0.0, MAX_MIN_PAUSE_SCALE)
+        val pauseScaleExponent = config.pauseScaleExponent.coerceAtLeast(0.0)
         val ratio = (msPerWord / BASE_MS_PER_WORD_AT_300).coerceIn(0.12, 2.5)
-        val compressed = ratio.pow(config.pauseScaleExponent)
+        val compressed = ratio.pow(pauseScaleExponent)
         val preservedFloor =
-            (config.minPauseScale + extraRetention)
-                .coerceIn(config.minPauseScale, 0.97)
+            (minPauseScale + extraRetention)
+                .coerceIn(minPauseScale, MAX_MIN_PAUSE_SCALE)
         val scaled = preservedFloor + ((1.0 - preservedFloor) * compressed)
-        return scaled.coerceIn(config.minPauseScale, 1.35)
+        return scaled.coerceIn(minPauseScale, 1.35)
     }
 
     private fun emphasisMultiplier(
@@ -2152,7 +2165,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
         frames[0] =
             frames[0].copy(
-                durationMs = (frames[0].durationMs + config.startDelayMs.coerceAtLeast(0L))
+                durationMs = addNonNegativeDelay(frames[0].durationMs, config.startDelayMs)
                     .coerceAtLeast(MIN_FRAME_MS),
             )
 
@@ -2166,9 +2179,70 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
         frames[frames.lastIndex] =
             frames.last().copy(
-                durationMs = (frames.last().durationMs + config.endDelayMs.coerceAtLeast(0L))
+                durationMs = addNonNegativeDelay(frames.last().durationMs, config.endDelayMs)
                     .coerceAtLeast(MIN_FRAME_MS),
             )
+    }
+
+    private fun RsvpConfig.normalizedForPlayback(): RsvpConfig {
+        val safeMinWordMs = minWordMs.coerceAtLeast(1L)
+        return copy(
+            tempoMsPerWord = tempoMsPerWord.coerceAtLeast(1L),
+            minWordMs = safeMinWordMs,
+            longWordMinMs = longWordMinMs.coerceAtLeast(safeMinWordMs),
+            longWordChars = longWordChars.coerceAtLeast(1),
+            syllableExtraMs = syllableExtraMs.coerceAtLeast(0L),
+            rarityExtraMaxMs = rarityExtraMaxMs.coerceAtLeast(0L),
+            complexityStrength = complexityStrength.coerceAtLeast(0.0),
+            lengthStrength = lengthStrength.coerceAtLeast(0.0),
+            lengthExponent = lengthExponent.coerceAtLeast(0.1),
+            maxWordsPerUnit = maxWordsPerUnit.coerceAtLeast(1),
+            maxCharsPerUnit = maxCharsPerUnit.coerceAtLeast(1),
+            subwordChunkPauseMs = subwordChunkPauseMs.coerceAtLeast(0L),
+            commaPauseMs = commaPauseMs.coerceAtLeast(0L),
+            periodPauseMs = periodPauseMs.coerceAtLeast(0L),
+            semicolonPauseMs = semicolonPauseMs.coerceAtLeast(0L),
+            colonPauseMs = colonPauseMs.coerceAtLeast(0L),
+            dashPauseMs = dashPauseMs.coerceAtLeast(0L),
+            parenthesesPauseMs = parenthesesPauseMs.coerceAtLeast(0L),
+            quotePauseMs = quotePauseMs.coerceAtLeast(0L),
+            sentenceEndPauseMs = sentenceEndPauseMs.coerceAtLeast(0L),
+            paragraphPauseMs = paragraphPauseMs.coerceAtLeast(0L),
+            pauseScaleExponent = pauseScaleExponent.coerceAtLeast(0.0),
+            minPauseScale = minPauseScale.coerceIn(0.0, MAX_MIN_PAUSE_SCALE),
+            startDelayMs = startDelayMs.coerceAtLeast(0L),
+            endDelayMs = endDelayMs.coerceAtLeast(0L),
+            rampUpFrames = rampUpFrames.coerceAtLeast(0),
+            rampDownFrames = rampDownFrames.coerceAtLeast(0),
+            maxChunkLength = maxChunkLength.coerceAtLeast(0),
+            punctuationPauseFactor = punctuationPauseFactor.coerceAtLeast(0.0),
+            longWordMultiplier = longWordMultiplier.coerceAtLeast(0.0),
+            adaptiveDifficultyMaxHoldMs = adaptiveDifficultyMaxHoldMs.coerceAtLeast(0L),
+            complexWordHoldMs = complexWordHoldMs.coerceAtLeast(0L),
+            complexWordThreshold = complexWordThreshold.coerceAtLeast(0.0),
+            clausePauseFactor = clausePauseFactor.coerceAtLeast(1.0),
+            parentheticalMultiplier = parentheticalMultiplier.coerceAtLeast(0.0),
+            dialogueMultiplier = dialogueMultiplier.coerceAtLeast(0.0),
+            smoothingAlpha = smoothingAlpha.coerceIn(0.0, 1.0),
+            maxSpeedupFactor = maxSpeedupFactor.coerceAtLeast(1.0),
+            maxSlowdownFactor = maxSlowdownFactor.coerceAtLeast(1.0),
+            focalSupportCompression = focalSupportCompression.coerceIn(MIN_FOCAL_SUPPORT_COMPRESSION, 1.0),
+            anticipatoryLandingBoost = anticipatoryLandingBoost.coerceIn(1.0, MAX_ANTICIPATORY_LANDING_BOOST),
+            dialoguePunctuationScale = dialoguePunctuationScale.coerceIn(0.5, 1.0),
+            parentheticalAsideMultiplier = parentheticalAsideMultiplier.coerceIn(0.5, 1.0),
+        )
+    }
+
+    private fun addNonNegativeDelay(
+        durationMs: Long,
+        delayMs: Long,
+    ): Long {
+        val safeDelay = delayMs.coerceAtLeast(0L)
+        return if (Long.MAX_VALUE - durationMs < safeDelay) {
+            Long.MAX_VALUE
+        } else {
+            durationMs + safeDelay
+        }
     }
 
     private fun applyBlinkSeparation(
@@ -2502,6 +2576,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
     private companion object {
         private const val MIN_FRAME_MS = 40L
+        private const val MAX_MIN_PAUSE_SCALE = 0.97
         private const val BASE_MS_PER_WORD_AT_300 = 200.0
         private const val DEFAULT_CLAUSE_PAUSE_FACTOR = 1.25
         private const val MIN_BLINK_MS = 16L

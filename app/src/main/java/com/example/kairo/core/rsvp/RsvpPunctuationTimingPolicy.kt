@@ -5,6 +5,7 @@ import com.example.kairo.core.model.RsvpConfig
 import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.TokenType
 import com.example.kairo.core.model.isMidSentencePunctuation
+import com.example.kairo.core.model.isSentenceEndingPunctuation
 import com.example.kairo.core.model.speedNarrowingFactor
 import kotlin.math.max
 import kotlin.math.min
@@ -372,12 +373,14 @@ internal object RsvpPunctuationTimingPolicy {
     }
 
     private fun punctuationTier(ch: Char): RsvpPunctuationTier =
-        when (ch) {
-            '.', '\u2026', '!', '?' -> RsvpPunctuationTier.SENTENCE_END
-            ',', ';', ':', '\u2014', '\u2013', '-' -> RsvpPunctuationTier.CLAUSE_BREAK
-            '(', ')', '[', ']', '{', '}', '"', '\u201C', '\u201D', '\u2018', '\u2019' ->
+        when {
+            isSentenceEndingPunctuation(ch) -> RsvpPunctuationTier.SENTENCE_END
+            ch == '\u2026' -> RsvpPunctuationTier.SENTENCE_END
+            ch in listOf(',', ';', ':', '\u2014', '\u2013', '-') -> RsvpPunctuationTier.CLAUSE_BREAK
+            ch in listOf('(', ')', '[', ']', '{', '}', '"', '\u201C', '\u201D', '\u2018', '\u2019') ->
                 RsvpPunctuationTier.SOFT_SEPARATOR
-            else -> if (isMidSentencePunctuation(ch)) RsvpPunctuationTier.SOFT_SEPARATOR else RsvpPunctuationTier.NONE
+            isMidSentencePunctuation(ch) -> RsvpPunctuationTier.SOFT_SEPARATOR
+            else -> RsvpPunctuationTier.NONE
         }
 
     private fun punctuationBreathingScale(config: RsvpConfig): Double =

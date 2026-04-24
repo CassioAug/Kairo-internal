@@ -178,6 +178,52 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun multilingualSentenceMarksAddSentencePause() {
+        val config =
+            punctuationConfig.copy(
+                sentenceEndPauseMs = 240L,
+                periodPauseMs = 0L,
+                usePunctuationLandingHold = false,
+            )
+
+        val plain =
+            engine.generateFrames(
+                tokens = listOf(w("待って")),
+                startIndex = 0,
+                config = config,
+            )[0].durationMs
+        val withCjkFullStop =
+            engine.generateFrames(
+                tokens = listOf(w("待って"), p("。"), w("次")),
+                startIndex = 0,
+                config = config,
+            )[0].durationMs
+
+        assertTrue(
+            "Expected CJK sentence punctuation to add a visible sentence pause",
+            withCjkFullStop > plain + 100L,
+        )
+    }
+
+    @Test
+    fun invalidPauseScaleValuesAreClampedBeforePlayback() {
+        val frames =
+            engine.generateFrames(
+                tokens = listOf(w("Hello"), p("."), w("Next")),
+                startIndex = 0,
+                config =
+                    punctuationConfig.copy(
+                        tempoMsPerWord = 0L,
+                        minPauseScale = 1.5,
+                        pauseScaleExponent = -2.0,
+                    ),
+            )
+
+        assertTrue(frames.isNotEmpty())
+        assertTrue(frames.all { it.durationMs >= 40L })
+    }
+
+    @Test
     fun openingQuoteDoesNotAddExtraPause() {
         val config = punctuationConfig
 
