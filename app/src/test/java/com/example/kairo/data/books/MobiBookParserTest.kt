@@ -1,8 +1,11 @@
 package com.example.kairo.data.books
 
 import com.example.kairo.data.books.mobi.MobiContentProcessor
+import java.io.ByteArrayInputStream
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class MobiBookParserTest {
@@ -83,5 +86,32 @@ class MobiBookParserTest {
 
         assertTrue(tooLarge)
         assertFalse(smallEnough)
+    }
+
+    @Test
+    fun readInputBytesWithLimitReturnsBytesWithinLimit() {
+        val data = byteArrayOf(1, 2, 3)
+
+        val result: ByteArray = parser.callPrivate(
+            "readInputBytesWithLimit",
+            ByteArrayInputStream(data),
+            3L,
+        )
+
+        assertEquals(data.toList(), result.toList())
+    }
+
+    @Test
+    fun readInputBytesWithLimitRejectsOversizedStreams() {
+        try {
+            parser.callPrivate<ByteArray>(
+                "readInputBytesWithLimit",
+                ByteArrayInputStream(byteArrayOf(1, 2, 3, 4)),
+                3L,
+            )
+            fail("Expected oversized stream to be rejected")
+        } catch (error: java.lang.reflect.InvocationTargetException) {
+            assertTrue(error.cause is IllegalArgumentException)
+        }
     }
 }

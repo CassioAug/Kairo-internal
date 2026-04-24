@@ -143,8 +143,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     var entry = zip.nextEntry
                     while (entry != null) {
                         if (!entry.isDirectory) {
-                            val normalizedName = entry.name.replace('\\', '/').trimStart('/')
-                            val nameLower = normalizedName.lowercase(Locale.ROOT)
+                            val nameLower = normalizeZipEntryNameLower(entry.name)
                             zipEntryNamesLower.add(nameLower)
                             val isTextFile =
                                 nameLower.endsWith(".xml") ||
@@ -158,7 +157,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                                 val read = readEntryWithLimitWithStatus(zip, MAX_ENTRY_SIZE)
                                 if (read.exceededLimit) {
                                     oversizedTextEntriesLower.add(nameLower)
-                                    logWarn("Skipping oversized EPUB text entry: $normalizedName")
+                                    logWarn("Skipping oversized EPUB text entry: ${entry.name}")
                                 }
                                 val bytes = read.bytes
                                 if (bytes != null && !zipTextEntries.containsKey(nameLower)) {
@@ -168,11 +167,11 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                                     } else {
                                         oversizedTextEntriesLower.add(nameLower)
                                         logWarn(
-                                            "Skipping EPUB text entry due to total text budget: $normalizedName",
+                                            "Skipping EPUB text entry due to total text budget: ${entry.name}",
                                         )
                                     }
                                 } else if (bytes != null && zipTextEntries.containsKey(nameLower)) {
-                                    logWarn("Case-colliding EPUB text entry ignored: $normalizedName")
+                                    logWarn("Case-colliding EPUB text entry ignored: ${entry.name}")
                                 }
                             }
                         }
@@ -270,7 +269,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                         var entry = zip.nextEntry
                         while (entry != null) {
                             if (!entry.isDirectory) {
-                                val nameLower = entry.name.lowercase(Locale.ROOT)
+                                val nameLower = normalizeZipEntryNameLower(entry.name)
                                 if (neededImagePathsLower.contains(nameLower)) {
                                     val maxEntrySize =
                                         if (nameLower ==
@@ -460,6 +459,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     )
 
     private fun parseOpfFileWithResult(xml: String): OpfParseResult = opfParser.parseWithResult(xml)
+
+    private fun normalizeZipEntryNameLower(name: String): String =
+        name.replace('\\', '/').trimStart('/').lowercase(Locale.ROOT)
 
     private fun extractImageSrcs(html: String): List<String> {
         val document = parseMarkupDocument(html)
@@ -781,7 +783,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                 var entry = zip.nextEntry
                 while (entry != null) {
                     if (!entry.isDirectory) {
-                        val nameLower = entry.name.replace('\\', '/').trimStart('/').lowercase(Locale.ROOT)
+                        val nameLower = normalizeZipEntryNameLower(entry.name)
                         if (isChapterCandidateEntry(nameLower) && !skippedEntriesLower.contains(nameLower)) {
                             val bytes = readEntryWithLimit(zip, MAX_ENTRY_SIZE)
                             if (bytes != null) {
@@ -869,7 +871,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                 var entry = zip.nextEntry
                 while (entry != null) {
                     if (!entry.isDirectory) {
-                        val nameLower = entry.name.lowercase(Locale.ROOT)
+                        val nameLower = normalizeZipEntryNameLower(entry.name)
                         if (nameLower == targetLower) {
                             return readEntryWithLimit(zip, MAX_COVER_IMAGE_ENTRY_SIZE)
                         }

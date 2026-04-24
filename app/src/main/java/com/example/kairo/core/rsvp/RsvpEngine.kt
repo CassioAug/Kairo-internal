@@ -2143,16 +2143,20 @@ class ComprehensionRsvpEngine : RsvpEngine {
         if (frames.isEmpty()) return
 
         val total = frames.size
-        val rampUp = min(config.rampUpFrames, total / 2)
+        val rampUp = min(config.rampUpFrames.coerceAtLeast(0), total / 2)
         for (i in 0 until rampUp) {
             val progress = i.toDouble() / rampUp.coerceAtLeast(1)
             val multiplier = 1.35 - (0.35 * progress)
             frames[i] = frames[i].copy(durationMs = (frames[i].durationMs * multiplier).toLong())
         }
 
-        frames[0] = frames[0].copy(durationMs = frames[0].durationMs + config.startDelayMs)
+        frames[0] =
+            frames[0].copy(
+                durationMs = (frames[0].durationMs + config.startDelayMs.coerceAtLeast(0L))
+                    .coerceAtLeast(MIN_FRAME_MS),
+            )
 
-        val rampDown = min(config.rampDownFrames, total / 2)
+        val rampDown = min(config.rampDownFrames.coerceAtLeast(0), total / 2)
         val start = total - rampDown
         for (i in start until total) {
             val progress = (i - start).toDouble() / rampDown.coerceAtLeast(1)
@@ -2161,7 +2165,10 @@ class ComprehensionRsvpEngine : RsvpEngine {
         }
 
         frames[frames.lastIndex] =
-            frames.last().copy(durationMs = frames.last().durationMs + config.endDelayMs)
+            frames.last().copy(
+                durationMs = (frames.last().durationMs + config.endDelayMs.coerceAtLeast(0L))
+                    .coerceAtLeast(MIN_FRAME_MS),
+            )
     }
 
     private fun applyBlinkSeparation(
