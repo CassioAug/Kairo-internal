@@ -548,6 +548,30 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun negativeSessionRampValuesDoNotShortenFrames() {
+        val baseline =
+            engine.generateFrames(
+                tokens = listOf(w("steady")),
+                startIndex = 0,
+                config = stableConfig,
+            ).first().durationMs
+        val withBadPersistedValues =
+            engine.generateFrames(
+                tokens = listOf(w("steady")),
+                startIndex = 0,
+                config =
+                    stableConfig.copy(
+                        startDelayMs = -500L,
+                        endDelayMs = -500L,
+                        rampUpFrames = -3,
+                        rampDownFrames = -3,
+                    ),
+            ).first().durationMs
+
+        assertEquals(baseline, withBadPersistedValues)
+    }
+
+    @Test
     fun chunkCharBudgetCountsWordCharsNotLeadingPunctuation() {
         val config =
             stableConfig.copy(

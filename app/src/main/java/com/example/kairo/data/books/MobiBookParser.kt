@@ -10,6 +10,8 @@ import com.example.kairo.data.books.mobi.MobiFallbackParser
 import com.example.kairo.data.books.mobi.MobiLimits
 import com.example.kairo.data.books.mobi.MobiParserEngine
 import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.util.UUID
 import kotlinx.coroutines.withContext
 
@@ -36,7 +38,7 @@ class MobiBookParser(
                 requireNotNull(context.contentResolver.openInputStream(uri)) {
                     "Unable to read MOBI file"
                 }.use { input ->
-                    BufferedInputStream(input).readBytes()
+                    readInputBytesWithLimit(BufferedInputStream(input), MobiLimits.MAX_FILE_SIZE_BYTES)
                 }
 
             runCatching {
@@ -86,4 +88,26 @@ class MobiBookParser(
 
     private fun isFileTooLarge(fileSize: Long): Boolean =
         fileSize > MobiLimits.MAX_FILE_SIZE_BYTES
+
+    private fun readInputBytesWithLimit(
+        input: InputStream,
+        maxBytes: Long,
+    ): ByteArray {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var total = 0L
+
+        while (true) {
+            val read = input.read(buffer)
+            if (read == -1) break
+            if (read == 0) continue
+            total += read
+            require(total <= maxBytes) {
+                "MOBI file too large (max ${maxBytes / 1024 / 1024}MB)"
+            }
+            output.write(buffer, 0, read)
+        }
+
+        return output.toByteArray()
+    }
 }

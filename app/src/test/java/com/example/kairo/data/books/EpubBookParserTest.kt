@@ -146,6 +146,13 @@ class EpubBookParserTest {
     }
 
     @Test
+    fun normalizeZipEntryNameLowerHandlesLeadingSlashAndBackslashes() {
+        val normalized: String = parser.callPrivate("normalizeZipEntryNameLower", "\\OEBPS\\Images\\Cover.JPG")
+
+        assertEquals("oebps/images/cover.jpg", normalized)
+    }
+
+    @Test
     fun decodeTextEntryRespectsXmlEncoding() {
         val xml =
             "<?xml version=\"1.0\" encoding=\"UTF-16LE\"?><html><body>Hi</body></html>"
