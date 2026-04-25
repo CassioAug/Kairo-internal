@@ -537,6 +537,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         put("quotePauseMs", config.quotePauseMs)
         put("sentenceEndPauseMs", config.sentenceEndPauseMs)
         put("paragraphPauseMs", config.paragraphPauseMs)
+        put("paragraphPauseMultiplier", config.paragraphPauseMultiplier)
+        put("pageBreakPauseMultiplier", config.pageBreakPauseMultiplier)
     }
 
     private fun JSONObject.putPauseScaling(config: RsvpConfig) {
@@ -699,6 +701,16 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             sentenceEndPauseMs =
                 obj.optLong("sentenceEndPauseMs", defaults.sentenceEndPauseMs),
             paragraphPauseMs = obj.optLong("paragraphPauseMs", defaults.paragraphPauseMs),
+            paragraphPauseMultiplier =
+                obj.optDouble(
+                    "paragraphPauseMultiplier",
+                    defaults.paragraphPauseMultiplier,
+                ),
+            pageBreakPauseMultiplier =
+                obj.optDouble(
+                    "pageBreakPauseMultiplier",
+                    defaults.pageBreakPauseMultiplier,
+                ),
         )
 
     private fun RsvpConfig.withPauseScalingFromJson(
@@ -887,6 +899,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         prefs[keys.quotePauseMs] = config.quotePauseMs
         prefs[keys.sentenceEndPauseMs] = config.sentenceEndPauseMs
         prefs[keys.paragraphPauseMs] = config.paragraphPauseMs
+        prefs[keys.paragraphPauseMultiplier] = config.paragraphPauseMultiplier
+        prefs[keys.pageBreakPauseMultiplier] = config.pageBreakPauseMultiplier
     }
 
     private fun writePauseScaling(prefs: MutablePreferences, config: RsvpConfig) {
@@ -1088,6 +1102,16 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                 prefs.readOrDefault(keys.sentenceEndPauseMs, defaults.sentenceEndPauseMs),
             paragraphPauseMs =
                 prefs.readOrDefault(keys.paragraphPauseMs, defaults.paragraphPauseMs),
+            paragraphPauseMultiplier =
+                prefs.readOrDefault(
+                    keys.paragraphPauseMultiplier,
+                    defaults.paragraphPauseMultiplier,
+                ),
+            pageBreakPauseMultiplier =
+                prefs.readOrDefault(
+                    keys.pageBreakPauseMultiplier,
+                    defaults.pageBreakPauseMultiplier,
+                ),
         )
 
     private fun RsvpConfig.withPauseScaling(
@@ -1265,6 +1289,8 @@ private object PrefKeys {
     val maxChunkLength = intPreferencesKey("max_chunk_length")
     val punctuationPause = doublePreferencesKey("punctuation_pause_factor")
     val paragraphPauseMs = longPreferencesKey("paragraph_pause_ms")
+    val paragraphPauseMultiplier = doublePreferencesKey("paragraph_pause_multiplier")
+    val pageBreakPauseMultiplier = doublePreferencesKey("page_break_pause_multiplier")
     val longWordMultiplier = doublePreferencesKey("long_word_multiplier")
     val pauseScaleExponent = doublePreferencesKey("pause_scale_exponent")
     val minPauseScale = doublePreferencesKey("min_pause_scale")

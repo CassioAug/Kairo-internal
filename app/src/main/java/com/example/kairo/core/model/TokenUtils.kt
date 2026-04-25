@@ -120,10 +120,16 @@ fun calculatePause(
     config: RsvpConfig,
 ): Long =
     when (type) {
-        TokenType.PARAGRAPH_BREAK -> config.paragraphPauseMs
+        TokenType.PARAGRAPH_BREAK ->
+            max(
+                (config.paragraphPauseMs * config.paragraphPauseMultiplier).toLong(),
+                (config.sentenceEndPauseMs * 0.8).toLong(),
+            )
         TokenType.PAGE_BREAK -> max(
-            config.paragraphPauseMs * 2,
-            config.sentenceEndPauseMs + (config.paragraphPauseMs / 2)
+            (config.paragraphPauseMs * config.pageBreakPauseMultiplier).toLong(),
+            (max(config.sentenceEndPauseMs, config.periodPauseMs) *
+                config.pageBreakPauseMultiplier *
+                0.85).toLong(),
         )
         TokenType.PUNCTUATION -> max(60L, (config.paragraphPauseMs * 0.4).toLong())
         TokenType.WORD -> 0L

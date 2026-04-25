@@ -149,7 +149,7 @@
     <string name="rsvp_rarity_boost_title">Impulso de raridade</string>
     <string name="rsvp_complexity_strength_title">Força da complexidade</string>
     <string name="rsvp_punctuation_pauses_title">Pausas de pontuação</string>
-    <string name="rsvp_punctuation_pauses_summary">Vírgula %1$d ms | Travessão %2$d ms | Parágrafo %3$d ms</string>
+    <string name="rsvp_punctuation_pauses_summary">Respiro %1$s | Vírgula %2$d ms | Ponto %3$d ms | Parágrafo %4$d ms | Página %5$s</string>
     <string name="rsvp_punctuation_comma">Vírgula</string>
     <string name="rsvp_punctuation_dash">Travessão</string>
     <string name="rsvp_punctuation_semicolon">Ponto e vírgula</string>
@@ -157,6 +157,8 @@
     <string name="rsvp_punctuation_parentheses">Parênteses</string>
     <string name="rsvp_punctuation_quotes">Aspas</string>
     <string name="rsvp_punctuation_paragraph">Parágrafo</string>
+    <string name="rsvp_punctuation_page_break_title">Quebra de página</string>
+    <string name="rsvp_punctuation_page_break_subtitle">Retenção de quadro vazio em limites de página e cena.</string>
     <string name="rsvp_pause_scaling_title">Escalonamento de pausas</string>
     <string name="rsvp_pause_scaling_summary">Expoente %1$s | Mínimo %2$s</string>
     <string name="rsvp_scale_exponent_title">Expoente de escala</string>

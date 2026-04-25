@@ -822,6 +822,7 @@ fun RsvpSettingsContent(
                     config.commaPauseMs,
                     config.periodPauseMs,
                     config.paragraphPauseMs,
+                    formatMultiplier(context, config.pageBreakPauseMultiplier),
                 ),
             ) {
                 DeferredSliderRow(
@@ -906,9 +907,33 @@ fun RsvpSettingsContent(
                     valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
                     rawValue = config.paragraphPauseMs.toFloat(),
                     onCommit = { newValue ->
-                        updateConfig { it.copy(paragraphPauseMs = newValue.toLong().coerceIn(0L, 500L)) }
+                        updateConfig { it.copy(paragraphPauseMs = newValue.toLong().coerceIn(0L, 800L)) }
                     },
-                    valueRange = 0f..500f,
+                    valueRange = 0f..800f,
+                )
+                DeferredSliderRow(
+                    title = stringResource(R.string.rsvp_punctuation_paragraph_strength_title),
+                    subtitle = stringResource(R.string.rsvp_punctuation_paragraph_strength_subtitle),
+                    valueLabel = { context.getString(R.string.format_multiplier, it) },
+                    rawValue = config.paragraphPauseMultiplier.toFloat(),
+                    onCommit = { newValue ->
+                        updateConfig {
+                            it.copy(paragraphPauseMultiplier = newValue.toDouble().coerceIn(0.75, 2.5))
+                        }
+                    },
+                    valueRange = 0.75f..2.5f,
+                )
+                DeferredSliderRow(
+                    title = stringResource(R.string.rsvp_punctuation_page_break_title),
+                    subtitle = stringResource(R.string.rsvp_punctuation_page_break_subtitle),
+                    valueLabel = { context.getString(R.string.format_multiplier, it) },
+                    rawValue = config.pageBreakPauseMultiplier.toFloat(),
+                    onCommit = { newValue ->
+                        updateConfig {
+                            it.copy(pageBreakPauseMultiplier = newValue.toDouble().coerceIn(1.0, 5.0))
+                        }
+                    },
+                    valueRange = 1f..5f,
                 )
             }
 

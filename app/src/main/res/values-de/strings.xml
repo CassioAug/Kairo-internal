@@ -149,7 +149,7 @@
     <string name="rsvp_rarity_boost_title">Seltenheits-Boost</string>
     <string name="rsvp_complexity_strength_title">Komplexitätsstärke</string>
     <string name="rsvp_punctuation_pauses_title">Interpunktionspausen</string>
-    <string name="rsvp_punctuation_pauses_summary">Komma %1$d ms | Gedankenstrich %2$d ms | Absatz %3$d ms</string>
+    <string name="rsvp_punctuation_pauses_summary">Atmung %1$s | Komma %2$d ms | Punkt %3$d ms | Absatz %4$d ms | Seite %5$s</string>
     <string name="rsvp_punctuation_comma">Komma</string>
     <string name="rsvp_punctuation_dash">Gedankenstrich</string>
     <string name="rsvp_punctuation_semicolon">Semikolon</string>
@@ -157,6 +157,8 @@
     <string name="rsvp_punctuation_parentheses">Klammern</string>
     <string name="rsvp_punctuation_quotes">Anführungszeichen</string>
     <string name="rsvp_punctuation_paragraph">Absatz</string>
+    <string name="rsvp_punctuation_page_break_title">Seitenumbruch</string>
+    <string name="rsvp_punctuation_page_break_subtitle">Leere Haltezeit an Seiten- und Szenengrenzen.</string>
     <string name="rsvp_pause_scaling_title">Pausenskalierung</string>
     <string name="rsvp_pause_scaling_summary">Exponent %1$s | Minimum %2$s</string>
     <string name="rsvp_scale_exponent_title">Skalierungs-Exponent</string>

@@ -3,6 +3,7 @@ package com.example.kairo.data.books.mobi
 import com.example.kairo.core.model.Chapter
 
 internal class MobiContentProcessor {
+    private val pageBreakMarker = "\u000C"
     private val fileLabelWithNumberRegex = Regex("(?i)^(part|chapter|section|book)(0*)(\\d{1,6})$")
     private val genericFileLabelRegex = Regex("(?i)^[a-z]{2,}\\d{3,}$")
 
@@ -694,26 +695,26 @@ internal class MobiContentProcessor {
                     """<\s*mbp:pagebreak\b[^>]*/>""",
                     RegexOption.IGNORE_CASE,
                 ),
-                " ",
+                pageBreakMarker,
             ).replace(
                 Regex(
                     """<\s*mbp:pagebreak\b[^>]*>[\s\S]*?</\s*mbp:pagebreak\s*>""",
                     RegexOption.IGNORE_CASE,
                 ),
-                " ",
+                pageBreakMarker,
             ).replace(
                 Regex(
                     """<[^>]+\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*/>""",
                     RegexOption.IGNORE_CASE,
                 ),
-                " ",
+                pageBreakMarker,
             )
             .replace(
                 Regex(
                     """<([a-zA-Z0-9:._-]+)\b[^>]*\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*>[\s\S]*?</\1>""",
                     RegexOption.IGNORE_CASE,
                 ),
-                " ",
+                pageBreakMarker,
             )
 
     private fun isLikelyFileLabel(text: String): Boolean {

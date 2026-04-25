@@ -149,7 +149,7 @@
     <string name="rsvp_rarity_boost_title">Boost de rareté</string>
     <string name="rsvp_complexity_strength_title">Force de complexité</string>
     <string name="rsvp_punctuation_pauses_title">Pauses de ponctuation</string>
-    <string name="rsvp_punctuation_pauses_summary">Virgule %1$d ms | Tiret %2$d ms | Paragraphe %3$d ms</string>
+    <string name="rsvp_punctuation_pauses_summary">Respiration %1$s | Virgule %2$d ms | Point %3$d ms | Paragraphe %4$d ms | Page %5$s</string>
     <string name="rsvp_punctuation_comma">Virgule</string>
     <string name="rsvp_punctuation_dash">Tiret</string>
     <string name="rsvp_punctuation_semicolon">Point-virgule</string>
@@ -157,6 +157,8 @@
     <string name="rsvp_punctuation_parentheses">Parenthèses</string>
     <string name="rsvp_punctuation_quotes">Guillemets</string>
     <string name="rsvp_punctuation_paragraph">Paragraphe</string>
+    <string name="rsvp_punctuation_page_break_title">Saut de page</string>
+    <string name="rsvp_punctuation_page_break_subtitle">Maintien d\'une image vide aux limites de page et de scène.</string>
     <string name="rsvp_pause_scaling_title">Mise à l\'échelle des pauses</string>
     <string name="rsvp_pause_scaling_summary">Exposant %1$s | Minimum %2$s</string>
     <string name="rsvp_scale_exponent_title">Exposant d\'échelle</string>

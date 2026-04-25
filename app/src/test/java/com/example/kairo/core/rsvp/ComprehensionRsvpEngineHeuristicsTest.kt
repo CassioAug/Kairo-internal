@@ -688,7 +688,27 @@ class ComprehensionRsvpEngineHeuristicsTest {
                     TokenType.WORD
             }
         )
-        assertTrue("Expected page break pause to be meaningful", breakFrame.durationMs >= 240L)
+        assertEquals(listOf(" "), breakFrame.tokens.map { it.text })
+        assertTrue("Expected page break pause to be meaningfully longer", breakFrame.durationMs >= 700L)
+    }
+
+    @Test
+    fun pageBreakPauseMultiplierControlsBlankFrameDuration() {
+        val baseConfig = stableConfig.copy(
+            tempoMsPerWord = 60L,
+            paragraphPauseMs = 240L,
+            pageBreakPauseMultiplier = 2.0,
+        )
+        val spaciousConfig = baseConfig.copy(pageBreakPauseMultiplier = 4.0)
+        val tokens = listOf(w("Hello"), pageBreak(), w("Next"))
+
+        val baseBreakFrame = engine.generateFrames(tokens, 0, baseConfig)[1]
+        val spaciousBreakFrame = engine.generateFrames(tokens, 0, spaciousConfig)[1]
+
+        assertTrue(
+            "Expected page break multiplier to lengthen the blank frame",
+            spaciousBreakFrame.durationMs > baseBreakFrame.durationMs + 300L,
+        )
     }
 
     @Test

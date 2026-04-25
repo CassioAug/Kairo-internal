@@ -172,7 +172,7 @@
     <string name="rsvp_rarity_boost_title">Rarity boost</string>
     <string name="rsvp_complexity_strength_title">Complexity strength</string>
     <string name="rsvp_punctuation_pauses_title">Punctuation pauses</string>
-    <string name="rsvp_punctuation_pauses_summary">Breathing %1$s | Comma %2$dms | Period %3$dms | Paragraph %4$dms</string>
+    <string name="rsvp_punctuation_pauses_summary">Breathing %1$s | Comma %2$dms | Period %3$dms | Paragraph %4$dms | Page %5$s</string>
     <string name="rsvp_punctuation_breathing_title">Punctuation breathing</string>
     <string name="rsvp_punctuation_breathing_subtitle">Scales punctuation pauses as a group.</string>
     <string name="rsvp_punctuation_comma">Comma</string>
@@ -183,6 +183,10 @@
     <string name="rsvp_punctuation_parentheses">Parentheses</string>
     <string name="rsvp_punctuation_quotes">Quotes</string>
     <string name="rsvp_punctuation_paragraph">Paragraph</string>
+    <string name="rsvp_punctuation_paragraph_strength_title">Paragraph strength</string>
+    <string name="rsvp_punctuation_paragraph_strength_subtitle">Fine-tunes how firmly paragraph breaks hold during RSVP.</string>
+    <string name="rsvp_punctuation_page_break_title">Page break</string>
+    <string name="rsvp_punctuation_page_break_subtitle">Blank-frame hold at page and scene boundaries.</string>
     <string name="rsvp_pause_scaling_title">Pause scaling</string>
     <string name="rsvp_pause_scaling_summary">Exponent %1$s | Minimum %2$s</string>
     <string name="rsvp_scale_exponent_title">Scale exponent</string>
