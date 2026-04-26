@@ -72,7 +72,7 @@ internal fun rememberReaderListState(
         }
     }
 
-    LaunchedEffect(safeIndex, listStateKey, listItemCount) {
+    LaunchedEffect(listStateKey, listItemCount) {
         if (listItemCount > 0 && listState.firstVisibleItemIndex != safeIndex) {
             listState.scrollToItem(safeIndex)
         }
