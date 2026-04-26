@@ -149,7 +149,7 @@
     <string name="rsvp_rarity_boost_title">希少度ブースト</string>
     <string name="rsvp_complexity_strength_title">複雑度の強度</string>
     <string name="rsvp_punctuation_pauses_title">句読点のポーズ</string>
-    <string name="rsvp_punctuation_pauses_summary">カンマ %1$dミリ秒 | ダッシュ %2$dミリ秒 | 段落 %3$dミリ秒</string>
+    <string name="rsvp_punctuation_pauses_summary">余白 %1$s | カンマ %2$dミリ秒 | ピリオド %3$dミリ秒 | 段落 %4$dミリ秒 | ページ %5$s</string>
     <string name="rsvp_punctuation_comma">カンマ</string>
     <string name="rsvp_punctuation_dash">ダッシュ</string>
     <string name="rsvp_punctuation_semicolon">セミコロン</string>
@@ -157,6 +157,8 @@
     <string name="rsvp_punctuation_parentheses">括弧</string>
     <string name="rsvp_punctuation_quotes">引用符</string>
     <string name="rsvp_punctuation_paragraph">段落</string>
+    <string name="rsvp_punctuation_page_break_title">ページ区切り</string>
+    <string name="rsvp_punctuation_page_break_subtitle">ページや場面の境界で空白フレームを保持します。</string>
     <string name="rsvp_pause_scaling_title">ポーズのスケール</string>
     <string name="rsvp_pause_scaling_summary">指数 %1$s | 最小 %2$s</string>
     <string name="rsvp_scale_exponent_title">スケール指数</string>

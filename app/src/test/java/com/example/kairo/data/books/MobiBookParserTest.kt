@@ -18,7 +18,7 @@ class MobiBookParserTest {
 
         val text = contentProcessor.extractPlainText(html)
 
-        assertTrue(text.contains("Indiana and Leo took up the rear."))
+        assertTrue(text.contains("Indiana and\u000C Leo took up the rear."))
     }
 
     @Test
@@ -27,7 +27,7 @@ class MobiBookParserTest {
 
         val text = contentProcessor.extractPlainText(html)
 
-        assertTrue(text.contains("Indiana and Leo took up the rear."))
+        assertTrue(text.contains("Indiana and\u000C Leo took up the rear."))
     }
 
     @Test
@@ -36,7 +36,7 @@ class MobiBookParserTest {
 
         val text = contentProcessor.extractPlainText(html)
 
-        assertTrue(text.contains("Start end."))
+        assertTrue(text.contains("Start\u000C end."))
     }
 
     @Test
@@ -55,7 +55,7 @@ class MobiBookParserTest {
 
         val text = contentProcessor.extractPlainText(html)
 
-        assertTrue(text.contains("Start end."))
+        assertTrue(text.contains("Start\u000C end."))
     }
 
     @Test

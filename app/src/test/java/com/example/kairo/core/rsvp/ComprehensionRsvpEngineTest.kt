@@ -194,7 +194,37 @@ class ComprehensionRsvpEngineTest {
         assertTrue("Expected paragraph break frame", frames.size >= 3)
         assertTrue(
             "Expected paragraph break to keep substantial breathing room",
-            frames[1].durationMs >= 220L,
+            frames[1].durationMs >= 280L,
+        )
+    }
+
+    @Test
+    fun paragraphPauseMultiplierControlsBreakFrameDuration() {
+        val baseConfig =
+            RsvpConfig(
+                tempoMsPerWord = 65L,
+                paragraphPauseMs = 260L,
+                paragraphPauseMultiplier = 1.0,
+                startDelayMs = 0L,
+                endDelayMs = 0L,
+                rampUpFrames = 0,
+                rampDownFrames = 0,
+                enablePhraseChunking = false,
+            )
+        val tokens =
+            listOf(
+                Token(text = "Hello", type = TokenType.WORD, frequencyScore = 1.0),
+                Token(text = "\n", type = TokenType.PARAGRAPH_BREAK),
+                Token(text = "Again", type = TokenType.WORD, frequencyScore = 1.0),
+            )
+
+        val baseBreakFrame = engine.generateFrames(tokens, 0, baseConfig)[1]
+        val strongerBreakFrame =
+            engine.generateFrames(tokens, 0, baseConfig.copy(paragraphPauseMultiplier = 2.0))[1]
+
+        assertTrue(
+            "Expected paragraph multiplier to lengthen the break frame",
+            strongerBreakFrame.durationMs > baseBreakFrame.durationMs + 180L,
         )
     }
 

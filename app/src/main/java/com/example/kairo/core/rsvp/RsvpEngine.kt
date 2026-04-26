@@ -1873,7 +1873,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
     private fun breakMarkerToken(type: TokenType): Token =
         when (type) {
-            TokenType.PAGE_BREAK -> Token(text = "• • •", type = TokenType.PUNCTUATION)
+            TokenType.PAGE_BREAK -> Token(text = " ", type = TokenType.PUNCTUATION)
             TokenType.PARAGRAPH_BREAK -> Token(text = " ", type = TokenType.PUNCTUATION)
             else -> Token(text = " ", type = TokenType.PUNCTUATION)
         }
@@ -2022,12 +2022,16 @@ class ComprehensionRsvpEngine : RsvpEngine {
 
     private fun pageBreakBasePauseMs(config: RsvpConfig): Double =
         max(
-            config.paragraphPauseMs.toDouble() * 1.75,
-            max(config.sentenceEndPauseMs.toDouble(), config.periodPauseMs.toDouble()) * 1.4,
+            config.paragraphPauseMs.toDouble() * config.pageBreakPauseMultiplier,
+            max(config.sentenceEndPauseMs.toDouble(), config.periodPauseMs.toDouble()) *
+                (config.pageBreakPauseMultiplier * PAGE_BREAK_SENTENCE_MULTIPLIER_RATIO),
         )
 
     private fun paragraphBreakBasePauseMs(config: RsvpConfig): Double =
-        max(config.paragraphPauseMs.toDouble(), config.sentenceEndPauseMs.toDouble() * 0.7)
+        max(
+            config.paragraphPauseMs.toDouble() * config.paragraphPauseMultiplier,
+            config.sentenceEndPauseMs.toDouble() * PARAGRAPH_SENTENCE_MULTIPLIER,
+        )
 
     private fun boundaryStartMicroHoldMs(
         msPerWord: Double,
@@ -2208,6 +2212,8 @@ class ComprehensionRsvpEngine : RsvpEngine {
             quotePauseMs = quotePauseMs.coerceAtLeast(0L),
             sentenceEndPauseMs = sentenceEndPauseMs.coerceAtLeast(0L),
             paragraphPauseMs = paragraphPauseMs.coerceAtLeast(0L),
+            paragraphPauseMultiplier = paragraphPauseMultiplier.coerceIn(0.75, 2.5),
+            pageBreakPauseMultiplier = pageBreakPauseMultiplier.coerceIn(1.0, 5.0),
             pauseScaleExponent = pauseScaleExponent.coerceAtLeast(0.0),
             minPauseScale = minPauseScale.coerceIn(0.0, MAX_MIN_PAUSE_SCALE),
             startDelayMs = startDelayMs.coerceAtLeast(0L),
@@ -2636,7 +2642,9 @@ class ComprehensionRsvpEngine : RsvpEngine {
         private const val CLAUSE_RESTART_CONTOUR = 0.04
         private const val CLAUSE_CONTOUR_PAUSE_RETAINED = 0.96
         private const val PARAGRAPH_BREAK_RETENTION_BOOST = 0.22
-        private const val PAGE_BREAK_RETENTION_BOOST = 0.26
+        private const val PARAGRAPH_SENTENCE_MULTIPLIER = 0.8
+        private const val PAGE_BREAK_RETENTION_BOOST = 0.32
+        private const val PAGE_BREAK_SENTENCE_MULTIPLIER_RATIO = 0.85
 
         private val OPENING_PUNCTUATION = setOf('(', '[', '{', '\u201C', '\u2018')
         private val CURRENCY_PREFIX_PUNCTUATION = setOf('$', '€', '£', '¥')

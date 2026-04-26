@@ -160,6 +160,16 @@ data class RsvpConfig(
     val sentenceEndPauseMs: Long = 200L,
     val paragraphPauseMs: Long = 240L,
     /**
+     * Extra shaping for paragraph boundaries. The raw pause remains user-visible in settings,
+     * while this controls how strongly a paragraph break is held during RSVP playback.
+     */
+    val paragraphPauseMultiplier: Double = 1.25,
+    /**
+     * Page breaks need a larger visual breath than paragraph boundaries because the RSVP frame
+     * intentionally goes blank while the reader resets to the next page/scene.
+     */
+    val pageBreakPauseMultiplier: Double = 3.2,
+    /**
      * How punctuation pauses scale as WPM increases.
      * Values < 1 compress pauses at high WPM, but minPauseScale preserves a baseline share so
      * punctuation does not collapse into a near-zero pause.

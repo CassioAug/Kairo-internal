@@ -149,7 +149,7 @@
     <string name="rsvp_rarity_boost_title">稀有度增强</string>
     <string name="rsvp_complexity_strength_title">复杂度强度</string>
     <string name="rsvp_punctuation_pauses_title">标点停顿</string>
-    <string name="rsvp_punctuation_pauses_summary">逗号 %1$d毫秒 | 破折号 %2$d毫秒 | 段落 %3$d毫秒</string>
+    <string name="rsvp_punctuation_pauses_summary">呼吸 %1$s | 逗号 %2$d毫秒 | 句号 %3$d毫秒 | 段落 %4$d毫秒 | 页面 %5$s</string>
     <string name="rsvp_punctuation_comma">逗号</string>
     <string name="rsvp_punctuation_dash">破折号</string>
     <string name="rsvp_punctuation_semicolon">分号</string>
@@ -157,6 +157,8 @@
     <string name="rsvp_punctuation_parentheses">括号</string>
     <string name="rsvp_punctuation_quotes">引号</string>
     <string name="rsvp_punctuation_paragraph">段落</string>
+    <string name="rsvp_punctuation_page_break_title">分页</string>
+    <string name="rsvp_punctuation_page_break_subtitle">在页面和场景边界保留空白帧。</string>
     <string name="rsvp_pause_scaling_title">停顿缩放</string>
     <string name="rsvp_pause_scaling_summary">指数 %1$s | 最小 %2$s</string>
     <string name="rsvp_scale_exponent_title">缩放指数</string>
