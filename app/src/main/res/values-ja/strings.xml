@@ -60,8 +60,14 @@
     <string name="reader_settings_subtitle">文字サイズ、テーマ、スクロール</string>
     <string name="reader_theme_title">リーダーテーマ</string>
     <string name="reader_theme_light">ライト</string>
+    <string name="reader_theme_linen">リネン</string>
+    <string name="reader_theme_mist">ミスト</string>
+    <string name="reader_theme_sage">セージ</string>
     <string name="reader_theme_sepia">セピア</string>
     <string name="reader_theme_dark">ダーク</string>
+    <string name="reader_theme_ink">インク</string>
+    <string name="reader_theme_plum">プラム</string>
+    <string name="reader_theme_ember">エンバー</string>
     <string name="reader_theme_nord">Nord</string>
     <string name="reader_theme_cyberpunk">Cyberpunk</string>
     <string name="reader_theme_forest">Forest</string>

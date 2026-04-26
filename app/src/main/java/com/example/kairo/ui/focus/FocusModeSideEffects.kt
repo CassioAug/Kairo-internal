@@ -18,6 +18,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.kairo.core.model.ReaderTheme
+import com.example.kairo.ui.theme.readerThemePalette
 
 @Composable
 fun FocusModeSideEffects(
@@ -69,7 +70,7 @@ fun SystemBarsStyleSideEffect(readerTheme: ReaderTheme) {
             window.isNavigationBarContrastEnforced = false
         }
 
-        val useDarkIcons = readerTheme == ReaderTheme.LIGHT || readerTheme == ReaderTheme.SEPIA
+        val useDarkIcons = !readerTheme.readerThemePalette().isDark
         controller.isAppearanceLightStatusBars = useDarkIcons
         controller.isAppearanceLightNavigationBars = useDarkIcons
         onDispose { }

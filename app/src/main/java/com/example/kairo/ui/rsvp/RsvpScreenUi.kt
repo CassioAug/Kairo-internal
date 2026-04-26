@@ -230,7 +230,7 @@ private fun rememberRsvpTextColors(
         pivotColor = MaterialTheme.colorScheme.primary,
         pivotLineColor = MaterialTheme.colorScheme.onBackground.copy(alpha = pivotLineAlpha),
         textColor = MaterialTheme.colorScheme.onBackground.copy(alpha = clampedBrightness),
-        highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.62f),
+        highlightColor = MaterialTheme.colorScheme.primary,
     )
 }
 
