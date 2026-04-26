@@ -651,7 +651,20 @@ data class UserPreferences(
     val focusApplyInRsvp: Boolean = true,
 )
 
-enum class ReaderTheme { LIGHT, DARK, SEPIA, NORD, CYBERPUNK, FOREST }
+enum class ReaderTheme {
+    LIGHT,
+    LINEN,
+    MIST,
+    SAGE,
+    SEPIA,
+    DARK,
+    INK,
+    PLUM,
+    EMBER,
+    NORD,
+    CYBERPUNK,
+    FOREST,
+}
 
 enum class RsvpFontFamily { INTER, ROBOTO }
 

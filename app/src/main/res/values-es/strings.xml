@@ -60,8 +60,14 @@
     <string name="reader_settings_subtitle">Tamaño de fuente, tema, desplazamiento</string>
     <string name="reader_theme_title">Tema del lector</string>
     <string name="reader_theme_light">Claro</string>
+    <string name="reader_theme_linen">Lino</string>
+    <string name="reader_theme_mist">Niebla</string>
+    <string name="reader_theme_sage">Salvia</string>
     <string name="reader_theme_sepia">Sepia</string>
     <string name="reader_theme_dark">Oscuro</string>
+    <string name="reader_theme_ink">Tinta</string>
+    <string name="reader_theme_plum">Ciruela</string>
+    <string name="reader_theme_ember">Brasa</string>
     <string name="reader_theme_nord">Nord</string>
     <string name="reader_theme_cyberpunk">Cyberpunk</string>
     <string name="reader_theme_forest">Bosque</string>

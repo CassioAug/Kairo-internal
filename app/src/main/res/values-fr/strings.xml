@@ -60,8 +60,14 @@
     <string name="reader_settings_subtitle">Taille de police, thème, défilement</string>
     <string name="reader_theme_title">Thème du lecteur</string>
     <string name="reader_theme_light">Clair</string>
+    <string name="reader_theme_linen">Lin</string>
+    <string name="reader_theme_mist">Brume</string>
+    <string name="reader_theme_sage">Sauge</string>
     <string name="reader_theme_sepia">Sépia</string>
     <string name="reader_theme_dark">Sombre</string>
+    <string name="reader_theme_ink">Encre</string>
+    <string name="reader_theme_plum">Prune</string>
+    <string name="reader_theme_ember">Braise</string>
     <string name="reader_theme_nord">Nord</string>
     <string name="reader_theme_cyberpunk">Cyberpunk</string>
     <string name="reader_theme_forest">Forêt</string>

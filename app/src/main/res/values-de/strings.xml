@@ -60,8 +60,14 @@
     <string name="reader_settings_subtitle">Schriftgröße, Thema, Scrollen</string>
     <string name="reader_theme_title">Lesethema</string>
     <string name="reader_theme_light">Hell</string>
+    <string name="reader_theme_linen">Leinen</string>
+    <string name="reader_theme_mist">Nebel</string>
+    <string name="reader_theme_sage">Salbei</string>
     <string name="reader_theme_sepia">Sepia</string>
     <string name="reader_theme_dark">Dunkel</string>
+    <string name="reader_theme_ink">Tinte</string>
+    <string name="reader_theme_plum">Pflaume</string>
+    <string name="reader_theme_ember">Glut</string>
     <string name="reader_theme_nord">Nord</string>
     <string name="reader_theme_cyberpunk">Cyberpunk</string>
     <string name="reader_theme_forest">Wald</string>

@@ -60,8 +60,14 @@
     <string name="reader_settings_subtitle">字号、主题、滚动</string>
     <string name="reader_theme_title">阅读器主题</string>
     <string name="reader_theme_light">浅色</string>
+    <string name="reader_theme_linen">亚麻</string>
+    <string name="reader_theme_mist">薄雾</string>
+    <string name="reader_theme_sage">鼠尾草</string>
     <string name="reader_theme_sepia">褐色</string>
     <string name="reader_theme_dark">深色</string>
+    <string name="reader_theme_ink">墨色</string>
+    <string name="reader_theme_plum">梅紫</string>
+    <string name="reader_theme_ember">余烬</string>
     <string name="reader_theme_nord">Nord</string>
     <string name="reader_theme_cyberpunk">Cyberpunk</string>
     <string name="reader_theme_forest">Forest</string>

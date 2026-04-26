@@ -63,8 +63,14 @@
     <string name="reader_settings_subtitle">Font size, theme, scrolling</string>
     <string name="reader_theme_title">Reader theme</string>
     <string name="reader_theme_light">Light</string>
+    <string name="reader_theme_linen">Linen</string>
+    <string name="reader_theme_mist">Mist</string>
+    <string name="reader_theme_sage">Sage</string>
     <string name="reader_theme_sepia">Sepia</string>
     <string name="reader_theme_dark">Dark</string>
+    <string name="reader_theme_ink">Ink</string>
+    <string name="reader_theme_plum">Plum</string>
+    <string name="reader_theme_ember">Ember</string>
     <string name="reader_theme_nord">Nord</string>
     <string name="reader_theme_cyberpunk">Cyberpunk</string>
     <string name="reader_theme_forest">Forest</string>

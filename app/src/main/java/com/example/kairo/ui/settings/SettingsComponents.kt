@@ -47,16 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.kairo.R
 import com.example.kairo.core.model.ReaderTheme
-import com.example.kairo.ui.theme.CyberpunkBackground
-import com.example.kairo.ui.theme.CyberpunkPrimary
-import com.example.kairo.ui.theme.DarkBackground
-import com.example.kairo.ui.theme.DeepPurple
-import com.example.kairo.ui.theme.ForestBackground
-import com.example.kairo.ui.theme.ForestPrimary
-import com.example.kairo.ui.theme.LightBackground
-import com.example.kairo.ui.theme.NordBackground
-import com.example.kairo.ui.theme.NordPrimary
-import com.example.kairo.ui.theme.SepiaBackground
+import com.example.kairo.ui.theme.readerThemePalette
 
 @Composable
 fun SettingsNavRow(
@@ -220,12 +211,18 @@ fun ThemeSelector(
 
         val themes =
             listOf(
-                ReaderTheme.DARK,
-                ReaderTheme.NORD,
-                ReaderTheme.CYBERPUNK,
-                ReaderTheme.FOREST,
-                ReaderTheme.SEPIA,
                 ReaderTheme.LIGHT,
+                ReaderTheme.LINEN,
+                ReaderTheme.MIST,
+                ReaderTheme.SAGE,
+                ReaderTheme.SEPIA,
+                ReaderTheme.DARK,
+                ReaderTheme.INK,
+                ReaderTheme.PLUM,
+                ReaderTheme.EMBER,
+                ReaderTheme.NORD,
+                ReaderTheme.FOREST,
+                ReaderTheme.CYBERPUNK,
             )
 
         LazyRow(
@@ -296,21 +293,22 @@ fun ThemeSelector(
 }
 
 @Composable
-private fun rememberThemePreview(theme: ReaderTheme): Pair<Color, Color> =
-    when (theme) {
-        ReaderTheme.LIGHT -> LightBackground to DeepPurple
-        ReaderTheme.SEPIA -> SepiaBackground to DeepPurple
-        ReaderTheme.DARK -> DarkBackground to DeepPurple
-        ReaderTheme.NORD -> NordBackground to NordPrimary
-        ReaderTheme.CYBERPUNK -> CyberpunkBackground to CyberpunkPrimary
-        ReaderTheme.FOREST -> ForestBackground to ForestPrimary
-    }
+private fun rememberThemePreview(theme: ReaderTheme): Pair<Color, Color> {
+    val palette = theme.readerThemePalette()
+    return palette.background to palette.primary
+}
 
 private fun readerThemeLabelRes(theme: ReaderTheme): Int =
     when (theme) {
         ReaderTheme.LIGHT -> R.string.reader_theme_light
+        ReaderTheme.LINEN -> R.string.reader_theme_linen
+        ReaderTheme.MIST -> R.string.reader_theme_mist
+        ReaderTheme.SAGE -> R.string.reader_theme_sage
         ReaderTheme.SEPIA -> R.string.reader_theme_sepia
         ReaderTheme.DARK -> R.string.reader_theme_dark
+        ReaderTheme.INK -> R.string.reader_theme_ink
+        ReaderTheme.PLUM -> R.string.reader_theme_plum
+        ReaderTheme.EMBER -> R.string.reader_theme_ember
         ReaderTheme.NORD -> R.string.reader_theme_nord
         ReaderTheme.CYBERPUNK -> R.string.reader_theme_cyberpunk
         ReaderTheme.FOREST -> R.string.reader_theme_forest
