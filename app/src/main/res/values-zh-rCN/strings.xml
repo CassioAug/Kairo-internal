@@ -36,6 +36,8 @@
     <string name="content_desc_previous">上一步</string>
     <string name="content_desc_previous_page">上一页</string>
     <string name="content_desc_reader_menu">阅读器菜单</string>
+    <string name="content_desc_reader_swipe_next_page">滑动预览：下一页</string>
+    <string name="content_desc_reader_swipe_previous_page">滑动预览：上一页</string>
     <string name="content_desc_mark_book_completed">标记为已完成</string>
     <string name="content_desc_move_book_to_library">移回书库</string>
     <string name="content_desc_settings">设置</string>
@@ -94,7 +96,7 @@
     <string name="reader_eta_chapter">章节 ~%1$s</string>
     <string name="reader_eta_book">全书 ~%1$s</string>
     <string name="reader_eta_prefix">预计：%1$s</string>
-    <string name="reader_rsvp_dock_progress">速读 %1$d%%</string>
+    <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
     <string name="reader_empty_chapter">本章无内容</string>
     <string name="reader_image_not_found">未找到图片</string>
 

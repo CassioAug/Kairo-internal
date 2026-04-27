@@ -35,6 +35,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,7 +59,7 @@ import com.example.kairo.ui.tutorial.startingTutorialTarget
 import java.util.Locale
 
 private val READER_MIN_BOTTOM_CONTENT_PADDING = 24.dp
-private val READER_RSVP_LAUNCHER_CLEARANCE = 88.dp
+private val READER_RSVP_LAUNCHER_CLEARANCE = 96.dp
 private const val READER_CHROME_COLLAPSE_SCROLL_PX = 56
 
 /**
@@ -164,7 +165,10 @@ fun ReaderScreen(
     // Chapter list bottom sheet state
     val showChapterList = remember { mutableStateOf(false) }
     var showReaderMenu by remember { mutableStateOf(false) }
+    var showReaderDetails by remember { mutableStateOf(false) }
     var fullScreenImagePath by remember { mutableStateOf<String?>(null) }
+    var swipeDirection by remember { mutableStateOf<ReaderSwipeDirection?>(null) }
+    var swipeProgress by remember { mutableFloatStateOf(0f) }
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
     val tutorialTargetId = tutorialState?.step?.targetId
 
@@ -252,6 +256,13 @@ fun ReaderScreen(
                 onNext = navigationState.onNextPage,
                 onShowMenu = { showReaderMenu = !showReaderMenu },
                 compactMode = chromeCollapsed,
+                detailsExpanded = showReaderDetails,
+                onToggleDetails = { showReaderDetails = !showReaderDetails },
+                pageLabel = progressState.pageLabel,
+                progressPercent =
+                    if (renderState.totalChapterWords > 0) progressState.progressPercent else null,
+                progressFraction = progressState.progressFraction,
+                etaLabel = progressState.etaLabel,
                 navigationModifier =
                     Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_NAVIGATION) {
                         targetId,
@@ -267,16 +278,7 @@ fun ReaderScreen(
                         tutorialTargets[targetId] = bounds
                     },
             )
-
-            AnimatedVisibility(visible = !chromeCollapsed && progressState.hasProgressMeta) {
-                ReaderProgressMeta(
-                    pageLabel = progressState.pageLabel,
-                    progressPercent =
-                        if (renderState.totalChapterWords > 0) progressState.progressPercent else null,
-                    etaLabel = progressState.etaLabel,
-                )
-            }
-            Spacer(modifier = Modifier.height(if (chromeCollapsed) 8.dp else 12.dp))
+            Spacer(modifier = Modifier.height(if (showReaderDetails) 12.dp else 8.dp))
 
             CompositionLocalProvider(LocalLayoutDirection provides contentLayoutDirection) {
                 ReaderContent(
@@ -304,12 +306,24 @@ fun ReaderScreen(
                     onStartRsvpForToken = onStartRsvpForToken,
                     onPrevPage = navigationState.onPrevPage,
                     onNextPage = navigationState.onNextPage,
+                    onSwipePreviewChange = { direction, progress ->
+                        swipeDirection = direction
+                        swipeProgress = progress
+                    },
                     onOpenFullScreenImage = { fullScreenImagePath = it },
                     invertedScrollCommands = listStateHolder.invertedScrollCommands,
                     onChapterSelected = { index -> onChapterChange(index, 0) },
                 )
             }
         }
+
+        ReaderSwipePageChrome(
+            direction = swipeDirection,
+            progress = swipeProgress,
+            canGoPrev = navigationState.canGoPrevPage,
+            canGoNext = navigationState.canGoNextPage,
+            modifier = Modifier.fillMaxSize(),
+        )
 
         if (showChapterList.value) {
             BackHandler { showChapterList.value = false }

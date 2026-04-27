@@ -36,6 +36,8 @@
     <string name="content_desc_previous">Anterior</string>
     <string name="content_desc_previous_page">Página anterior</string>
     <string name="content_desc_reader_menu">Menu do leitor</string>
+    <string name="content_desc_reader_swipe_next_page">Prévia do gesto: próxima página</string>
+    <string name="content_desc_reader_swipe_previous_page">Prévia do gesto: página anterior</string>
     <string name="content_desc_mark_book_completed">Marcar livro como concluído</string>
     <string name="content_desc_move_book_to_library">Mover livro de volta para a biblioteca</string>
     <string name="content_desc_settings">Configurações</string>
@@ -94,7 +96,7 @@
     <string name="reader_eta_chapter">capítulo ~%1$s</string>
     <string name="reader_eta_book">livro ~%1$s</string>
     <string name="reader_eta_prefix">Tempo estimado: %1$s</string>
-    <string name="reader_rsvp_dock_progress">Leitura rápida %1$d%%</string>
+    <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
     <string name="reader_empty_chapter">Sem conteúdo neste capítulo</string>
     <string name="reader_image_not_found">Imagem não encontrada</string>
 
