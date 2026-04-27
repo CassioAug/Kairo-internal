@@ -30,6 +30,7 @@
     <string name="content_desc_book_actions">Book actions</string>
     <string name="content_desc_delete_book">Delete book</string>
     <string name="content_desc_delete_bookmark">Delete bookmark</string>
+    <string name="content_desc_delete_book_bookmarks">Delete bookmarks for %1$s</string>
     <string name="content_desc_full_screen_image">Full screen image</string>
     <string name="content_desc_illustration">Illustration</string>
     <string name="content_desc_next">Next</string>
@@ -62,6 +63,9 @@
     <string name="library_percent_complete">%1$d%% complete</string>
     <string name="library_completed_status">Completed</string>
     <string name="library_bookmark_progress">Chapter %1$d / %2$d • %3$d%%</string>
+    <string name="library_bookmark_clear_book">Clear</string>
+    <string name="library_bookmark_clear_book_title">Remove bookmarks for this book?</string>
+    <string name="library_bookmark_clear_book_message">This will remove every saved bookmark for "%1$s". Your book and reading progress will stay in place.</string>
     <string name="library_delete_title">Delete book?</string>
     <string name="library_delete_message">Remove "%1$s" from your library? This cannot be undone.</string>
 
@@ -352,6 +356,10 @@
     <plurals name="library_chapter_count">
         <item quantity="one">%1$d chapter</item>
         <item quantity="other">%1$d chapters</item>
+    </plurals>
+    <plurals name="library_bookmark_count">
+        <item quantity="one">%1$d bookmark</item>
+        <item quantity="other">%1$d bookmarks</item>
     </plurals>
 
     <plurals name="toast_imported_with_chapter_count">

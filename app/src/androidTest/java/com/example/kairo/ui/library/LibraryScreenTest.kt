@@ -12,6 +12,8 @@ import com.example.kairo.R
 import com.example.kairo.TestActivity
 import com.example.kairo.core.model.Book
 import com.example.kairo.core.model.BookId
+import com.example.kairo.core.model.Bookmark
+import com.example.kairo.core.model.BookmarkItem
 import com.example.kairo.core.model.Chapter
 import com.example.kairo.ui.theme.KairoTheme
 import org.junit.Assert.assertEquals
@@ -47,6 +49,7 @@ class LibraryScreenTest {
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
                     onImportFile = {},
                     onSettings = {},
                     onSetCompleted = { _, _ -> },
@@ -85,6 +88,7 @@ class LibraryScreenTest {
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
                     onImportFile = {},
                     onSettings = {},
                     onSetCompleted = { _, _ -> },
@@ -124,6 +128,7 @@ class LibraryScreenTest {
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
                     onImportFile = {},
                     onSettings = {},
                     onSetCompleted = { _, _ -> },
@@ -151,6 +156,7 @@ class LibraryScreenTest {
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
                     onImportFile = {},
                     onSettings = {},
                     onSetCompleted = { book, isCompleted ->
@@ -172,5 +178,58 @@ class LibraryScreenTest {
             assertEquals("book-1", completedBookId)
             assertEquals(true, completedValue)
         }
+    }
+
+    @Test
+    fun clearBookBookmarks_confirmsAndDeletesForBook() {
+        var clearedBookId = ""
+        val bookmarkItem =
+            BookmarkItem(
+                bookmark =
+                    Bookmark(
+                        id = "bookmark-1",
+                        bookId = sampleBook.id,
+                        chapterIndex = 0,
+                        tokenIndex = 12,
+                        previewText = "A saved passage from the chapter",
+                        createdAt = 100L,
+                    ),
+                book = sampleBook,
+                chapterCount = sampleBook.chapters.size,
+            )
+
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = listOf(bookmarkItem),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Bookmarks,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = { clearedBookId = it },
+                    onImportFile = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        val clearBookDesc =
+            composeRule.activity.getString(
+                R.string.content_desc_delete_book_bookmarks,
+                sampleBook.title,
+            )
+        composeRule.onNodeWithContentDescription(clearBookDesc).performClick()
+
+        val dialogTitle = composeRule.activity.getString(R.string.library_bookmark_clear_book_title)
+        composeRule.onNodeWithText(dialogTitle).assertIsDisplayed()
+
+        val deleteText = composeRule.activity.getString(R.string.action_delete)
+        composeRule.onNodeWithText(deleteText).performClick()
+
+        composeRule.runOnIdle { assertEquals("book-1", clearedBookId) }
     }
 }

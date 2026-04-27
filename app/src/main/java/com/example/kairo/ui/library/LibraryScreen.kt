@@ -90,6 +90,7 @@ fun LibraryScreen(
     onOpen: (Book) -> Unit,
     onOpenBookmark: (bookId: String, chapterIndex: Int, tokenIndex: Int) -> Unit,
     onDeleteBookmark: (bookmarkId: String) -> Unit,
+    onDeleteBookmarksForBook: (bookId: String) -> Unit,
     onImportFile: (Uri) -> Unit,
     onSettings: () -> Unit,
     onSetCompleted: (Book, Boolean) -> Unit,
@@ -108,6 +109,7 @@ fun LibraryScreen(
         }
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab.ordinal) }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
+    var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
     val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
     val completedBooks = remember(books) { books.filter { it.isCompleted } }
@@ -278,13 +280,19 @@ fun LibraryScreen(
                         }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
+                        item(key = "bookmarks_summary") {
+                            BookmarksSummaryRow(
+                                bookmarkCount = bookmarks.size,
+                            )
+                        }
                         grouped.forEach { (group, firstItem) ->
                             item(key = "header_${firstItem.book.id.value}") {
                                 BookmarkBookHeader(
                                     book = firstItem.book,
                                     bookmarkCount = group.size,
+                                    onClearBookmarks = { pendingClearBookmarkBook = firstItem.book },
                                 )
                             }
                             items(
@@ -335,6 +343,33 @@ fun LibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingDeleteBook = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    pendingClearBookmarkBook?.let { book ->
+        AlertDialog(
+            onDismissRequest = { pendingClearBookmarkBook = null },
+            title = { Text(stringResource(R.string.library_bookmark_clear_book_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.library_bookmark_clear_book_message, book.title),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteBookmarksForBook(book.id.value)
+                        pendingClearBookmarkBook = null
+                    },
+                ) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingClearBookmarkBook = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -532,63 +567,103 @@ private fun CompletedStatusPill() {
 }
 
 @Composable
+private fun BookmarksSummaryRow(
+    bookmarkCount: Int,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text(
+                text =
+                    pluralStringResource(
+                        R.plurals.library_bookmark_count,
+                        bookmarkCount,
+                        bookmarkCount,
+                    ),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.library_bookmarks_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun BookmarkBookHeader(
     book: Book,
     bookmarkCount: Int,
+    onClearBookmarks: () -> Unit,
 ) {
     val authorSeparator = stringResource(R.string.list_separator)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-        ),
-        shape = RoundedCornerShape(14.dp),
-    ) {
-        Row(
-            modifier =
+    val clearBookmarksDescription =
+        stringResource(R.string.content_desc_delete_book_bookmarks, book.title)
+    Row(
+        modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BookCover(
-                coverImage = book.coverImage,
-                title = book.title,
-                cacheKey = book.id.value,
-                modifier = Modifier.size(width = 44.dp, height = 44.dp),
+                .padding(top = 8.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BookCover(
+            coverImage = book.coverImage,
+            title = book.title,
+            cacheKey = book.id.value,
+            modifier = Modifier.size(width = 34.dp, height = 50.dp),
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = book.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            val authors = book.authors.joinToString(authorSeparator)
+            val count =
+                pluralStringResource(
+                    R.plurals.library_bookmark_count,
+                    bookmarkCount,
+                    bookmarkCount,
+                )
+            if (authors.isNotBlank()) {
                 Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    text = authors + stringResource(R.string.meta_separator) + count,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (book.authors.isNotEmpty()) {
-                    Text(
-                        text = book.authors.joinToString(authorSeparator),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Box(
-                modifier =
-                Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            ) {
+            } else {
                 Text(
-                    text = "$bookmarkCount",
-                    style = MaterialTheme.typography.labelMedium,
+                    text = count,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        TextButton(
+            onClick = onClearBookmarks,
+            modifier =
+                Modifier.semantics {
+                    contentDescription = clearBookmarksDescription
+                },
+        ) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(stringResource(R.string.library_bookmark_clear_book))
         }
     }
 }
@@ -609,52 +684,44 @@ private fun BookmarkRow(
                 .coerceIn(0, 100)
         }
 
-    Card(
+    Row(
         modifier =
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
             .clickable {
                 onOpenBookmark(book.id.value, bookmark.chapterIndex, bookmark.tokenIndex)
-            },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(12.dp),
+            }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text =
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text =
                     stringResource(
                         R.string.library_bookmark_progress,
                         bookmark.chapterIndex + 1,
                         chapterCount,
                         percent,
                     ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = bookmark.previewText,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = bookmark.previewText,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
 
-            IconButton(onClick = { onDeleteBookmark(bookmark.id) }) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.content_desc_delete_bookmark),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        IconButton(onClick = { onDeleteBookmark(bookmark.id) }) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(R.string.content_desc_delete_bookmark),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
