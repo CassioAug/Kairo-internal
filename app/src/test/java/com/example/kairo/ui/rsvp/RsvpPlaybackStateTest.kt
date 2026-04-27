@@ -129,6 +129,24 @@ class RsvpPlaybackStateTest {
     }
 
     @Test
+    fun pausePlaybackNotifiesSaveableStateSynchronously() {
+        var savedIsPlaying = true
+        var savedCompleted = false
+        val runtime =
+            RsvpRuntimeState(
+                onPlaybackStateChanged = { isPlaying, completed ->
+                    savedIsPlaying = isPlaying
+                    savedCompleted = completed
+                },
+            )
+
+        runtime.isPlaying = false
+
+        assertFalse(savedIsPlaying)
+        assertFalse(savedCompleted)
+    }
+
+    @Test
     fun persistedTempoDoesNotOverrideLocalTempoOverride() {
         val shouldApply =
             shouldApplyPersistedTempo(

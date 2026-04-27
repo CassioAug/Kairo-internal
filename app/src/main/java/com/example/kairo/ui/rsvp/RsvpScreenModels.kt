@@ -13,6 +13,7 @@ data class RsvpScreenState(
     val book: RsvpBookContext,
     val profile: RsvpProfileContext,
     val launchTempoMsPerWord: Long? = null,
+    val initialIsPlaying: Boolean = true,
     val uiPrefs: RsvpUiPreferences,
     val textStyle: RsvpTextStyle,
     val layoutBias: RsvpLayoutBias,
@@ -65,6 +66,7 @@ data class RsvpPlaybackCallbacks(
     val onPositionChanged: (RsvpResumePoint) -> Unit,
     val onTempoChange: (Long) -> Unit,
     val onExit: (RsvpResumePoint) -> Unit,
+    val onPlaybackStateChanged: (Boolean) -> Unit = {},
 )
 
 data class RsvpPreferenceCallbacks(
