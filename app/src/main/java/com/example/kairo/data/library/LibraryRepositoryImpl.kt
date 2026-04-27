@@ -27,6 +27,15 @@ class LibraryRepositoryImpl(
         return bookRepository.importBook(uri)
     }
 
+    override suspend fun setCompleted(
+        bookId: String,
+        isCompleted: Boolean,
+    ) {
+        withContext(dispatcherProvider.io) {
+            bookDao.setCompleted(bookId, isCompleted)
+        }
+    }
+
     override suspend fun delete(bookId: String) {
         withContext(dispatcherProvider.io) {
             bookDao.deleteChaptersForBook(bookId)

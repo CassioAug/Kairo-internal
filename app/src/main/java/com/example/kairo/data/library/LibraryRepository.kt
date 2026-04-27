@@ -9,5 +9,10 @@ interface LibraryRepository {
 
     suspend fun import(uri: Uri): Book
 
+    suspend fun setCompleted(
+        bookId: String,
+        isCompleted: Boolean,
+    )
+
     suspend fun delete(bookId: String)
 }

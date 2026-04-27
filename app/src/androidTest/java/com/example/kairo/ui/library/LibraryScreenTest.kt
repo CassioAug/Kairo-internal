@@ -49,10 +49,14 @@ class LibraryScreenTest {
                     onDeleteBookmark = {},
                     onImportFile = {},
                     onSettings = {},
+                    onSetCompleted = { _, _ -> },
                     onDelete = { deleteCalls++ },
                 )
             }
         }
+
+        val actionsDesc = composeRule.activity.getString(R.string.content_desc_book_actions)
+        composeRule.onNodeWithContentDescription(actionsDesc).performClick()
 
         val deleteDesc = composeRule.activity.getString(R.string.content_desc_delete_book)
         composeRule.onNodeWithContentDescription(deleteDesc).performClick()
@@ -83,10 +87,14 @@ class LibraryScreenTest {
                     onDeleteBookmark = {},
                     onImportFile = {},
                     onSettings = {},
+                    onSetCompleted = { _, _ -> },
                     onDelete = { deleteCalls++ },
                 )
             }
         }
+
+        val actionsDesc = composeRule.activity.getString(R.string.content_desc_book_actions)
+        composeRule.onNodeWithContentDescription(actionsDesc).performClick()
 
         val deleteDesc = composeRule.activity.getString(R.string.content_desc_delete_book)
         composeRule.onNodeWithContentDescription(deleteDesc).performClick()
@@ -95,5 +103,74 @@ class LibraryScreenTest {
         composeRule.onNodeWithText(deleteText).performClick()
 
         composeRule.runOnIdle { assertEquals(1, deleteCalls) }
+    }
+
+    @Test
+    fun completedTab_showsCompletedBooks() {
+        val completedBook =
+            sampleBook.copy(
+                id = BookId("book-2"),
+                title = "Finished Book",
+                isCompleted = true,
+            )
+
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook, completedBook),
+                    bookmarks = emptyList(),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Completed,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onImportFile = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Finished Book").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Test Book").assertCountEquals(0)
+    }
+
+    @Test
+    fun markCompletedAction_invokesCallback() {
+        var completedBookId = ""
+        var completedValue = false
+
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Library,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onImportFile = {},
+                    onSettings = {},
+                    onSetCompleted = { book, isCompleted ->
+                        completedBookId = book.id.value
+                        completedValue = isCompleted
+                    },
+                    onDelete = {},
+                )
+            }
+        }
+
+        val actionsDesc = composeRule.activity.getString(R.string.content_desc_book_actions)
+        composeRule.onNodeWithContentDescription(actionsDesc).performClick()
+
+        val completeDesc = composeRule.activity.getString(R.string.content_desc_mark_book_completed)
+        composeRule.onNodeWithContentDescription(completeDesc).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("book-1", completedBookId)
+            assertEquals(true, completedValue)
+        }
     }
 }

@@ -27,6 +27,7 @@ fun Book.toEntity(): BookEntity =
         authors = authors,
         languageTag = languageTag,
         coverImage = coverImage,
+        isCompleted = isCompleted,
     )
 
 fun Chapter.toEntity(bookId: BookId): ChapterEntity =
@@ -47,6 +48,7 @@ fun BookEntity.toDomain(chapters: List<ChapterEntity>): Book =
         authors = authors,
         languageTag = languageTag,
         coverImage = coverImage,
+        isCompleted = isCompleted,
         chapters = chapters.sortedBy { it.index }.map { it.toDomain() },
     )
 
