@@ -77,8 +77,9 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         val defaults = UserPreferences()
         val customProfiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
         val selectedProfileId = migrateAndReadSelectedProfileId(prefs, customProfiles)
-        val timingInfo = readTimingInfo(prefs, defaults.rsvpConfig)
-        val rsvpConfig = readRsvpConfig(prefs)
+        val configDefaults = rsvpConfigDefaultsForProfile(selectedProfileId, customProfiles)
+        val timingInfo = readTimingInfo(prefs, configDefaults)
+        val rsvpConfig = readRsvpConfig(prefs, configDefaults)
 
         return defaults
             .withRsvpState(rsvpConfig, timingInfo.tempoMsPerWord, selectedProfileId, customProfiles)
@@ -1009,7 +1010,18 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     }
 
     private fun readRsvpConfig(prefs: Preferences): RsvpConfig {
-        val defaults = RsvpConfig()
+        val customProfiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
+        val selectedProfileId = migrateAndReadSelectedProfileId(prefs, customProfiles)
+        return readRsvpConfig(
+            prefs = prefs,
+            defaults = rsvpConfigDefaultsForProfile(selectedProfileId, customProfiles),
+        )
+    }
+
+    private fun readRsvpConfig(
+        prefs: Preferences,
+        defaults: RsvpConfig,
+    ): RsvpConfig {
         val timingInfo = readTimingInfo(prefs, defaults)
         val blinkMode = readBlinkMode(prefs, defaults)
 
@@ -1031,6 +1043,22 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             .withOrpAndDelays(prefs, defaults)
             .withBlinkMode(blinkMode)
     }
+
+    private fun rsvpConfigDefaultsForProfile(
+        selectedProfileId: String,
+        customProfiles: List<RsvpCustomProfile>,
+    ): RsvpConfig =
+        when {
+            RsvpProfileIds.isBuiltIn(selectedProfileId) ->
+                RsvpProfileIds.parseBuiltIn(selectedProfileId)?.defaultConfig()
+                    ?: RsvpProfile.BALANCED.defaultConfig()
+
+            RsvpProfileIds.isCustom(selectedProfileId) ->
+                customProfiles.firstOrNull { it.id == selectedProfileId }?.config
+                    ?: RsvpProfile.BALANCED.defaultConfig()
+
+            else -> RsvpProfile.BALANCED.defaultConfig()
+        }
 
     private fun RsvpConfig.withTiming(timingInfo: TimingInfo): RsvpConfig =
         copy(
