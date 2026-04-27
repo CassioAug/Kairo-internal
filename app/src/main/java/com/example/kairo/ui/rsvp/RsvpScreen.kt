@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -39,15 +40,18 @@ fun RsvpScreen(
             SAFE_MIN_TEMPO_MS_PER_WORD
         }
     val sessionKey = buildSessionKey(state.book)
+    val onPlaybackStateChanged by rememberUpdatedState(callbacks.playback.onPlaybackStateChanged)
     val runtime =
         rememberRsvpRuntimeState(
             profile = state.profile,
             launchTempoMsPerWord = state.launchTempoMsPerWord,
+            initialIsPlaying = state.initialIsPlaying,
             textStyle = state.textStyle,
             layoutBias = state.layoutBias,
             startIndex = state.book.startIndex,
             startResumeCursor = state.book.startResumeCursor,
             sessionKey = sessionKey,
+            onPlaybackStateChanged = onPlaybackStateChanged,
         )
     val frameState =
         rememberFrameLoadState(
@@ -118,7 +122,8 @@ fun RsvpScreen(
     RsvpPlaybackEffects(
         context = context,
         sessionKey = sessionKey,
-        isTutorialMode = isTutorialMode,
+        autoPlay = state.initialIsPlaying && !isTutorialMode,
+        playbackEnabled = !isTutorialMode,
     )
     RsvpIndicatorEffects(runtime)
 
@@ -148,15 +153,17 @@ fun RsvpScreen(
 private fun rememberRsvpRuntimeState(
     profile: RsvpProfileContext,
     launchTempoMsPerWord: Long?,
+    initialIsPlaying: Boolean,
     textStyle: RsvpTextStyle,
     layoutBias: RsvpLayoutBias,
     startIndex: Int,
     startResumeCursor: Int,
     sessionKey: String,
+    onPlaybackStateChanged: (Boolean) -> Unit,
 ): RsvpRuntimeState {
     var savedTokenIndex by rememberSaveable(sessionKey) { mutableStateOf(startIndex) }
     var savedResumeCursor by rememberSaveable(sessionKey) { mutableStateOf(startResumeCursor) }
-    var savedIsPlaying by rememberSaveable(sessionKey) { mutableStateOf(true) }
+    var savedIsPlaying by rememberSaveable(sessionKey) { mutableStateOf(initialIsPlaying) }
     var savedCompleted by rememberSaveable(sessionKey) { mutableStateOf(false) }
     var savedTempoMsPerWord by rememberSaveable(sessionKey) {
         mutableStateOf(launchTempoMsPerWord ?: profile.config.tempoMsPerWord)
@@ -183,7 +190,13 @@ private fun rememberRsvpRuntimeState(
     }
     val state =
         remember(sessionKey) {
-            RsvpRuntimeState().apply {
+            RsvpRuntimeState(
+                onPlaybackStateChanged = { isPlaying, completed ->
+                    savedIsPlaying = isPlaying
+                    savedCompleted = completed
+                    onPlaybackStateChanged(isPlaying)
+                },
+            ).apply {
                 currentTempoMsPerWord = savedTempoMsPerWord
                 dragStartTempoMsPerWord = savedTempoMsPerWord
                 currentFontFamily = savedFontFamily
@@ -413,12 +426,13 @@ private fun RsvpBackHandler(
 private fun RsvpPlaybackEffects(
     context: RsvpUiContext,
     sessionKey: String,
-    isTutorialMode: Boolean,
+    autoPlay: Boolean,
+    playbackEnabled: Boolean,
 ) {
     RsvpPositionSaveEffect(context)
     RsvpFrameAlignmentEffect(context)
-    RsvpSessionResetEffect(context, sessionKey, autoPlay = !isTutorialMode)
-    RsvpPlaybackLoopEffect(context, enabled = !isTutorialMode)
+    RsvpSessionResetEffect(context, sessionKey, autoPlay = autoPlay)
+    RsvpPlaybackLoopEffect(context, enabled = playbackEnabled)
 }
 
 @Composable

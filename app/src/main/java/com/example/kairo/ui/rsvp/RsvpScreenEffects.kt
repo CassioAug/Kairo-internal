@@ -67,7 +67,7 @@ internal fun RsvpSessionResetEffect(
     val layoutBias = context.state.layoutBias
     val frames = context.frameState.frames
 
-    var lastSessionKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastSessionKey by rememberSaveable { mutableStateOf(sessionKey) }
 
     LaunchedEffect(sessionKey) {
         if (lastSessionKey == sessionKey) return@LaunchedEffect

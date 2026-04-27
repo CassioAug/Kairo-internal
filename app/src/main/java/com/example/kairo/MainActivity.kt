@@ -136,6 +136,7 @@ class MainActivity : AppCompatActivity() {
 private const val RSVP_RESULT_CHAPTER_INDEX_KEY = "rsvp_result_chapter_index"
 private const val RSVP_RESULT_TOKEN_INDEX_KEY = "rsvp_result_token_index"
 private const val RSVP_RESULT_RESUME_CURSOR_KEY = "rsvp_result_resume_cursor"
+private const val RSVP_PLAYBACK_IS_PLAYING_KEY = "rsvp_playback_is_playing"
 private data class RsvpReturnTarget(
     val chapterIndex: Int,
     val tokenIndex: Int,
@@ -1457,6 +1458,14 @@ private fun KairoNavHost(
                             it.tokenIndex == safeStartIndex &&
                             it.rsvpResumeCursor >= 0
                     }?.rsvpResumeCursor ?: -1
+            val playbackIsPlayingFlow =
+                remember(backStackEntry) {
+                    backStackEntry.savedStateHandle.getStateFlow(
+                        RSVP_PLAYBACK_IS_PLAYING_KEY,
+                        true,
+                    )
+                }
+            val playbackIsPlaying by playbackIsPlayingFlow.collectAsState(initial = true)
             val languageTagState =
                 produceState<String?>(
                     initialValue = null,
@@ -1484,6 +1493,7 @@ private fun KairoNavHost(
                         selectedProfileId = prefs.rsvpSelectedProfileId,
                         customProfiles = prefs.rsvpCustomProfiles,
                     ),
+                    initialIsPlaying = playbackIsPlaying,
                     uiPrefs =
                     RsvpUiPreferences(
                         extremeSpeedUnlocked = prefs.unlockExtremeSpeed,
@@ -1630,6 +1640,10 @@ private fun KairoNavHost(
                                 ?.savedStateHandle
                                 ?.set(RSVP_RESULT_RESUME_CURSOR_KEY, resumePoint.resumeCursor)
                             navController.popBackStack()
+                        },
+                        onPlaybackStateChanged = { isPlaying ->
+                            backStackEntry.savedStateHandle[RSVP_PLAYBACK_IS_PLAYING_KEY] =
+                                isPlaying
                         },
                     ),
                     preferences =
