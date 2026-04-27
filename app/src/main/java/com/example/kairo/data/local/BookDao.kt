@@ -30,7 +30,8 @@ interface BookDao {
                CASE
                    WHEN coverImage IS NOT NULL AND length(coverImage) <= 1900000 THEN coverImage
                    ELSE NULL
-               END AS coverImage
+               END AS coverImage,
+               books.isCompleted AS isCompleted
         FROM books
         LEFT JOIN chapters ON chapters.bookId = books.id
         GROUP BY books.id
@@ -44,7 +45,8 @@ interface BookDao {
                CASE
                    WHEN coverImage IS NOT NULL AND length(coverImage) <= 1900000 THEN coverImage
                    ELSE NULL
-               END AS coverImage
+               END AS coverImage,
+               isCompleted
         FROM books
         WHERE id = :bookId
         LIMIT 1
@@ -58,7 +60,8 @@ interface BookDao {
                CASE
                    WHEN coverImage IS NOT NULL AND length(coverImage) <= 1900000 THEN coverImage
                    ELSE NULL
-               END AS coverImage
+               END AS coverImage,
+               isCompleted
         FROM books
         LIMIT 1
         """,
@@ -102,6 +105,12 @@ interface BookDao {
         bookId: String,
         index: Int,
         wordCount: Int,
+    )
+
+    @Query("UPDATE books SET isCompleted = :isCompleted WHERE id = :bookId")
+    suspend fun setCompleted(
+        bookId: String,
+        isCompleted: Boolean,
     )
 
     @Query("DELETE FROM chapters WHERE bookId = :bookId")

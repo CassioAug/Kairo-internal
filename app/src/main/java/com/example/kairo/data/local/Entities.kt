@@ -11,6 +11,7 @@ data class BookEntity(
     val authors: List<String>,
     val languageTag: String?,
     val coverImage: ByteArray?,
+    val isCompleted: Boolean = false,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -20,6 +21,7 @@ data class BookEntity(
         if (title != other.title) return false
         if (authors != other.authors) return false
         if (languageTag != other.languageTag) return false
+        if (isCompleted != other.isCompleted) return false
         if (coverImage != null) {
             if (other.coverImage == null) return false
             if (!coverImage.contentEquals(other.coverImage)) return false
@@ -36,6 +38,7 @@ data class BookEntity(
         result = 31 * result + authors.hashCode()
         result = 31 * result + (languageTag?.hashCode() ?: 0)
         result = 31 * result + (coverImage?.contentHashCode() ?: 0)
+        result = 31 * result + isCompleted.hashCode()
         return result
     }
 }

@@ -29,11 +29,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +62,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -85,6 +92,7 @@ fun LibraryScreen(
     onDeleteBookmark: (bookmarkId: String) -> Unit,
     onImportFile: (Uri) -> Unit,
     onSettings: () -> Unit,
+    onSetCompleted: (Book, Boolean) -> Unit,
     onDelete: (Book) -> Unit,
     tutorialState: StartingTutorialOverlayState? = null,
     onTutorialNext: () -> Unit = {},
@@ -101,6 +109,8 @@ fun LibraryScreen(
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab.ordinal) }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
+    val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
+    val completedBooks = remember(books) { books.filter { it.isCompleted } }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -161,6 +171,11 @@ fun LibraryScreen(
                     text = { Text(stringResource(R.string.library_tab_library)) },
                 )
                 Tab(
+                    selected = selectedTab == LibraryTab.Completed.ordinal,
+                    onClick = { selectedTab = LibraryTab.Completed.ordinal },
+                    text = { Text(stringResource(R.string.library_tab_completed)) },
+                )
+                Tab(
                     selected = selectedTab == LibraryTab.Bookmarks.ordinal,
                     onClick = { selectedTab = LibraryTab.Bookmarks.ordinal },
                     text = { Text(stringResource(R.string.library_tab_bookmarks)) },
@@ -200,13 +215,42 @@ fun LibraryScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(books, key = { it.id.value }) { book ->
+                    items(libraryBooks, key = { it.id.value }) { book ->
                         LibraryCard(
                             book = book,
                             progress = bookProgress[book.id.value],
                             onOpen = onOpen,
+                            onSetCompleted = onSetCompleted,
                             onRequestDelete = { pendingDeleteBook = it },
                         )
+                    }
+                }
+            } else if (selectedTab == LibraryTab.Completed.ordinal) {
+                if (completedBooks.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            stringResource(R.string.library_no_completed_books),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(completedBooks, key = { it.id.value }) { book ->
+                            LibraryCard(
+                                book = book,
+                                progress = bookProgress[book.id.value],
+                                onOpen = onOpen,
+                                onSetCompleted = onSetCompleted,
+                                onRequestDelete = { pendingDeleteBook = it },
+                            )
+                        }
                     }
                 }
             } else {
@@ -298,17 +342,28 @@ fun LibraryScreen(
     }
 }
 
-enum class LibraryTab { Library, Bookmarks }
+enum class LibraryTab { Library, Completed, Bookmarks }
 
 @Composable
 private fun LibraryCard(
     book: Book,
     progress: LibraryBookProgress?,
     onOpen: (Book) -> Unit,
+    onSetCompleted: (Book, Boolean) -> Unit,
     onRequestDelete: (Book) -> Unit,
 ) {
     val context = LocalContext.current
     val authorSeparator = stringResource(R.string.list_separator)
+    var actionsExpanded by remember { mutableStateOf(false) }
+    val deleteActionDescription = stringResource(R.string.content_desc_delete_book)
+    val completedActionDescription =
+        stringResource(
+            if (book.isCompleted) {
+                R.string.content_desc_move_book_to_library
+            } else {
+                R.string.content_desc_mark_book_completed
+            },
+        )
     Card(
         modifier =
         Modifier
@@ -390,17 +445,89 @@ private fun LibraryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (book.isCompleted) {
+                    CompletedStatusPill()
+                }
             }
 
-            // Delete button
-            IconButton(onClick = { onRequestDelete(book) }) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.content_desc_delete_book),
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                )
+            Box {
+                IconButton(onClick = { actionsExpanded = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.content_desc_book_actions),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                DropdownMenu(
+                    expanded = actionsExpanded,
+                    onDismissRequest = { actionsExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        modifier = Modifier.semantics {
+                            contentDescription = completedActionDescription
+                        },
+                        text = { Text(completedActionDescription) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector =
+                                    if (book.isCompleted) {
+                                        Icons.Default.Refresh
+                                    } else {
+                                        Icons.Default.Done
+                                    },
+                                contentDescription = null,
+                            )
+                        },
+                        onClick = {
+                            actionsExpanded = false
+                            onSetCompleted(book, !book.isCompleted)
+                        },
+                    )
+                    DropdownMenuItem(
+                        modifier = Modifier.semantics {
+                            contentDescription = deleteActionDescription
+                        },
+                        text = { Text(stringResource(R.string.action_delete)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        onClick = {
+                            actionsExpanded = false
+                            onRequestDelete(book)
+                        },
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun CompletedStatusPill() {
+    Row(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Done,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        Text(
+            text = stringResource(R.string.library_completed_status),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
     }
 }
 

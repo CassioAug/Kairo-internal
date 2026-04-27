@@ -99,7 +99,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        val container = (application as KairoApplication).container
+        val container = application as KairoApplication
 
         setContent {
             val prefs by container.preferencesRepository.preferences.collectAsState(
@@ -286,7 +286,7 @@ private suspend fun driveImportProgress(onUpdate: (Float) -> Unit) {
 @Suppress("CyclomaticComplexMethod", "FunctionNaming", "LongMethod")
 @Composable
 private fun KairoNavHost(
-    container: AppContainer,
+    container: KairoApplication,
     prefs: UserPreferences,
 ) {
     val navController = rememberNavController()
@@ -575,6 +575,11 @@ private fun KairoNavHost(
                 },
                 onImportFile = ::handleImportFile,
                 onSettings = { navController.navigate("settings") },
+                onSetCompleted = { book, isCompleted ->
+                    coroutineScope.launch {
+                        container.libraryRepository.setCompleted(book.id.value, isCompleted)
+                    }
+                },
                 onDelete = { book ->
                     coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
                 },
@@ -597,10 +602,10 @@ private fun KairoNavHost(
         ) { backStackEntry ->
             val tab = backStackEntry.arguments?.getString("tab") ?: "library"
             val initialTab =
-                if (tab.lowercase() == "bookmarks") {
-                    LibraryTab.Bookmarks
-                } else {
-                    LibraryTab.Library
+                when (tab.lowercase()) {
+                    "completed" -> LibraryTab.Completed
+                    "bookmarks" -> LibraryTab.Bookmarks
+                    else -> LibraryTab.Library
                 }
             LibraryScreen(
                 books = books,
@@ -624,6 +629,11 @@ private fun KairoNavHost(
                 },
                 onImportFile = ::handleImportFile,
                 onSettings = { navController.navigate("settings") },
+                onSetCompleted = { book, isCompleted ->
+                    coroutineScope.launch {
+                        container.libraryRepository.setCompleted(book.id.value, isCompleted)
+                    }
+                },
                 onDelete = { book ->
                     coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
                 },

@@ -84,3 +84,10 @@ val MIGRATION_7_8 =
             )
         }
     }
+
+val MIGRATION_8_9 =
+    object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE books ADD COLUMN isCompleted INTEGER NOT NULL DEFAULT 0")
+        }
+    }

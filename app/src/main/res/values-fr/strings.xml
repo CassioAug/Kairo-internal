@@ -24,6 +24,7 @@
     <string name="content_desc_close">Fermer</string>
     <string name="content_desc_close_image_viewer">Fermer la visionneuse d\'images</string>
     <string name="content_desc_cover_of_title">Couverture de %1$s</string>
+    <string name="content_desc_book_actions">Actions du livre</string>
     <string name="content_desc_delete_book">Supprimer le livre</string>
     <string name="content_desc_delete_bookmark">Supprimer le marque-page</string>
     <string name="content_desc_full_screen_image">Image en plein écran</string>
@@ -35,6 +36,8 @@
     <string name="content_desc_previous">Précédent</string>
     <string name="content_desc_previous_page">Page précédente</string>
     <string name="content_desc_reader_menu">Menu du lecteur</string>
+    <string name="content_desc_mark_book_completed">Marquer le livre comme terminé</string>
+    <string name="content_desc_move_book_to_library">Replacer le livre dans la bibliothèque</string>
     <string name="content_desc_settings">Paramètres</string>
     <string name="content_desc_start_rsvp">Démarrer la lecture rapide</string>
     <string name="content_desc_title_page_of_title">Page de titre de %1$s</string>
@@ -46,12 +49,15 @@
     <string name="library_title">Votre bibliothèque</string>
     <string name="library_subtitle">Importez des fichiers EPUB ou MOBI pour commencer.</string>
     <string name="library_tab_library">Bibliothèque</string>
+    <string name="library_tab_completed">Terminés</string>
     <string name="library_tab_bookmarks">Marque-pages</string>
     <string name="library_bookmarks_subtitle">Ouvrir les marque-pages enregistrés</string>
     <string name="library_import_button">Importer un livre</string>
     <string name="library_no_bookmarks">Aucun marque-page pour l\'instant</string>
+    <string name="library_no_completed_books">Aucun livre terminé pour l\'instant</string>
     <string name="library_time_left">~%1$s restant</string>
     <string name="library_percent_complete">%1$d %% terminé</string>
+    <string name="library_completed_status">Terminé</string>
     <string name="library_bookmark_progress">Chapitre %1$d / %2$d • %3$d %%</string>
     <string name="library_delete_title">Supprimer le livre ?</string>
     <string name="library_delete_message">Supprimer "%1$s" de votre bibliothèque ? Impossible d\'annuler.</string>

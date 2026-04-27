@@ -24,6 +24,7 @@
     <string name="content_desc_close">閉じる</string>
     <string name="content_desc_close_image_viewer">画像ビューアーを閉じる</string>
     <string name="content_desc_cover_of_title">%1$s の表紙</string>
+    <string name="content_desc_book_actions">本の操作</string>
     <string name="content_desc_delete_book">本を削除</string>
     <string name="content_desc_delete_bookmark">ブックマークを削除</string>
     <string name="content_desc_full_screen_image">全画面画像</string>
@@ -35,6 +36,8 @@
     <string name="content_desc_previous">前へ</string>
     <string name="content_desc_previous_page">前のページ</string>
     <string name="content_desc_reader_menu">リーダーメニュー</string>
+    <string name="content_desc_mark_book_completed">読了としてマーク</string>
+    <string name="content_desc_move_book_to_library">ライブラリに戻す</string>
     <string name="content_desc_settings">設定</string>
     <string name="content_desc_start_rsvp">速読を開始</string>
     <string name="content_desc_title_page_of_title">%1$s のタイトルページ</string>
@@ -46,12 +49,15 @@
     <string name="library_title">ライブラリ</string>
     <string name="library_subtitle">EPUB または MOBI をインポートして開始します。</string>
     <string name="library_tab_library">ライブラリ</string>
+    <string name="library_tab_completed">読了</string>
     <string name="library_tab_bookmarks">ブックマーク</string>
     <string name="library_bookmarks_subtitle">保存したブックマークを開く</string>
     <string name="library_import_button">本をインポート</string>
     <string name="library_no_bookmarks">ブックマークはまだありません</string>
+    <string name="library_no_completed_books">読了した本はまだありません</string>
     <string name="library_time_left">残り ~%1$s</string>
     <string name="library_percent_complete">%1$d％ 完了</string>
+    <string name="library_completed_status">読了</string>
     <string name="library_bookmark_progress">第%1$d章 / %2$d • %3$d％</string>
     <string name="library_delete_title">本を削除しますか？</string>
     <string name="library_delete_message">「%1$s」をライブラリから削除しますか？元に戻せません。</string>

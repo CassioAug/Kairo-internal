@@ -24,6 +24,7 @@
     <string name="content_desc_close">关闭</string>
     <string name="content_desc_close_image_viewer">关闭图片查看器</string>
     <string name="content_desc_cover_of_title">%1$s 的封面</string>
+    <string name="content_desc_book_actions">图书操作</string>
     <string name="content_desc_delete_book">删除书籍</string>
     <string name="content_desc_delete_bookmark">删除书签</string>
     <string name="content_desc_full_screen_image">全屏图片</string>
@@ -35,6 +36,8 @@
     <string name="content_desc_previous">上一步</string>
     <string name="content_desc_previous_page">上一页</string>
     <string name="content_desc_reader_menu">阅读器菜单</string>
+    <string name="content_desc_mark_book_completed">标记为已完成</string>
+    <string name="content_desc_move_book_to_library">移回书库</string>
     <string name="content_desc_settings">设置</string>
     <string name="content_desc_start_rsvp">开始速读</string>
     <string name="content_desc_title_page_of_title">%1$s 的标题页</string>
@@ -46,12 +49,15 @@
     <string name="library_title">你的书库</string>
     <string name="library_subtitle">导入 EPUB 或 MOBI 文件以开始。</string>
     <string name="library_tab_library">书库</string>
+    <string name="library_tab_completed">已完成</string>
     <string name="library_tab_bookmarks">书签</string>
     <string name="library_bookmarks_subtitle">打开已保存的书签</string>
     <string name="library_import_button">导入图书</string>
     <string name="library_no_bookmarks">暂无书签</string>
+    <string name="library_no_completed_books">暂无已完成图书</string>
     <string name="library_time_left">剩余 ~%1$s</string>
     <string name="library_percent_complete">已完成 %1$d％</string>
+    <string name="library_completed_status">已完成</string>
     <string name="library_bookmark_progress">第 %1$d 章 / %2$d • %3$d％</string>
     <string name="library_delete_title">删除书籍？</string>
     <string name="library_delete_message">从你的书库中删除“%1$s”？无法撤销。</string>
