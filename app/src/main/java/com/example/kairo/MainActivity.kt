@@ -573,6 +573,11 @@ private fun KairoNavHost(
                 onDeleteBookmark = { bookmarkId ->
                     coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
                 },
+                onDeleteBookmarksForBook = { bookId ->
+                    coroutineScope.launch {
+                        container.bookmarkRepository.deleteForBook(BookId(bookId))
+                    }
+                },
                 onImportFile = ::handleImportFile,
                 onSettings = { navController.navigate("settings") },
                 onSetCompleted = { book, isCompleted ->
@@ -626,6 +631,11 @@ private fun KairoNavHost(
                 },
                 onDeleteBookmark = { bookmarkId ->
                     coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
+                },
+                onDeleteBookmarksForBook = { bookId ->
+                    coroutineScope.launch {
+                        container.bookmarkRepository.deleteForBook(BookId(bookId))
+                    }
                 },
                 onImportFile = ::handleImportFile,
                 onSettings = { navController.navigate("settings") },
