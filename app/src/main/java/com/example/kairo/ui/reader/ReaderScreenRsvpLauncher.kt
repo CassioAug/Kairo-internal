@@ -1,11 +1,10 @@
 package com.example.kairo.ui.reader
 
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
@@ -14,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +35,7 @@ import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.nearestWordIndex
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ReaderRsvpLauncher(
     tokens: List<Token>,
@@ -52,19 +52,29 @@ internal fun ReaderRsvpLauncher(
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
     val progressPercent = (progressFraction * 100f).toInt().coerceIn(0, 100)
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier
-                .pointerInput(focusListIndex) {
-                    detectTapGestures(
-                        onLongPress = {
-                            coroutineScope.launch {
-                                listState.animateScrollToItem(focusListIndex)
-                            }
-                        },
-                    )
-                }.pointerInput(tokens, focusIndex, invertedScroll) {
+                .clip(RoundedCornerShape(28.dp))
+                .combinedClickable(
+                    onClick = {
+                        if (tokens.isNotEmpty()) {
+                            val safeIndex = tokens.nearestWordIndex(focusIndex)
+                            onStartRsvp(safeIndex)
+                        }
+                    },
+                    onLongClick = {
+                        coroutineScope.launch {
+                            listState.animateScrollToItem(focusListIndex)
+                        }
+                    },
+                )
+                .pointerInput(tokens, focusIndex, invertedScroll) {
                     val thresholdPx = 22f
                     var gestureFocusIndex = 0
                     detectVerticalDragGestures(
@@ -96,41 +106,43 @@ internal fun ReaderRsvpLauncher(
                     )
                 },
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(
-                progress = { progressFraction },
-                modifier = Modifier.size(76.dp),
-                strokeWidth = 4.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.60f),
-                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f),
-            )
-            FloatingActionButton(
-                onClick = {
-                    val safeIndex = tokens.nearestWordIndex(focusIndex)
-                    onStartRsvp(safeIndex)
-                },
-                shape = CircleShape,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
-                Icon(
-                    Icons.Default.PlayArrow,
-                    contentDescription = stringResource(R.string.content_desc_start_rsvp),
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Surface(
-            shape = RoundedCornerShape(18.dp),
-            tonalElevation = 3.dp,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 6.dp, top = 6.dp, end = 14.dp, bottom = 6.dp),
         ) {
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { progressFraction },
+                    modifier = Modifier.size(44.dp),
+                    strokeWidth = 3.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.16f),
+                )
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shadowElevation = 2.dp,
+                    modifier =
+                    Modifier
+                        .size(34.dp)
+                        .clip(CircleShape),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = stringResource(R.string.content_desc_start_rsvp),
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
+            }
             Text(
                 text = stringResource(R.string.reader_rsvp_dock_progress, progressPercent),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.padding(start = 8.dp),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }

@@ -39,7 +39,10 @@
     <string name="content_desc_play">Play</string>
     <string name="content_desc_previous">Previous</string>
     <string name="content_desc_previous_page">Previous page</string>
+    <string name="content_desc_reader_details">Reader details</string>
     <string name="content_desc_reader_menu">Reader menu</string>
+    <string name="content_desc_reader_swipe_next_page">Swipe preview: next page</string>
+    <string name="content_desc_reader_swipe_previous_page">Swipe preview: previous page</string>
     <string name="content_desc_mark_book_completed">Mark book completed</string>
     <string name="content_desc_move_book_to_library">Move book back to library</string>
     <string name="content_desc_settings">Settings</string>
@@ -101,7 +104,7 @@
     <string name="reader_eta_chapter">chapter ~%1$s</string>
     <string name="reader_eta_book">book ~%1$s</string>
     <string name="reader_eta_prefix">ETA: %1$s</string>
-    <string name="reader_rsvp_dock_progress">Speed read %1$d%%</string>
+    <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
     <string name="reader_empty_chapter">No content in this chapter</string>
     <string name="reader_image_not_found">Image not found</string>
 

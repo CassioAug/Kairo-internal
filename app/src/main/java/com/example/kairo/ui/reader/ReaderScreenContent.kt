@@ -1,28 +1,45 @@
 package com.example.kairo.ui.reader
 
 import android.os.SystemClock
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
@@ -66,6 +83,7 @@ internal fun ReaderContent(
     onStartRsvpForToken: (Int) -> Unit,
     onPrevPage: () -> Unit,
     onNextPage: () -> Unit,
+    onSwipePreviewChange: (ReaderSwipeDirection?, Float) -> Unit,
     onOpenFullScreenImage: (String) -> Unit,
     invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,
     onChapterSelected: ((Int) -> Unit)? = null,
@@ -94,6 +112,7 @@ internal fun ReaderContent(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 val pointerId = down.id
+                onSwipePreviewChange(null, 0f)
 
                 val touchSlop = viewConfiguration.touchSlop
                 val swipeThreshold = touchSlop * 4f
@@ -129,8 +148,20 @@ internal fun ReaderContent(
                     }
 
                     when (axis) {
-                        Axis.Horizontal -> Unit // wait for drag end to switch chapter
+                        Axis.Horizontal -> {
+                            val direction =
+                                when {
+                                    totalX > 0f -> ReaderSwipeDirection.Previous
+                                    totalX < 0f -> ReaderSwipeDirection.Next
+                                    else -> null
+                                }
+                            onSwipePreviewChange(
+                                direction,
+                                (abs(totalX) / swipeThreshold).coerceIn(0f, 1f),
+                            )
+                        }
                         Axis.Vertical -> {
+                            onSwipePreviewChange(null, 0f)
                             if (!invertedScroll) {
                                 // Let LazyColumn handle normal vertical scrolling.
                                 break
@@ -153,8 +184,10 @@ internal fun ReaderContent(
                                 totalX <= -swipeThreshold -> onNextPage()
                                 totalX >= swipeThreshold -> onPrevPage()
                             }
+                            onSwipePreviewChange(null, 0f)
                         }
                         Axis.Vertical -> {
+                            onSwipePreviewChange(null, 0f)
                             if (invertedScroll) {
                                 val velocity = tracker.calculateVelocity().y
                                 if (abs(velocity) > 200f) {
@@ -291,7 +324,132 @@ internal fun ReaderContent(
                 }
             }
         }
+
     }
+}
+
+@Composable
+internal fun ReaderSwipePageChrome(
+    direction: ReaderSwipeDirection?,
+    progress: Float,
+    canGoPrev: Boolean,
+    canGoNext: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 120),
+        label = "readerSwipePageChromeProgress",
+    )
+    val activeDirection = direction ?: return
+    val canNavigate =
+        when (activeDirection) {
+            ReaderSwipeDirection.Previous -> canGoPrev
+            ReaderSwipeDirection.Next -> canGoNext
+        }
+    val alignment =
+        when (activeDirection) {
+            ReaderSwipeDirection.Previous -> Alignment.CenterStart
+            ReaderSwipeDirection.Next -> Alignment.CenterEnd
+        }
+    val railShape =
+        when (activeDirection) {
+            ReaderSwipeDirection.Previous ->
+                RoundedCornerShape(topEnd = 48.dp, bottomEnd = 48.dp)
+            ReaderSwipeDirection.Next ->
+                RoundedCornerShape(topStart = 48.dp, bottomStart = 48.dp)
+        }
+    val accentColor =
+        if (canNavigate) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    val railBrush =
+        when (activeDirection) {
+            ReaderSwipeDirection.Previous ->
+                Brush.horizontalGradient(
+                    listOf(
+                        accentColor.copy(alpha = 0.24f),
+                        accentColor.copy(alpha = 0.08f),
+                        Color.Transparent,
+                    ),
+                )
+            ReaderSwipeDirection.Next ->
+                Brush.horizontalGradient(
+                    listOf(
+                        Color.Transparent,
+                        accentColor.copy(alpha = 0.08f),
+                        accentColor.copy(alpha = 0.24f),
+                    ),
+                )
+        }
+    val icon =
+        when (activeDirection) {
+            ReaderSwipeDirection.Previous -> Icons.AutoMirrored.Filled.ArrowBack
+            ReaderSwipeDirection.Next -> Icons.AutoMirrored.Filled.ArrowForward
+        }
+    val iconDescription =
+        when (activeDirection) {
+            ReaderSwipeDirection.Previous ->
+                stringResource(R.string.content_desc_reader_swipe_previous_page)
+            ReaderSwipeDirection.Next ->
+                stringResource(R.string.content_desc_reader_swipe_next_page)
+        }
+    val iconOffset =
+        when (activeDirection) {
+            ReaderSwipeDirection.Previous -> (-18).dp + (14.dp * animatedProgress)
+            ReaderSwipeDirection.Next -> 18.dp - (14.dp * animatedProgress)
+        }
+
+    Box(
+        modifier =
+        modifier
+            .alpha(animatedProgress),
+    ) {
+        Box(
+            modifier =
+            Modifier
+                .align(alignment)
+                .fillMaxHeight()
+                .width(86.dp)
+                .background(brush = railBrush, shape = railShape),
+        )
+        Surface(
+            modifier =
+            Modifier
+                .align(alignment)
+                .padding(horizontal = 8.dp)
+                .offset(x = iconOffset),
+            shape = CircleShape,
+            color =
+            accentColor.copy(
+                alpha =
+                if (canNavigate) {
+                    0.92f
+                } else {
+                    0.44f
+                },
+            ),
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            tonalElevation = 6.dp,
+            shadowElevation = 8.dp,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = iconDescription,
+                modifier =
+                Modifier
+                    .size(48.dp)
+                    .padding(12.dp),
+            )
+        }
+    }
+}
+
+internal enum class ReaderSwipeDirection {
+    Previous,
+    Next,
 }
 
 @Composable

@@ -36,6 +36,8 @@
     <string name="content_desc_previous">前へ</string>
     <string name="content_desc_previous_page">前のページ</string>
     <string name="content_desc_reader_menu">リーダーメニュー</string>
+    <string name="content_desc_reader_swipe_next_page">スワイププレビュー: 次のページ</string>
+    <string name="content_desc_reader_swipe_previous_page">スワイププレビュー: 前のページ</string>
     <string name="content_desc_mark_book_completed">読了としてマーク</string>
     <string name="content_desc_move_book_to_library">ライブラリに戻す</string>
     <string name="content_desc_settings">設定</string>
@@ -94,7 +96,7 @@
     <string name="reader_eta_chapter">章 ~%1$s</string>
     <string name="reader_eta_book">本 ~%1$s</string>
     <string name="reader_eta_prefix">予想: %1$s</string>
-    <string name="reader_rsvp_dock_progress">速読 %1$d%%</string>
+    <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
     <string name="reader_empty_chapter">この章には内容がありません</string>
     <string name="reader_image_not_found">画像が見つかりません</string>
 
