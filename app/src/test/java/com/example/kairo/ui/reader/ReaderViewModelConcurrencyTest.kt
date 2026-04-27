@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Before
@@ -71,6 +72,35 @@ class ReaderViewModelConcurrencyTest {
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
         assertNotNull(state.chapterData)
+    }
+
+    @Test
+    fun loadBook_restoresInitialFocusIndex() = runTest(testDispatcher) {
+        val chapters =
+            listOf(
+                Chapter(index = 0, title = "One", htmlContent = "", plainText = "Hello bright world"),
+            )
+        val book =
+            Book(
+                id = BookId("book-1"),
+                title = "Test Book",
+                authors = listOf("Author"),
+                chapters = chapters,
+                coverImage = null,
+            )
+        val repository = FakeBookRepository(book, chapters)
+        val tokenRepository = FakeTokenRepository()
+        val dispatcherProvider =
+            object : DispatcherProvider {
+                override val default = testDispatcher
+                override val io = testDispatcher
+            }
+        val viewModel = ReaderViewModel(repository, tokenRepository, dispatcherProvider)
+
+        viewModel.loadBook(book, initialChapterIndex = 0, initialFocusIndex = 1)
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.focusIndex)
     }
 }
 
