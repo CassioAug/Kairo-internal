@@ -51,9 +51,9 @@ internal object CjkTokenFactory {
             pauseAfterMs = 0L,
         )
 
-    fun pageBreak(): Token =
+    fun pageBreak(text: String = "\u000C"): Token =
         Token(
-            text = "\u000C",
+            text = text,
             type = TokenType.PAGE_BREAK,
             pauseAfterMs = 0L,
         )

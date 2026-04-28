@@ -21,6 +21,13 @@ internal object CjkParagraphSplitter {
         return PAGE_BREAK_REGEX.matches(paragraph)
     }
 
+    fun pageBreakText(paragraph: String): String =
+        if (paragraph == CjkTextNormalizer.FORM_FEED_MARKER || paragraph == FORM_FEED) {
+            FORM_FEED
+        } else {
+            paragraph.trim()
+        }
+
     // Common "scene break" markers: "***", "* * *", "---", "— — —", "• • •", "___", etc.
     private val PAGE_BREAK_REGEX =
         Regex(

@@ -4,6 +4,7 @@ import com.example.kairo.core.model.Chapter
 import com.example.kairo.core.model.ChapterLink
 import com.example.kairo.core.model.TokenType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -78,10 +79,17 @@ class CjkTokenizerTest {
     }
 
     @Test
-    fun detectsFormFeedAsPageBreak() {
-        val tokens = CjkTokenizer().tokenize(chapter("第一章\u000C第二章"))
+    fun detectsFormFeedAsPageBreakAfterSentenceBoundary() {
+        val tokens = CjkTokenizer().tokenize(chapter("第一章。\u000C第二章"))
 
         assertTrue(tokens.any { it.type == TokenType.PAGE_BREAK })
+    }
+
+    @Test
+    fun ignoresInlineFormFeedInsideSentence() {
+        val tokens = CjkTokenizer().tokenize(chapter("第一章\u000C继续阅读。"))
+
+        assertFalse(tokens.any { it.type == TokenType.PAGE_BREAK })
     }
 
     @Test
