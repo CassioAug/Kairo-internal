@@ -1,6 +1,7 @@
 package com.example.kairo
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -95,9 +96,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
+    private val pendingExternalImportUriState = mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        pendingExternalImportUriState.value = intent.bookImportUri()
 
         val container = application as KairoApplication
 
@@ -124,14 +128,43 @@ class MainActivity : AppCompatActivity() {
                                 CircularProgressIndicator()
                             }
                         } else {
-                            KairoNavHost(container, prefs = effectivePrefs)
+                            KairoNavHost(
+                                container = container,
+                                prefs = effectivePrefs,
+                                externalImportUri = pendingExternalImportUriState.value,
+                                onExternalImportUriConsumed = { consumedUri ->
+                                    clearConsumedExternalImportIntent(consumedUri)
+                                },
+                            )
                         }
                     }
                 }
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingExternalImportUriState.value = intent.bookImportUri()
+    }
+
+    private fun clearConsumedExternalImportIntent(consumedUri: Uri) {
+        if (pendingExternalImportUriState.value == consumedUri) {
+            pendingExternalImportUriState.value = null
+        }
+        if (intent.bookImportUri() == consumedUri) {
+            setIntent(Intent(this, MainActivity::class.java))
+        }
+    }
 }
+
+private fun Intent.bookImportUri(): Uri? =
+    if (action == Intent.ACTION_VIEW) {
+        data
+    } else {
+        null
+    }
 
 private const val RSVP_RESULT_CHAPTER_INDEX_KEY = "rsvp_result_chapter_index"
 private const val RSVP_RESULT_TOKEN_INDEX_KEY = "rsvp_result_token_index"
@@ -289,6 +322,8 @@ private suspend fun driveImportProgress(onUpdate: (Float) -> Unit) {
 private fun KairoNavHost(
     container: KairoApplication,
     prefs: UserPreferences,
+    externalImportUri: Uri?,
+    onExternalImportUriConsumed: (Uri) -> Unit,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -528,8 +563,23 @@ private fun KairoNavHost(
         }
     }
 
-    LaunchedEffect(prefs.hasSeenStartingTutorial) {
-        if (!prefs.hasSeenStartingTutorial && !tutorialAutoStarted) {
+    LaunchedEffect(externalImportUri, importState.isImporting) {
+        val uri = externalImportUri ?: return@LaunchedEffect
+        if (importState.isImporting) return@LaunchedEffect
+        onExternalImportUriConsumed(uri)
+        navController.navigate("library") {
+            popUpTo("library") { inclusive = false }
+            launchSingleTop = true
+        }
+        handleImportFile(uri)
+    }
+
+    LaunchedEffect(prefs.hasSeenStartingTutorial, externalImportUri, importState.isImporting) {
+        if (!prefs.hasSeenStartingTutorial &&
+            !tutorialAutoStarted &&
+            externalImportUri == null &&
+            !importState.isImporting
+        ) {
             startStartingTutorial()
         }
     }
