@@ -107,6 +107,19 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             "(<(?:img|source)\\b[^>]*?\\bsrcset\\s*=\\s*['\"])([^'\"]+)(['\"][^>]*>)",
             RegexOption.IGNORE_CASE,
         )
+        private val IMAGE_SOURCE_SRC_REGEX = Regex(
+            """<(?:img|source)\b[^>]*?\bsrc\s*=\s*(['"])(.*?)\1""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val IMAGE_SOURCE_SRCSET_REGEX = Regex(
+            """<(?:img|source)\b[^>]*?\bsrcset\s*=\s*(['"])(.*?)\1""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val SVG_IMAGE_HREF_REGEX = Regex(
+            """<image\b[^>]*?\b(?:xlink:href|href)\s*=\s*(['"])(.*?)\1""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val ANCHOR_TAG_REGEX = Regex("<a\\b", RegexOption.IGNORE_CASE)
 
         // Anchor rewriting pattern
         private val ANCHOR_HREF_REGEX = Regex(
@@ -464,9 +477,32 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         name.replace('\\', '/').trimStart('/').lowercase(Locale.ROOT)
 
     private fun extractImageSrcs(html: String): List<String> {
-        val document = parseMarkupDocument(html)
-        return EpubMarkupInspector.extractImageSources(document)
+        if (!hasImageReferences(html)) return emptyList()
+        val sources = mutableListOf<String>()
+        IMAGE_SOURCE_SRC_REGEX.findAll(html).forEach { match ->
+            match.groupValues.getOrNull(2)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let(sources::add)
+        }
+        IMAGE_SOURCE_SRCSET_REGEX.findAll(html).forEach { match ->
+            val srcset = match.groupValues.getOrNull(2).orEmpty()
+            sources += extractSrcsetUrls(srcset)
+        }
+        SVG_IMAGE_HREF_REGEX.findAll(html).forEach { match ->
+            match.groupValues.getOrNull(2)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let(sources::add)
+        }
+        return sources
     }
+
+    private fun hasImageReferences(html: String): Boolean =
+        html.indexOf("<img", ignoreCase = true) >= 0 ||
+            html.indexOf("<source", ignoreCase = true) >= 0 ||
+            html.indexOf("<image", ignoreCase = true) >= 0 ||
+            html.indexOf("srcset", ignoreCase = true) >= 0
 
     private fun sanitizeSrc(src: String): String {
         val trimmed = src.trim()
@@ -631,6 +667,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             candidates.mapNotNull { pathLower ->
                 val chapterContent = zipTextEntries[pathLower] ?: return@mapNotNull null
                 val originalHtml = decodeTextEntry(chapterContent)
+                val originalDocument = parseMarkupDocument(originalHtml)
                 val chapterDir = pathLower.substringBeforeLast('/', "")
                 val imagePaths = buildChapterImagePaths(
                     html = originalHtml,
@@ -643,8 +680,13 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
                 )
                 val cleanedHtml = stripNoiseTitleBlocks(resolvedHtml)
-                val plainText = extractPlainText(cleanedHtml)
-                val rawTitle = extractChapterTitle(originalHtml)
+                val plainText =
+                    if (cleanedHtml == resolvedHtml) {
+                        extractPlainText(originalDocument)
+                    } else {
+                        extractPlainText(cleanedHtml)
+                    }
+                val rawTitle = extractChapterTitle(originalDocument)
                 val fileTitle =
                     pathLower
                         .substringAfterLast('/', pathLower)
@@ -932,6 +974,10 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         baseDir: String,
         imageRelativePathByEpubPathLower: Map<String, String>,
     ): String {
+        if (imageRelativePathByEpubPathLower.isEmpty() || !hasImageReferences(html)) {
+            return html
+        }
+
         val rewrittenImgSrc =
             IMG_SRC_REWRITE_REGEX.replace(html) { match ->
                 val rewritten = rewriteImageReference(match.groupValues[2], baseDir, imageRelativePathByEpubPathLower)
@@ -996,12 +1042,28 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             }
     }
 
+    private fun extractSrcsetUrls(srcset: String): List<String> {
+        if (srcset.isBlank()) return emptyList()
+        return srcset
+            .split(',')
+            .mapNotNull { descriptor ->
+                val trimmed = descriptor.trim()
+                if (trimmed.isBlank()) return@mapNotNull null
+                trimmed
+                    .split(Regex("\\s+"), limit = 2)
+                    .firstOrNull()
+                    ?.takeIf { it.isNotBlank() }
+            }
+    }
+
     /**
      * Extracts plain text from HTML/XHTML content.
      */
     private fun extractPlainText(html: String): String =
-        parseMarkupDocument(html)
-            .let(EpubMarkupInspector::renderPlainText)
+        extractPlainText(parseMarkupDocument(html))
+
+    private fun extractPlainText(document: EpubMarkupDocument): String =
+        EpubMarkupInspector.renderPlainText(document)
             // Decode common HTML entities
             .let(::decodeHtmlEntities)
             // Clean up whitespace
@@ -1012,9 +1074,10 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     /**
      * Extracts chapter title from HTML content.
      */
-    private fun extractChapterTitle(html: String): String? {
-        val document = parseMarkupDocument(html)
+    private fun extractChapterTitle(html: String): String? =
+        extractChapterTitle(parseMarkupDocument(html))
 
+    private fun extractChapterTitle(document: EpubMarkupDocument): String? {
         val titleText = EpubMarkupInspector.firstTextInTags(document, setOf("title"))
         if (titleText != null) {
             val title =
@@ -1189,12 +1252,11 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     }
 
     private fun countAnchorTags(html: String): Int {
-        val document = parseMarkupDocument(html)
-        return EpubMarkupInspector.countTagOccurrences(
-            document = document,
-            tagName = "a",
-            limit = MAX_LINKS_PER_CHAPTER + 1,
-        )
+        if (html.indexOf("<a", ignoreCase = true) < 0) return 0
+        return ANCHOR_TAG_REGEX
+            .findAll(html)
+            .take(MAX_LINKS_PER_CHAPTER + 1)
+            .count()
     }
 
     private fun parseMarkupDocument(html: String): EpubMarkupDocument {

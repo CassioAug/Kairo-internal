@@ -897,6 +897,7 @@ class EpubBookParserTest {
         val html =
             """
             <picture>
+              <source src="images/default.jpg" />
               <source srcset="images/a.jpg 1x, images/b.jpg 2x" />
             </picture>
             <noscript><img src="images/fallback.jpg" /></noscript>
@@ -904,9 +905,19 @@ class EpubBookParserTest {
 
         val srcs: List<String> = parser.callPrivate("extractImageSrcs", html)
 
+        assertTrue(srcs.contains("images/default.jpg"))
         assertTrue(srcs.contains("images/a.jpg"))
         assertTrue(srcs.contains("images/b.jpg"))
         assertTrue(srcs.contains("images/fallback.jpg"))
+    }
+
+    @Test
+    fun extractImageSrcsSkipsMarkupParseWhenChapterHasNoImages() {
+        val html = "<p>A text-only chapter with <a href=\"chapter2.xhtml\">one link</a>.</p>"
+
+        val srcs: List<String> = parser.callPrivate("extractImageSrcs", html)
+
+        assertTrue(srcs.isEmpty())
     }
 
     @Test
