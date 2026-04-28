@@ -107,6 +107,59 @@ fun isMidSentencePunctuation(char: Char): Boolean =
         char == '؛' ||
         char == '־'
 
+fun isPhysicalPageBreakToken(token: Token): Boolean =
+    token.type == TokenType.PAGE_BREAK && token.text == FORM_FEED_PAGE_BREAK_TEXT
+
+fun shouldKeepPhysicalPageBreak(
+    tokens: List<Token>,
+    index: Int,
+): Boolean =
+    hasReadableContentAfter(tokens, index) && hasNaturalBoundaryBefore(tokens, index)
+
+fun List<Token>.withoutInlinePhysicalPageBreaks(): List<Token> {
+    if (none(::isPhysicalPageBreakToken)) return this
+    return filterIndexed { index, token ->
+        !isPhysicalPageBreakToken(token) || shouldKeepPhysicalPageBreak(this, index)
+    }
+}
+
+private fun hasReadableContentAfter(
+    tokens: List<Token>,
+    index: Int,
+): Boolean {
+    for (i in index + 1 until tokens.size) {
+        when (tokens[i].type) {
+            TokenType.WORD -> return true
+            TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> return false
+            TokenType.PUNCTUATION -> Unit
+        }
+    }
+    return false
+}
+
+private fun hasNaturalBoundaryBefore(
+    tokens: List<Token>,
+    index: Int,
+): Boolean {
+    var cursor = index - 1
+    while (cursor >= 0) {
+        val token = tokens[cursor]
+        when (token.type) {
+            TokenType.WORD -> return false
+            TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> return true
+            TokenType.PUNCTUATION -> {
+                val char = token.text.singleOrNull() ?: return false
+                when {
+                    isSentenceEndingPunctuation(char) -> return true
+                    char in CLOSING_BOUNDARY_PUNCTUATION -> cursor -= 1
+                    else -> return false
+                }
+            }
+        }
+    }
+    return false
+}
+
 fun normalizeWhitespace(input: String): String =
     input
         .split("\n")
@@ -208,6 +261,30 @@ fun splitHyphenatedToken(token: Token): List<Token> {
         )
     }
 }
+
+private const val FORM_FEED_PAGE_BREAK_TEXT = "\u000C"
+private val CLOSING_BOUNDARY_PUNCTUATION =
+    setOf(
+        '"',
+        '\'',
+        '\u201D',
+        '\u2019',
+        ')',
+        ']',
+        '}',
+        '\u3009',
+        '\u300B',
+        '\u300D',
+        '\u300F',
+        '\u3011',
+        '\u3015',
+        '\u3017',
+        '\u3019',
+        '\u301B',
+        '\uFF09',
+        '\uFF3D',
+        '\uFF5D',
+    )
 
 /**
  * Splits a token for RSVP display, handling hyphenated words and long words.

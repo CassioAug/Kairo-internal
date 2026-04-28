@@ -2,6 +2,7 @@ package com.example.kairo.core.tokenization.rtl
 
 import com.example.kairo.core.model.Chapter
 import com.example.kairo.core.model.Token
+import com.example.kairo.core.model.withoutInlinePhysicalPageBreaks
 import com.example.kairo.core.tokenization.ChapterTokenizer
 
 class RtlTokenizer(
@@ -26,7 +27,7 @@ class RtlTokenizer(
         paragraphs.forEachIndexed { index, paragraph ->
             val isPageBreak = RtlParagraphSplitter.isPageBreakParagraph(paragraph)
             if (isPageBreak) {
-                tokens += RtlTokenFactory.pageBreak()
+                tokens += RtlTokenFactory.pageBreak(RtlParagraphSplitter.pageBreakText(paragraph))
             } else {
                 tokens += segmenter.tokenizeParagraph(paragraph)
             }
@@ -39,6 +40,10 @@ class RtlTokenizer(
             }
         }
 
-        return RtlLinkApplier.apply(tokens, chapter, segmenter::tokenizeInlineText)
+        return RtlLinkApplier.apply(
+            tokens.withoutInlinePhysicalPageBreaks().toMutableList(),
+            chapter,
+            segmenter::tokenizeInlineText,
+        )
     }
 }

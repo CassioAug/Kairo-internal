@@ -20,6 +20,13 @@ internal object RtlParagraphSplitter {
         return PAGE_BREAK_REGEX.matches(paragraph)
     }
 
+    fun pageBreakText(paragraph: String): String =
+        if (paragraph == RtlTextNormalizer.FORM_FEED_MARKER || paragraph == FORM_FEED) {
+            FORM_FEED
+        } else {
+            paragraph.trim()
+        }
+
     private val PAGE_BREAK_REGEX =
         Regex(
             """^\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,}|(?:~\s*){3,}|(?:\u2014\s*){2,}|(?:\u2013\s*){2,}|(?:\u2022\s*){3,}|(?:\u00B7\s*){3,})\s*$""",

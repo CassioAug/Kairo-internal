@@ -2,6 +2,7 @@ package com.example.kairo.core.tokenization.cjk
 
 import com.example.kairo.core.model.Chapter
 import com.example.kairo.core.model.Token
+import com.example.kairo.core.model.withoutInlinePhysicalPageBreaks
 import com.example.kairo.core.tokenization.ChapterTokenizer
 
 class CjkTokenizer(
@@ -26,7 +27,7 @@ class CjkTokenizer(
         paragraphs.forEachIndexed { index, paragraph ->
             val isPageBreak = CjkParagraphSplitter.isPageBreakParagraph(paragraph)
             if (isPageBreak) {
-                tokens += CjkTokenFactory.pageBreak()
+                tokens += CjkTokenFactory.pageBreak(CjkParagraphSplitter.pageBreakText(paragraph))
             } else {
                 tokens += segmenter.tokenizeParagraph(paragraph)
             }
@@ -40,7 +41,7 @@ class CjkTokenizer(
         }
 
         return CjkLinkApplier.apply(
-            tokens,
+            tokens.withoutInlinePhysicalPageBreaks().toMutableList(),
             chapter,
             segmenter::tokenizeInlineText,
         )

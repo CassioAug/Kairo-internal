@@ -11,6 +11,7 @@ import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.TokenType
 import com.example.kairo.core.model.calculateOrpIndex
 import com.example.kairo.core.model.normalizeWhitespace
+import com.example.kairo.core.model.withoutInlinePhysicalPageBreaks
 
 class Tokenizer {
     // Track dialogue state across tokenization
@@ -48,7 +49,7 @@ class Tokenizer {
             if (isPageBreak) {
                 tokens +=
                     Token(
-                        text = "\u000C",
+                        text = pageBreakText(paragraph),
                         type = TokenType.PAGE_BREAK,
                         pauseAfterMs = 0L,
                     )
@@ -72,7 +73,7 @@ class Tokenizer {
         }
 
         // Apply links - try multiple strategies
-        return applyLinks(tokens, chapter)
+        return applyLinks(tokens.withoutInlinePhysicalPageBreaks().toMutableList(), chapter)
     }
 
     /**
@@ -438,6 +439,13 @@ class Tokenizer {
         if (paragraph.isBlank()) return false
         return PAGE_BREAK_REGEX.matches(paragraph)
     }
+
+    private fun pageBreakText(paragraph: String): String =
+        if (paragraph == FORM_FEED_MARKER || paragraph == FORM_FEED) {
+            FORM_FEED
+        } else {
+            paragraph.trim()
+        }
 
     companion object {
         private const val FORM_FEED = "\u000C"

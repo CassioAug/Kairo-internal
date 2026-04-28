@@ -10,7 +10,10 @@ import com.example.kairo.core.model.Token
 import com.example.kairo.core.model.TokenType
 import com.example.kairo.core.model.buildWordCountByToken
 import com.example.kairo.core.model.countWords
+import com.example.kairo.core.model.isPhysicalPageBreakToken
+import com.example.kairo.core.model.isSentenceEndingPunctuation
 import com.example.kairo.core.model.nearestWordIndex
+import com.example.kairo.core.model.shouldKeepPhysicalPageBreak
 import com.example.kairo.data.books.BookRepository
 import com.example.kairo.data.token.TokenRepository
 import java.util.concurrent.atomic.AtomicReference
@@ -517,7 +520,7 @@ internal fun buildChapterPages(
                     endWordTokenIndex = i
                 }
                 TokenType.PAGE_BREAK -> {
-                    if (wordCount > 0) {
+                    if (wordCount > 0 && isHardReaderPageBreak(tokens, i)) {
                         val endTokenIndex = extendTrailingPunctuation(tokens, endWordTokenIndex)
                         pages.add(
                             ChapterPage(
@@ -527,9 +530,9 @@ internal fun buildChapterPages(
                                 wordCount = wordCount,
                             ),
                         )
+                        cursor = i + 1
+                        continue@outer
                     }
-                    cursor = i + 1
-                    continue@outer
                 }
                 TokenType.PARAGRAPH_BREAK -> {
                     if (wordCount > 0 && parenDepth == 0) {
@@ -643,10 +646,17 @@ private fun extendTrailingPunctuation(
 
 private fun isSentenceEnding(token: Token): Boolean {
     if (token.type != TokenType.PUNCTUATION) return false
-    return token.text in SENTENCE_ENDINGS
+    return token.text.singleOrNull()?.let(::isSentenceEndingPunctuation) == true
 }
 
-private val SENTENCE_ENDINGS = setOf(".", "!", "?", "\u2026")
+private fun isHardReaderPageBreak(
+    tokens: List<Token>,
+    index: Int,
+): Boolean {
+    val token = tokens.getOrNull(index) ?: return false
+    return !isPhysicalPageBreakToken(token) || shouldKeepPhysicalPageBreak(tokens, index)
+}
+
 private val LEADING_PUNCTUATION = setOf("(", "[", "{")
 private val OPENING_BRACKETS = setOf("(", "[", "{")
 private val CLOSING_BRACKETS = setOf(")", "]", "}")

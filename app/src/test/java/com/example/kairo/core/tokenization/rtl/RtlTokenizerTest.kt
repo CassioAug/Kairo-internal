@@ -4,6 +4,7 @@ import com.example.kairo.core.model.Chapter
 import com.example.kairo.core.model.ChapterLink
 import com.example.kairo.core.model.TokenType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,10 +38,17 @@ class RtlTokenizerTest {
     }
 
     @Test
-    fun detectsFormFeedAsPageBreak() {
-        val tokens = RtlTokenizer().tokenize(chapter("الفصل\u000Cالتالي"))
+    fun detectsFormFeedAsPageBreakAfterSentenceBoundary() {
+        val tokens = RtlTokenizer().tokenize(chapter("الفصل؟\u000Cالتالي"))
 
         assertTrue(tokens.any { it.type == TokenType.PAGE_BREAK })
+    }
+
+    @Test
+    fun ignoresInlineFormFeedInsideSentence() {
+        val tokens = RtlTokenizer().tokenize(chapter("الفصل\u000Cالتالي؟"))
+
+        assertFalse(tokens.any { it.type == TokenType.PAGE_BREAK })
     }
 
     @Test
