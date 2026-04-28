@@ -476,7 +476,7 @@ fun List<Token>.toParagraphs(): List<Paragraph> {
     return paragraphs
 }
 
-private fun buildChapterPages(
+internal fun buildChapterPages(
     tokens: List<Token>,
     wordsPerPage: Int,
 ): List<ChapterPage> {
@@ -504,8 +504,8 @@ private fun buildChapterPages(
         val pageStartTokenIndex = nextWordTokenIndex(tokens, cursor) ?: break
         var wordCount = 0
         var endWordTokenIndex = pageStartTokenIndex
-        var boundaryIndex = -1
-        var boundaryWordCount = 0
+        var fallbackBoundary: PageBoundary? = null
+        var preferredBoundary: PageBoundary? = null
         var parenDepth = 0
 
         var i = pageStartTokenIndex
@@ -532,9 +532,12 @@ private fun buildChapterPages(
                     continue@outer
                 }
                 TokenType.PARAGRAPH_BREAK -> {
-                    if (wordCount >= minWords && parenDepth == 0) {
-                        boundaryIndex = endWordTokenIndex
-                        boundaryWordCount = wordCount
+                    if (wordCount > 0 && parenDepth == 0) {
+                        val boundary = PageBoundary(endWordTokenIndex, wordCount)
+                        fallbackBoundary = boundary
+                        if (wordCount >= minWords) {
+                            preferredBoundary = boundary
+                        }
                     }
                 }
                 TokenType.PUNCTUATION -> {
@@ -543,14 +546,18 @@ private fun buildChapterPages(
                     } else if (isClosingBracket(token)) {
                         parenDepth = (parenDepth - 1).coerceAtLeast(0)
                     }
-                    if (wordCount >= minWords && parenDepth == 0 && isSentenceEnding(token)) {
-                        boundaryIndex = endWordTokenIndex
-                        boundaryWordCount = wordCount
+                    if (wordCount > 0 && parenDepth == 0 && isSentenceEnding(token)) {
+                        val boundary = PageBoundary(endWordTokenIndex, wordCount)
+                        fallbackBoundary = boundary
+                        if (wordCount >= minWords) {
+                            preferredBoundary = boundary
+                        }
                     }
                 }
             }
 
-            val hasNearBoundary = boundaryIndex != -1 && boundaryWordCount >= minTargetWords
+            val hasNearBoundary =
+                preferredBoundary != null && preferredBoundary.wordCount >= minTargetWords
             if (wordCount >= maxWords || (wordCount >= targetWords && hasNearBoundary)) {
                 break
             }
@@ -562,27 +569,28 @@ private fun buildChapterPages(
             continue
         }
 
-        val useBoundary =
-            boundaryIndex != -1 &&
-                (boundaryWordCount >= minTargetWords || wordCount >= maxWords)
-        var chosenWordIndex = if (useBoundary) boundaryIndex else endWordTokenIndex
-        var chosenWordCount = if (useBoundary) boundaryWordCount else wordCount
+        var chosenBoundary =
+            preferredBoundary?.takeIf { boundary ->
+                boundary.wordCount >= minTargetWords || wordCount >= maxWords
+            }
 
-        if (!useBoundary && maxExtraWords > 0) {
+        if (chosenBoundary == null && maxExtraWords > 0) {
             val forward =
                 findForwardBoundary(
                     tokens = tokens,
-                    startIndex = chosenWordIndex + 1,
-                    initialWordCount = chosenWordCount,
+                    startIndex = endWordTokenIndex + 1,
+                    initialWordCount = wordCount,
                     maxExtraWords = maxExtraWords,
                     startingParenDepth = parenDepth,
                 )
             if (forward != null) {
-                chosenWordIndex = forward.endWordIndex
-                chosenWordCount = forward.wordCount
+                chosenBoundary = PageBoundary(forward.endWordIndex, forward.wordCount)
             }
         }
 
+        val boundary = chosenBoundary ?: fallbackBoundary
+        val chosenWordIndex = boundary?.endWordIndex ?: endWordTokenIndex
+        val chosenWordCount = boundary?.wordCount ?: wordCount
         val endTokenIndex = extendTrailingPunctuation(tokens, chosenWordIndex)
 
         pages.add(
@@ -642,6 +650,11 @@ private val SENTENCE_ENDINGS = setOf(".", "!", "?", "\u2026")
 private val LEADING_PUNCTUATION = setOf("(", "[", "{")
 private val OPENING_BRACKETS = setOf("(", "[", "{")
 private val CLOSING_BRACKETS = setOf(")", "]", "}")
+
+private data class PageBoundary(
+    val endWordIndex: Int,
+    val wordCount: Int,
+)
 
 private fun isOpeningBracket(token: Token): Boolean =
     token.type == TokenType.PUNCTUATION && token.text in OPENING_BRACKETS
