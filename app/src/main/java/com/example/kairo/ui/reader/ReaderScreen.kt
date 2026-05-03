@@ -157,7 +157,11 @@ fun ReaderScreen(
             state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > READER_CHROME_COLLAPSE_SCROLL_PX
         }
     }
-    val viewportHeightDp = LocalConfiguration.current.screenHeightDp
+    val configuration = LocalConfiguration.current
+    val viewportHeightDp = configuration.screenHeightDp
+    val compactLandscape =
+        configuration.screenWidthDp > configuration.screenHeightDp &&
+            configuration.screenHeightDp <= 480
     LaunchedEffect(fontSizeSp, viewportHeightDp) {
         onViewportMetricsChanged(fontSizeSp, viewportHeightDp)
     }
@@ -218,7 +222,11 @@ fun ReaderScreen(
     val showRsvpLauncher = isRsvpEnabled && !showReaderMenu && !showChapterList.value
     val overlayBottomPadding =
         if (showRsvpLauncher) {
-            READER_RSVP_LAUNCHER_CLEARANCE
+            if (compactLandscape) {
+                76.dp
+            } else {
+                READER_RSVP_LAUNCHER_CLEARANCE
+            }
         } else {
             READER_MIN_BOTTOM_CONTENT_PADDING
         }
@@ -240,9 +248,14 @@ fun ReaderScreen(
                         )
                     },
                 ).padding(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = if (focusModeEnabled) 8.dp else 16.dp
+                    start = if (compactLandscape) 12.dp else 16.dp,
+                    end = if (compactLandscape) 12.dp else 16.dp,
+                    top =
+                        when {
+                            compactLandscape -> if (focusModeEnabled) 4.dp else 8.dp
+                            focusModeEnabled -> 8.dp
+                            else -> 16.dp
+                        },
                 ),
         ) {
             ReaderHeader(
@@ -256,6 +269,7 @@ fun ReaderScreen(
                 onNext = navigationState.onNextPage,
                 onShowMenu = { showReaderMenu = !showReaderMenu },
                 compactMode = chromeCollapsed,
+                landscapeCompact = compactLandscape,
                 detailsExpanded = showReaderDetails,
                 onToggleDetails = { showReaderDetails = !showReaderDetails },
                 pageLabel = progressState.pageLabel,
@@ -278,7 +292,17 @@ fun ReaderScreen(
                         tutorialTargets[targetId] = bounds
                     },
             )
-            Spacer(modifier = Modifier.height(if (showReaderDetails) 12.dp else 8.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        when {
+                            showReaderDetails && compactLandscape -> 6.dp
+                            showReaderDetails -> 12.dp
+                            compactLandscape -> 4.dp
+                            else -> 8.dp
+                        },
+                    ),
+            )
 
             CompositionLocalProvider(LocalLayoutDirection provides contentLayoutDirection) {
                 ReaderContent(

@@ -208,8 +208,17 @@ internal fun ReaderContent(
             .fillMaxWidth()
             .then(gestureModifier),
     ) {
-        val viewportHeight = LocalConfiguration.current.screenHeightDp.dp
-        val paragraphSpacing = (fontSizeSp * 0.45f).dp.coerceIn(10.dp, 14.dp)
+        val configuration = LocalConfiguration.current
+        val compactLandscape =
+            configuration.screenWidthDp > configuration.screenHeightDp &&
+                configuration.screenHeightDp <= 480
+        val viewportHeight = configuration.screenHeightDp.dp
+        val paragraphSpacing =
+            if (compactLandscape) {
+                (fontSizeSp * 0.32f).dp.coerceIn(6.dp, 10.dp)
+            } else {
+                (fontSizeSp * 0.45f).dp.coerceIn(10.dp, 14.dp)
+            }
 
         // LAZY block-based rendering (text + images)
         LazyColumn(
