@@ -10,11 +10,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.kairo"
+    namespace = "app.kairo.reader"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.example.kairo"
+        applicationId = "app.kairo.reader"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
