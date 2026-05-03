@@ -33,7 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -65,6 +67,17 @@ internal data class ParagraphPreviewPlacement(
     val topPx: Float,
 )
 
+internal data class CompactLandscapePreviewBand(
+    val topPx: Float,
+    val heightPx: Float,
+)
+
+internal data class CompactLandscapePreviewTextRegion(
+    val topPx: Float,
+    val heightPx: Float,
+    val side: PreviewSide,
+)
+
 private data class PreviewCandidate(
     val side: PreviewSide,
     val topPx: Float,
@@ -83,7 +96,18 @@ internal fun RsvpPlaybackSurface(
     val runtime = context.runtime
     val frames = context.frameState.frames
     val currentFrame = frames.getOrNull(runtime.frameIndex)
-    val bottomChromeInset = rememberBottomChromeInset(runtime)
+    val compactLandscape = isCompactLandscape()
+    val bottomChromeInset =
+        rememberBottomChromeInset(
+            runtime = runtime,
+            compactLandscape = compactLandscape,
+        )
+    val previewBottomChromeInset =
+        rememberPreviewBottomChromeInset(
+            runtime = runtime,
+            compactLandscape = compactLandscape,
+            bottomChromeInset = bottomChromeInset,
+        )
     val typography =
         OrpTypography(
             fontSizeSp = runtime.currentFontSizeSp,
@@ -131,8 +155,14 @@ internal fun RsvpPlaybackSurface(
             .rsvpGestureModifier(context, interactionSource),
         contentAlignment = Alignment.Center,
     ) {
+        RsvpParagraphPreview(
+            context = context,
+            typography = typography,
+            colors = colors,
+            bottomChromeInset = previewBottomChromeInset,
+            compactLandscape = compactLandscape,
+        )
         RsvpFocusWord(context, currentFrame, typography, colors, bottomChromeInset)
-        RsvpParagraphPreview(context, typography, colors, bottomChromeInset)
         RsvpPositionGuide(context, bottomChromeInset)
         RsvpProgressBar(context)
         RsvpTopBar(
@@ -291,6 +321,7 @@ private fun RsvpParagraphPreview(
     typography: OrpTypography,
     colors: OrpColors,
     bottomChromeInset: Dp,
+    compactLandscape: Boolean,
 ) {
     val runtime = context.runtime
     val tokens = context.state.book.tokens
@@ -310,28 +341,68 @@ private fun RsvpParagraphPreview(
         remember(tokens, highlightIndex) {
             resolveRsvpParagraph(tokens, highlightIndex)
         } ?: return
-    val highlightTextColor = MaterialTheme.colorScheme.primary
+    val highlightTextColor =
+        if (compactLandscape) {
+            MaterialTheme.colorScheme.primary.copy(alpha = PARAGRAPH_COMPACT_HIGHLIGHT_ALPHA)
+        } else {
+            MaterialTheme.colorScheme.primary
+        }
+    val highlightFontWeight =
+        if (compactLandscape) {
+            FontWeight.Bold
+        } else {
+            FontWeight.SemiBold
+        }
+    val highlightBackgroundColor =
+        if (compactLandscape) {
+            MaterialTheme.colorScheme.primary.copy(alpha = PARAGRAPH_COMPACT_HIGHLIGHT_BACKGROUND_ALPHA)
+        } else {
+            Color.Unspecified
+        }
     val highlightStyle =
-        remember(colors, highlightTextColor) {
+        remember(colors, highlightTextColor, highlightFontWeight, highlightBackgroundColor) {
             SpanStyle(
                 color = highlightTextColor,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = highlightFontWeight,
+                background = highlightBackgroundColor,
             )
         }
     val annotatedText =
-        remember(paragraph, highlightIndex, highlightStyle) {
-            buildRsvpParagraphAnnotatedText(paragraph, highlightIndex, highlightStyle)
+        remember(paragraph, highlightIndex, highlightStyle, compactLandscape) {
+            buildRsvpParagraphAnnotatedText(
+                paragraph = paragraph,
+                highlightIndex = highlightIndex,
+                highlightStyle = highlightStyle,
+                maxWords =
+                    if (compactLandscape) {
+                        PARAGRAPH_COMPACT_PREVIEW_WINDOW_WORDS
+                    } else {
+                        PARAGRAPH_PREVIEW_WINDOW_WORDS
+                    },
+                highlightWindowFraction =
+                    if (compactLandscape) {
+                        PARAGRAPH_COMPACT_PREVIEW_HIGHLIGHT_FRACTION
+                    } else {
+                        null
+                    },
+            )
         }
     val fontSizeSp =
-        (typography.fontSizeSp * PARAGRAPH_FONT_SCALE)
-            .coerceIn(MIN_PARAGRAPH_FONT_SIZE_SP, MAX_PARAGRAPH_FONT_SIZE_SP)
+        if (compactLandscape) {
+            (typography.fontSizeSp * PARAGRAPH_COMPACT_FONT_SCALE)
+                .coerceIn(MIN_PARAGRAPH_FONT_SIZE_SP, MAX_PARAGRAPH_COMPACT_FONT_SIZE_SP)
+        } else {
+            (typography.fontSizeSp * PARAGRAPH_FONT_SCALE)
+                .coerceIn(MIN_PARAGRAPH_FONT_SIZE_SP, MAX_PARAGRAPH_FONT_SIZE_SP)
+        }
     val lineHeightSp = fontSizeSp * PARAGRAPH_LINE_HEIGHT_MULTIPLIER
+    val previewHeight = PARAGRAPH_PREVIEW_HEIGHT
     val lineCount =
         with(LocalDensity.current) {
             val lineHeightPx = lineHeightSp.sp.toPx().coerceAtLeast(1f)
             val previewHeightPx =
                 (
-                    PARAGRAPH_PREVIEW_HEIGHT -
+                    previewHeight -
                         (PARAGRAPH_PREVIEW_CONTENT_PADDING_VERTICAL * 2)
                 ).toPx().coerceAtLeast(lineHeightPx)
             (previewHeightPx / lineHeightPx).toInt().coerceAtLeast(1)
@@ -341,7 +412,15 @@ private fun RsvpParagraphPreview(
             fontSize = fontSizeSp.sp,
             fontFamily = typography.fontFamily,
             fontWeight = FontWeight.Normal,
-            color = colors.textColor.copy(alpha = PARAGRAPH_TEXT_ALPHA),
+            color =
+                colors.textColor.copy(
+                    alpha =
+                        if (compactLandscape) {
+                            PARAGRAPH_COMPACT_TEXT_ALPHA
+                        } else {
+                            PARAGRAPH_TEXT_ALPHA
+                        },
+                ),
             lineHeight = lineHeightSp.sp,
         )
     val offsetY =
@@ -349,7 +428,7 @@ private fun RsvpParagraphPreview(
             with(LocalDensity.current) {
                 (typography.fontSizeSp * PARAGRAPH_OFFSET_MULTIPLIER).sp.toDp()
             },
-            (PARAGRAPH_PREVIEW_HEIGHT / 2) + PARAGRAPH_PREVIEW_MIN_ORP_CLEARANCE,
+            (previewHeight / 2) + PARAGRAPH_PREVIEW_MIN_ORP_CLEARANCE,
         )
     var previewSide by remember { mutableStateOf(PreviewSide.BELOW) }
     val visible = runtime.isScrubbing || (!runtime.isPlaying && !runtime.isExiting)
@@ -372,9 +451,10 @@ private fun RsvpParagraphPreview(
                     .padding(bottom = bottomChromeInset),
         ) {
             val density = LocalDensity.current
-            val previewHeightPx = with(density) { PARAGRAPH_PREVIEW_HEIGHT.toPx() }
+            val previewHeightPx = with(density) { previewHeight.toPx() }
             val preferredOffsetPx = with(density) { offsetY.toPx() }
             val edgePaddingPx = with(density) { PARAGRAPH_PREVIEW_EDGE_PADDING.toPx() }
+            val compactEdgePaddingPx = with(density) { PARAGRAPH_PREVIEW_COMPACT_EDGE_PADDING.toPx() }
             val collisionGapPx = with(density) { PARAGRAPH_PREVIEW_ORP_COLLISION_GAP.toPx() }
             val switchHysteresisPx = with(density) { PARAGRAPH_PREVIEW_SWITCH_HYSTERESIS.toPx() }
             val switchOverlapThresholdPx =
@@ -398,6 +478,122 @@ private fun RsvpParagraphPreview(
             val protectedBottom = orpCenterY + orpBandHalfHeightPx + collisionGapPx
             val anchorTop =
                 ((viewportHeightPx - previewHeightPx) * (ONE_FLOAT + clampedVerticalBias) / BIAS_SCALE_FACTOR)
+            if (compactLandscape) {
+                val compactBand =
+                    resolveCompactLandscapePreviewBand(
+                        orpCenterY = orpCenterY,
+                        orpBandHalfHeightPx = orpBandHalfHeightPx,
+                        viewportHeightPx = viewportHeightPx,
+                        orpOverlapPx =
+                            with(density) { PARAGRAPH_PREVIEW_COMPACT_ORP_OVERLAP.toPx() },
+                        edgePaddingPx = compactEdgePaddingPx,
+                        minHeightPx = with(density) { lineHeightSp.sp.toPx() },
+                    )
+                val compactTextRegion =
+                    resolveCompactLandscapePreviewTextRegion(
+                        orpCenterY = orpCenterY,
+                        orpBandHalfHeightPx = orpBandHalfHeightPx,
+                        controlsTopPx =
+                            resolveCompactLandscapeControlsTop(
+                                viewportHeightPx = viewportHeightPx,
+                                controlsReservedHeightPx =
+                                    with(density) { CONTROLS_COMPACT_RESERVED_HEIGHT.toPx() },
+                                bottomChromeInsetPx = with(density) { bottomChromeInset.toPx() },
+                                controlsVisible = runtime.showControls,
+                            ),
+                        orpClearancePx =
+                            with(density) { PARAGRAPH_PREVIEW_COMPACT_TEXT_ORP_CLEARANCE.toPx() },
+                        edgePaddingPx = compactEdgePaddingPx,
+                        minHeightPx = with(density) { lineHeightSp.sp.toPx() },
+                        preferredHeightPx =
+                            with(density) {
+                                (
+                                    lineHeightSp.sp.toPx() * COMPACT_PREVIEW_SNAP_MIN_LINES
+                                ) + (PARAGRAPH_PREVIEW_CONTENT_PADDING_VERTICAL * 2).toPx()
+                            },
+                    )
+                val compactLineCount =
+                    with(density) {
+                        val lineHeightPx = lineHeightSp.sp.toPx().coerceAtLeast(1f)
+                        val contentHeightPx =
+                            (
+                                compactTextRegion.heightPx -
+                                    (PARAGRAPH_PREVIEW_CONTENT_PADDING_VERTICAL * 2).toPx()
+                            ).coerceAtLeast(lineHeightPx)
+                        (contentHeightPx / lineHeightPx).toInt().coerceAtLeast(1)
+                    }
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize(),
+                ) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .offset(y = with(density) { compactBand.topPx.toDp() })
+                                .height(with(density) { compactBand.heightPx.toDp() })
+                                .clipToBounds(),
+                    ) {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(PARAGRAPH_FADE_HEIGHT)
+                                    .align(Alignment.TopCenter)
+                                    .background(
+                                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            colorStops =
+                                                arrayOf(
+                                                    0f to backgroundColor,
+                                                    0.42f to backgroundColor.copy(alpha = PARAGRAPH_FADE_MID_ALPHA),
+                                                    1f to backgroundColor.copy(alpha = 0f),
+                                                ),
+                                        ),
+                                    ),
+                        )
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(PARAGRAPH_FADE_HEIGHT)
+                                    .align(Alignment.BottomCenter)
+                                    .background(
+                                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            colorStops =
+                                                arrayOf(
+                                                    0f to backgroundColor.copy(alpha = 0f),
+                                                    0.58f to backgroundColor.copy(alpha = PARAGRAPH_FADE_MID_ALPHA),
+                                                    1f to backgroundColor,
+                                                ),
+                                        ),
+                                    ),
+                        )
+                    }
+                    Box(
+                        modifier =
+                            Modifier
+                                .offset(y = with(density) { compactTextRegion.topPx.toDp() })
+                                .height(with(density) { compactTextRegion.heightPx.toDp() })
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                                .clipToBounds()
+                                .padding(
+                                    horizontal = PARAGRAPH_PREVIEW_HORIZONTAL_PADDING,
+                                    vertical = PARAGRAPH_PREVIEW_CONTENT_PADDING_VERTICAL,
+                                ),
+                    ) {
+                        Text(
+                            text = annotatedText,
+                            style = textStyle,
+                            overflow = TextOverflow.Clip,
+                            maxLines = compactLineCount,
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                    }
+                }
+                return@BoxWithConstraints
+            }
             val placement =
                 resolveParagraphPreviewPlacement(
                     currentSide = previewSide,
@@ -431,7 +627,7 @@ private fun RsvpParagraphPreview(
                             .fillMaxWidth()
                             .widthIn(max = PARAGRAPH_PREVIEW_MAX_WIDTH)
                             .padding(horizontal = PARAGRAPH_PREVIEW_HORIZONTAL_PADDING)
-                            .height(PARAGRAPH_PREVIEW_HEIGHT)
+                            .height(previewHeight)
                             .clip(RoundedCornerShape(PARAGRAPH_PREVIEW_CORNER_RADIUS))
                             .background(previewSurfaceColor)
                             .border(
@@ -593,6 +789,84 @@ internal fun resolveParagraphPreviewPlacement(
     return ParagraphPreviewPlacement(side = resolvedSide, topPx = resolvedTop)
 }
 
+internal fun resolveCompactLandscapePreviewBand(
+    orpCenterY: Float,
+    orpBandHalfHeightPx: Float,
+    viewportHeightPx: Float,
+    orpOverlapPx: Float,
+    edgePaddingPx: Float,
+    minHeightPx: Float,
+): CompactLandscapePreviewBand {
+    val top = (orpCenterY - orpBandHalfHeightPx - orpOverlapPx).coerceAtLeast(edgePaddingPx)
+    val bottom = (viewportHeightPx - edgePaddingPx).coerceAtLeast(top)
+    val height = (bottom - top).coerceAtLeast(minHeightPx)
+    return CompactLandscapePreviewBand(topPx = top, heightPx = height)
+}
+
+internal fun resolveCompactLandscapePreviewTextRegion(
+    orpCenterY: Float,
+    orpBandHalfHeightPx: Float,
+    controlsTopPx: Float,
+    orpClearancePx: Float,
+    edgePaddingPx: Float,
+    minHeightPx: Float,
+    preferredHeightPx: Float,
+): CompactLandscapePreviewTextRegion {
+    val readableHeightPx = minHeightPx.coerceAtLeast(1f)
+    val comfortableHeightPx = preferredHeightPx.coerceAtLeast(readableHeightPx)
+    val safeControlsTopPx = (controlsTopPx - edgePaddingPx).coerceAtLeast(edgePaddingPx)
+    val orpTop = orpCenterY - orpBandHalfHeightPx
+    val orpBottom = orpCenterY + orpBandHalfHeightPx
+    val belowTop =
+        (orpBottom + orpClearancePx)
+            .coerceAtLeast(edgePaddingPx)
+    val belowAvailable = (safeControlsTopPx - belowTop).coerceAtLeast(0f)
+    val aboveBottom =
+        (orpTop - orpClearancePx)
+            .coerceAtLeast(edgePaddingPx)
+    val aboveAvailable = (aboveBottom - edgePaddingPx).coerceAtLeast(0f)
+
+    fun resolvedHeight(availableHeightPx: Float): Float =
+        minOf(comfortableHeightPx, availableHeightPx.coerceAtLeast(readableHeightPx))
+
+    fun belowRegion(): CompactLandscapePreviewTextRegion =
+        CompactLandscapePreviewTextRegion(
+            topPx = belowTop,
+            heightPx = resolvedHeight(belowAvailable),
+            side = PreviewSide.BELOW,
+        )
+
+    fun aboveRegion(): CompactLandscapePreviewTextRegion {
+        val height = resolvedHeight(aboveAvailable)
+        val top =
+            (aboveBottom - height)
+                .coerceAtLeast(edgePaddingPx)
+        return CompactLandscapePreviewTextRegion(
+            topPx = top,
+            heightPx = height,
+            side = PreviewSide.ABOVE,
+        )
+    }
+
+    val belowIsComfortable = belowAvailable >= comfortableHeightPx
+    val aboveIsReadable = aboveAvailable >= readableHeightPx
+    val useAbove = !belowIsComfortable && aboveIsReadable
+
+    return if (useAbove) aboveRegion() else belowRegion()
+}
+
+internal fun resolveCompactLandscapeControlsTop(
+    viewportHeightPx: Float,
+    controlsReservedHeightPx: Float,
+    bottomChromeInsetPx: Float,
+    controlsVisible: Boolean,
+): Float =
+    if (controlsVisible && bottomChromeInsetPx <= 0f) {
+        viewportHeightPx - controlsReservedHeightPx
+    } else {
+        viewportHeightPx
+    }
+
 @Composable
 private fun RsvpPositionGuide(
     context: RsvpUiContext,
@@ -637,15 +911,48 @@ private fun RsvpPositionGuide(
 }
 
 @Composable
-private fun rememberBottomChromeInset(runtime: RsvpRuntimeState): Dp {
+private fun isCompactLandscape(): Boolean {
+    val configuration = LocalConfiguration.current
+    return configuration.screenWidthDp > configuration.screenHeightDp &&
+        configuration.screenHeightDp <= 480
+}
+
+@Composable
+private fun rememberBottomChromeInset(
+    runtime: RsvpRuntimeState,
+    compactLandscape: Boolean,
+): Dp {
     val shouldProtectLowOrp =
         runtime.showControls &&
             runtime.currentVerticalBias > CONTROLS_COLLISION_VERTICAL_BIAS
     if (!shouldProtectLowOrp) return 0.dp
 
+    return rememberControlsChromeInset(compactLandscape)
+}
+
+@Composable
+private fun rememberPreviewBottomChromeInset(
+    runtime: RsvpRuntimeState,
+    compactLandscape: Boolean,
+    bottomChromeInset: Dp,
+): Dp {
+    if (compactLandscape) return bottomChromeInset
+    if (!runtime.showControls) return 0.dp
+
+    return rememberControlsChromeInset(compactLandscape)
+}
+
+@Composable
+private fun rememberControlsChromeInset(compactLandscape: Boolean): Dp {
     val density = LocalDensity.current
     val navigationBarsInset = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
-    return CONTROLS_RESERVED_HEIGHT + navigationBarsInset
+    val controlsHeight =
+        if (compactLandscape) {
+            CONTROLS_COMPACT_RESERVED_HEIGHT
+        } else {
+            CONTROLS_RESERVED_HEIGHT
+        }
+    return controlsHeight + navigationBarsInset
 }
 
 private fun resolveFontFamily(fontFamily: RsvpFontFamily): FontFamily =
