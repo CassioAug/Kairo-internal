@@ -52,13 +52,16 @@ internal fun finishPositioning(
     val runtime = context.runtime
     if (!runtime.isPositioningMode) return
 
+    val shouldResume =
+        resumeIfWasPlaying && runtime.wasPlayingBeforePositioning && !runtime.completed
+    if (shouldResume) {
+        runtime.showControls = false
+        resumePlayback(runtime)
+    }
     runtime.isPositioningMode = false
     runtime.isAdjustingPosition = false
     context.callbacks.theme.onVerticalBiasChange(runtime.currentVerticalBias)
     context.callbacks.theme.onHorizontalBiasChange(runtime.currentHorizontalBias)
-    if (resumeIfWasPlaying && runtime.wasPlayingBeforePositioning && !runtime.completed) {
-        resumePlayback(runtime)
-    }
 }
 
 internal fun addBookmarkNow(context: RsvpUiContext) {
@@ -93,13 +96,15 @@ internal fun handleTap(context: RsvpUiContext) {
         runtime.showQuickSettings = false
     } else if (!runtime.completed) {
         val willPlay = !runtime.isPlaying
-        runtime.isPlaying = willPlay
         if (willPlay) {
+            runtime.showControls = false
             resumePlayback(runtime)
+        } else {
+            runtime.isPlaying = false
+            runtime.showControls = true
         }
         runtime.showTempoIndicator = false
         runtime.showFontSizeIndicator = false
-        runtime.showControls = !willPlay
     }
 }
 
@@ -236,10 +241,11 @@ private fun finishScrubbing(context: RsvpUiContext) {
     if (!runtime.isScrubbing) return
 
     context.callbacks.playback.onPositionChanged(currentResumePoint(context))
-    runtime.isScrubbing = false
-    if (runtime.wasPlayingBeforeScrub && !runtime.completed) {
+    val shouldResume = runtime.wasPlayingBeforeScrub && !runtime.completed
+    if (shouldResume) {
         resumePlayback(runtime)
     }
+    runtime.isScrubbing = false
 }
 
 private fun handleSweep(context: RsvpUiContext) {

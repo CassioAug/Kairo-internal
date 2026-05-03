@@ -48,6 +48,83 @@ class RsvpParagraphPreviewPlacementTest {
     }
 
     @Test
+    fun positioningModeSwitchesAwayFromSlightOverlapWhenOtherSideIsClear() {
+        val placement =
+            resolveParagraphPreviewPlacement(
+                currentSide = PreviewSide.BELOW,
+                isPositioningMode = true,
+                anchorTop = 220f,
+                previewHeightPx = 200f,
+                preferredOffsetPx = 80f,
+                edgePaddingPx = 20f,
+                protectedTop = 280f,
+                protectedBottom = 315f,
+                maxTop = 300f,
+                switchHysteresisPx = 18f,
+                switchOverlapThresholdPx = 8f,
+            )
+
+        assertEquals(PreviewSide.ABOVE, placement.side)
+        assertTrue(placement.topPx + 200f <= 280f)
+    }
+
+    @Test
+    fun portraitCollisionCenterUsesActualOrpViewportWhenPreviewReservesControls() {
+        val centerY =
+            resolveOrpCollisionCenterY(
+                previewViewportHeightPx = 600f,
+                previewBottomChromeInsetPx = 172f,
+                orpBottomChromeInsetPx = 0f,
+                verticalBias = 0.1f,
+                minimumViewportHeightPx = 224f,
+            )
+
+        assertEquals(424.6f, centerY, 0.001f)
+    }
+
+    @Test
+    fun paragraphPreviewDoesNotDrawDuringResumeTransition() {
+        assertTrue(
+            shouldShowParagraphPreview(
+                isPlaying = false,
+                isScrubbing = false,
+                isPositioningMode = true,
+                showControls = false,
+                isExiting = false,
+            ),
+        )
+        assertTrue(
+            shouldShowParagraphPreview(
+                isPlaying = false,
+                isScrubbing = false,
+                isPositioningMode = false,
+                showControls = true,
+                isExiting = false,
+            ),
+        )
+        assertEquals(
+            false,
+            shouldShowParagraphPreview(
+                isPlaying = false,
+                isScrubbing = false,
+                isPositioningMode = false,
+                showControls = false,
+                isExiting = false,
+            ),
+        )
+        assertEquals(
+            false,
+            shouldShowParagraphPreview(
+                isPlaying = true,
+                isScrubbing = false,
+                isPositioningMode = false,
+                showControls = true,
+                isExiting = false,
+            ),
+        )
+    }
+
+    @Test
     fun compactLandscapeBandStartsBehindProtectedOrpArea() {
         val band =
             resolveCompactLandscapePreviewBand(

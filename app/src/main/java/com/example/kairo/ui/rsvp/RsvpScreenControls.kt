@@ -315,8 +315,8 @@ private fun RsvpPlaybackControlsRow(
                 if (runtime.isPlaying) {
                     runtime.isPlaying = false
                 } else if (!runtime.completed) {
-                    resumePlayback(runtime)
                     runtime.showControls = false
+                    resumePlayback(runtime)
                 }
                 context.haptics.onFrameStep()
             },
