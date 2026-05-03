@@ -35,6 +35,8 @@ internal fun buildRsvpParagraphAnnotatedText(
     paragraph: RsvpParagraph,
     highlightIndex: Int,
     highlightStyle: SpanStyle,
+    maxWords: Int = PARAGRAPH_PREVIEW_WINDOW_WORDS,
+    highlightWindowFraction: Float? = null,
 ): AnnotatedString =
     buildAnnotatedString {
         val tokens = paragraph.tokens
@@ -43,7 +45,12 @@ internal fun buildRsvpParagraphAnnotatedText(
         val highlightLocalIndex =
             (highlightIndex - paragraph.startIndex).coerceIn(0, tokens.lastIndex)
         val window =
-            resolveWordWindow(tokens, highlightLocalIndex, PARAGRAPH_PREVIEW_WINDOW_WORDS)
+            resolveWordWindow(
+                tokens = tokens,
+                highlightLocalIndex = highlightLocalIndex,
+                maxWords = maxWords,
+                highlightWindowFraction = highlightWindowFraction,
+            )
         val windowStart = window.first
         val windowEndExclusive = window.last + 1
 
@@ -83,6 +90,7 @@ private fun resolveWordWindow(
     tokens: List<Token>,
     highlightLocalIndex: Int,
     maxWords: Int,
+    highlightWindowFraction: Float? = null,
 ): IntRange {
     val wordIndices = mutableListOf<Int>()
     tokens.forEachIndexed { index, token ->
@@ -100,7 +108,14 @@ private fun resolveWordWindow(
         } else {
             highlightWordOrdinal.toFloat() / (totalWords - 1).toFloat()
         }
-    val beforeWords = (windowWords * progress).toInt().coerceIn(0, windowWords - 1)
+    val beforeWords =
+        if (highlightWindowFraction != null) {
+            ((windowWords - 1) * highlightWindowFraction)
+                .toInt()
+                .coerceIn(0, windowWords - 1)
+        } else {
+            (windowWords * progress).toInt().coerceIn(0, windowWords - 1)
+        }
     val afterWords = windowWords - 1 - beforeWords
     val startWordOrdinal = (highlightWordOrdinal - beforeWords).coerceAtLeast(0)
     val endWordOrdinalExclusive =
