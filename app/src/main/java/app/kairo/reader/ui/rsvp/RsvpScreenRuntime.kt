@@ -1,0 +1,81 @@
+package app.kairo.reader.ui.rsvp
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import app.kairo.reader.core.model.RsvpFrame
+
+internal data class RsvpFrameLoadState(val frames: List<RsvpFrame>, val baseTempoMs: Long, val isLoading: Boolean,)
+
+internal data class RsvpTimingInfo(val minTempoMs: Long, val maxTempoMs: Long, val tempoScale: Double,)
+
+internal data class RsvpHapticCallbacks(
+    val onFrameStep: () -> Unit = {},
+    val onTempoStep: () -> Unit = {},
+)
+
+internal data class RsvpUiContext(
+    val state: RsvpScreenState,
+    val callbacks: RsvpScreenCallbacks,
+    val runtime: RsvpRuntimeState,
+    val frameState: RsvpFrameLoadState,
+    val timing: RsvpTimingInfo,
+    val haptics: RsvpHapticCallbacks = RsvpHapticCallbacks(),
+)
+
+internal enum class RsvpDragAxis { NONE, HORIZONTAL, VERTICAL }
+
+internal class RsvpRuntimeState(
+    private val onPlaybackStateChanged: (isPlaying: Boolean, completed: Boolean) -> Unit = { _, _ -> },
+) {
+    var currentTempoMsPerWord by mutableLongStateOf(0L)
+    var showTempoIndicator by mutableStateOf(false)
+    var showFontSizeIndicator by mutableStateOf(false)
+    var dragAccumulator by mutableFloatStateOf(ZERO_FLOAT)
+    var dragAccumulatorX by mutableFloatStateOf(ZERO_FLOAT)
+    var dragStartTempoMsPerWord by mutableLongStateOf(0L)
+    var dragStartFrameIndex by mutableIntStateOf(0)
+    var dragAxis by mutableStateOf(RsvpDragAxis.NONE)
+    var currentVerticalBias by mutableFloatStateOf(ZERO_FLOAT)
+    var currentHorizontalBias by mutableFloatStateOf(ZERO_FLOAT)
+    var currentFontSizeSp by mutableFloatStateOf(ZERO_FLOAT)
+    var currentFontWeight by mutableStateOf(DEFAULT_FONT_WEIGHT)
+    var currentFontFamily by mutableStateOf(DEFAULT_FONT_FAMILY)
+    var currentTextBrightness by mutableFloatStateOf(DEFAULT_TEXT_BRIGHTNESS)
+    var frameIndex by mutableIntStateOf(0)
+    var currentTokenIndex by mutableIntStateOf(0)
+    var currentResumeCursor by mutableIntStateOf(0)
+    var rampStartFrameIndex by mutableIntStateOf(0)
+    var scheduledFrameIndex by mutableIntStateOf(-1)
+    var nextFrameAtMs by mutableLongStateOf(0L)
+    private var playbackIsPlaying by mutableStateOf(true)
+    var isPlaying: Boolean
+        get() = playbackIsPlaying
+        set(value) {
+            if (playbackIsPlaying == value) return
+            playbackIsPlaying = value
+            onPlaybackStateChanged(playbackIsPlaying, playbackCompleted)
+        }
+    var isScrubbing by mutableStateOf(false)
+    var isExiting by mutableStateOf(false)
+    private var playbackCompleted by mutableStateOf(false)
+    var completed: Boolean
+        get() = playbackCompleted
+        set(value) {
+            if (playbackCompleted == value) return
+            playbackCompleted = value
+            onPlaybackStateChanged(playbackIsPlaying, playbackCompleted)
+        }
+    var showControls by mutableStateOf(false)
+    var showQuickSettings by mutableStateOf(false)
+    var isAdjustingPosition by mutableStateOf(false)
+    var isPositioningMode by mutableStateOf(false)
+    var dragStartBias by mutableFloatStateOf(ZERO_FLOAT)
+    var dragStartHorizontalBias by mutableFloatStateOf(ZERO_FLOAT)
+    var wasPlayingBeforePositioning by mutableStateOf(true)
+    var wasPlayingBeforeScrub by mutableStateOf(true)
+    var lastPositionSaveMs by mutableLongStateOf(0L)
+}

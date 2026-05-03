@@ -1,0 +1,94 @@
+package app.kairo.reader.ui.rsvp
+
+import app.kairo.reader.core.model.BookId
+import app.kairo.reader.core.model.ReaderTheme
+import app.kairo.reader.core.model.RsvpConfig
+import app.kairo.reader.core.model.RsvpCustomProfile
+import app.kairo.reader.core.model.RsvpFontFamily
+import app.kairo.reader.core.model.RsvpFontWeight
+import app.kairo.reader.core.model.Token
+import app.kairo.reader.data.rsvp.RsvpFrameRepository
+
+data class RsvpScreenState(
+    val book: RsvpBookContext,
+    val profile: RsvpProfileContext,
+    val launchTempoMsPerWord: Long? = null,
+    val initialIsPlaying: Boolean = true,
+    val uiPrefs: RsvpUiPreferences,
+    val textStyle: RsvpTextStyle,
+    val layoutBias: RsvpLayoutBias,
+)
+
+data class RsvpBookContext(
+    val bookId: BookId,
+    val chapterIndex: Int,
+    val tokens: List<Token>,
+    val startIndex: Int,
+    val startResumeCursor: Int = -1,
+)
+
+data class RsvpProfileContext(val config: RsvpConfig, val selectedProfileId: String, val customProfiles: List<RsvpCustomProfile>,)
+
+data class RsvpUiPreferences(
+    val extremeSpeedUnlocked: Boolean,
+    val readerTheme: ReaderTheme,
+    val focusModeEnabled: Boolean,
+)
+
+data class RsvpTextStyle(
+    val fontSizeSp: Float = DEFAULT_FONT_SIZE_SP,
+    val fontFamily: RsvpFontFamily = DEFAULT_FONT_FAMILY,
+    val fontWeight: RsvpFontWeight = DEFAULT_FONT_WEIGHT,
+    val textBrightness: Float = DEFAULT_TEXT_BRIGHTNESS,
+)
+
+data class RsvpLayoutBias(val verticalBias: Float = DEFAULT_VERTICAL_BIAS, val horizontalBias: Float = DEFAULT_HORIZONTAL_BIAS,)
+
+data class RsvpScreenCallbacks(
+    val bookmarks: RsvpBookmarkCallbacks,
+    val playback: RsvpPlaybackCallbacks,
+    val preferences: RsvpPreferenceCallbacks,
+    val ui: RsvpUiCallbacks,
+    val theme: RsvpThemeCallbacks,
+)
+
+data class RsvpBookmarkCallbacks(val onAddBookmark: (tokenIndex: Int, previewText: String) -> Unit, val onOpenBookmarks: () -> Unit,)
+
+data class RsvpResumePoint(
+    val tokenIndex: Int,
+    val resumeCursor: Int = -1,
+    val chapterIndex: Int? = null,
+    val tempoMsPerWord: Long = -1L,
+)
+
+data class RsvpPlaybackCallbacks(
+    val onFinished: (RsvpResumePoint) -> Unit,
+    val onPositionChanged: (RsvpResumePoint) -> Unit,
+    val onTempoChange: (Long) -> Unit,
+    val onExit: (RsvpResumePoint) -> Unit,
+    val onPlaybackStateChanged: (Boolean) -> Unit = {},
+)
+
+data class RsvpPreferenceCallbacks(
+    val onExtremeSpeedUnlockedChange: (Boolean) -> Unit,
+    val onSelectProfile: (String) -> Unit,
+    val onSaveCustomProfile: (String, RsvpConfig) -> Unit,
+    val onDeleteCustomProfile: (String) -> Unit,
+    val onRsvpConfigChange: (RsvpConfig) -> Unit,
+)
+
+data class RsvpUiCallbacks(
+    val onFocusModeEnabledChange: (Boolean) -> Unit,
+    val onRsvpFontSizeChange: (Float) -> Unit,
+    val onRsvpTextBrightnessChange: (Float) -> Unit,
+    val onRsvpFontWeightChange: (RsvpFontWeight) -> Unit,
+    val onRsvpFontFamilyChange: (RsvpFontFamily) -> Unit,
+)
+
+data class RsvpThemeCallbacks(
+    val onThemeChange: (ReaderTheme) -> Unit,
+    val onVerticalBiasChange: (Float) -> Unit,
+    val onHorizontalBiasChange: (Float) -> Unit,
+)
+
+data class RsvpScreenDependencies(val frameRepository: RsvpFrameRepository,)

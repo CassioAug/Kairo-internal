@@ -146,9 +146,9 @@ If you want the Android lint pass as well:
 
 The app currently ships as a single Android module, with the code organized by responsibility:
 
-- `app/src/main/java/com/example/kairo/core` for domain models, tokenization, linguistics, and RSVP logic
-- `app/src/main/java/com/example/kairo/data` for parsing, persistence, repositories, and import flows
-- `app/src/main/java/com/example/kairo/ui` for library, reader, RSVP, settings, and theming
+- `app/src/main/java/app/kairo/reader/core` for domain models, tokenization, linguistics, and RSVP logic
+- `app/src/main/java/app/kairo/reader/data` for parsing, persistence, repositories, and import flows
+- `app/src/main/java/app/kairo/reader/ui` for library, reader, RSVP, settings, and theming
 - `app/src/main/res` for Android resources, strings, and image assets
 
 ## Supported Formats
