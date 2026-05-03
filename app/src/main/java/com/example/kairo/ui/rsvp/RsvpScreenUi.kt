@@ -159,7 +159,8 @@ internal fun RsvpPlaybackSurface(
             context = context,
             typography = typography,
             colors = colors,
-            bottomChromeInset = previewBottomChromeInset,
+            previewBottomChromeInset = previewBottomChromeInset,
+            orpBottomChromeInset = bottomChromeInset,
             compactLandscape = compactLandscape,
         )
         RsvpFocusWord(context, currentFrame, typography, colors, bottomChromeInset)
@@ -320,7 +321,8 @@ private fun RsvpParagraphPreview(
     context: RsvpUiContext,
     typography: OrpTypography,
     colors: OrpColors,
-    bottomChromeInset: Dp,
+    previewBottomChromeInset: Dp,
+    orpBottomChromeInset: Dp,
     compactLandscape: Boolean,
 ) {
     val runtime = context.runtime
@@ -431,27 +433,32 @@ private fun RsvpParagraphPreview(
             (previewHeight / 2) + PARAGRAPH_PREVIEW_MIN_ORP_CLEARANCE,
         )
     var previewSide by remember { mutableStateOf(PreviewSide.BELOW) }
-    val visible = runtime.isScrubbing || (!runtime.isPlaying && !runtime.isExiting)
+    val visible =
+        shouldShowParagraphPreview(
+            isPlaying = runtime.isPlaying,
+            isScrubbing = runtime.isScrubbing,
+            isPositioningMode = runtime.isPositioningMode,
+            showControls = runtime.showControls,
+            isExiting = runtime.isExiting,
+        )
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(),
-        exit = fadeOut(),
-        modifier = Modifier.fillMaxSize(),
+    if (!visible) return
+
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val previewSurfaceColor =
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = PARAGRAPH_PREVIEW_SURFACE_ALPHA)
+    val previewBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f)
+    val clampedVerticalBias = runtime.currentVerticalBias.coerceIn(VERTICAL_BIAS_MIN, VERTICAL_BIAS_MAX)
+    BoxWithConstraints(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(bottom = previewBottomChromeInset),
     ) {
-        val backgroundColor = MaterialTheme.colorScheme.background
-        val previewSurfaceColor =
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = PARAGRAPH_PREVIEW_SURFACE_ALPHA)
-        val previewBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f)
-        val clampedVerticalBias = runtime.currentVerticalBias.coerceIn(VERTICAL_BIAS_MIN, VERTICAL_BIAS_MAX)
-        BoxWithConstraints(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(bottom = bottomChromeInset),
-        ) {
             val density = LocalDensity.current
             val previewHeightPx = with(density) { previewHeight.toPx() }
+            val previewBottomChromeInsetPx = with(density) { previewBottomChromeInset.toPx() }
+            val orpBottomChromeInsetPx = with(density) { orpBottomChromeInset.toPx() }
             val preferredOffsetPx = with(density) { offsetY.toPx() }
             val edgePaddingPx = with(density) { PARAGRAPH_PREVIEW_EDGE_PADDING.toPx() }
             val compactEdgePaddingPx = with(density) { PARAGRAPH_PREVIEW_COMPACT_EDGE_PADDING.toPx() }
@@ -472,7 +479,14 @@ private fun RsvpParagraphPreview(
                     (typography.fontSizeSp * ORP_COLLISION_TEXT_HEIGHT_MULTIPLIER).sp.toPx()
                 }
             val viewportHeightPx = with(density) { maxHeight.toPx() }.coerceAtLeast(previewHeightPx)
-            val orpCenterY = viewportHeightPx * (ONE_FLOAT + clampedVerticalBias) / BIAS_SCALE_FACTOR
+            val orpCenterY =
+                resolveOrpCollisionCenterY(
+                    previewViewportHeightPx = viewportHeightPx,
+                    previewBottomChromeInsetPx = previewBottomChromeInsetPx,
+                    orpBottomChromeInsetPx = orpBottomChromeInsetPx,
+                    verticalBias = clampedVerticalBias,
+                    minimumViewportHeightPx = previewHeightPx,
+                )
             val orpBandHalfHeightPx = (orpDecorHeightPx + orpTextHeightPx) / BIAS_SCALE_FACTOR
             val protectedTop = orpCenterY - orpBandHalfHeightPx - collisionGapPx
             val protectedBottom = orpCenterY + orpBandHalfHeightPx + collisionGapPx
@@ -498,7 +512,7 @@ private fun RsvpParagraphPreview(
                                 viewportHeightPx = viewportHeightPx,
                                 controlsReservedHeightPx =
                                     with(density) { CONTROLS_COMPACT_RESERVED_HEIGHT.toPx() },
-                                bottomChromeInsetPx = with(density) { bottomChromeInset.toPx() },
+                                bottomChromeInsetPx = previewBottomChromeInsetPx,
                                 controlsVisible = runtime.showControls,
                             ),
                         orpClearancePx =
@@ -691,7 +705,6 @@ private fun RsvpParagraphPreview(
                     )
                 }
             }
-        }
     }
 }
 
@@ -747,10 +760,16 @@ internal fun resolveParagraphPreviewPlacement(
             defaultTop = defaultAboveTop,
             safeTop = safeAboveTop,
         )
+    val clearCandidate =
+        when {
+            belowCandidate.overlapPx <= 0f && aboveCandidate.overlapPx > 0f -> PreviewSide.BELOW
+            aboveCandidate.overlapPx <= 0f && belowCandidate.overlapPx > 0f -> PreviewSide.ABOVE
+            else -> null
+        }
 
     val resolvedSide =
         if (!isPositioningMode) {
-            when {
+            clearCandidate ?: when {
                 aboveCandidate.score + switchHysteresisPx < belowCandidate.score -> PreviewSide.ABOVE
                 belowCandidate.score + switchHysteresisPx < aboveCandidate.score -> PreviewSide.BELOW
                 rawBelowTop > maxTop && rawAboveTop >= edgePaddingPx -> PreviewSide.ABOVE
@@ -770,9 +789,14 @@ internal fun resolveParagraphPreviewPlacement(
                 } else {
                     aboveCandidate
                 }
-            val shouldSwitch =
+            val activeOverlapsClearAlternate =
+                activeCandidate.overlapPx > 0f &&
+                    alternateCandidate.overlapPx <= 0f
+            val activeOverlapExceedsHysteresis =
                 activeCandidate.overlapPx > switchOverlapThresholdPx &&
                     (activeCandidate.overlapPx - alternateCandidate.overlapPx) > switchHysteresisPx
+            val shouldSwitch =
+                activeOverlapsClearAlternate || activeOverlapExceedsHysteresis
             if (shouldSwitch) {
                 alternateCandidate.side
             } else {
@@ -787,6 +811,32 @@ internal fun resolveParagraphPreviewPlacement(
             belowCandidate.topPx
         }
     return ParagraphPreviewPlacement(side = resolvedSide, topPx = resolvedTop)
+}
+
+internal fun shouldShowParagraphPreview(
+    isPlaying: Boolean,
+    isScrubbing: Boolean,
+    isPositioningMode: Boolean,
+    showControls: Boolean,
+    isExiting: Boolean,
+): Boolean =
+    !isExiting &&
+        !isPlaying &&
+        (isScrubbing || isPositioningMode || showControls)
+
+internal fun resolveOrpCollisionCenterY(
+    previewViewportHeightPx: Float,
+    previewBottomChromeInsetPx: Float,
+    orpBottomChromeInsetPx: Float,
+    verticalBias: Float,
+    minimumViewportHeightPx: Float,
+): Float {
+    val rootHeightPx =
+        previewViewportHeightPx + previewBottomChromeInsetPx.coerceAtLeast(0f)
+    val orpViewportHeightPx =
+        (rootHeightPx - orpBottomChromeInsetPx.coerceAtLeast(0f))
+            .coerceAtLeast(minimumViewportHeightPx)
+    return orpViewportHeightPx * (ONE_FLOAT + verticalBias) / BIAS_SCALE_FACTOR
 }
 
 internal fun resolveCompactLandscapePreviewBand(
