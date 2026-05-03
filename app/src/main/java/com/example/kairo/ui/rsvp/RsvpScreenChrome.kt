@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -154,9 +155,13 @@ internal fun BoxScope.RsvpTempoIndicator(
     indicatorText: String,
 ) {
     val runtime = context.runtime
+    val configuration = LocalConfiguration.current
+    val compactLandscape =
+        configuration.screenWidthDp > configuration.screenHeightDp &&
+            configuration.screenHeightDp <= 480
 
     AnimatedVisibility(
-        visible = runtime.showTempoIndicator,
+        visible = runtime.showTempoIndicator && !compactLandscape,
         enter = fadeIn(),
         exit = fadeOut(),
         modifier = Modifier.align(Alignment.TopCenter),
@@ -260,6 +265,12 @@ internal fun BoxScope.RsvpPositioningIndicator(context: RsvpUiContext) {
 internal fun BoxScope.RsvpScrubTargetIndicator(context: RsvpUiContext) {
     val runtime = context.runtime
     val frames = context.frameState.frames
+    val configuration = LocalConfiguration.current
+    val compactLandscape =
+        configuration.screenWidthDp > configuration.screenHeightDp &&
+            configuration.screenHeightDp <= 480
+    if (compactLandscape) return
+
     val frameCount = frames.size.coerceAtLeast(1)
     val progressPercent =
         (((runtime.frameIndex + 1).toFloat() / frameCount.toFloat()) * 100f)

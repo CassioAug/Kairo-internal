@@ -8,8 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,7 +54,7 @@ internal fun BoxScope.RsvpBottomControls(
         exit = fadeOut(),
         modifier = Modifier.align(Alignment.BottomCenter),
     ) {
-        Box(
+        BoxWithConstraints(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -62,30 +62,113 @@ internal fun BoxScope.RsvpBottomControls(
                     .padding(CONTROLS_OUTER_PADDING),
             contentAlignment = Alignment.Center,
         ) {
-            Column(
-                modifier =
-                    Modifier
-                        .widthIn(max = CONTROLS_MAX_WIDTH)
-                        .fillMaxWidth(CONTROLS_WIDTH_FRACTION)
-                        .clip(RoundedCornerShape(CONTROLS_CORNER_RADIUS))
-                        .background(
-                            MaterialTheme.colorScheme.surface.copy(alpha = CONTROLS_BACKGROUND_ALPHA),
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = CONTROLS_BORDER_ALPHA),
-                            shape = RoundedCornerShape(CONTROLS_CORNER_RADIUS),
-                        )
-                        .padding(CONTROLS_PADDING),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                RsvpControlsProgress(context)
-                Spacer(modifier = Modifier.height(CONTROLS_SPACER))
-                RsvpPlaybackControlsRow(
+            val compactLandscape = maxWidth > maxHeight && maxHeight <= 480.dp
+            if (compactLandscape) {
+                RsvpCompactBottomControls(
                     context = context,
-                    modifier = controlsModifier,
+                    speedText = speedIndicatorText,
+                    controlsModifier = controlsModifier,
                 )
-                Spacer(modifier = Modifier.height(CONTROLS_SPACER))
+            } else {
+                RsvpDefaultBottomControls(
+                    context = context,
+                    speedText = speedIndicatorText,
+                    controlsModifier = controlsModifier,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RsvpDefaultBottomControls(
+    context: RsvpUiContext,
+    speedText: String,
+    controlsModifier: Modifier,
+) {
+    val runtime = context.runtime
+    Column(
+        modifier =
+            Modifier
+                .widthIn(max = CONTROLS_MAX_WIDTH)
+                .fillMaxWidth(CONTROLS_WIDTH_FRACTION)
+                .clip(RoundedCornerShape(CONTROLS_CORNER_RADIUS))
+                .background(
+                    MaterialTheme.colorScheme.surface.copy(alpha = CONTROLS_BACKGROUND_ALPHA),
+                )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = CONTROLS_BORDER_ALPHA),
+                    shape = RoundedCornerShape(CONTROLS_CORNER_RADIUS),
+                )
+                .padding(CONTROLS_PADDING),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RsvpControlsProgress(context)
+        Spacer(modifier = Modifier.height(CONTROLS_SPACER))
+        RsvpPlaybackControlsRow(
+            context = context,
+            modifier = controlsModifier,
+        )
+        Spacer(modifier = Modifier.height(CONTROLS_SPACER))
+        RsvpPlaybackInfoPills(
+            progressText =
+                stringResource(
+                    R.string.rsvp_frame_progress,
+                    runtime.frameIndex + 1,
+                    context.frameState.frames.size,
+                ),
+            speedText = speedText,
+        )
+        Spacer(modifier = Modifier.height(CONTROLS_HINT_SPACER))
+        Text(
+            stringResource(R.string.rsvp_tap_to_resume),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = RESUME_TEXT_ALPHA),
+        )
+    }
+}
+
+@Composable
+private fun RsvpCompactBottomControls(
+    context: RsvpUiContext,
+    speedText: String,
+    controlsModifier: Modifier,
+) {
+    val runtime = context.runtime
+    Column(
+        modifier =
+            Modifier
+                .widthIn(max = CONTROLS_MAX_WIDTH)
+                .fillMaxWidth(0.88f)
+                .clip(RoundedCornerShape(CONTROLS_CORNER_RADIUS))
+                .background(
+                    MaterialTheme.colorScheme.surface.copy(alpha = CONTROLS_BACKGROUND_ALPHA),
+                )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = CONTROLS_BORDER_ALPHA),
+                    shape = RoundedCornerShape(CONTROLS_CORNER_RADIUS),
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RsvpControlsProgress(context)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RsvpPlaybackControlsRow(
+                context = context,
+                compact = true,
+                modifier = controlsModifier,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 RsvpPlaybackInfoPills(
                     progressText =
                         stringResource(
@@ -93,13 +176,15 @@ internal fun BoxScope.RsvpBottomControls(
                             runtime.frameIndex + 1,
                             context.frameState.frames.size,
                         ),
-                    speedText = speedIndicatorText,
+                    speedText = speedText,
+                    compact = true,
                 )
-                Spacer(modifier = Modifier.height(CONTROLS_HINT_SPACER))
                 Text(
                     stringResource(R.string.rsvp_tap_to_resume),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = RESUME_TEXT_ALPHA),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -110,21 +195,24 @@ internal fun BoxScope.RsvpBottomControls(
 private fun RsvpPlaybackInfoPills(
     progressText: String,
     speedText: String,
+    compact: Boolean = false,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(CONTROLS_INFO_SPACING),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else CONTROLS_INFO_SPACING),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RsvpPlaybackInfoPill(
             label = stringResource(R.string.rsvp_playback_position_label),
             value = progressText,
             modifier = Modifier.weight(1f),
+            compact = compact,
         )
         RsvpPlaybackInfoPill(
             label = stringResource(R.string.rsvp_playback_speed_label),
             value = speedText,
             modifier = Modifier.weight(1f),
+            compact = compact,
         )
     }
 }
@@ -134,6 +222,7 @@ private fun RsvpPlaybackInfoPill(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     Column(
         modifier =
@@ -143,8 +232,18 @@ private fun RsvpPlaybackInfoPill(
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = CONTROLS_PILL_BACKGROUND_ALPHA),
                 )
                 .padding(
-                    horizontal = CONTROLS_INFO_PILL_PADDING_HORIZONTAL,
-                    vertical = CONTROLS_INFO_PILL_PADDING_VERTICAL,
+                    horizontal =
+                        if (compact) {
+                            10.dp
+                        } else {
+                            CONTROLS_INFO_PILL_PADDING_HORIZONTAL
+                        },
+                    vertical =
+                        if (compact) {
+                            6.dp
+                        } else {
+                            CONTROLS_INFO_PILL_PADDING_VERTICAL
+                        },
                 ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -185,12 +284,17 @@ private fun RsvpControlsProgress(context: RsvpUiContext) {
 private fun RsvpPlaybackControlsRow(
     context: RsvpUiContext,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val runtime = context.runtime
+    val rowSpacing = if (compact) 18.dp else CONTROLS_ROW_SPACING
+    val skipIconSize = if (compact) 28.dp else SKIP_ICON_SIZE
+    val playButtonSize = if (compact) 54.dp else PLAY_BUTTON_SIZE
+    val playIconSize = if (compact) 30.dp else PLAY_ICON_SIZE
 
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(CONTROLS_ROW_SPACING),
+        horizontalArrangement = Arrangement.spacedBy(rowSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = {
@@ -201,7 +305,7 @@ private fun RsvpPlaybackControlsRow(
             Icon(
                 Icons.Default.SkipPrevious,
                 contentDescription = stringResource(R.string.content_desc_previous),
-                modifier = Modifier.size(SKIP_ICON_SIZE),
+                modifier = Modifier.size(skipIconSize),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }
@@ -218,7 +322,7 @@ private fun RsvpPlaybackControlsRow(
             },
             modifier =
             Modifier
-                .size(PLAY_BUTTON_SIZE)
+                .size(playButtonSize)
                 .background(MaterialTheme.colorScheme.primary, CircleShape),
         ) {
             Icon(
@@ -231,7 +335,7 @@ private fun RsvpPlaybackControlsRow(
                         R.string.content_desc_play
                     },
                 ),
-                modifier = Modifier.size(PLAY_ICON_SIZE),
+                modifier = Modifier.size(playIconSize),
                 tint = MaterialTheme.colorScheme.onPrimary,
             )
         }
@@ -243,7 +347,7 @@ private fun RsvpPlaybackControlsRow(
             Icon(
                 Icons.Default.SkipNext,
                 contentDescription = stringResource(R.string.content_desc_next),
-                modifier = Modifier.size(SKIP_ICON_SIZE),
+                modifier = Modifier.size(skipIconSize),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }

@@ -59,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -107,12 +108,26 @@ fun LibraryScreen(
         ) { uri: Uri? ->
             uri?.let { onImportFile(it) }
         }
+    val configuration = LocalConfiguration.current
+    val compactLandscape =
+        configuration.screenWidthDp > configuration.screenHeightDp &&
+            configuration.screenHeightDp <= 480
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab.ordinal) }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
     var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
     val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
     val completedBooks = remember(books) { books.filter { it.isCompleted } }
+    val launchBookImport = {
+        filePickerLauncher.launch(
+            arrayOf(
+                "application/epub+zip",
+                "application/x-mobipocket-ebook",
+                "application/octet-stream",
+                "*/*",
+            ),
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -124,21 +139,49 @@ fun LibraryScreen(
                         WindowInsetsSides.Top + WindowInsetsSides.Horizontal
                     )
                 )
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(
+                    horizontal = if (compactLandscape) 12.dp else 16.dp,
+                    vertical = if (compactLandscape) 8.dp else 16.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(if (compactLandscape) 8.dp else 12.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Column {
-                    Text(stringResource(R.string.library_title), style = MaterialTheme.typography.titleLarge)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.library_title),
+                        style =
+                            if (compactLandscape) {
+                                MaterialTheme.typography.titleMedium
+                            } else {
+                                MaterialTheme.typography.titleLarge
+                            },
+                    )
                     Text(
                         stringResource(R.string.library_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                }
+                if (compactLandscape && selectedTab == LibraryTab.Library.ordinal) {
+                    ImportBookButton(
+                        onClick = launchBookImport,
+                        enabled = !importState.isImporting,
+                        compact = true,
+                        modifier =
+                            Modifier.startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
+                                targetId,
+                                bounds,
+                                ->
+                                tutorialTargets[targetId] = bounds
+                            },
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                 }
                 IconButton(
                     onClick = onSettings,
@@ -185,37 +228,26 @@ fun LibraryScreen(
             }
 
             if (selectedTab == LibraryTab.Library.ordinal) {
-                // Import button
-                Button(
-                    onClick = {
-                        filePickerLauncher.launch(
-                            arrayOf(
-                                "application/epub+zip",
-                                "application/x-mobipocket-ebook",
-                                "application/octet-stream",
-                                "*/*",
-                            ),
-                        )
-                    },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
-                                targetId,
-                                bounds,
-                                ->
-                                tutorialTargets[targetId] = bounds
-                            },
-                    enabled = !importState.isImporting,
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.library_import_button))
+                if (!compactLandscape) {
+                    ImportBookButton(
+                        onClick = launchBookImport,
+                        enabled = !importState.isImporting,
+                        compact = false,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
+                                    targetId,
+                                    bounds,
+                                    ->
+                                    tutorialTargets[targetId] = bounds
+                                },
+                    )
                 }
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compactLandscape) 6.dp else 8.dp),
                 ) {
                     items(libraryBooks, key = { it.id.value }) { book ->
                         LibraryCard(
@@ -224,6 +256,7 @@ fun LibraryScreen(
                             onOpen = onOpen,
                             onSetCompleted = onSetCompleted,
                             onRequestDelete = { pendingDeleteBook = it },
+                            compactLandscape = compactLandscape,
                         )
                     }
                 }
@@ -242,7 +275,7 @@ fun LibraryScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (compactLandscape) 6.dp else 8.dp),
                     ) {
                         items(completedBooks, key = { it.id.value }) { book ->
                             LibraryCard(
@@ -251,6 +284,7 @@ fun LibraryScreen(
                                 onOpen = onOpen,
                                 onSetCompleted = onSetCompleted,
                                 onRequestDelete = { pendingDeleteBook = it },
+                                compactLandscape = compactLandscape,
                             )
                         }
                     }
@@ -380,12 +414,39 @@ fun LibraryScreen(
 enum class LibraryTab { Library, Completed, Bookmarks }
 
 @Composable
+private fun ImportBookButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+    ) {
+        Icon(
+            Icons.Default.Add,
+            contentDescription = null,
+            modifier = Modifier.size(if (compact) 18.dp else 24.dp),
+        )
+        Spacer(modifier = Modifier.width(if (compact) 6.dp else 8.dp))
+        Text(
+            stringResource(R.string.library_import_button),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
 private fun LibraryCard(
     book: Book,
     progress: LibraryBookProgress?,
     onOpen: (Book) -> Unit,
     onSetCompleted: (Book, Boolean) -> Unit,
     onRequestDelete: (Book) -> Unit,
+    compactLandscape: Boolean = false,
 ) {
     val context = LocalContext.current
     val authorSeparator = stringResource(R.string.list_separator)
@@ -410,8 +471,8 @@ private fun LibraryCard(
             modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(if (compactLandscape) 8.dp else 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compactLandscape) 10.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Book cover or placeholder
@@ -419,19 +480,23 @@ private fun LibraryCard(
                 coverImage = book.coverImage,
                 title = book.title,
                 cacheKey = book.id.value,
-                modifier = Modifier.size(width = 60.dp, height = 90.dp),
+                modifier =
+                    Modifier.size(
+                        width = if (compactLandscape) 48.dp else 60.dp,
+                        height = if (compactLandscape) 72.dp else 90.dp,
+                    ),
             )
 
             // Book info
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compactLandscape) 2.dp else 4.dp),
             ) {
                 Text(
                     text = book.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    maxLines = if (compactLandscape) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (book.authors.isNotEmpty()) {
@@ -478,6 +543,8 @@ private fun LibraryCard(
                         text = label,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 if (book.isCompleted) {

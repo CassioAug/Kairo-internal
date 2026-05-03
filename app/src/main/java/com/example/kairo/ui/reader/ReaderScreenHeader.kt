@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +53,7 @@ internal fun ReaderHeader(
     onNext: () -> Unit,
     onShowMenu: () -> Unit,
     compactMode: Boolean,
+    landscapeCompact: Boolean,
     detailsExpanded: Boolean,
     onToggleDetails: () -> Unit,
     pageLabel: String?,
@@ -66,7 +68,9 @@ internal fun ReaderHeader(
         remember(book.chapters, chapterIndex) {
             resolveReaderChapterProgress(book.chapters, chapterIndex)
         }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    val compressedChrome = compactMode || landscapeCompact
+    val iconButtonSize = if (landscapeCompact) 40.dp else 48.dp
+    Column(verticalArrangement = Arrangement.spacedBy(if (landscapeCompact) 6.dp else 10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -79,7 +83,7 @@ internal fun ReaderHeader(
                 Text(
                     text = book.title,
                     style =
-                    if (compactMode) {
+                    if (compressedChrome) {
                         MaterialTheme.typography.titleSmall
                     } else {
                         MaterialTheme.typography.titleMedium
@@ -95,7 +99,12 @@ internal fun ReaderHeader(
                             R.string.reader_chapter_title,
                             chapterIndex + 1,
                         ),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style =
+                        if (landscapeCompact) {
+                            MaterialTheme.typography.bodySmall
+                        } else {
+                            MaterialTheme.typography.bodyMedium
+                        },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -106,7 +115,11 @@ internal fun ReaderHeader(
                     modifier = navigationModifier,
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    IconButton(onClick = onPrev, enabled = canGoPrev) {
+                    IconButton(
+                        onClick = onPrev,
+                        enabled = canGoPrev,
+                        modifier = Modifier.size(iconButtonSize),
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.content_desc_previous_page),
@@ -118,7 +131,11 @@ internal fun ReaderHeader(
                             },
                         )
                     }
-                    IconButton(onClick = onNext, enabled = canGoNext) {
+                    IconButton(
+                        onClick = onNext,
+                        enabled = canGoNext,
+                        modifier = Modifier.size(iconButtonSize),
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = stringResource(R.string.content_desc_next_page),
@@ -131,7 +148,10 @@ internal fun ReaderHeader(
                         )
                     }
                 }
-                IconButton(onClick = onToggleDetails) {
+                IconButton(
+                    onClick = onToggleDetails,
+                    modifier = Modifier.size(iconButtonSize),
+                ) {
                     Icon(
                         imageVector =
                         if (detailsExpanded) {
@@ -143,7 +163,10 @@ internal fun ReaderHeader(
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
-                IconButton(onClick = onShowMenu, modifier = menuModifier) {
+                IconButton(
+                    onClick = onShowMenu,
+                    modifier = menuModifier.size(iconButtonSize),
+                ) {
                     Icon(
                         Icons.Default.Settings,
                         contentDescription = stringResource(R.string.content_desc_reader_menu),
@@ -154,21 +177,95 @@ internal fun ReaderHeader(
         }
 
         AnimatedVisibility(visible = detailsExpanded) {
-            ReaderHeaderDetails(
-                book = book,
-                coverImage = coverImage,
-                chapterProgressLabel =
-                    stringResource(
-                        R.string.reader_chapter_of_total,
-                        chapterProgress.currentNumber,
-                        chapterProgress.totalNumber,
-                    ),
-                pageLabel = pageLabel,
-                progressPercent = progressPercent,
-                progressFraction = progressFraction,
-                etaLabel = etaLabel,
-                context = context,
-            )
+            val chapterProgressLabel =
+                stringResource(
+                    R.string.reader_chapter_of_total,
+                    chapterProgress.currentNumber,
+                    chapterProgress.totalNumber,
+                )
+            if (landscapeCompact) {
+                ReaderHeaderDetailsCompact(
+                    chapterProgressLabel = chapterProgressLabel,
+                    pageLabel = pageLabel,
+                    progressPercent = progressPercent,
+                    progressFraction = progressFraction,
+                    etaLabel = etaLabel,
+                )
+            } else {
+                ReaderHeaderDetails(
+                    book = book,
+                    coverImage = coverImage,
+                    chapterProgressLabel = chapterProgressLabel,
+                    pageLabel = pageLabel,
+                    progressPercent = progressPercent,
+                    progressFraction = progressFraction,
+                    etaLabel = etaLabel,
+                    context = context,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReaderHeaderDetailsCompact(
+    chapterProgressLabel: String,
+    pageLabel: String?,
+    progressPercent: Int?,
+    progressFraction: Float,
+    etaLabel: String?,
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = chapterProgressLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                LinearProgressIndicator(
+                    progress = { progressFraction },
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(999.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                )
+                pageLabel?.let {
+                    ReaderMetaPill(text = it)
+                }
+                progressPercent?.let {
+                    ReaderMetaPill(text = stringResource(R.string.format_percent, it))
+                }
+            }
+            etaLabel?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
