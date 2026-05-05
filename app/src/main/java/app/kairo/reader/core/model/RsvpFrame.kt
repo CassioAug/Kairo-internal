@@ -8,4 +8,6 @@ data class RsvpFrame(
     val originalTokenIndex: Int = 0,
     // Cursor into the expanded RSVP token stream for exact frame/chunk resume
     val resumeCursor: Int = originalTokenIndex,
+    // First original token index after this frame's consumed reading unit.
+    val nextOriginalTokenIndex: Int = originalTokenIndex + 1,
 )

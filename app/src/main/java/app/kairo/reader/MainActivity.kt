@@ -182,6 +182,34 @@ private data class StartingTutorialLaunchContext(
     val tokenIndex: Int,
 )
 
+private object RsvpLaunchSnapshotStore {
+    private data class Snapshot(
+        val bookId: String,
+        val chapterIndex: Int,
+        val tokens: List<Token>,
+    )
+
+    private var snapshot: Snapshot? = null
+
+    fun put(
+        bookId: String,
+        chapterIndex: Int,
+        tokens: List<Token>,
+    ) {
+        if (tokens.isEmpty()) return
+        snapshot = Snapshot(bookId = bookId, chapterIndex = chapterIndex, tokens = tokens)
+    }
+
+    fun tokensFor(
+        bookId: String,
+        chapterIndex: Int,
+    ): List<Token> =
+        snapshot
+            ?.takeIf { it.bookId == bookId && it.chapterIndex == chapterIndex }
+            ?.tokens
+            .orEmpty()
+}
+
 private fun buildRsvpRoute(
     bookId: String,
     chapterIndex: Int,
@@ -892,14 +920,23 @@ private fun KairoNavHost(
                     fallbackEstimatedWpm = estimatedWpm,
                     dispatcherProvider = dispatcherProvider,
                 )
-            LaunchedEffect(uiState.chapterIndex, uiState.chapterData, resolvedRsvpConfig) {
+            LaunchedEffect(
+                uiState.chapterIndex,
+                uiState.chapterData,
+                uiState.focusIndex,
+                resolvedRsvpConfig,
+            ) {
                 if (!hasInitialized) return@LaunchedEffect
                 val chapterData = uiState.chapterData ?: return@LaunchedEffect
                 if (chapterData.tokens.isEmpty()) return@LaunchedEffect
+                val safeStartIndex =
+                    chapterData.tokens.nearestWordIndex(uiState.focusIndex)
+                        .coerceIn(0, chapterData.tokens.lastIndex)
                 container.rsvpFrameRepository.prefetchFrames(
                     BookId(bookId),
                     uiState.chapterIndex,
                     resolvedRsvpConfig,
+                    startIndex = safeStartIndex,
                 )
             }
 
@@ -1031,6 +1068,11 @@ private fun KairoNavHost(
                     }
                 },
                 onStartRsvp = { start ->
+                    RsvpLaunchSnapshotStore.put(
+                        bookId = bookId,
+                        chapterIndex = uiState.chapterIndex,
+                        tokens = uiState.chapterData?.tokens.orEmpty(),
+                    )
                     val wordIndex =
                         resolveWordIndex(uiState.chapterData?.wordCountByToken, start)
                     lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
@@ -1268,14 +1310,23 @@ private fun KairoNavHost(
                     fallbackEstimatedWpm = estimatedWpm,
                     dispatcherProvider = dispatcherProvider,
                 )
-            LaunchedEffect(uiState.chapterIndex, uiState.chapterData, resolvedRsvpConfig) {
+            LaunchedEffect(
+                uiState.chapterIndex,
+                uiState.chapterData,
+                uiState.focusIndex,
+                resolvedRsvpConfig,
+            ) {
                 if (!hasInitialized) return@LaunchedEffect
                 val chapterData = uiState.chapterData ?: return@LaunchedEffect
                 if (chapterData.tokens.isEmpty()) return@LaunchedEffect
+                val safeStartIndex =
+                    chapterData.tokens.nearestWordIndex(uiState.focusIndex)
+                        .coerceIn(0, chapterData.tokens.lastIndex)
                 container.rsvpFrameRepository.prefetchFrames(
                     BookId(bookId),
                     uiState.chapterIndex,
                     resolvedRsvpConfig,
+                    startIndex = safeStartIndex,
                 )
             }
 
@@ -1406,6 +1457,11 @@ private fun KairoNavHost(
                     }
                 },
                 onStartRsvp = { start ->
+                    RsvpLaunchSnapshotStore.put(
+                        bookId = bookId,
+                        chapterIndex = uiState.chapterIndex,
+                        tokens = uiState.chapterData?.tokens.orEmpty(),
+                    )
                     val wordIndex =
                         resolveWordIndex(uiState.chapterData?.wordCountByToken, start)
                     lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
@@ -1465,16 +1521,23 @@ private fun KairoNavHost(
             val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
             val chapterIndex = backStackEntry.arguments?.getInt("chapterIndex") ?: 0
             val startIndex = backStackEntry.arguments?.getInt("tokenIndex") ?: 0
+            val launchSnapshotTokens =
+                remember(bookId, chapterIndex) {
+                    RsvpLaunchSnapshotStore.tokensFor(bookId, chapterIndex)
+                }
             val tokensState =
                 produceState(
-                    initialValue = emptyList(),
+                    initialValue = launchSnapshotTokens,
                     bookId,
                     chapterIndex,
                 ) {
-                    value =
+                    val loadedTokens =
                         runCatching {
                             container.tokenRepository.getTokens(BookId(bookId), chapterIndex)
                         }.getOrElse { emptyList() }
+                    if (loadedTokens.isNotEmpty() || value.isEmpty()) {
+                        value = loadedTokens
+                    }
                 }
             val tokens = tokensState.value
             val wordCountByToken = remember(tokens) { buildWordCountByToken(tokens) }

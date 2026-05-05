@@ -145,6 +145,7 @@ class BookRepositoryImpl(
 
     private fun optimizeCoverForDb(coverImage: ByteArray?): ByteArray? {
         if (coverImage == null || coverImage.isEmpty()) return coverImage
+        if (coverImage.size <= MAX_COVER_DB_BYTES) return coverImage
 
         val safeFallback =
             coverImage.takeIf { it.size <= MAX_COVER_DB_BYTES }

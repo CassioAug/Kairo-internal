@@ -14,10 +14,10 @@ import org.junit.Test
 
 class RsvpPlaybackStateTest {
     @Test
-    fun frameLoadConfigKeyTracksTempoAndOtherConfigChanges() {
+    fun frameLoadConfigKeyIgnoresTempoButTracksFrameAffectingChanges() {
         val baseConfig = RsvpConfig(tempoMsPerWord = 120L, baseWpm = 500, commaPauseMs = 95L)
 
-        assertNotEquals(
+        assertEquals(
             frameLoadConfigKey(baseConfig),
             frameLoadConfigKey(baseConfig.copy(tempoMsPerWord = 180L, baseWpm = 333)),
         )
@@ -88,6 +88,105 @@ class RsvpPlaybackStateTest {
         assertEquals(2, finishedPoint.tokenIndex)
         assertEquals(-1, finishedPoint.resumeCursor)
         assertEquals(0, finishedPoint.chapterIndex)
+    }
+
+    @Test
+    fun completePlaybackUsesNextOriginalIndexForPhraseFrames() {
+        var finishedPoint = RsvpResumePoint(tokenIndex = -1, resumeCursor = -1)
+        val context =
+            createContext(
+                frames = listOf(
+                    RsvpFrame(
+                        tokens =
+                            listOf(
+                                Token(text = "in", type = TokenType.WORD),
+                                Token(text = "the", type = TokenType.WORD),
+                                Token(text = "house", type = TokenType.WORD),
+                            ),
+                        durationMs = 240L,
+                        originalTokenIndex = 2,
+                        nextOriginalTokenIndex = 5,
+                    ),
+                ),
+                tokens = listOf(
+                    Token(text = "before", type = TokenType.WORD),
+                    Token(text = "then", type = TokenType.WORD),
+                    Token(text = "in", type = TokenType.WORD),
+                    Token(text = "the", type = TokenType.WORD),
+                    Token(text = "house", type = TokenType.WORD),
+                    Token(text = "after", type = TokenType.WORD),
+                ),
+                onFinished = { finishedPoint = it },
+            )
+
+        completePlayback(context)
+
+        assertEquals(5, finishedPoint.tokenIndex)
+    }
+
+    @Test
+    fun previewFrameBoundaryDoesNotCompleteWhileFullFramesLoad() {
+        val context =
+            createContext(
+                frames = listOf(
+                    RsvpFrame(
+                        tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
+                        durationMs = 120L,
+                        originalTokenIndex = 0,
+                    ),
+                ),
+                isLoading = true,
+            )
+
+        assertFalse(shouldCompleteAtLoadedFrameBoundary(context))
+    }
+
+    @Test
+    fun loadingBoundaryKeepsPlaybackPositionMovingForward() {
+        val context =
+            createContext(
+                frames = listOf(
+                    RsvpFrame(
+                        tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
+                        durationMs = 120L,
+                        originalTokenIndex = 0,
+                        nextOriginalTokenIndex = 3,
+                    ),
+                ),
+                isLoading = true,
+            )
+        context.runtime.scheduledFrameIndex = 0
+        context.runtime.nextFrameAtMs = 123L
+
+        holdAtLoadingFrameBoundary(context)
+
+        assertEquals(3, context.runtime.currentTokenIndex)
+        assertEquals(-1, context.runtime.currentResumeCursor)
+        assertEquals(-1, context.runtime.scheduledFrameIndex)
+        assertEquals(0L, context.runtime.nextFrameAtMs)
+    }
+
+    @Test
+    fun finalFrameBoundaryCompletesAfterFullFramesLoad() {
+        val context =
+            createContext(
+                frames = listOf(
+                    RsvpFrame(
+                        tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
+                        durationMs = 120L,
+                        originalTokenIndex = 0,
+                    ),
+                ),
+                isLoading = false,
+            )
+
+        assertTrue(shouldCompleteAtLoadedFrameBoundary(context))
+    }
+
+    @Test
+    fun effectivePlaybackTempoUsesLoadedFrameBaseTempo() {
+        assertEquals(60L, effectivePlaybackTempoMs(baseTempoMs = 120L, tempoScale = 0.5))
+        assertEquals(180L, effectivePlaybackTempoMs(baseTempoMs = 120L, tempoScale = 1.5))
     }
 
     @Test
@@ -201,6 +300,7 @@ class RsvpPlaybackStateTest {
     private fun createContext(
         frames: List<RsvpFrame> = emptyList(),
         tokens: List<Token> = listOf(Token(text = "Hello", type = TokenType.WORD)),
+        isLoading: Boolean = false,
         onFinished: (RsvpResumePoint) -> Unit = {},
         onVerticalBiasChange: (Float) -> Unit = {},
         onHorizontalBiasChange: (Float) -> Unit = {},
@@ -266,7 +366,12 @@ class RsvpPlaybackStateTest {
             state = state,
             callbacks = callbacks,
             runtime = runtime,
-            frameState = RsvpFrameLoadState(frames = frames, baseTempoMs = RsvpConfig().tempoMsPerWord, isLoading = false),
+            frameState =
+                RsvpFrameLoadState(
+                    frames = frames,
+                    baseTempoMs = RsvpConfig().tempoMsPerWord,
+                    isLoading = isLoading,
+                ),
             timing = RsvpTimingInfo(minTempoMs = 1L, maxTempoMs = 1000L, tempoScale = 1.0),
         )
     }

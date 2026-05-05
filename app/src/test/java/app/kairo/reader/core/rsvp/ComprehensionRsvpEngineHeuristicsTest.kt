@@ -594,6 +594,22 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun phraseChunkingRecordsNextOriginalTokenIndex() {
+        val config =
+            stableConfig.copy(
+                enablePhraseChunking = true,
+                maxWordsPerUnit = 3,
+                maxCharsPerUnit = 24,
+            )
+        val tokens = listOf(w("in"), w("the"), w("house"), w("today"))
+
+        val firstFrame = engine.generateFrames(tokens, 0, config).first()
+
+        assertEquals(0, firstFrame.originalTokenIndex)
+        assertEquals(3, firstFrame.nextOriginalTokenIndex)
+    }
+
+    @Test
     fun negativeSessionRampValuesDoNotShortenFrames() {
         val baseline =
             engine.generateFrames(

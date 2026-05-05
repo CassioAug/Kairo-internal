@@ -112,7 +112,7 @@ internal fun completePlayback(context: RsvpUiContext) {
     val frames = context.frameState.frames
     val fallbackIndex = context.state.book.startIndex
     val completedFrame = frames.getOrNull(runtime.frameIndex)
-    val rawNextIndex = ((completedFrame?.originalTokenIndex ?: fallbackIndex) + 1).coerceAtLeast(0)
+    val rawNextIndex = (completedFrame?.nextOriginalTokenIndex ?: (fallbackIndex + 1)).coerceAtLeast(0)
 
     runtime.isPlaying = false
     runtime.completed = true

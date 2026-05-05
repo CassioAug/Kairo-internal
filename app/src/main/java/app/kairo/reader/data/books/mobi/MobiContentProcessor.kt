@@ -6,6 +6,16 @@ internal class MobiContentProcessor {
     private val pageBreakMarker = "\u000C"
     private val fileLabelWithNumberRegex = Regex("(?i)^(part|chapter|section|book)(0*)(\\d{1,6})$")
     private val genericFileLabelRegex = Regex("(?i)^[a-z]{2,}\\d{3,}$")
+    private val pageBreakClassSelfClosingRegex =
+        Regex(
+            """<[^>]+\bclass\s*=\s*(['"])([^'"]*)\1[^>]*/>""",
+            RegexOption.IGNORE_CASE,
+        )
+    private val pageBreakClassClosedRegex =
+        Regex(
+            """<([a-zA-Z0-9:._-]+)\b[^>]*\bclass\s*=\s*(['"])([^'"]*)\2[^>]*>[\s\S]*?</\s*\1\s*>""",
+            RegexOption.IGNORE_CASE,
+        )
 
     fun extractHtml(
         data: ByteArray,
@@ -617,7 +627,7 @@ internal class MobiContentProcessor {
     }
 
     private fun cleanMobiHtml(html: String): String =
-        html.replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "")
+        html.replace(Regex("[\\x00-\\x08\\x0B\\x0E-\\x1F]"), "")
 
     private fun looksLikeHtml(text: String): Boolean =
         text.contains("<p", true) ||
@@ -688,34 +698,41 @@ internal class MobiContentProcessor {
         return result
     }
 
-    private fun normalizePageBreakElements(html: String): String =
-        html
-            .replace(
-                Regex(
-                    """<\s*mbp:pagebreak\b[^>]*/>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            ).replace(
-                Regex(
-                    """<\s*mbp:pagebreak\b[^>]*>[\s\S]*?</\s*mbp:pagebreak\s*>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            ).replace(
-                Regex(
-                    """<[^>]+\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*/>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            )
-            .replace(
-                Regex(
-                    """<([a-zA-Z0-9:._-]+)\b[^>]*\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*>[\s\S]*?</\1>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            )
+    private fun normalizePageBreakElements(html: String): String {
+        val withMbpMarkers =
+            html
+                .replace(
+                    Regex(
+                        """<\s*mbp:pagebreak\b[^>]*/>""",
+                        RegexOption.IGNORE_CASE,
+                    ),
+                    pageBreakMarker,
+                ).replace(
+                    Regex(
+                        """<\s*mbp:pagebreak\b[^>]*>[\s\S]*?</\s*mbp:pagebreak\s*>""",
+                        RegexOption.IGNORE_CASE,
+                    ),
+                    pageBreakMarker,
+                )
+
+        return pageBreakClassSelfClosingRegex
+            .replace(withMbpMarkers) { match ->
+                if (hasPageBreakClass(match.groupValues[2])) pageBreakMarker else match.value
+            }.let { normalizedSelfClosing ->
+                pageBreakClassClosedRegex.replace(normalizedSelfClosing) { match ->
+                    if (hasPageBreakClass(match.groupValues[3])) pageBreakMarker else match.value
+                }
+            }
+    }
+
+    private fun hasPageBreakClass(classValue: String): Boolean =
+        classValue
+            .trim()
+            .split(Regex("\\s+"))
+            .any { className ->
+                className.equals("pagebreak", ignoreCase = true) ||
+                    className.equals("page-break", ignoreCase = true)
+            }
 
     private fun isLikelyFileLabel(text: String): Boolean {
         val normalized = text.trim().lowercase().substringBeforeLast('.', "")
