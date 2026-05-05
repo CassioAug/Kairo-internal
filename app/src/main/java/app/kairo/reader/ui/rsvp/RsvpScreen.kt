@@ -331,7 +331,6 @@ private fun rememberFrameLoadState(
         book.bookId,
         book.chapterIndex,
         book.startIndex,
-        loadConfigKey,
         instantFrameTokenCount,
     ) {
         mutableStateOf(buildInstantFrameSet(book, profile.config))
@@ -459,8 +458,8 @@ private fun rememberTempoScale(
 private fun shouldShowLoading(frameState: RsvpFrameLoadState): Boolean =
     frameState.isLoading && frameState.frames.isEmpty()
 
-private fun buildSessionKey(book: RsvpBookContext): String =
-    "${book.bookId.value}:${book.chapterIndex}:${book.startIndex}:${book.startResumeCursor}"
+internal fun buildSessionKey(book: RsvpBookContext): String =
+    "${book.bookId.value}:${book.chapterIndex}:${book.startIndex}"
 
 private fun buildAppearanceFingerprint(
     textStyle: RsvpTextStyle,

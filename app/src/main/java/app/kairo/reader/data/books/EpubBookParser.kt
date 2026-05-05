@@ -130,6 +130,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
         // Noise title block pattern
         private val BLOCK_ELEMENT_REGEX = Regex("(?is)<(h[1-6]|p|div)[^>]*>([\\s\\S]*?)</\\1>")
+        private val HEADING_BLOCK_ELEMENT_REGEX = Regex("(?is)<h[1-6][^>]*>([\\s\\S]*?)</h[1-6]>")
+        private val PARAGRAPH_BLOCK_ELEMENT_REGEX = Regex("(?is)<p[^>]*>([\\s\\S]*?)</p>")
+        private val DIV_BLOCK_ELEMENT_REGEX = Regex("(?is)<div[^>]*>([\\s\\S]*?)</div>")
     }
 
     private val markupParser = EpubMarkupParser()
@@ -726,19 +729,23 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     baseDir = chapterDir,
                     imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
                 )
-                val cleanedHtml = stripNoiseTitleBlocks(resolvedHtml)
-                val plainText =
-                    if (cleanedHtml == resolvedHtml) {
-                        extractPlainText(originalDocument)
-                    } else {
-                        extractPlainText(cleanedHtml)
-                    }
                 val rawTitle = extractChapterTitle(originalDocument)
                 val fileTitle =
                     pathLower
                         .substringAfterLast('/', pathLower)
                         .substringBeforeLast('.')
                 val title = sanitizeChapterTitle(rawTitle ?: fileTitle)
+                val cleanedHtml =
+                    stripLeadingDuplicateTitleBlock(
+                        html = stripNoiseTitleBlocks(resolvedHtml),
+                        title = title,
+                    )
+                val plainText =
+                    if (cleanedHtml == resolvedHtml) {
+                        extractPlainText(originalDocument)
+                    } else {
+                        extractPlainText(cleanedHtml)
+                    }
 
                 if (plainText.isBlank() && imagePaths.isEmpty()) {
                     return@mapNotNull null
@@ -1159,12 +1166,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         repeat(2) {
             val match = BLOCK_ELEMENT_REGEX.find(result) ?: return@repeat
             val leading = result.take(match.range.first)
-            if (leading.any { !it.isWhitespace() }) return@repeat
+            if (visibleText(leading).isNotBlank()) return@repeat
             val inner = match.groupValues[2]
-            val text =
-                decodeHtmlEntities(inner.replace(ALL_TAGS_REGEX, " "))
-                    .replace(WHITESPACE_REGEX, " ")
-                    .trim()
+            val text = visibleText(inner)
             if (text.length <= MAX_NOISE_TITLE_LENGTH && isLikelyFileLabel(text)) {
                 result = result.removeRange(match.range.first, match.range.last + 1)
             } else {
@@ -1173,6 +1177,45 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         }
         return result
     }
+
+    private fun stripLeadingDuplicateTitleBlock(
+        html: String,
+        title: String?,
+    ): String {
+        if (html.isBlank()) return html
+        val normalizedTitle = normalizeTitleForComparison(title ?: return html)
+        if (normalizedTitle.isBlank()) return html
+
+        return stripMatchingLeadingBlock(html, HEADING_BLOCK_ELEMENT_REGEX, normalizedTitle)
+            ?: stripMatchingLeadingBlock(html, PARAGRAPH_BLOCK_ELEMENT_REGEX, normalizedTitle)
+            ?: stripMatchingLeadingBlock(html, DIV_BLOCK_ELEMENT_REGEX, normalizedTitle)
+            ?: html
+    }
+
+    private fun stripMatchingLeadingBlock(
+        html: String,
+        blockRegex: Regex,
+        normalizedTitle: String,
+    ): String? {
+        val match = blockRegex.find(html) ?: return null
+        val leading = html.take(match.range.first)
+        if (visibleText(leading).isNotBlank()) return null
+        val blockText = visibleText(match.groupValues[1])
+        if (normalizeTitleForComparison(blockText) != normalizedTitle) return null
+        return html.removeRange(match.range.first, match.range.last + 1)
+    }
+
+    private fun visibleText(htmlFragment: String): String =
+        decodeHtmlEntities(htmlFragment.replace(ALL_TAGS_REGEX, " "))
+            .replace(WHITESPACE_REGEX, " ")
+            .trim()
+
+    private fun normalizeTitleForComparison(text: String): String =
+        visibleText(text)
+            .lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .replace(WHITESPACE_REGEX, " ")
+            .trim()
 
     private fun isLikelyFileLabel(text: String): Boolean {
         val normalized = normalizeNoiseLabel(text)

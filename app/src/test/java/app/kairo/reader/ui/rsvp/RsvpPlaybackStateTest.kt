@@ -190,6 +190,23 @@ class RsvpPlaybackStateTest {
     }
 
     @Test
+    fun sessionKeyDoesNotChangeWhenResumeCursorArrivesLater() {
+        val base =
+            RsvpBookContext(
+                bookId = BookId("book"),
+                chapterIndex = 2,
+                tokens = emptyList(),
+                startIndex = 42,
+                startResumeCursor = -1,
+            )
+
+        assertEquals(
+            buildSessionKey(base),
+            buildSessionKey(base.copy(startResumeCursor = 99)),
+        )
+    }
+
+    @Test
     fun finishPositioningPersistsBothBiasAxes() {
         var savedVerticalBias = 0f
         var savedHorizontalBias = 0f
