@@ -190,6 +190,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
                         durationMs = durationMs,
                         originalTokenIndex = expanded[cursor].originalIndex,
                         resumeCursor = expanded[cursor].expandedIndex,
+                        nextOriginalTokenIndex = expanded[nextWordCursor].originalIndex,
                     )
                 rhythm.reset()
                 flow.reset()
@@ -217,6 +218,13 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 findFirstWordCursor(expanded, nextCursor)
             )?.token
             cursor = nextCursor
+            val nextFrameWordCursor = findFirstWordCursor(expanded, cursor)
+            val frameNextOriginalIndex =
+                if (nextFrameWordCursor < expanded.size) {
+                    expanded[nextFrameWordCursor].originalIndex
+                } else {
+                    tokens.size
+                }
 
             val contourWord = expanded[wordCursor].token
             val focalSuppression =
@@ -262,6 +270,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
                     durationMs = durationMs,
                     originalTokenIndex = frameOriginalIndex,
                     resumeCursor = expanded[frameStartCursor].expandedIndex,
+                    nextOriginalTokenIndex = frameNextOriginalIndex,
                 )
 
             while (cursor < expanded.size &&
@@ -2331,6 +2340,7 @@ class ComprehensionRsvpEngine : RsvpEngine {
                             durationMs = blinkMs,
                             originalTokenIndex = frame.originalTokenIndex,
                             resumeCursor = frame.resumeCursor,
+                            nextOriginalTokenIndex = frame.nextOriginalTokenIndex,
                         )
                     continue
                 }

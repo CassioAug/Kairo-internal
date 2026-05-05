@@ -33,6 +33,7 @@ internal object EpubMarkupInspector {
         )
 
     private val SKIP_TEXT_TAGS = setOf("script", "style", "noscript")
+    private val PLAIN_TEXT_SKIP_TAGS = SKIP_TEXT_TAGS + setOf("head", "title", "meta", "link")
     private val PAGE_BREAK_CLASS_TOKENS = setOf("pagebreak", "page-break")
     private val PAGE_BREAK_TYPES = setOf("pagebreak", "doc-pagebreak")
     private const val PAGE_BREAK_MARKER = '\u000C'
@@ -163,7 +164,7 @@ internal object EpubMarkupInspector {
         when (node) {
             is EpubMarkupTextNode -> out.append(node.text)
             is EpubMarkupElementNode -> {
-                if (SKIP_TEXT_TAGS.contains(node.name)) return
+                if (PLAIN_TEXT_SKIP_TAGS.contains(node.name)) return
                 if (isPageBreakNode(node)) {
                     appendPageBreak(out)
                     return

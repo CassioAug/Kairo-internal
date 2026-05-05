@@ -1,5 +1,6 @@
 package app.kairo.reader.data.books
 
+import app.kairo.reader.core.model.Chapter
 import app.kairo.reader.data.books.epub.EpubOpfParser
 import app.kairo.reader.data.books.epub.EpubPathResolver
 import org.junit.Assert.assertEquals
@@ -46,6 +47,21 @@ class EpubBookParserTest {
         val text: String = parser.callPrivate("extractPlainText", html)
 
         assertTrue(text.contains("Start\u000C end."))
+    }
+
+    @Test
+    fun extractPlainTextSkipsHeadTitleMetadata() {
+        val html =
+            """
+            <html>
+                <head><title>Chapter 1</title></head>
+                <body><p>Opening line.</p></body>
+            </html>
+            """.trimIndent()
+
+        val text: String = parser.callPrivate("extractPlainText", html)
+
+        assertEquals("Opening line.", text)
     }
 
     @Test
@@ -430,6 +446,53 @@ class EpubBookParserTest {
             ),
             orderedPaths,
         )
+    }
+
+    @Test
+    fun buildFallbackChaptersRemovesLeadingDuplicateTitleHeading() {
+        val entries =
+            linkedMapOf(
+                "oebps/chapter1.xhtml" to
+                    """
+                    <html>
+                        <body>
+                            <div class="chapter">
+                                <h1>Chapter 1</h1>
+                                <p>Opening line.</p>
+                            </div>
+                        </body>
+                    </html>
+                    """.trimIndent().toByteArray(),
+            )
+
+        val chapter = parsedChapter(invokeBuildFallbackChapters(entries, emptyMap()).single())
+
+        assertEquals("Chapter 1", chapter.title)
+        assertEquals("Opening line.", chapter.plainText)
+        assertFalse(chapter.htmlContent.contains("Chapter 1"))
+    }
+
+    @Test
+    fun buildFallbackChaptersRemovesMetadataTitleRepeatedInBody() {
+        val entries =
+            linkedMapOf(
+                "oebps/preface.xhtml" to
+                    """
+                    <html>
+                        <head><title>Preface</title></head>
+                        <body>
+                            <h2>Preface</h2>
+                            <p>Before the story.</p>
+                        </body>
+                    </html>
+                    """.trimIndent().toByteArray(),
+            )
+
+        val chapter = parsedChapter(invokeBuildFallbackChapters(entries, emptyMap()).single())
+
+        assertEquals("Preface", chapter.title)
+        assertEquals("Before the story.", chapter.plainText)
+        assertFalse(chapter.htmlContent.contains("Preface</h2>"))
     }
 
     @Test
@@ -1062,6 +1125,12 @@ class EpubBookParserTest {
         val field = parsedChapter.javaClass.getDeclaredField("pathLower")
         field.isAccessible = true
         return field.get(parsedChapter) as String
+    }
+
+    private fun parsedChapter(parsedChapter: Any): Chapter {
+        val field = parsedChapter.javaClass.getDeclaredField("chapter")
+        field.isAccessible = true
+        return field.get(parsedChapter) as Chapter
     }
 
     private fun invokeResolveChapterPathsForReadingOrder(

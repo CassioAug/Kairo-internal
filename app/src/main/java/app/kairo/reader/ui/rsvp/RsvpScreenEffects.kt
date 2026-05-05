@@ -117,10 +117,18 @@ internal fun RsvpPlaybackLoopEffect(
         if (!runtime.isPlaying || runtime.completed) return@LaunchedEffect
         if (runtime.frameIndex >= frames.size) return@LaunchedEffect
         val frame = frames[runtime.frameIndex]
-        val effectiveTempoMs = (config.tempoMsPerWord * tempoScale).roundToLong()
+        val effectiveTempoMs =
+            effectivePlaybackTempoMs(
+                baseTempoMs = context.frameState.baseTempoMs,
+                tempoScale = tempoScale,
+            )
         if (shouldSkipBlinkFrame(frame, config, effectiveTempoMs, tempoScale)) {
             if (runtime.frameIndex >= frames.lastIndex) {
-                completePlayback(context)
+                if (shouldCompleteAtLoadedFrameBoundary(context)) {
+                    completePlayback(context)
+                } else {
+                    holdAtLoadingFrameBoundary(context)
+                }
             } else {
                 runtime.frameIndex += 1
             }
@@ -173,11 +181,39 @@ internal fun RsvpPlaybackLoopEffect(
         val delayMs = (targetMs - now).coerceAtLeast(MIN_FRAME_DELAY_MS)
         delay(delayMs)
         if (runtime.frameIndex == frames.lastIndex) {
-            completePlayback(context)
+            if (shouldCompleteAtLoadedFrameBoundary(context)) {
+                completePlayback(context)
+            } else {
+                holdAtLoadingFrameBoundary(context)
+            }
         } else {
             runtime.frameIndex += 1
         }
     }
+}
+
+internal fun shouldCompleteAtLoadedFrameBoundary(context: RsvpUiContext): Boolean =
+    context.frameState.frames.isNotEmpty() &&
+        context.runtime.frameIndex >= context.frameState.frames.lastIndex &&
+        !context.frameState.isLoading
+
+internal fun effectivePlaybackTempoMs(
+    baseTempoMs: Long,
+    tempoScale: Double,
+): Long =
+    (baseTempoMs.coerceAtLeast(1L) * tempoScale)
+        .roundToLong()
+        .coerceAtLeast(1L)
+
+internal fun holdAtLoadingFrameBoundary(context: RsvpUiContext) {
+    val runtime = context.runtime
+    val frame = context.frameState.frames.getOrNull(runtime.frameIndex)
+    if (frame != null) {
+        runtime.currentTokenIndex = frame.nextOriginalTokenIndex
+        runtime.currentResumeCursor = -1
+    }
+    runtime.scheduledFrameIndex = -1
+    runtime.nextFrameAtMs = 0L
 }
 
 private fun rampMultiplier(

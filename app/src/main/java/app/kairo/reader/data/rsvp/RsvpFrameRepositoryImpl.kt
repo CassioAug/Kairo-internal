@@ -3,6 +3,8 @@ package app.kairo.reader.data.rsvp
 import app.kairo.reader.core.dispatchers.DispatcherProvider
 import app.kairo.reader.core.model.BookId
 import app.kairo.reader.core.model.RsvpConfig
+import app.kairo.reader.core.model.RsvpFrame
+import app.kairo.reader.core.model.Token
 import app.kairo.reader.core.rsvp.RsvpEngine
 import app.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CompletableDeferred
@@ -23,7 +25,12 @@ class RsvpFrameRepositoryImpl(
     private val engine: RsvpEngine,
     dispatcherProvider: DispatcherProvider,
 ) : RsvpFrameRepository {
-    private data class CacheKey(val bookId: String, val chapterIndex: Int, val configHash: Int,)
+    private data class CacheKey(
+        val bookId: String,
+        val chapterIndex: Int,
+        val configHash: Int,
+        val startIndex: Int,
+    )
 
     private val cache =
         object : LinkedHashMap<CacheKey, RsvpFrameSet>(
@@ -40,33 +47,62 @@ class RsvpFrameRepositoryImpl(
     private val mutex = Mutex()
     private val inFlight = mutableMapOf<CacheKey, Deferred<RsvpFrameSet>>()
     private val engineDispatcher = dispatcherProvider.default.limitedParallelism(1)
+    private val previewDispatcher = dispatcherProvider.default
     private val scope = CoroutineScope(SupervisorJob() + dispatcherProvider.default)
 
     override suspend fun getFrames(
         bookId: BookId,
         chapterIndex: Int,
         config: RsvpConfig,
+        startIndex: Int,
     ): RsvpFrameSet {
-        val key = CacheKey(bookId.value, chapterIndex, config.hashCode())
+        val safeStartIndex = startIndex.coerceAtLeast(0)
+        val key = CacheKey(bookId.value, chapterIndex, config.hashCode(), safeStartIndex)
         val cached = mutex.withLock { cache[key] }
         if (cached != null) return cached
 
-        return ensureFramesAsync(key, bookId, chapterIndex, config).await()
+        return ensureFramesAsync(key, bookId, chapterIndex, config, safeStartIndex).await()
     }
 
     override fun prefetchFrames(
         bookId: BookId,
         chapterIndex: Int,
         config: RsvpConfig,
+        startIndex: Int,
     ) {
-        val key = CacheKey(bookId.value, chapterIndex, config.hashCode())
+        val safeStartIndex = startIndex.coerceAtLeast(0)
+        val key = CacheKey(bookId.value, chapterIndex, config.hashCode(), safeStartIndex)
         scope.launch {
             val cached = mutex.withLock { cache.containsKey(key) }
             if (cached) return@launch
             runCatching {
-                ensureFramesAsync(key, bookId, chapterIndex, config)
+                ensureFramesAsync(key, bookId, chapterIndex, config, safeStartIndex)
             }
         }
+    }
+
+    override suspend fun getPreviewFrames(
+        tokens: List<Token>,
+        startIndex: Int,
+        config: RsvpConfig,
+        maxTokenCount: Int,
+    ): RsvpFrameSet {
+        if (tokens.isEmpty()) {
+            return RsvpFrameSet(frames = emptyList(), baseTempoMs = config.tempoMsPerWord)
+        }
+        val safeStartIndex = startIndex.coerceIn(0, tokens.lastIndex)
+        val endExclusive = (safeStartIndex + maxTokenCount.coerceAtLeast(1)).coerceAtMost(tokens.size)
+        if (safeStartIndex >= endExclusive) {
+            return RsvpFrameSet(frames = emptyList(), baseTempoMs = config.tempoMsPerWord)
+        }
+        val previewTokens = tokens.subList(safeStartIndex, endExclusive)
+        val frames =
+            withContext(previewDispatcher) {
+                engine.generateFrames(previewTokens, startIndex = 0, config = config)
+            }.map { frame ->
+                frame.asPreviewFrame(originalIndexOffset = safeStartIndex, tokenCount = tokens.size)
+            }
+        return RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
     }
 
     private suspend fun ensureFramesAsync(
@@ -74,12 +110,13 @@ class RsvpFrameRepositoryImpl(
         bookId: BookId,
         chapterIndex: Int,
         config: RsvpConfig,
+        startIndex: Int,
     ): Deferred<RsvpFrameSet> =
         mutex.withLock {
             cache[key]?.let { cached -> CompletableDeferred(cached) }
                 ?: inFlight[key]?.takeIf { it.isActive }
                 ?: scope.async {
-                    buildFrameSet(key, bookId, chapterIndex, config)
+                    buildFrameSet(key, bookId, chapterIndex, config, startIndex)
                 }.also { inFlight[key] = it }
         }
 
@@ -88,12 +125,13 @@ class RsvpFrameRepositoryImpl(
         bookId: BookId,
         chapterIndex: Int,
         config: RsvpConfig,
+        startIndex: Int,
     ): RsvpFrameSet {
         return try {
             val tokens = tokenRepository.getTokens(bookId, chapterIndex)
             val frames =
                 withContext(engineDispatcher) {
-                    engine.generateFrames(tokens, startIndex = 0, config = config)
+                    engine.generateFrames(tokens, startIndex = startIndex, config = config)
                 }
             val frameSet = RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
             mutex.withLock {
@@ -106,6 +144,16 @@ class RsvpFrameRepositoryImpl(
             throw error
         }
     }
+
+    private fun RsvpFrame.asPreviewFrame(
+        originalIndexOffset: Int,
+        tokenCount: Int,
+    ): RsvpFrame =
+        copy(
+            originalTokenIndex = (originalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
+            nextOriginalTokenIndex = (nextOriginalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
+            resumeCursor = -1,
+        )
 
     override fun clearCache() {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {

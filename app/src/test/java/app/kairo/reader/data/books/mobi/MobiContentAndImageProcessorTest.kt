@@ -1,6 +1,7 @@
 package app.kairo.reader.data.books.mobi
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -52,6 +53,27 @@ class MobiContentAndImageProcessorTest {
         assertEquals(2, chapters.size)
         assertEquals("Chapter One", chapters[0].title)
         assertEquals("Chapter Two", chapters[1].title)
+        assertEquals("Alpha beta gamma.", chapters[0].plainText)
+        assertEquals("Delta epsilon zeta.", chapters[1].plainText)
+        assertFalse(chapters[0].htmlContent.contains("Chapter One"))
+        assertFalse(chapters[1].htmlContent.contains("Chapter Two"))
+    }
+
+    @Test
+    fun splitHtmlIntoChaptersRemovesDuplicateHeadingInsideWrapper() {
+        val html =
+            """
+            <html><body>
+            <div class="chapter"><h1>Preface</h1><p>Before the story.</p></div>
+            <div class="chapter"><h1>Chapter 1</h1><p>Opening scene.</p></div>
+            </body></html>
+            """.trimIndent()
+
+        val chapters = contentProcessor.splitHtmlIntoChapters(html, "Fallback")
+
+        assertEquals("Preface", chapters[0].title)
+        assertEquals("Before the story.", chapters[0].plainText)
+        assertFalse(chapters[0].htmlContent.contains("Preface"))
     }
 
     @Test

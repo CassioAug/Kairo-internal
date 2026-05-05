@@ -4,15 +4,34 @@ package app.kairo.reader.core.model
 
 import kotlin.math.ceil
 
-private val WORD_REGEX =
-    Regex(
-        """[\p{L}\p{N}]+(?:['\u2019][\p{L}\p{N}]+)?""",
-    )
-
 fun countWords(text: String): Int {
     if (text.isBlank()) return 0
-    return WORD_REGEX.findAll(text).count()
+    var count = 0
+    var inWord = false
+    var index = 0
+    while (index < text.length) {
+        val codePoint = Character.codePointAt(text, index)
+        val charCount = Character.charCount(codePoint)
+        when {
+            Character.isLetterOrDigit(codePoint) -> {
+                if (!inWord) count += 1
+                inWord = true
+            }
+            isWordApostrophe(codePoint) && inWord -> {
+                val nextIndex = index + charCount
+                inWord =
+                    nextIndex < text.length &&
+                    Character.isLetterOrDigit(Character.codePointAt(text, nextIndex))
+            }
+            else -> inWord = false
+        }
+        index += charCount
+    }
+    return count
 }
+
+private fun isWordApostrophe(codePoint: Int): Boolean =
+    codePoint == '\''.code || codePoint == '\u2019'.code
 
 fun countWords(tokens: List<Token>): Int = tokens.count { it.type == TokenType.WORD }
 

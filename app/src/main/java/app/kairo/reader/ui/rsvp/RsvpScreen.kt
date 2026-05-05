@@ -14,6 +14,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import app.kairo.reader.core.model.RsvpConfig
+import app.kairo.reader.core.model.RsvpFrame
+import app.kairo.reader.core.model.TokenType
+import app.kairo.reader.core.model.nearestWordIndex
 import app.kairo.reader.data.rsvp.RsvpFrameRepository
 import app.kairo.reader.data.rsvp.RsvpFrameSet
 import app.kairo.reader.ui.tutorial.StartingTutorialOverlayState
@@ -322,26 +326,61 @@ private fun rememberFrameLoadState(
     frameRepository: RsvpFrameRepository,
 ): RsvpFrameLoadState {
     val loadConfigKey = remember(profile.config) { frameLoadConfigKey(profile.config) }
-    var frameSet by remember(book.bookId, book.chapterIndex) {
-        mutableStateOf<RsvpFrameSet?>(null)
+    val instantFrameTokenCount = book.tokens.size
+    var frameSet by remember(
+        book.bookId,
+        book.chapterIndex,
+        book.startIndex,
+        instantFrameTokenCount,
+    ) {
+        mutableStateOf(buildInstantFrameSet(book, profile.config))
     }
-    var activeLoadConfigKey by remember(book.bookId, book.chapterIndex) {
+    var activeLoadConfigKey by remember(book.bookId, book.chapterIndex, book.startIndex) {
         mutableStateOf<app.kairo.reader.core.model.RsvpConfig?>(null)
     }
-    var isFramesLoading by remember(book.bookId, book.chapterIndex) {
+    var isFramesLoading by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
         mutableStateOf(true)
     }
-    var loadAttempt by remember(book.bookId, book.chapterIndex, loadConfigKey) {
+    var loadAttempt by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
         mutableIntStateOf(0)
     }
 
-    LaunchedEffect(book.bookId, book.chapterIndex, loadConfigKey, loadAttempt) {
+    LaunchedEffect(
+        book.bookId,
+        book.chapterIndex,
+        book.startIndex,
+        loadConfigKey,
+        instantFrameTokenCount,
+        loadAttempt,
+    ) {
         val hadFrames = frameSet?.frames?.isNotEmpty() == true
         if (!hadFrames) isFramesLoading = true
+        if (!hadFrames && book.tokens.isNotEmpty()) {
+            val preview =
+                runCatching {
+                    frameRepository.getPreviewFrames(
+                        tokens = book.tokens,
+                        startIndex = book.startIndex,
+                        config = profile.config,
+                    )
+                }.onFailure { error ->
+                    if (error is CancellationException) {
+                        throw error
+                    }
+                }.getOrNull()
+            if (preview?.frames?.isNotEmpty() == true) {
+                frameSet = preview
+            }
+        }
 
         val computed =
             runCatching {
-                frameRepository.getFrames(book.bookId, book.chapterIndex, profile.config)
+                frameRepository.getFrames(
+                    book.bookId,
+                    book.chapterIndex,
+                    profile.config,
+                    startIndex = book.startIndex,
+                )
             }.onFailure { error ->
                 if (error is CancellationException) {
                     throw error
@@ -375,6 +414,33 @@ private fun rememberFrameLoadState(
     )
 }
 
+private fun buildInstantFrameSet(
+    book: RsvpBookContext,
+    config: RsvpConfig,
+): RsvpFrameSet? {
+    if (book.tokens.isEmpty()) return null
+    val safeIndex = book.tokens.nearestWordIndex(book.startIndex).coerceIn(0, book.tokens.lastIndex)
+    val token = book.tokens.getOrNull(safeIndex) ?: return null
+    if (token.type != TokenType.WORD) return null
+    val nextWordIndex =
+        ((safeIndex + 1)..book.tokens.lastIndex)
+            .firstOrNull { index -> book.tokens[index].type == TokenType.WORD }
+            ?: book.tokens.size
+    return RsvpFrameSet(
+        frames =
+            listOf(
+                RsvpFrame(
+                    tokens = listOf(token),
+                    durationMs = config.tempoMsPerWord,
+                    originalTokenIndex = safeIndex,
+                    resumeCursor = book.startResumeCursor.takeIf { it >= 0 } ?: safeIndex,
+                    nextOriginalTokenIndex = nextWordIndex,
+                ),
+            ),
+        baseTempoMs = config.tempoMsPerWord,
+    )
+}
+
 @Composable
 private fun rememberTempoScale(
     currentTempoMsPerWord: Long,
@@ -392,8 +458,8 @@ private fun rememberTempoScale(
 private fun shouldShowLoading(frameState: RsvpFrameLoadState): Boolean =
     frameState.isLoading && frameState.frames.isEmpty()
 
-private fun buildSessionKey(book: RsvpBookContext): String =
-    "${book.bookId.value}:${book.chapterIndex}:${book.startIndex}:${book.startResumeCursor}"
+internal fun buildSessionKey(book: RsvpBookContext): String =
+    "${book.bookId.value}:${book.chapterIndex}:${book.startIndex}"
 
 private fun buildAppearanceFingerprint(
     textStyle: RsvpTextStyle,
@@ -408,8 +474,11 @@ private fun buildAppearanceFingerprint(
         layoutBias.horizontalBias,
     ).joinToString("|")
 
-internal fun frameLoadConfigKey(config: app.kairo.reader.core.model.RsvpConfig):
-    app.kairo.reader.core.model.RsvpConfig = config.copy(baseWpm = 0)
+internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig =
+    config.copy(
+        baseWpm = 0,
+        tempoMsPerWord = 0L,
+    )
 
 private const val FRAME_LOAD_RETRY_DELAY_MS = 200L
 private const val MAX_FRAME_LOAD_RETRIES = 3

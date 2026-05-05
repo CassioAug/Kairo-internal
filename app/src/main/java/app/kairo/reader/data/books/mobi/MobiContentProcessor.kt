@@ -6,6 +6,19 @@ internal class MobiContentProcessor {
     private val pageBreakMarker = "\u000C"
     private val fileLabelWithNumberRegex = Regex("(?i)^(part|chapter|section|book)(0*)(\\d{1,6})$")
     private val genericFileLabelRegex = Regex("(?i)^[a-z]{2,}\\d{3,}$")
+    private val pageBreakClassSelfClosingRegex =
+        Regex(
+            """<[^>]+\bclass\s*=\s*(['"])([^'"]*)\1[^>]*/>""",
+            RegexOption.IGNORE_CASE,
+        )
+    private val pageBreakClassClosedRegex =
+        Regex(
+            """<([a-zA-Z0-9:._-]+)\b[^>]*\bclass\s*=\s*(['"])([^'"]*)\2[^>]*>[\s\S]*?</\s*\1\s*>""",
+            RegexOption.IGNORE_CASE,
+        )
+    private val headingBlockElementRegex = Regex("(?is)<h[1-6][^>]*>([\\s\\S]*?)</h[1-6]>")
+    private val paragraphBlockElementRegex = Regex("(?is)<p[^>]*>([\\s\\S]*?)</p>")
+    private val divBlockElementRegex = Regex("(?is)<div[^>]*>([\\s\\S]*?)</div>")
 
     fun extractHtml(
         data: ByteArray,
@@ -315,13 +328,17 @@ internal class MobiContentProcessor {
             val indices = matches.map { it.range.first } + html.length
             indices.zipWithNext().forEachIndexed { index, (start, end) ->
                 val segment = html.substring(start, end).trim()
-                val cleaned = stripNoiseTitleBlocks(segment)
                 val title =
                     extractPlainText(matches.getOrNull(index)?.value.orEmpty())
                         .lineSequence()
                         .firstOrNull()
                         ?.take(100)
                         ?.takeIf(String::isNotBlank)
+                val cleaned =
+                    stripLeadingDuplicateTitleBlock(
+                        html = stripNoiseTitleBlocks(segment),
+                        title = title,
+                    )
                 val plain = extractPlainText(cleaned)
                 if (plain.isBlank()) return@forEachIndexed
                 slices.add(
@@ -393,7 +410,11 @@ internal class MobiContentProcessor {
             val end = starts.getOrNull(index + 1) ?: html.length
             if (start >= end || start < 0 || end > html.length) return@forEachIndexed
             val segment = html.substring(start, end).trim()
-            val cleaned = stripNoiseTitleBlocks(segment)
+            val cleaned =
+                stripLeadingDuplicateTitleBlock(
+                    html = stripNoiseTitleBlocks(segment),
+                    title = entry.title,
+                )
             if (extractPlainText(cleaned).isBlank()) return@forEachIndexed
             slices.add(
                 MobiChapterSlice(
@@ -617,7 +638,7 @@ internal class MobiContentProcessor {
     }
 
     private fun cleanMobiHtml(html: String): String =
-        html.replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "")
+        html.replace(Regex("[\\x00-\\x08\\x0B\\x0E-\\x1F]"), "")
 
     private fun looksLikeHtml(text: String): Boolean =
         text.contains("<p", true) ||
@@ -672,13 +693,8 @@ internal class MobiContentProcessor {
         repeat(2) {
             val match = blockRegex.find(result) ?: return@repeat
             val leading = result.take(match.range.first)
-            if (leading.any { !it.isWhitespace() }) return@repeat
-            val inner = match.groupValues[2]
-            val text =
-                inner
-                    .replace(Regex("<[^>]+>"), " ")
-                    .replace("&nbsp;", " ")
-                    .trim()
+            if (visibleText(leading).isNotBlank()) return@repeat
+            val text = visibleText(match.groupValues[2])
             if (text.length <= 32 && isLikelyFileLabel(text)) {
                 result = result.removeRange(match.range.first, match.range.last + 1)
             } else {
@@ -688,34 +704,80 @@ internal class MobiContentProcessor {
         return result
     }
 
-    private fun normalizePageBreakElements(html: String): String =
-        html
-            .replace(
-                Regex(
-                    """<\s*mbp:pagebreak\b[^>]*/>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            ).replace(
-                Regex(
-                    """<\s*mbp:pagebreak\b[^>]*>[\s\S]*?</\s*mbp:pagebreak\s*>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            ).replace(
-                Regex(
-                    """<[^>]+\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*/>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            )
-            .replace(
-                Regex(
-                    """<([a-zA-Z0-9:._-]+)\b[^>]*\bclass\s*=\s*['"][^'"]*(?:pagebreak|page-break)[^'"]*['"][^>]*>[\s\S]*?</\1>""",
-                    RegexOption.IGNORE_CASE,
-                ),
-                pageBreakMarker,
-            )
+    private fun stripLeadingDuplicateTitleBlock(
+        html: String,
+        title: String?,
+    ): String {
+        if (html.isBlank()) return html
+        val normalizedTitle = normalizeTitleForComparison(title ?: return html)
+        if (normalizedTitle.isBlank()) return html
+
+        return stripMatchingLeadingBlock(html, headingBlockElementRegex, normalizedTitle)
+            ?: stripMatchingLeadingBlock(html, paragraphBlockElementRegex, normalizedTitle)
+            ?: stripMatchingLeadingBlock(html, divBlockElementRegex, normalizedTitle)
+            ?: html
+    }
+
+    private fun stripMatchingLeadingBlock(
+        html: String,
+        blockRegex: Regex,
+        normalizedTitle: String,
+    ): String? {
+        val match = blockRegex.find(html) ?: return null
+        val leading = html.take(match.range.first)
+        if (visibleText(leading).isNotBlank()) return null
+        val blockText = visibleText(match.groupValues[1])
+        if (normalizeTitleForComparison(blockText) != normalizedTitle) return null
+        return html.removeRange(match.range.first, match.range.last + 1)
+    }
+
+    private fun visibleText(htmlFragment: String): String =
+        MobiHtmlUtils.decodeHtmlEntities(htmlFragment.replace(Regex("<[^>]+>"), " "))
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    private fun normalizeTitleForComparison(text: String): String =
+        visibleText(text)
+            .lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    private fun normalizePageBreakElements(html: String): String {
+        val withMbpMarkers =
+            html
+                .replace(
+                    Regex(
+                        """<\s*mbp:pagebreak\b[^>]*/>""",
+                        RegexOption.IGNORE_CASE,
+                    ),
+                    pageBreakMarker,
+                ).replace(
+                    Regex(
+                        """<\s*mbp:pagebreak\b[^>]*>[\s\S]*?</\s*mbp:pagebreak\s*>""",
+                        RegexOption.IGNORE_CASE,
+                    ),
+                    pageBreakMarker,
+                )
+
+        return pageBreakClassSelfClosingRegex
+            .replace(withMbpMarkers) { match ->
+                if (hasPageBreakClass(match.groupValues[2])) pageBreakMarker else match.value
+            }.let { normalizedSelfClosing ->
+                pageBreakClassClosedRegex.replace(normalizedSelfClosing) { match ->
+                    if (hasPageBreakClass(match.groupValues[3])) pageBreakMarker else match.value
+                }
+            }
+    }
+
+    private fun hasPageBreakClass(classValue: String): Boolean =
+        classValue
+            .trim()
+            .split(Regex("\\s+"))
+            .any { className ->
+                className.equals("pagebreak", ignoreCase = true) ||
+                    className.equals("page-break", ignoreCase = true)
+            }
 
     private fun isLikelyFileLabel(text: String): Boolean {
         val normalized = text.trim().lowercase().substringBeforeLast('.', "")

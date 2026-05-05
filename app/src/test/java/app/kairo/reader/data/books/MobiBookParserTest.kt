@@ -40,6 +40,32 @@ class MobiBookParserTest {
     }
 
     @Test
+    fun cleanMobiHtmlPreservesRawFormFeedPageBreaks() {
+        val cleaned: String = contentProcessor.callPrivate("cleanMobiHtml", "Start\u000CEnd")
+
+        assertEquals("Start\u000CEnd", cleaned)
+    }
+
+    @Test
+    fun extractPlainTextDoesNotTreatSubstringClassAsPageBreak() {
+        val html = "<p>Start<span class=\"not-pagebreak\">kept</span> end.</p>"
+
+        val text = contentProcessor.extractPlainText(html)
+
+        assertFalse(text.contains("\u000C"))
+        assertTrue(text.contains("Startkept end."))
+    }
+
+    @Test
+    fun extractPlainTextTreatsTokenizedClassAsPageBreak() {
+        val html = "<p>Start<span class=\"marker page-break visible\"/> end.</p>"
+
+        val text = contentProcessor.extractPlainText(html)
+
+        assertTrue(text.contains("Start\u000C end."))
+    }
+
+    @Test
     fun extractPlainTextRemovesClosedClassPageBreakContent() {
         val html =
             "<p><span class=\"pagebreak\">12</span><span class=\"char-first\">T<span class=\"smallcaps\">HE OPENING WORDS </span></span>remain intact.</p>"

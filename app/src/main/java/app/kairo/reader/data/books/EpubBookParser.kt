@@ -18,6 +18,7 @@ import app.kairo.reader.core.dispatchers.DispatcherProvider
 import app.kairo.reader.core.model.Book
 import app.kairo.reader.core.model.BookId
 import app.kairo.reader.core.model.Chapter
+import app.kairo.reader.core.model.countWords
 import app.kairo.reader.data.books.epub.ChapterOrderResolution
 import app.kairo.reader.data.books.epub.ChapterOrderSource
 import app.kairo.reader.data.books.epub.ContainerXmlResolution
@@ -129,6 +130,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
         // Noise title block pattern
         private val BLOCK_ELEMENT_REGEX = Regex("(?is)<(h[1-6]|p|div)[^>]*>([\\s\\S]*?)</\\1>")
+        private val HEADING_BLOCK_ELEMENT_REGEX = Regex("(?is)<h[1-6][^>]*>([\\s\\S]*?)</h[1-6]>")
+        private val PARAGRAPH_BLOCK_ELEMENT_REGEX = Regex("(?is)<p[^>]*>([\\s\\S]*?)</p>")
+        private val DIV_BLOCK_ELEMENT_REGEX = Regex("(?is)<div[^>]*>([\\s\\S]*?)</div>")
     }
 
     private val markupParser = EpubMarkupParser()
@@ -144,6 +148,8 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             val zipTextEntries = mutableMapOf<String, ByteArray>() // key = lowercased path
             val zipEntryNamesLower = mutableSetOf<String>()
             val oversizedTextEntriesLower = mutableSetOf<String>()
+            val decodedTextEntries = mutableMapOf<String, String>()
+            val chapterImageSrcsByPathLower = mutableMapOf<String, List<String>>()
             val diagnostics = ParseDiagnostics()
             var totalTextBytes = 0L
 
@@ -235,7 +241,13 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
             // Determine which image assets we need (cover + any chapter <img> references).
             val neededImagePathsLower = mutableSetOf<String>()
-            coverPathLower?.let { neededImagePathsLower.add(it) }
+            val fallbackCoverPathLower =
+                if (coverPathLower == null) {
+                    selectFallbackCoverPath(zipEntryNamesLower.filter(::isImageEntry))
+                } else {
+                    null
+                }
+            (coverPathLower ?: fallbackCoverPathLower)?.let { neededImagePathsLower.add(it) }
 
             val chapterPathsForImageScan =
                 orderedChapterPathsLower.ifEmpty {
@@ -247,10 +259,14 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                 }
 
             chapterPathsForImageScan.forEach { chapterPathLower ->
-                val chapterBytes = zipTextEntries[chapterPathLower] ?: return@forEach
-                val html = decodeTextEntry(chapterBytes)
+                val html = decodedTextEntry(chapterPathLower, zipTextEntries, decodedTextEntries)
+                    ?: return@forEach
                 val chapterDir = chapterPathLower.substringBeforeLast('/', "")
-                extractImageSrcs(html).forEach { rawSrc ->
+                val imageSrcs = extractImageSrcs(html)
+                if (imageSrcs.isNotEmpty()) {
+                    chapterImageSrcsByPathLower[chapterPathLower] = imageSrcs
+                }
+                imageSrcs.forEach { rawSrc ->
                     val src = sanitizeSrc(rawSrc)
                     if (src.isBlank()) return@forEach
                     if (src.startsWith("data:", ignoreCase = true)) return@forEach
@@ -285,8 +301,8 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                                 val nameLower = normalizeZipEntryNameLower(entry.name)
                                 if (neededImagePathsLower.contains(nameLower)) {
                                     val maxEntrySize =
-                                        if (nameLower ==
-                                            coverPathLower
+                                        if (nameLower == coverPathLower ||
+                                            nameLower == fallbackCoverPathLower
                                         ) {
                                             MAX_COVER_IMAGE_ENTRY_SIZE
                                         } else {
@@ -296,7 +312,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                                     if (bytes != null) {
                                         totalImageBytes += bytes.size
                                         if (totalImageBytes > MAX_TOTAL_IMAGE_SIZE) break
-                                        if (nameLower == coverPathLower) {
+                                        if (nameLower == coverPathLower ||
+                                            nameLower == fallbackCoverPathLower
+                                        ) {
                                             coverImage = bytes
                                         }
 
@@ -328,6 +346,8 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     zipTextEntries = zipTextEntries,
                     imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
                     preferredChapterPathsLower = orderedChapterPathsLower,
+                    decodedTextEntries = decodedTextEntries,
+                    chapterImageSrcsByPathLower = chapterImageSrcsByPathLower,
                 )
             diagnostics.navigationFilteredChapters += primaryFallbackBuild.navigationFilteredCount
             diagnostics.navigationFilterSuppressed =
@@ -346,6 +366,8 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                             zipTextEntries = htmlEntries,
                             imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
                             preferredChapterPathsLower = orderedChapterPathsLower,
+                            decodedTextEntries = emptyMap(),
+                            chapterImageSrcsByPathLower = emptyMap(),
                         )
                     diagnostics.navigationFilteredChapters += secondaryFallbackBuild.navigationFilteredCount
                     diagnostics.navigationFilterSuppressed =
@@ -498,6 +520,18 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         return sources
     }
 
+    private fun decodedTextEntry(
+        pathLower: String,
+        zipTextEntries: Map<String, ByteArray>,
+        decodedTextEntries: MutableMap<String, String>,
+    ): String? {
+        decodedTextEntries[pathLower]?.let { return it }
+        val bytes = zipTextEntries[pathLower] ?: return null
+        val decoded = decodeTextEntry(bytes)
+        decodedTextEntries[pathLower] = decoded
+        return decoded
+    }
+
     private fun hasImageReferences(html: String): Boolean =
         html.indexOf("<img", ignoreCase = true) >= 0 ||
             html.indexOf("<source", ignoreCase = true) >= 0 ||
@@ -638,6 +672,21 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         zipTextEntries: Map<String, ByteArray>,
         imageRelativePathByEpubPathLower: Map<String, String>,
         preferredChapterPathsLower: List<String>,
+    ): FallbackChapterBuildResult =
+        buildFallbackChaptersWithResult(
+            zipTextEntries = zipTextEntries,
+            imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
+            preferredChapterPathsLower = preferredChapterPathsLower,
+            decodedTextEntries = emptyMap(),
+            chapterImageSrcsByPathLower = emptyMap(),
+        )
+
+    private fun buildFallbackChaptersWithResult(
+        zipTextEntries: Map<String, ByteArray>,
+        imageRelativePathByEpubPathLower: Map<String, String>,
+        preferredChapterPathsLower: List<String>,
+        decodedTextEntries: Map<String, String>,
+        chapterImageSrcsByPathLower: Map<String, List<String>>,
     ): FallbackChapterBuildResult {
         val preferredCandidates =
             preferredChapterPathsLower
@@ -666,32 +715,37 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         val parsed =
             candidates.mapNotNull { pathLower ->
                 val chapterContent = zipTextEntries[pathLower] ?: return@mapNotNull null
-                val originalHtml = decodeTextEntry(chapterContent)
+                val originalHtml = decodedTextEntries[pathLower] ?: decodeTextEntry(chapterContent)
                 val originalDocument = parseMarkupDocument(originalHtml)
                 val chapterDir = pathLower.substringBeforeLast('/', "")
                 val imagePaths = buildChapterImagePaths(
                     html = originalHtml,
                     baseDir = chapterDir,
                     imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
+                    chapterSrcs = chapterImageSrcsByPathLower[pathLower],
                 )
                 val resolvedHtml = rewriteHtmlImageSrcs(
                     html = originalHtml,
                     baseDir = chapterDir,
                     imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
                 )
-                val cleanedHtml = stripNoiseTitleBlocks(resolvedHtml)
-                val plainText =
-                    if (cleanedHtml == resolvedHtml) {
-                        extractPlainText(originalDocument)
-                    } else {
-                        extractPlainText(cleanedHtml)
-                    }
                 val rawTitle = extractChapterTitle(originalDocument)
                 val fileTitle =
                     pathLower
                         .substringAfterLast('/', pathLower)
                         .substringBeforeLast('.')
                 val title = sanitizeChapterTitle(rawTitle ?: fileTitle)
+                val cleanedHtml =
+                    stripLeadingDuplicateTitleBlock(
+                        html = stripNoiseTitleBlocks(resolvedHtml),
+                        title = title,
+                    )
+                val plainText =
+                    if (cleanedHtml == resolvedHtml) {
+                        extractPlainText(originalDocument)
+                    } else {
+                        extractPlainText(cleanedHtml)
+                    }
 
                 if (plainText.isBlank() && imagePaths.isEmpty()) {
                     return@mapNotNull null
@@ -789,10 +843,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     }
 
     private fun estimateWordCount(text: String): Int {
-        if (text.isBlank()) return 0
-        return text.split(WHITESPACE_REGEX).count { token ->
-            token.any { it.isLetterOrDigit() }
-        }
+        return countWords(text)
     }
 
     private fun logParseDiagnostics(
@@ -939,10 +990,11 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         html: String,
         baseDir: String,
         imageRelativePathByEpubPathLower: Map<String, String>,
+        chapterSrcs: List<String>? = null,
     ): List<String> {
         val unique = LinkedHashSet<String>()
-        val chapterSrcs = extractImageSrcs(html)
-        for (rawSrc in chapterSrcs) {
+        val srcs = chapterSrcs ?: extractImageSrcs(html)
+        for (rawSrc in srcs) {
             val hrefParts = splitHrefParts(rawSrc)
             val src = sanitizeSrc(hrefParts.path)
             if (src.isBlank()) continue
@@ -1114,12 +1166,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         repeat(2) {
             val match = BLOCK_ELEMENT_REGEX.find(result) ?: return@repeat
             val leading = result.take(match.range.first)
-            if (leading.any { !it.isWhitespace() }) return@repeat
+            if (visibleText(leading).isNotBlank()) return@repeat
             val inner = match.groupValues[2]
-            val text =
-                decodeHtmlEntities(inner.replace(ALL_TAGS_REGEX, " "))
-                    .replace(WHITESPACE_REGEX, " ")
-                    .trim()
+            val text = visibleText(inner)
             if (text.length <= MAX_NOISE_TITLE_LENGTH && isLikelyFileLabel(text)) {
                 result = result.removeRange(match.range.first, match.range.last + 1)
             } else {
@@ -1128,6 +1177,45 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         }
         return result
     }
+
+    private fun stripLeadingDuplicateTitleBlock(
+        html: String,
+        title: String?,
+    ): String {
+        if (html.isBlank()) return html
+        val normalizedTitle = normalizeTitleForComparison(title ?: return html)
+        if (normalizedTitle.isBlank()) return html
+
+        return stripMatchingLeadingBlock(html, HEADING_BLOCK_ELEMENT_REGEX, normalizedTitle)
+            ?: stripMatchingLeadingBlock(html, PARAGRAPH_BLOCK_ELEMENT_REGEX, normalizedTitle)
+            ?: stripMatchingLeadingBlock(html, DIV_BLOCK_ELEMENT_REGEX, normalizedTitle)
+            ?: html
+    }
+
+    private fun stripMatchingLeadingBlock(
+        html: String,
+        blockRegex: Regex,
+        normalizedTitle: String,
+    ): String? {
+        val match = blockRegex.find(html) ?: return null
+        val leading = html.take(match.range.first)
+        if (visibleText(leading).isNotBlank()) return null
+        val blockText = visibleText(match.groupValues[1])
+        if (normalizeTitleForComparison(blockText) != normalizedTitle) return null
+        return html.removeRange(match.range.first, match.range.last + 1)
+    }
+
+    private fun visibleText(htmlFragment: String): String =
+        decodeHtmlEntities(htmlFragment.replace(ALL_TAGS_REGEX, " "))
+            .replace(WHITESPACE_REGEX, " ")
+            .trim()
+
+    private fun normalizeTitleForComparison(text: String): String =
+        visibleText(text)
+            .lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .replace(WHITESPACE_REGEX, " ")
+            .trim()
 
     private fun isLikelyFileLabel(text: String): Boolean {
         val normalized = normalizeNoiseLabel(text)
