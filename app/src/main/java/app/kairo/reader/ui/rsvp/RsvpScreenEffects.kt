@@ -21,8 +21,8 @@ internal fun RsvpPositionSaveEffect(context: RsvpUiContext) {
     val frames = context.frameState.frames
     val book = context.state.book
 
-    LaunchedEffect(runtime.frameIndex) {
-        if (frames.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(runtime.frameIndex, context.frameState.isLoading) {
+        if (!shouldSyncPositionFromFrameState(context.frameState)) return@LaunchedEffect
         val currentIndex = resolveCurrentTokenIndex(frames, runtime.frameIndex, book.startIndex)
         val currentResumeCursor =
             resolveCurrentResumeCursor(
@@ -48,11 +48,14 @@ internal fun RsvpFrameAlignmentEffect(context: RsvpUiContext) {
     val runtime = context.runtime
     val frames = context.frameState.frames
 
-    LaunchedEffect(frames) {
-        if (frames.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(frames, context.frameState.isLoading) {
+        if (!shouldSyncPositionFromFrameState(context.frameState)) return@LaunchedEffect
         runtime.frameIndex = alignFrameIndex(frames, runtime.currentTokenIndex, runtime.currentResumeCursor)
     }
 }
+
+internal fun shouldSyncPositionFromFrameState(frameState: RsvpFrameLoadState): Boolean =
+    frameState.frames.isNotEmpty() && !frameState.isLoading
 
 @Composable
 internal fun RsvpSessionResetEffect(

@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -32,13 +33,26 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.kairo.reader.R
+import app.kairo.reader.core.model.nearestWordIndex
+
+private data class PausedPreviewContent(
+    val paragraph: AnnotatedString,
+    val focusWord: String,
+)
 
 @Composable
 internal fun BoxScope.RsvpBottomControls(
@@ -87,6 +101,7 @@ private fun RsvpDefaultBottomControls(
     controlsModifier: Modifier,
 ) {
     val runtime = context.runtime
+    val previewContent = rememberPausedPreviewContent(context, compact = false)
     Column(
         modifier =
             Modifier
@@ -104,6 +119,22 @@ private fun RsvpDefaultBottomControls(
                 .padding(CONTROLS_PADDING),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (
+            previewContent != null &&
+            shouldShowPausePreview(
+                isPlaying = runtime.isPlaying,
+                showControls = runtime.showControls,
+                showQuickSettings = runtime.showQuickSettings,
+                isExiting = runtime.isExiting,
+            )
+        ) {
+            RsvpPausedPreview(
+                content = previewContent,
+                context = context,
+                compact = false,
+            )
+            Spacer(modifier = Modifier.height(PAUSE_PREVIEW_BOTTOM_SPACING))
+        }
         RsvpControlsProgress(context)
         Spacer(modifier = Modifier.height(CONTROLS_SPACER))
         RsvpPlaybackControlsRow(
@@ -136,6 +167,7 @@ private fun RsvpCompactBottomControls(
     controlsModifier: Modifier,
 ) {
     val runtime = context.runtime
+    val previewContent = rememberPausedPreviewContent(context, compact = true)
     Column(
         modifier =
             Modifier
@@ -153,6 +185,22 @@ private fun RsvpCompactBottomControls(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (
+            previewContent != null &&
+            shouldShowPausePreview(
+                isPlaying = runtime.isPlaying,
+                showControls = runtime.showControls,
+                showQuickSettings = runtime.showQuickSettings,
+                isExiting = runtime.isExiting,
+            )
+        ) {
+            RsvpPausedPreview(
+                content = previewContent,
+                context = context,
+                compact = true,
+            )
+            Spacer(modifier = Modifier.height(PAUSE_PREVIEW_COMPACT_BOTTOM_SPACING))
+        }
         RsvpControlsProgress(context)
         Spacer(modifier = Modifier.height(8.dp))
         Row(
@@ -190,6 +238,219 @@ private fun RsvpCompactBottomControls(
         }
     }
 }
+
+@Composable
+private fun rememberPausedPreviewContent(
+    context: RsvpUiContext,
+    compact: Boolean,
+): PausedPreviewContent? {
+    val runtime = context.runtime
+    val tokens = context.state.book.tokens
+    if (tokens.isEmpty()) return null
+
+    val currentIndex =
+        resolveCurrentTokenIndex(
+            context.frameState.frames,
+            runtime.frameIndex,
+            context.state.book.startIndex,
+        )
+    val highlightIndex =
+        remember(tokens, currentIndex) {
+            tokens.nearestWordIndex(currentIndex)
+        }
+    val focusWord = tokens.getOrNull(highlightIndex)?.text.orEmpty()
+    val paragraph =
+        remember(tokens, highlightIndex) {
+            resolveRsvpParagraph(tokens, highlightIndex)
+        } ?: return null
+    val highlightStyle =
+        SpanStyle(
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+            background = MaterialTheme.colorScheme.primary.copy(alpha = PAUSE_PREVIEW_HIGHLIGHT_BACKGROUND_ALPHA),
+        )
+
+    return remember(paragraph, highlightIndex, highlightStyle, focusWord, compact) {
+        PausedPreviewContent(
+            paragraph =
+                buildRsvpParagraphAnnotatedText(
+                    paragraph = paragraph,
+                    highlightIndex = highlightIndex,
+                    highlightStyle = highlightStyle,
+                    maxWords =
+                        if (compact) {
+                            PAUSE_PREVIEW_COMPACT_WINDOW_WORDS
+                        } else {
+                            PARAGRAPH_PREVIEW_WINDOW_WORDS
+                        },
+                    highlightWindowFraction = PAUSE_PREVIEW_HIGHLIGHT_FRACTION,
+                ),
+            focusWord = focusWord,
+        )
+    }
+}
+
+@Composable
+private fun RsvpPausedPreview(
+    content: PausedPreviewContent,
+    context: RsvpUiContext,
+    compact: Boolean,
+) {
+    val shape = RoundedCornerShape(PAUSE_PREVIEW_CORNER_RADIUS)
+    val modifier =
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = PAUSE_PREVIEW_SURFACE_ALPHA))
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = PAUSE_PREVIEW_BORDER_ALPHA),
+                shape = shape,
+            ).padding(
+                horizontal =
+                    if (compact) {
+                        PAUSE_PREVIEW_COMPACT_PADDING_HORIZONTAL
+                    } else {
+                        PAUSE_PREVIEW_PADDING_HORIZONTAL
+                    },
+                vertical =
+                    if (compact) {
+                        PAUSE_PREVIEW_COMPACT_PADDING_VERTICAL
+                    } else {
+                        PAUSE_PREVIEW_PADDING_VERTICAL
+                    },
+            )
+
+    if (compact) {
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(PAUSE_PREVIEW_FOCUS_SPACING),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RsvpPausePreviewFocusWord(
+                focusWord = content.focusWord,
+                context = context,
+                compact = true,
+                modifier =
+                    Modifier
+                        .widthIn(
+                            min = PAUSE_PREVIEW_COMPACT_FOCUS_MIN_WIDTH,
+                            max = PAUSE_PREVIEW_COMPACT_FOCUS_MAX_WIDTH,
+                        ),
+            )
+            RsvpPausePreviewContextText(
+                text = content.paragraph,
+                context = context,
+                compact = true,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    } else {
+        Column(modifier = modifier) {
+            RsvpPausePreviewFocusWord(
+                focusWord = content.focusWord,
+                context = context,
+                compact = false,
+            )
+            Spacer(modifier = Modifier.height(PAUSE_PREVIEW_FOCUS_SPACING))
+            RsvpPausePreviewContextText(
+                text = content.paragraph,
+                context = context,
+                compact = false,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RsvpPausePreviewFocusWord(
+    focusWord: String,
+    context: RsvpUiContext,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val runtime = context.runtime
+    val fontSizeSp =
+        if (compact) {
+            (runtime.currentFontSizeSp * PAUSE_PREVIEW_COMPACT_FOCUS_FONT_SCALE)
+                .coerceIn(MIN_PAUSE_PREVIEW_FOCUS_SIZE_SP, MAX_PAUSE_PREVIEW_COMPACT_FOCUS_SIZE_SP)
+        } else {
+            (runtime.currentFontSizeSp * PAUSE_PREVIEW_FOCUS_FONT_SCALE)
+                .coerceIn(MIN_PAUSE_PREVIEW_FOCUS_SIZE_SP, MAX_PAUSE_PREVIEW_FOCUS_SIZE_SP)
+        }
+
+    Text(
+        text = focusWord,
+        style =
+            MaterialTheme.typography.headlineSmall.copy(
+                fontSize = fontSizeSp.sp,
+                fontFamily = resolveFontFamily(runtime.currentFontFamily),
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = PAUSE_PREVIEW_FOCUS_ALPHA),
+                lineHeight = (fontSizeSp * 1.08f).sp,
+            ),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun RsvpPausePreviewContextText(
+    text: AnnotatedString,
+    context: RsvpUiContext,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val runtime = context.runtime
+    val fontSizeSp =
+        if (compact) {
+            (runtime.currentFontSizeSp * PAUSE_PREVIEW_COMPACT_FONT_SCALE)
+                .coerceIn(MIN_PAUSE_PREVIEW_FONT_SIZE_SP, MAX_PAUSE_PREVIEW_COMPACT_FONT_SIZE_SP)
+        } else {
+            (runtime.currentFontSizeSp * PAUSE_PREVIEW_FONT_SCALE)
+                .coerceIn(MIN_PAUSE_PREVIEW_FONT_SIZE_SP, MAX_PAUSE_PREVIEW_FONT_SIZE_SP)
+        }
+    val lineHeightSp = fontSizeSp * PAUSE_PREVIEW_LINE_HEIGHT_MULTIPLIER
+    val lineCount = if (compact) PAUSE_PREVIEW_COMPACT_LINES else PAUSE_PREVIEW_LINES
+    val previewHeight = with(LocalDensity.current) { lineHeightSp.sp.toDp() * lineCount.toFloat() }
+
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(previewHeight)
+                .clipToBounds(),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            text = text,
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = fontSizeSp.sp,
+                    fontFamily = resolveFontFamily(runtime.currentFontFamily),
+                    fontWeight = FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = PAUSE_PREVIEW_TEXT_ALPHA),
+                    lineHeight = lineHeightSp.sp,
+                ),
+            overflow = TextOverflow.Clip,
+            maxLines = lineCount,
+            minLines = lineCount,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+internal fun shouldShowPausePreview(
+    isPlaying: Boolean,
+    showControls: Boolean,
+    showQuickSettings: Boolean,
+    isExiting: Boolean,
+): Boolean =
+    !isExiting &&
+        !isPlaying &&
+        showControls &&
+        !showQuickSettings
 
 @Composable
 private fun RsvpPlaybackInfoPills(
