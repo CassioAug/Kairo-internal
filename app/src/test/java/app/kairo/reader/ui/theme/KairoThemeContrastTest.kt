@@ -88,6 +88,100 @@ class KairoThemeContrastTest {
                 background = palette.primaryContainer,
                 minimum = WCAG_NORMAL_TEXT_CONTRAST,
             )
+            listOf(
+                "surface container low" to palette.surfaceContainerLow,
+                "surface container" to palette.surfaceContainer,
+                "surface container high" to palette.surfaceContainerHigh,
+                "surface container highest" to palette.surfaceContainerHighest,
+            ).forEach { (label, background) ->
+                assertContrast(
+                    theme = theme,
+                    label = "$label text",
+                    foreground = palette.onBackground,
+                    background = background,
+                    minimum = WCAG_ENHANCED_TEXT_CONTRAST,
+                )
+            }
+            assertContrast(
+                theme = theme,
+                label = "snackbar text",
+                foreground = palette.inverseOnSurface,
+                background = palette.inverseSurface,
+                minimum = WCAG_NORMAL_TEXT_CONTRAST,
+            )
+            assertContrast(
+                theme = theme,
+                label = "snackbar action",
+                foreground = palette.inversePrimary,
+                background = palette.inverseSurface,
+                minimum = WCAG_NORMAL_TEXT_CONTRAST,
+            )
+        }
+    }
+
+    @Test
+    fun materialColorSchemeUsesReaderPaletteForComponentRoles() {
+        ReaderTheme.values().forEach { theme ->
+            val palette = theme.readerThemePalette()
+            val scheme = theme.materialColorScheme()
+
+            listOf(
+                ThemeRole("primary", palette.primary, scheme.primary),
+                ThemeRole("onPrimary", palette.onPrimary, scheme.onPrimary),
+                ThemeRole("primaryContainer", palette.primaryContainer, scheme.primaryContainer),
+                ThemeRole(
+                    "onPrimaryContainer",
+                    palette.onPrimaryContainer,
+                    scheme.onPrimaryContainer,
+                ),
+                ThemeRole("secondary", palette.secondary, scheme.secondary),
+                ThemeRole("tertiary", palette.tertiary, scheme.tertiary),
+                ThemeRole("background", palette.background, scheme.background),
+                ThemeRole("onBackground", palette.onBackground, scheme.onBackground),
+                ThemeRole("surface", palette.surface, scheme.surface),
+                ThemeRole("onSurface", palette.onBackground, scheme.onSurface),
+                ThemeRole("surfaceVariant", palette.surfaceVariant, scheme.surfaceVariant),
+                ThemeRole(
+                    "onSurfaceVariant",
+                    palette.onSurfaceVariant,
+                    scheme.onSurfaceVariant,
+                ),
+                ThemeRole(
+                    "surfaceContainerLow",
+                    palette.surfaceContainerLow,
+                    scheme.surfaceContainerLow,
+                ),
+                ThemeRole("surfaceContainer", palette.surfaceContainer, scheme.surfaceContainer),
+                ThemeRole(
+                    "surfaceContainerHigh",
+                    palette.surfaceContainerHigh,
+                    scheme.surfaceContainerHigh,
+                ),
+                ThemeRole(
+                    "surfaceContainerHighest",
+                    palette.surfaceContainerHighest,
+                    scheme.surfaceContainerHighest,
+                ),
+                ThemeRole("inverseSurface", palette.inverseSurface, scheme.inverseSurface),
+                ThemeRole("inverseOnSurface", palette.inverseOnSurface, scheme.inverseOnSurface),
+                ThemeRole("inversePrimary", palette.inversePrimary, scheme.inversePrimary),
+                ThemeRole("outline", palette.outline, scheme.outline),
+                ThemeRole("outlineVariant", palette.outlineVariant, scheme.outlineVariant),
+                ThemeRole("error", palette.error, scheme.error),
+                ThemeRole("onError", palette.onError, scheme.onError),
+                ThemeRole("errorContainer", palette.errorContainer, scheme.errorContainer),
+                ThemeRole(
+                    "onErrorContainer",
+                    palette.onErrorContainer,
+                    scheme.onErrorContainer,
+                ),
+            ).forEach { (label, expected, actual) ->
+                assertEquals(
+                    "$theme $label should come from reader palette",
+                    expected,
+                    actual,
+                )
+            }
         }
     }
 
@@ -107,6 +201,15 @@ class KairoThemeContrastTest {
                 palette.onPrimaryContainer,
                 palette.secondary,
                 palette.tertiary,
+                palette.surfaceContainerLow,
+                palette.surfaceContainer,
+                palette.surfaceContainerHigh,
+                palette.surfaceContainerHighest,
+                palette.inversePrimary,
+                palette.error,
+                palette.onError,
+                palette.errorContainer,
+                palette.onErrorContainer,
             ).forEach { color ->
                 assertEquals("$theme color should be opaque", OPAQUE_ALPHA, color.alpha)
             }
@@ -148,6 +251,12 @@ class KairoThemeContrastTest {
         } else {
             ((this + SRGB_EXPONENT_OFFSET) / SRGB_EXPONENT_DIVISOR).pow(SRGB_EXPONENT)
         }.toDouble()
+
+    private data class ThemeRole(
+        val label: String,
+        val expected: Color,
+        val actual: Color,
+    )
 
     private companion object {
         const val WCAG_NORMAL_TEXT_CONTRAST = 4.5

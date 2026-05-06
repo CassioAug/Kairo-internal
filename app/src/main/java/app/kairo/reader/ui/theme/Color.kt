@@ -3,6 +3,7 @@
 package app.kairo.reader.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import app.kairo.reader.core.model.ReaderTheme
 
 val LightBackground = Color(0xFFF7F4ED)
@@ -129,7 +130,57 @@ internal data class ReaderThemePalette(
     val outlineVariant: Color,
     val inverseSurface: Color,
     val inverseOnSurface: Color,
-)
+) {
+    val surface: Color = background
+    val surfaceContainerLowest: Color = background
+    val surfaceContainerLow: Color =
+        surfaceBlend(if (isDark) DARK_SURFACE_LOW_ALPHA else LIGHT_SURFACE_LOW_ALPHA)
+    val surfaceContainer: Color =
+        surfaceBlend(if (isDark) DARK_SURFACE_ALPHA else LIGHT_SURFACE_ALPHA)
+    val surfaceContainerHigh: Color =
+        surfaceBlend(if (isDark) DARK_SURFACE_HIGH_ALPHA else LIGHT_SURFACE_HIGH_ALPHA)
+    val surfaceContainerHighest: Color = surfaceVariant
+    val surfaceDim: Color = if (isDark) background else surfaceContainerHigh
+    val surfaceBright: Color = if (isDark) surfaceContainerHighest else background
+    val inversePrimary: Color = primaryContainer
+    val primaryFixed: Color = primaryContainer
+    val primaryFixedDim: Color = primaryContainer
+    val onPrimaryFixed: Color = onPrimaryContainer
+    val onPrimaryFixedVariant: Color = primary
+    val secondaryFixed: Color = surfaceContainerHighest
+    val secondaryFixedDim: Color = surfaceContainerHigh
+    val onSecondaryFixed: Color = onBackground
+    val onSecondaryFixedVariant: Color = onSurfaceVariant
+    val tertiaryFixed: Color = surfaceContainerHighest
+    val tertiaryFixedDim: Color = surfaceContainerHigh
+    val onTertiaryFixed: Color = onBackground
+    val onTertiaryFixedVariant: Color = onSurfaceVariant
+    val error: Color = if (isDark) DarkError else LightError
+    val onError: Color = if (isDark) DarkOnError else LightOnError
+    val errorContainer: Color = if (isDark) DarkErrorContainer else LightErrorContainer
+    val onErrorContainer: Color = if (isDark) DarkOnErrorContainer else LightOnErrorContainer
+
+    private fun surfaceBlend(alpha: Float): Color =
+        surfaceVariant.copy(alpha = alpha).compositeOver(background)
+
+    private companion object {
+        const val LIGHT_SURFACE_LOW_ALPHA = 0.28f
+        const val LIGHT_SURFACE_ALPHA = 0.48f
+        const val LIGHT_SURFACE_HIGH_ALPHA = 0.68f
+        const val DARK_SURFACE_LOW_ALPHA = 0.34f
+        const val DARK_SURFACE_ALPHA = 0.54f
+        const val DARK_SURFACE_HIGH_ALPHA = 0.76f
+    }
+}
+
+private val LightError = Color(0xFF8B3A32)
+private val LightOnError = Color(0xFFFFF7F4)
+private val LightErrorContainer = Color(0xFFF2D4CE)
+private val LightOnErrorContainer = Color(0xFF3B0B07)
+private val DarkError = Color(0xFFE8A29A)
+private val DarkOnError = Color(0xFF3A100B)
+private val DarkErrorContainer = Color(0xFF5A211B)
+private val DarkOnErrorContainer = Color(0xFFFFDAD4)
 
 internal fun ReaderTheme.readerThemePalette(): ReaderThemePalette =
     when (this) {
