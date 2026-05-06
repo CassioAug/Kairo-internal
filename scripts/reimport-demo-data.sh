@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PACKAGE="${PACKAGE:-app.kairo.reader}"
+PACKAGE="${PACKAGE:-com.kairo.reader}"
 BACKUP_ROOT="${KAIRO_BACKUP_ROOT:-$HOME/Library/Application Support/Kairo/android-device-backups}"
 BACKUP_FILE="${BACKUP_FILE:-}"
 CONFIRMED=0

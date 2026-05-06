@@ -89,11 +89,11 @@ if (releaseBuildRequested && releaseSigning?.storeFile?.isFile == false) {
 }
 
 android {
-    namespace = "app.kairo.reader"
+    namespace = "com.kairo.reader"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "app.kairo.reader"
+        applicationId = "com.kairo.reader"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1

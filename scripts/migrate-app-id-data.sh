@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-OLD_PACKAGE="${OLD_PACKAGE:-com.example.kairo}"
-NEW_PACKAGE="${NEW_PACKAGE:-app.kairo.reader}"
+OLD_PACKAGE="${OLD_PACKAGE:-app.kairo.reader}"
+NEW_PACKAGE="${NEW_PACKAGE:-com.kairo.reader}"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/Library/Application Support/Kairo/android-device-backups}"
 BACKUP_FILE="${BACKUP_FILE:-$BACKUP_DIR/${OLD_PACKAGE}-to-${NEW_PACKAGE}-data.tar}"
 
