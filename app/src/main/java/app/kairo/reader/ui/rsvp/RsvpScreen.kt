@@ -62,6 +62,8 @@ fun RsvpScreen(
             book = state.book,
             profile = state.profile,
             frameRepository = dependencies.frameRepository,
+            previewStartIndex = runtime.currentTokenIndex,
+            previewResumeCursor = runtime.currentResumeCursor,
         )
     val tempoScale =
         rememberTempoScale(
@@ -324,6 +326,8 @@ private fun rememberFrameLoadState(
     book: RsvpBookContext,
     profile: RsvpProfileContext,
     frameRepository: RsvpFrameRepository,
+    previewStartIndex: Int,
+    previewResumeCursor: Int,
 ): RsvpFrameLoadState {
     val loadConfigKey = remember(profile.config) { frameLoadConfigKey(profile.config) }
     val instantFrameTokenCount = book.tokens.size
@@ -333,7 +337,15 @@ private fun rememberFrameLoadState(
         book.startIndex,
         instantFrameTokenCount,
     ) {
-        mutableStateOf(buildInstantFrameSet(book, profile.config))
+        mutableStateOf(
+            buildInstantFrameSet(
+                book.copy(
+                    startIndex = previewStartIndex,
+                    startResumeCursor = previewResumeCursor,
+                ),
+                profile.config,
+            ),
+        )
     }
     var activeLoadConfigKey by remember(book.bookId, book.chapterIndex, book.startIndex) {
         mutableStateOf<app.kairo.reader.core.model.RsvpConfig?>(null)

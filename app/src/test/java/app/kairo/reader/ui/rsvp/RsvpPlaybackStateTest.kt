@@ -190,6 +190,27 @@ class RsvpPlaybackStateTest {
     }
 
     @Test
+    fun loadingPreviewFramesDoNotSyncOverRestoredRotationPosition() {
+        val previewFrameState =
+            RsvpFrameLoadState(
+                frames =
+                    listOf(
+                        RsvpFrame(
+                            tokens = listOf(Token(text = "Start", type = TokenType.WORD)),
+                            durationMs = 120L,
+                            originalTokenIndex = 4,
+                        ),
+                    ),
+                baseTempoMs = 120L,
+                isLoading = true,
+            )
+        val loadedFrameState = previewFrameState.copy(isLoading = false)
+
+        assertFalse(shouldSyncPositionFromFrameState(previewFrameState))
+        assertTrue(shouldSyncPositionFromFrameState(loadedFrameState))
+    }
+
+    @Test
     fun sessionKeyDoesNotChangeWhenResumeCursorArrivesLater() {
         val base =
             RsvpBookContext(

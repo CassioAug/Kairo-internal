@@ -170,6 +170,8 @@ private const val RSVP_RESULT_CHAPTER_INDEX_KEY = "rsvp_result_chapter_index"
 private const val RSVP_RESULT_TOKEN_INDEX_KEY = "rsvp_result_token_index"
 private const val RSVP_RESULT_RESUME_CURSOR_KEY = "rsvp_result_resume_cursor"
 private const val RSVP_PLAYBACK_IS_PLAYING_KEY = "rsvp_playback_is_playing"
+private const val RSVP_CURRENT_TOKEN_INDEX_KEY = "rsvp_current_token_index"
+private const val RSVP_CURRENT_RESUME_CURSOR_KEY = "rsvp_current_resume_cursor"
 private data class RsvpReturnTarget(
     val chapterIndex: Int,
     val tokenIndex: Int,
@@ -1544,7 +1546,18 @@ private fun KairoNavHost(
 
             val focusEnabledInRsvp = prefs.focusModeEnabled && prefs.focusApplyInRsvp
             val bookIdValue = BookId(bookId)
-            val safeStartIndex = startIndex.coerceAtLeast(0)
+            val savedCurrentTokenIndex =
+                remember(backStackEntry) {
+                    backStackEntry.savedStateHandle[RSVP_CURRENT_TOKEN_INDEX_KEY] ?: -1
+                }
+            val savedCurrentResumeCursor =
+                remember(backStackEntry) {
+                    backStackEntry.savedStateHandle[RSVP_CURRENT_RESUME_CURSOR_KEY] ?: -1
+                }
+            val safeStartIndex =
+                savedCurrentTokenIndex
+                    .takeIf { it >= 0 }
+                    ?: startIndex.coerceAtLeast(0)
             val chapterCountState =
                 produceState(
                     initialValue = chapterIndex + 1,
@@ -1565,12 +1578,15 @@ private fun KairoNavHost(
                     value = container.readingPositionRepository.getPosition(bookIdValue)
                 }
             val startResumeCursor =
-                savedResumePositionState.value
-                    ?.takeIf {
-                        it.chapterIndex == chapterIndex &&
-                            it.tokenIndex == safeStartIndex &&
-                            it.rsvpResumeCursor >= 0
-                    }?.rsvpResumeCursor ?: -1
+                savedCurrentResumeCursor
+                    .takeIf { savedCurrentTokenIndex >= 0 && it >= 0 }
+                    ?: savedResumePositionState.value
+                        ?.takeIf {
+                            it.chapterIndex == chapterIndex &&
+                                it.tokenIndex == safeStartIndex &&
+                                it.rsvpResumeCursor >= 0
+                        }?.rsvpResumeCursor
+                    ?: -1
             val playbackIsPlayingFlow =
                 remember(backStackEntry) {
                     backStackEntry.savedStateHandle.getStateFlow(
@@ -1701,6 +1717,10 @@ private fun KairoNavHost(
                                 } else {
                                     0
                                 }
+                            backStackEntry.savedStateHandle[RSVP_CURRENT_TOKEN_INDEX_KEY] =
+                                safeIndex
+                            backStackEntry.savedStateHandle[RSVP_CURRENT_RESUME_CURSOR_KEY] =
+                                resumePoint.resumeCursor
                             val wordIndex = resolveWordIndex(wordCountByToken, safeIndex)
                             coroutineScope.launch(dispatcherProvider.io) {
                                 container.readingPositionRepository.savePosition(
