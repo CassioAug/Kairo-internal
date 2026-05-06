@@ -465,6 +465,11 @@ private fun LibraryCard(
         Modifier
             .fillMaxWidth()
             .clickable { onOpen(book) },
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
@@ -756,7 +761,7 @@ private fun BookmarkRow(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable {
                 onOpenBookmark(book.id.value, bookmark.chapterIndex, bookmark.tokenIndex)
             }

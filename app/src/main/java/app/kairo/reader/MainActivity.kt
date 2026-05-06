@@ -5,13 +5,19 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -83,6 +89,7 @@ import app.kairo.reader.ui.settings.LanguageSettingsScreen
 import app.kairo.reader.ui.settings.ReaderSettingsScreen
 import app.kairo.reader.ui.settings.RsvpSettingsScreen
 import app.kairo.reader.ui.settings.SettingsHomeScreen
+import app.kairo.reader.ui.theme.KairoSnackbarHost
 import app.kairo.reader.ui.theme.KairoTheme
 import app.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import app.kairo.reader.ui.tutorial.StartingTutorialRoute
@@ -365,6 +372,7 @@ private fun KairoNavHost(
     val positionsFlow = container.readingPositionRepository.observePositions()
     val positions by positionsFlow.collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val dispatcherProvider = container.dispatcherProvider
     var importState by remember { mutableStateOf(ImportUiState()) }
     var importProgressJob by remember { mutableStateOf<Job?>(null) }
@@ -546,6 +554,19 @@ private fun KairoNavHost(
         }
     }
 
+    fun showUserMessage(
+        message: String,
+        duration: SnackbarDuration = SnackbarDuration.Short,
+    ) {
+        coroutineScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = duration,
+            )
+        }
+    }
+
     fun handleImportFile(uri: Uri) {
         if (importState.isImporting) return
         val displayName = resolveImportFileName(context, uri)
@@ -580,14 +601,14 @@ private fun KairoNavHost(
                             book.title,
                             chapterCount,
                         )
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    showUserMessage(message)
                 }
                 result.onFailure { error ->
                     val message =
                         error.message?.let {
                             resources.getString(R.string.toast_import_failed_detail, it)
                         } ?: resources.getString(R.string.toast_import_failed_unknown)
-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                    showUserMessage(message, duration = SnackbarDuration.Long)
                 }
             }
         }
@@ -631,61 +652,62 @@ private fun KairoNavHost(
         pauseNotifications = prefs.focusPauseNotifications,
     )
 
-    NavHost(navController = navController, startDestination = "library") {
-        composable("library") {
-            LibraryScreen(
-                books = books,
-                bookmarks = bookmarks,
-                bookProgress = libraryProgress,
-                initialTab = LibraryTab.Library,
-                importState = importState,
-                onOpen = { book ->
-                    // Navigate to reader - saved position will be restored there
-                    navController.navigate("reader/${book.id.value}")
-                },
-                onOpenBookmark = { bookId, chapterIndex, tokenIndex ->
-                    coroutineScope.launch(dispatcherProvider.io) {
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(BookId(bookId), chapterIndex, tokenIndex),
-                        )
-                    }
-                    navController.navigate("reader/$bookId/$chapterIndex/$tokenIndex")
-                },
-                onDeleteBookmark = { bookmarkId ->
-                    coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
-                },
-                onDeleteBookmarksForBook = { bookId ->
-                    coroutineScope.launch {
-                        container.bookmarkRepository.deleteForBook(BookId(bookId))
-                    }
-                },
-                onImportFile = ::handleImportFile,
-                onSettings = { navController.navigate("settings") },
-                onSetCompleted = { book, isCompleted ->
-                    coroutineScope.launch {
-                        container.libraryRepository.setCompleted(book.id.value, isCompleted)
-                    }
-                },
-                onDelete = { book ->
-                    coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
-                },
-                tutorialState = libraryTutorialState,
-                onTutorialNext = { moveStartingTutorial(1) },
-                onTutorialPrevious = { moveStartingTutorial(-1) },
-                onTutorialSkip = { dismissStartingTutorial() },
-            )
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = "library") {
+            composable("library") {
+                LibraryScreen(
+                    books = books,
+                    bookmarks = bookmarks,
+                    bookProgress = libraryProgress,
+                    initialTab = LibraryTab.Library,
+                    importState = importState,
+                    onOpen = { book ->
+                        // Navigate to reader - saved position will be restored there
+                        navController.navigate("reader/${book.id.value}")
+                    },
+                    onOpenBookmark = { bookId, chapterIndex, tokenIndex ->
+                        coroutineScope.launch(dispatcherProvider.io) {
+                            container.readingPositionRepository.savePosition(
+                                ReadingPosition(BookId(bookId), chapterIndex, tokenIndex),
+                            )
+                        }
+                        navController.navigate("reader/$bookId/$chapterIndex/$tokenIndex")
+                    },
+                    onDeleteBookmark = { bookmarkId ->
+                        coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
+                    },
+                    onDeleteBookmarksForBook = { bookId ->
+                        coroutineScope.launch {
+                            container.bookmarkRepository.deleteForBook(BookId(bookId))
+                        }
+                    },
+                    onImportFile = ::handleImportFile,
+                    onSettings = { navController.navigate("settings") },
+                    onSetCompleted = { book, isCompleted ->
+                        coroutineScope.launch {
+                            container.libraryRepository.setCompleted(book.id.value, isCompleted)
+                        }
+                    },
+                    onDelete = { book ->
+                        coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
+                    },
+                    tutorialState = libraryTutorialState,
+                    onTutorialNext = { moveStartingTutorial(1) },
+                    onTutorialPrevious = { moveStartingTutorial(-1) },
+                    onTutorialSkip = { dismissStartingTutorial() },
+                )
+            }
 
-        composable(
-            route = "library?tab={tab}",
-            arguments =
-            listOf(
-                navArgument("tab") {
-                    type = NavType.StringType
-                    defaultValue = "library"
-                },
-            ),
-        ) { backStackEntry ->
+            composable(
+                route = "library?tab={tab}",
+                arguments =
+                listOf(
+                    navArgument("tab") {
+                        type = NavType.StringType
+                        defaultValue = "library"
+                    },
+                ),
+            ) { backStackEntry ->
             val tab = backStackEntry.arguments?.getString("tab") ?: "library"
             val initialTab =
                 when (tab.lowercase()) {
@@ -1041,11 +1063,7 @@ private fun KairoNavHost(
                                 createdAt = System.currentTimeMillis(),
                             ),
                         )
-                        Toast.makeText(
-                            context,
-                            resources.getString(R.string.toast_bookmark_added),
-                            Toast.LENGTH_SHORT,
-                        ).show()
+                        showUserMessage(resources.getString(R.string.toast_bookmark_added))
                     }
                 },
                 onOpenBookmarks = {
@@ -1431,11 +1449,7 @@ private fun KairoNavHost(
                                 createdAt = System.currentTimeMillis(),
                             ),
                         )
-                        Toast.makeText(
-                            context,
-                            resources.getString(R.string.toast_bookmark_added),
-                            Toast.LENGTH_SHORT,
-                        ).show()
+                        showUserMessage(resources.getString(R.string.toast_bookmark_added))
                     }
                 },
                 onOpenBookmarks = {
@@ -1659,11 +1673,7 @@ private fun KairoNavHost(
                                         createdAt = System.currentTimeMillis(),
                                     ),
                                 )
-                                Toast.makeText(
-                                    context,
-                                    resources.getString(R.string.toast_bookmark_added),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
+                                showUserMessage(resources.getString(R.string.toast_bookmark_added))
                             }
                         },
                         onOpenBookmarks = {
@@ -2005,36 +2015,48 @@ private fun KairoNavHost(
             )
         }
 
-        composable("settings/focus") {
-            FocusSettingsScreen(
-                preferences = prefs,
-                onFocusModeEnabledChange = { enabled ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateFocusModeEnabled(enabled)
-                    }
-                },
-                onFocusHideStatusBarChange = { enabled ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateFocusHideStatusBar(enabled)
-                    }
-                },
-                onFocusPauseNotificationsChange = { enabled ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateFocusPauseNotifications(enabled)
-                    }
-                },
-                onFocusApplyInReaderChange = { enabled ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateFocusApplyInReader(enabled)
-                    }
-                },
-                onFocusApplyInRsvpChange = { enabled ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateFocusApplyInRsvp(enabled)
-                    }
-                },
-                onBack = { navController.popBackStack() },
-            )
+            composable("settings/focus") {
+                FocusSettingsScreen(
+                    preferences = prefs,
+                    onFocusModeEnabledChange = { enabled ->
+                        coroutineScope.launch {
+                            container.preferencesRepository.updateFocusModeEnabled(enabled)
+                        }
+                    },
+                    onFocusHideStatusBarChange = { enabled ->
+                        coroutineScope.launch {
+                            container.preferencesRepository.updateFocusHideStatusBar(enabled)
+                        }
+                    },
+                    onFocusPauseNotificationsChange = { enabled ->
+                        coroutineScope.launch {
+                            container.preferencesRepository.updateFocusPauseNotifications(enabled)
+                        }
+                    },
+                    onFocusApplyInReaderChange = { enabled ->
+                        coroutineScope.launch {
+                            container.preferencesRepository.updateFocusApplyInReader(enabled)
+                        }
+                    },
+                    onFocusApplyInRsvpChange = { enabled ->
+                        coroutineScope.launch {
+                            container.preferencesRepository.updateFocusApplyInRsvp(enabled)
+                        }
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
+        KairoSnackbarHost(
+            hostState = snackbarHostState,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(
+                            WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
+                        )
+                    ),
+        )
     }
 }

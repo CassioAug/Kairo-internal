@@ -41,7 +41,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
@@ -276,6 +275,7 @@ fun StartingTutorialOverlay(
     val highlightRect =
         targetBounds?.expand(highlightPaddingPx)
             ?.coerceInside(screenWidthPx, screenHeightPx)
+    val scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.74f)
 
     Box(
         modifier =
@@ -288,7 +288,6 @@ fun StartingTutorialOverlay(
                 ),
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val scrimColor = Color.Black.copy(alpha = 0.74f)
             if (highlightRect == null) {
                 drawRect(color = scrimColor)
             } else {

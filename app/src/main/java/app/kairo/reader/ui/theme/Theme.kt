@@ -2,6 +2,7 @@
 
 package app.kairo.reader.ui.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -14,63 +15,7 @@ fun KairoTheme(
     readerTheme: ReaderTheme = ReaderTheme.SEPIA,
     content: @Composable () -> Unit,
 ) {
-    val palette = readerTheme.readerThemePalette()
-    val colorScheme =
-        if (palette.isDark) {
-            darkColorScheme(
-                primary = palette.primary,
-                onPrimary = palette.onPrimary,
-                primaryContainer = palette.primaryContainer,
-                onPrimaryContainer = palette.onPrimaryContainer,
-                secondary = palette.secondary,
-                onSecondary = palette.onPrimary,
-                secondaryContainer = palette.surfaceVariant,
-                onSecondaryContainer = palette.onSurfaceVariant,
-                tertiary = palette.tertiary,
-                onTertiary = palette.onPrimary,
-                tertiaryContainer = palette.surfaceVariant,
-                onTertiaryContainer = palette.onSurfaceVariant,
-                background = palette.background,
-                onBackground = palette.onBackground,
-                surface = palette.background,
-                onSurface = palette.onBackground,
-                surfaceVariant = palette.surfaceVariant,
-                onSurfaceVariant = palette.onSurfaceVariant,
-                outline = palette.outline,
-                outlineVariant = palette.outlineVariant,
-                inverseSurface = palette.inverseSurface,
-                inverseOnSurface = palette.inverseOnSurface,
-                surfaceTint = palette.primary,
-                scrim = Color.Black,
-            )
-        } else {
-            lightColorScheme(
-                primary = palette.primary,
-                onPrimary = palette.onPrimary,
-                primaryContainer = palette.primaryContainer,
-                onPrimaryContainer = palette.onPrimaryContainer,
-                secondary = palette.secondary,
-                onSecondary = palette.onPrimary,
-                secondaryContainer = palette.surfaceVariant,
-                onSecondaryContainer = palette.onSurfaceVariant,
-                tertiary = palette.tertiary,
-                onTertiary = palette.onPrimary,
-                tertiaryContainer = palette.surfaceVariant,
-                onTertiaryContainer = palette.onSurfaceVariant,
-                background = palette.background,
-                onBackground = palette.onBackground,
-                surface = palette.background,
-                onSurface = palette.onBackground,
-                surfaceVariant = palette.surfaceVariant,
-                onSurfaceVariant = palette.onSurfaceVariant,
-                outline = palette.outline,
-                outlineVariant = palette.outlineVariant,
-                inverseSurface = palette.inverseSurface,
-                inverseOnSurface = palette.inverseOnSurface,
-                surfaceTint = palette.primary,
-                scrim = Color.Black,
-            )
-        }
+    val colorScheme = readerTheme.materialColorScheme()
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -78,3 +23,111 @@ fun KairoTheme(
         content = content,
     )
 }
+
+internal fun ReaderTheme.materialColorScheme(): ColorScheme =
+    readerThemePalette().materialColorScheme()
+
+private fun ReaderThemePalette.materialColorScheme(): ColorScheme =
+    if (isDark) {
+        darkColorScheme(
+            primary = primary,
+            onPrimary = onPrimary,
+            primaryContainer = primaryContainer,
+            onPrimaryContainer = onPrimaryContainer,
+            inversePrimary = inversePrimary,
+            secondary = secondary,
+            onSecondary = onPrimary,
+            secondaryContainer = surfaceContainerHighest,
+            onSecondaryContainer = onSurfaceVariant,
+            tertiary = tertiary,
+            onTertiary = onPrimary,
+            tertiaryContainer = surfaceContainerHighest,
+            onTertiaryContainer = onSurfaceVariant,
+            background = background,
+            onBackground = onBackground,
+            surface = surface,
+            onSurface = onBackground,
+            surfaceVariant = surfaceVariant,
+            onSurfaceVariant = onSurfaceVariant,
+            surfaceTint = Color.Transparent,
+            inverseSurface = inverseSurface,
+            inverseOnSurface = inverseOnSurface,
+            error = error,
+            onError = onError,
+            errorContainer = errorContainer,
+            onErrorContainer = onErrorContainer,
+            outline = outline,
+            outlineVariant = outlineVariant,
+            scrim = Color.Black,
+            surfaceBright = surfaceBright,
+            surfaceContainer = surfaceContainer,
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHighest,
+            surfaceContainerLow = surfaceContainerLow,
+            surfaceContainerLowest = surfaceContainerLowest,
+            surfaceDim = surfaceDim,
+            primaryFixed = primaryFixed,
+            primaryFixedDim = primaryFixedDim,
+            onPrimaryFixed = onPrimaryFixed,
+            onPrimaryFixedVariant = onPrimaryFixedVariant,
+            secondaryFixed = secondaryFixed,
+            secondaryFixedDim = secondaryFixedDim,
+            onSecondaryFixed = onSecondaryFixed,
+            onSecondaryFixedVariant = onSecondaryFixedVariant,
+            tertiaryFixed = tertiaryFixed,
+            tertiaryFixedDim = tertiaryFixedDim,
+            onTertiaryFixed = onTertiaryFixed,
+            onTertiaryFixedVariant = onTertiaryFixedVariant,
+        )
+    } else {
+        lightColorScheme(
+            primary = primary,
+            onPrimary = onPrimary,
+            primaryContainer = primaryContainer,
+            onPrimaryContainer = onPrimaryContainer,
+            inversePrimary = inversePrimary,
+            secondary = secondary,
+            onSecondary = onPrimary,
+            secondaryContainer = surfaceContainerHighest,
+            onSecondaryContainer = onSurfaceVariant,
+            tertiary = tertiary,
+            onTertiary = onPrimary,
+            tertiaryContainer = surfaceContainerHighest,
+            onTertiaryContainer = onSurfaceVariant,
+            background = background,
+            onBackground = onBackground,
+            surface = surface,
+            onSurface = onBackground,
+            surfaceVariant = surfaceVariant,
+            onSurfaceVariant = onSurfaceVariant,
+            surfaceTint = Color.Transparent,
+            inverseSurface = inverseSurface,
+            inverseOnSurface = inverseOnSurface,
+            error = error,
+            onError = onError,
+            errorContainer = errorContainer,
+            onErrorContainer = onErrorContainer,
+            outline = outline,
+            outlineVariant = outlineVariant,
+            scrim = Color.Black,
+            surfaceBright = surfaceBright,
+            surfaceContainer = surfaceContainer,
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHighest,
+            surfaceContainerLow = surfaceContainerLow,
+            surfaceContainerLowest = surfaceContainerLowest,
+            surfaceDim = surfaceDim,
+            primaryFixed = primaryFixed,
+            primaryFixedDim = primaryFixedDim,
+            onPrimaryFixed = onPrimaryFixed,
+            onPrimaryFixedVariant = onPrimaryFixedVariant,
+            secondaryFixed = secondaryFixed,
+            secondaryFixedDim = secondaryFixedDim,
+            onSecondaryFixed = onSecondaryFixed,
+            onSecondaryFixedVariant = onSecondaryFixedVariant,
+            tertiaryFixed = tertiaryFixed,
+            tertiaryFixedDim = tertiaryFixedDim,
+            onTertiaryFixed = onTertiaryFixed,
+            onTertiaryFixedVariant = onTertiaryFixedVariant,
+        )
+    }
