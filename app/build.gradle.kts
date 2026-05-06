@@ -1,4 +1,6 @@
 import io.gitlab.arturbosch.detekt.Detekt
+import java.io.File
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -7,6 +9,83 @@ plugins {
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.ksp)
+}
+
+private data class ReleaseSigningProperties(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String
+)
+
+private val releaseSigningPropertiesFile = rootProject.file("keystore.properties")
+private val releaseSigningProperties = Properties().apply {
+    if (releaseSigningPropertiesFile.isFile) {
+        releaseSigningPropertiesFile.inputStream().use { input ->
+            load(input)
+        }
+    }
+}
+
+private fun releaseSigningProperty(
+    propertyName: String,
+    environmentName: String
+): String? {
+    return (
+        releaseSigningProperties.getProperty(propertyName)
+            ?: providers.environmentVariable(environmentName).orNull
+    )?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+private fun releaseSigningStoreFile(path: String): File {
+    return File(path).takeIf { it.isAbsolute } ?: rootProject.file(path)
+}
+
+private val releaseSigning = releaseSigningProperty(
+    propertyName = "storeFile",
+    environmentName = "KAIRO_RELEASE_STORE_FILE"
+)?.let { storeFile ->
+    val storePassword = releaseSigningProperty(
+        propertyName = "storePassword",
+        environmentName = "KAIRO_RELEASE_STORE_PASSWORD"
+    )
+    val keyAlias = releaseSigningProperty(
+        propertyName = "keyAlias",
+        environmentName = "KAIRO_RELEASE_KEY_ALIAS"
+    )
+    val keyPassword = releaseSigningProperty(
+        propertyName = "keyPassword",
+        environmentName = "KAIRO_RELEASE_KEY_PASSWORD"
+    )
+
+    if (storePassword == null || keyAlias == null || keyPassword == null) {
+        null
+    } else {
+        ReleaseSigningProperties(
+            storeFile = releaseSigningStoreFile(storeFile),
+            storePassword = storePassword,
+            keyAlias = keyAlias,
+            keyPassword = keyPassword
+        )
+    }
+}
+
+private val releaseBuildRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.substringAfterLast(':').contains("Release")
+}
+
+if (releaseBuildRequested && releaseSigning == null) {
+    throw GradleException(
+        "Release signing is not configured. Run ./scripts/setup-release-signing.sh " +
+            "or create keystore.properties from keystore.properties.example."
+    )
+}
+
+if (releaseBuildRequested && releaseSigning?.storeFile?.isFile == false) {
+    throw GradleException(
+        "Release keystore does not exist at ${releaseSigning.storeFile}. " +
+            "Update storeFile in keystore.properties or rerun ./scripts/setup-release-signing.sh."
+    )
 }
 
 android {
@@ -23,9 +102,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            releaseSigning?.let { signing ->
+                storeFile = signing.storeFile
+                storePassword = signing.storePassword
+                keyAlias = signing.keyAlias
+                keyPassword = signing.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -1,6 +1,7 @@
 *.iml
 .gradle
 .gradle-home/
+.gradle-local/
 .gradle-user/
 .gradle-user-home/
 .gradle_user_home/
@@ -26,6 +27,10 @@ AGENTS.md
 *.apk
 *.aab
 *.iml
+*.jks
+*.keystore
+/keystore.properties
+/keystores/
 
 # IntelliJ / Android Studio
 .idea/
