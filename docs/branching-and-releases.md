@@ -66,6 +66,31 @@ While Kairo is still evolving quickly, `0.x.y` versions are a good fit. Move to 
 
 Android releases also need a monotonically increasing `versionCode`.
 
+## Release Signing
+
+Release builds read signing credentials from `keystore.properties` in the
+project root. The generated properties file and keystore are intentionally
+ignored by git.
+
+To create a local Play upload key:
+
+```bash
+./scripts/setup-release-signing.sh
+```
+
+Then build the signed Android App Bundle:
+
+```bash
+./gradlew bundleRelease
+```
+
+The generated bundle is written to
+`app/build/outputs/bundle/release/app-release.aab`.
+
+Back up `keystore.properties` and `keystores/kairo-upload-key.jks` somewhere
+private. Losing the upload key will block future updates unless Play Console
+resets the upload certificate.
+
 ## Cleanup
 
 After a branch is merged and no longer needed, delete it locally and remotely:
