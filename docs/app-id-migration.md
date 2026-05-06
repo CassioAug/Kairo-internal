@@ -1,6 +1,6 @@
 # App ID Migration
 
-Changing `applicationId` from `com.example.kairo` to `app.kairo.reader` makes Android treat Kairo as a different app. The old app data is not deleted automatically, but the renamed app starts with a fresh private data directory.
+Changing `applicationId` from `app.kairo.reader` to `com.kairo.reader` makes Android treat Kairo as a different app. The old app data is not deleted automatically, but the renamed app starts with a fresh private data directory.
 
 For a local debug device, migrate the data with:
 
@@ -34,9 +34,9 @@ For screenshots, demos, and promotional capture, preserve the current app data o
 
 That script:
 
-- backs up `app.kairo.reader` private data to `~/Library/Application Support/Kairo/android-device-backups`
+- backs up `com.kairo.reader` private data to `~/Library/Application Support/Kairo/android-device-backups`
 - writes a latest-backup marker for easy restore
-- uninstalls `app.kairo.reader`, so the next Android Studio run is a clean install
+- uninstalls `com.kairo.reader`, so the next Android Studio run is a clean install
 
 If you want the script to reinstall the debug APK after uninstalling:
 
@@ -59,7 +59,7 @@ To inspect available backups:
 To restore a specific backup:
 
 ```bash
-./scripts/reimport-demo-data.sh --yes --backup-file "$HOME/Library/Application Support/Kairo/android-device-backups/app.kairo.reader-YYYYMMDD-HHMMSS.tar"
+./scripts/reimport-demo-data.sh --yes --backup-file "$HOME/Library/Application Support/Kairo/android-device-backups/com.kairo.reader-YYYYMMDD-HHMMSS.tar"
 ```
 
 Do not commit backup tars. They are app-private data snapshots and should stay in the external backup folder.

@@ -1,0 +1,315 @@
+@file:Suppress("FunctionNaming", "LongMethod", "LongParameterList", "MaxLineLength")
+
+package com.kairo.reader.ui.settings
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.kairo.reader.R
+import com.kairo.reader.core.model.ReaderTheme
+import com.kairo.reader.ui.theme.readerThemePalette
+
+@Composable
+fun SettingsNavRow(
+    modifier: Modifier = Modifier,
+    title: String,
+    subtitle: String? = null,
+    icon: ImageVector,
+    showChevron: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier =
+        modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        tonalElevation = 1.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (showChevron) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScaffold(
+    title: String,
+    onBack: (() -> Unit)?,
+    content: @Composable (Modifier) -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.action_back),
+                            )
+                        }
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        content(
+            Modifier
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
+                    )
+                )
+                .padding(innerPadding),
+        )
+    }
+}
+
+@Composable
+fun SettingsSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+) {
+    Row(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+    }
+}
+
+@Composable
+fun SettingsSliderRow(
+    title: String,
+    valueLabel: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    subtitle: String? = null,
+    onValueChangeFinished: (() -> Unit)? = null,
+) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        if (subtitle != null) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                valueLabel,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.width(84.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Slider(
+                value = value,
+                onValueChange = onValueChange,
+                valueRange = valueRange,
+                onValueChangeFinished = { onValueChangeFinished?.invoke() },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+fun ThemeSelector(
+    selected: ReaderTheme,
+    onThemeChange: (ReaderTheme) -> Unit,
+) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(stringResource(R.string.reader_theme_title), style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val themes =
+            listOf(
+                ReaderTheme.LIGHT,
+                ReaderTheme.LINEN,
+                ReaderTheme.MIST,
+                ReaderTheme.SAGE,
+                ReaderTheme.SEPIA,
+                ReaderTheme.DARK,
+                ReaderTheme.INK,
+                ReaderTheme.PLUM,
+                ReaderTheme.EMBER,
+                ReaderTheme.NORD,
+                ReaderTheme.FOREST,
+                ReaderTheme.CYBERPUNK,
+            )
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 2.dp),
+        ) {
+            items(themes, key = { it.name }) { theme ->
+                val isSelected = theme == selected
+                val (previewBg, previewAccent) = rememberThemePreview(theme)
+                val themeLabel = stringResource(readerThemeLabelRes(theme))
+                Surface(
+                    modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { onThemeChange(theme) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(
+                        alpha = if (isSelected) 0.65f else 0.45f
+                    ),
+                    border =
+                    BorderStroke(
+                        1.dp,
+                        if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(
+                                alpha = 0.45f,
+                            )
+                        },
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier =
+                                Modifier
+                                    .size(14.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(previewBg),
+                            )
+                            Box(
+                                modifier =
+                                Modifier
+                                    .size(14.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(previewAccent),
+                            )
+                        }
+                        // Label
+                        Text(
+                            text = themeLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberThemePreview(theme: ReaderTheme): Pair<Color, Color> {
+    val palette = theme.readerThemePalette()
+    return palette.background to palette.primary
+}
+
+private fun readerThemeLabelRes(theme: ReaderTheme): Int =
+    when (theme) {
+        ReaderTheme.LIGHT -> R.string.reader_theme_light
+        ReaderTheme.LINEN -> R.string.reader_theme_linen
+        ReaderTheme.MIST -> R.string.reader_theme_mist
+        ReaderTheme.SAGE -> R.string.reader_theme_sage
+        ReaderTheme.SEPIA -> R.string.reader_theme_sepia
+        ReaderTheme.DARK -> R.string.reader_theme_dark
+        ReaderTheme.INK -> R.string.reader_theme_ink
+        ReaderTheme.PLUM -> R.string.reader_theme_plum
+        ReaderTheme.EMBER -> R.string.reader_theme_ember
+        ReaderTheme.NORD -> R.string.reader_theme_nord
+        ReaderTheme.CYBERPUNK -> R.string.reader_theme_cyberpunk
+        ReaderTheme.FOREST -> R.string.reader_theme_forest
+    }
