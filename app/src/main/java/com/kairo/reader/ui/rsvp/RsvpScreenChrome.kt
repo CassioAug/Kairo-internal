@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -72,9 +73,11 @@ internal fun BoxScope.RsvpTopBar(
     context: RsvpUiContext,
     settingsModifier: Modifier = Modifier,
     closeModifier: Modifier = Modifier,
+    homeModifier: Modifier = Modifier,
 ) {
     val runtime = context.runtime
-    val showSettings = runtime.isPositioningMode || !runtime.isPlaying
+    val showTopIcons = runtime.isPositioningMode || !runtime.isPlaying
+    if (!showTopIcons) return
 
     Row(
         modifier =
@@ -90,6 +93,12 @@ internal fun BoxScope.RsvpTopBar(
             onClick = { exitAndSavePosition(context) },
             modifier = closeModifier,
         )
+        RsvpTopIconButton(
+            imageVector = Icons.Default.Home,
+            contentDescription = stringResource(R.string.content_desc_go_to_library),
+            onClick = { openLibraryAndSavePosition(context) },
+            modifier = homeModifier,
+        )
     }
 
     Row(
@@ -100,21 +109,19 @@ internal fun BoxScope.RsvpTopBar(
             .padding(TOP_BAR_PADDING),
         horizontalArrangement = Arrangement.spacedBy(TOP_BAR_SPACING),
     ) {
-        if (showSettings) {
-            RsvpTopIconButton(
-                imageVector = Icons.Default.Settings,
-                contentDescription = stringResource(R.string.content_desc_settings),
-                onClick = {
-                    if (runtime.isPositioningMode) {
-                        finishPositioning(context, resumeIfWasPlaying = true)
-                    } else {
-                        runtime.showQuickSettings = !runtime.showQuickSettings
-                        if (runtime.showQuickSettings) runtime.showControls = false
-                    }
-                },
-                modifier = settingsModifier,
-            )
-        }
+        RsvpTopIconButton(
+            imageVector = Icons.Default.Settings,
+            contentDescription = stringResource(R.string.content_desc_settings),
+            onClick = {
+                if (runtime.isPositioningMode) {
+                    finishPositioning(context, resumeIfWasPlaying = true)
+                } else {
+                    runtime.showQuickSettings = !runtime.showQuickSettings
+                    if (runtime.showQuickSettings) runtime.showControls = false
+                }
+            },
+            modifier = settingsModifier,
+        )
     }
 }
 

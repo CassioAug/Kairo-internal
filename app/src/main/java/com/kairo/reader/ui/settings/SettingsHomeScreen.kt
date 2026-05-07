@@ -40,6 +40,7 @@ fun SettingsHomeScreen(
     onOpenRsvp: () -> Unit,
     onOpenReader: () -> Unit,
     onOpenFocus: () -> Unit,
+    onOpenInfo: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenStartingTutorial: () -> Unit,
     onReset: () -> Unit,
@@ -116,6 +117,12 @@ fun SettingsHomeScreen(
                 subtitle = stringResource(R.string.focus_settings_subtitle),
                 icon = Icons.Default.Settings,
                 onClick = onOpenFocus,
+            )
+            SettingsNavRow(
+                title = stringResource(R.string.info_settings_title),
+                subtitle = stringResource(R.string.info_settings_subtitle),
+                icon = Icons.Default.Info,
+                onClick = onOpenInfo,
             )
             SettingsNavRow(
                 modifier =
