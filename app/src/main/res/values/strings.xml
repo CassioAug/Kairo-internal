@@ -39,6 +39,7 @@
     <string name="content_desc_play">Play</string>
     <string name="content_desc_previous">Previous</string>
     <string name="content_desc_previous_page">Previous page</string>
+    <string name="content_desc_go_to_library">Go to library</string>
     <string name="content_desc_reader_details">Reader details</string>
     <string name="content_desc_reader_menu">Reader menu</string>
     <string name="content_desc_reader_swipe_next_page">Swipe preview: next page</string>
@@ -306,6 +307,12 @@
     <string name="settings_rsvp_subtitle">Speed, timing, readability shaping, RSVP typography</string>
     <string name="settings_starting_tutorial_title">Starting tutorial</string>
     <string name="settings_starting_tutorial_subtitle">Replay the guided app walkthrough.</string>
+    <string name="info_settings_title">Info</string>
+    <string name="info_settings_subtitle">Support Kairo or contribute on GitHub</string>
+    <string name="info_buy_me_a_coffee_title">Buy me a coffee</string>
+    <string name="info_buy_me_a_coffee_subtitle">Support Kairo development</string>
+    <string name="info_contribute_title">Want to contribute?</string>
+    <string name="info_contribute_subtitle">Open the Kairo GitHub repository</string>
     <string name="settings_reset_defaults">Reset to defaults</string>
     <string name="settings_advanced_title">Advanced settings</string>
     <string name="settings_advanced_subtitle">All tuning controls, grouped by section.</string>
@@ -318,7 +325,7 @@
     <string name="starting_tutorial_tabs_title">Switch between library and bookmarks</string>
     <string name="starting_tutorial_tabs_body">The second tab collects saved bookmarks so you can jump back into important passages fast.</string>
     <string name="starting_tutorial_library_settings_title">Open app settings</string>
-    <string name="starting_tutorial_library_settings_body">Settings gives you access to RSVP tuning, reader appearance, focus mode, language, and this tutorial.</string>
+    <string name="starting_tutorial_library_settings_body">Settings gives you access to RSVP tuning, reader appearance, focus mode, language, support links, and this tutorial.</string>
     <string name="starting_tutorial_language_title">Change the app language</string>
     <string name="starting_tutorial_language_body">If you want a different app language, start here. It only affects the interface, not your imported books.</string>
     <string name="starting_tutorial_rsvp_title">Tune RSVP playback</string>

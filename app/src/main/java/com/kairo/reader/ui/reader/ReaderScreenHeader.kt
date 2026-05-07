@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
@@ -51,6 +52,7 @@ internal fun ReaderHeader(
     canGoNext: Boolean,
     onPrev: () -> Unit,
     onNext: () -> Unit,
+    onOpenLibrary: () -> Unit,
     onShowMenu: () -> Unit,
     compactMode: Boolean,
     landscapeCompact: Boolean,
@@ -161,6 +163,16 @@ internal fun ReaderHeader(
                         },
                         contentDescription = stringResource(R.string.content_desc_reader_details),
                         tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                IconButton(
+                    onClick = onOpenLibrary,
+                    modifier = Modifier.size(iconButtonSize),
+                ) {
+                    Icon(
+                        Icons.Default.Home,
+                        contentDescription = stringResource(R.string.content_desc_go_to_library),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     )
                 }
                 IconButton(

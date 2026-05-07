@@ -85,6 +85,7 @@ import com.kairo.reader.ui.rsvp.RsvpThemeCallbacks
 import com.kairo.reader.ui.rsvp.RsvpUiCallbacks
 import com.kairo.reader.ui.rsvp.RsvpUiPreferences
 import com.kairo.reader.ui.settings.FocusSettingsScreen
+import com.kairo.reader.ui.settings.InfoSettingsScreen
 import com.kairo.reader.ui.settings.LanguageSettingsScreen
 import com.kairo.reader.ui.settings.ReaderSettingsScreen
 import com.kairo.reader.ui.settings.RsvpSettingsScreen
@@ -512,10 +513,15 @@ private fun KairoNavHost(
         }
     }
 
+    fun finishStartingTutorial() {
+        dismissStartingTutorial(markAsSeen = true)
+        navigateToTutorialRoute(StartingTutorialRoute.LIBRARY)
+    }
+
     fun moveStartingTutorial(stepDelta: Int) {
         val nextIndex = tutorialStepIndex + stepDelta
         if (nextIndex !in tutorialSteps.indices) {
-            dismissStartingTutorial(markAsSeen = true)
+            finishStartingTutorial()
             return
         }
         val previousRoute = tutorialSteps.getOrNull(tutorialStepIndex)?.route
@@ -639,6 +645,7 @@ private fun KairoNavHost(
             when (currentRoute) {
                 "settings" -> true
                 "settings/language" -> true
+                "settings/info" -> true
                 "reader/{bookId}" -> prefs.focusApplyInReader
                 "reader/{bookId}/{chapterIndex}/{tokenIndex}" -> prefs.focusApplyInReader
                 "rsvp/{bookId}/{chapterIndex}/{tokenIndex}" -> prefs.focusApplyInRsvp
@@ -990,7 +997,7 @@ private fun KairoNavHost(
                 buildCurrentReaderPosition()?.let(::saveReaderPosition)
             }
 
-            BackHandler(enabled = !tutorialActive) {
+            fun navigateReaderToLibrary() {
                 val position =
                     lastExplicitFocusIndex
                         .takeIf { it >= 0 }
@@ -1007,6 +1014,10 @@ private fun KairoNavHost(
                         }
                     }
                 }
+            }
+
+            BackHandler(enabled = !tutorialActive) {
+                navigateReaderToLibrary()
             }
 
             ReaderScreen(
@@ -1070,6 +1081,7 @@ private fun KairoNavHost(
                     saveCurrentReaderPosition()
                     navController.navigate("library?tab=bookmarks")
                 },
+                onOpenLibrary = ::navigateReaderToLibrary,
                 onFocusChange = { newFocusIndex ->
                     lastExplicitFocusIndex = newFocusIndex
                     readerViewModel.setFocusIndex(newFocusIndex)
@@ -1376,7 +1388,7 @@ private fun KairoNavHost(
                 buildCurrentReaderPosition()?.let(::saveReaderPosition)
             }
 
-            BackHandler(enabled = !tutorialActive) {
+            fun navigateReaderToLibrary() {
                 val position =
                     lastExplicitFocusIndex
                         .takeIf { it >= 0 }
@@ -1393,6 +1405,10 @@ private fun KairoNavHost(
                         }
                     }
                 }
+            }
+
+            BackHandler(enabled = !tutorialActive) {
+                navigateReaderToLibrary()
             }
 
             ReaderScreen(
@@ -1456,6 +1472,7 @@ private fun KairoNavHost(
                     saveCurrentReaderPosition()
                     navController.navigate("library?tab=bookmarks")
                 },
+                onOpenLibrary = ::navigateReaderToLibrary,
                 onFocusChange = { newFocusIndex ->
                     lastExplicitFocusIndex = newFocusIndex
                     readerViewModel.setFocusIndex(newFocusIndex)
@@ -1784,6 +1801,12 @@ private fun KairoNavHost(
                                 ?.set(RSVP_RESULT_RESUME_CURSOR_KEY, resumePoint.resumeCursor)
                             navController.popBackStack()
                         },
+                        onOpenLibrary = {
+                            navController.navigate("library") {
+                                popUpTo("library") { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        },
                         onPlaybackStateChanged = { isPlaying ->
                             backStackEntry.savedStateHandle[RSVP_PLAYBACK_IS_PLAYING_KEY] =
                                 isPlaying
@@ -1905,6 +1928,7 @@ private fun KairoNavHost(
                 onOpenRsvp = { navController.navigate("settings/rsvp") },
                 onOpenReader = { navController.navigate("settings/reader") },
                 onOpenFocus = { navController.navigate("settings/focus") },
+                onOpenInfo = { navController.navigate("settings/info") },
                 onOpenStartingTutorial = ::startStartingTutorial,
                 onReset = {
                     coroutineScope.launch {
@@ -1921,6 +1945,10 @@ private fun KairoNavHost(
 
         composable("settings/language") {
             LanguageSettingsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable("settings/info") {
+            InfoSettingsScreen(onBack = { navController.popBackStack() })
         }
 
         composable("settings/rsvp") {

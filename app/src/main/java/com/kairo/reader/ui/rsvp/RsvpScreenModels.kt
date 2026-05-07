@@ -66,6 +66,7 @@ data class RsvpPlaybackCallbacks(
     val onPositionChanged: (RsvpResumePoint) -> Unit,
     val onTempoChange: (Long) -> Unit,
     val onExit: (RsvpResumePoint) -> Unit,
+    val onOpenLibrary: (RsvpResumePoint) -> Unit = {},
     val onPlaybackStateChanged: (Boolean) -> Unit = {},
 )
 

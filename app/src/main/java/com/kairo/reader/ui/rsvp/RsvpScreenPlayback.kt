@@ -95,6 +95,17 @@ internal fun exitAndSavePosition(context: RsvpUiContext) {
     context.callbacks.playback.onExit(resumePoint)
 }
 
+internal fun openLibraryAndSavePosition(context: RsvpUiContext) {
+    val runtime = context.runtime
+
+    runtime.isExiting = true
+    runtime.isPlaying = false
+
+    val resumePoint = currentResumePoint(context)
+    context.callbacks.playback.onPositionChanged(resumePoint)
+    context.callbacks.playback.onOpenLibrary(resumePoint)
+}
+
 internal fun advanceFrame(context: RsvpUiContext) {
     val runtime = context.runtime
     val frames = context.frameState.frames

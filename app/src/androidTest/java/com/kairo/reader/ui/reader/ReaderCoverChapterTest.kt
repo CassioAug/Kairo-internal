@@ -62,6 +62,7 @@ class ReaderCoverChapterTest {
                     onFocusModeEnabledChange = {},
                     onAddBookmark = { _, _, _ -> },
                     onOpenBookmarks = {},
+                    onOpenLibrary = {},
                     onFocusChange = {},
                     onStartRsvp = {},
                     onChapterChange = { _, _ -> },
