@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">com.kairo.reader</string>
+    <string name="app_name">Kairo</string>
 
     <string name="action_back">Atrás</string>
     <string name="action_cancel">Cancelar</string>
