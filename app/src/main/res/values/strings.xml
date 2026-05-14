@@ -372,6 +372,13 @@
     <string name="toast_bookmark_added">Bookmark added</string>
     <string name="toast_import_duplicate_detail">Already in your library: %1$s. No duplicate added.</string>
     <string name="toast_import_failed_detail">Import failed: %1$s</string>
+    <string name="toast_import_failed_blocked">Import failed: That site blocked article extraction.</string>
+    <string name="toast_import_failed_not_found">Import failed: That article link was not found.</string>
+    <string name="toast_import_failed_network">Import failed: Could not reach that link. Check your connection and try again.</string>
+    <string name="toast_import_failed_rate_limited">Import failed: That site is rate limiting article extraction. Try again later.</string>
+    <string name="toast_import_failed_server">Import failed: That site is not responding properly right now.</string>
+    <string name="toast_import_failed_timeout">Import failed: The link took too long to respond.</string>
+    <string name="toast_import_failed_secure">Import failed: Could not open a secure connection to that site.</string>
     <string name="toast_import_failed_unknown">Import failed: Unknown error</string>
 
     <plurals name="library_chapter_count">
