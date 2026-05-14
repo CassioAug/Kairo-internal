@@ -4,11 +4,16 @@ package com.kairo.reader.ui.rsvp
 
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.rsvp.frameFloorMs
 import com.kairo.reader.core.rsvp.shouldSkipBlinkFrame
@@ -39,6 +44,34 @@ internal fun RsvpPositionSaveEffect(context: RsvpUiContext) {
         if (shouldSave) {
             runtime.lastPositionSaveMs = now
             context.callbacks.playback.onPositionChanged(currentResumePoint(context))
+        }
+    }
+}
+
+@Composable
+internal fun RsvpLifecyclePositionSaveEffect(context: RsvpUiContext) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val latestContext by rememberUpdatedState(context)
+
+    DisposableEffect(lifecycleOwner) {
+        fun saveLatestVisiblePosition() {
+            val current = latestContext
+            if (current.runtime.isExiting || current.frameState.frames.isEmpty()) return
+            current.callbacks.playback.onPlaybackStateChanged(current.runtime.isPlaying)
+            current.callbacks.playback.onPositionChanged(currentResumePoint(current))
+        }
+
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                    saveLatestVisiblePosition()
+                }
+            }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            saveLatestVisiblePosition()
         }
     }
 }

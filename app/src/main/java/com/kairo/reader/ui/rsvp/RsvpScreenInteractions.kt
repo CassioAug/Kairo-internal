@@ -17,23 +17,47 @@ internal fun Modifier.rsvpGestureModifier(
     interactionSource: MutableInteractionSource,
 ): Modifier {
     val runtime = context.runtime
-    return this
-        .pointerInput(context.state.profile.config.tempoMsPerWord, runtime.isPositioningMode) {
-            detectDragGestures(
-                onDragStart = { handleDragStart(context) },
-                onDragEnd = { handleDragEnd(context) },
-                onDrag = { change, dragAmount ->
-                    handleDrag(context, dragAmount)
-                    change.consume()
-                },
-            )
-        }.combinedClickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = { handleTap(context) },
-            onLongClick = { exitAndSavePosition(context) },
+    val dragEnabled =
+        shouldHandleGlobalRsvpDrag(
+            showQuickSettings = runtime.showQuickSettings,
+            isPositioningMode = runtime.isPositioningMode,
         )
+    val dragModifier =
+        if (dragEnabled) {
+            pointerInput(
+                context.state.profile.config.tempoMsPerWord,
+                runtime.isPositioningMode,
+                runtime.showQuickSettings,
+            ) {
+                detectDragGestures(
+                    onDragStart = { handleDragStart(context) },
+                    onDragEnd = { handleDragEnd(context) },
+                    onDrag = { change, dragAmount ->
+                        handleDrag(context, dragAmount)
+                        change.consume()
+                    },
+                )
+            }
+        } else {
+            this
+        }
+    return dragModifier.combinedClickable(
+        interactionSource = interactionSource,
+        indication = null,
+        onClick = { handleTap(context) },
+        onLongClick = {
+            if (!runtime.showControls && !runtime.showQuickSettings) {
+                exitAndSavePosition(context)
+            }
+        },
+    )
 }
+
+internal fun shouldHandleGlobalRsvpDrag(
+    showQuickSettings: Boolean,
+    isPositioningMode: Boolean,
+): Boolean =
+    isPositioningMode || !showQuickSettings
 
 internal fun enterPositioningMode(runtime: RsvpRuntimeState) {
     runtime.wasPlayingBeforePositioning = runtime.isPlaying

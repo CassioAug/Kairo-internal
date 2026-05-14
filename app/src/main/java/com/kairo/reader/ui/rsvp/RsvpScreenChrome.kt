@@ -44,11 +44,17 @@ import kotlin.math.roundToInt
 @Composable
 internal fun BoxScope.RsvpProgressBar(context: RsvpUiContext) {
     val runtime = context.runtime
-    if (runtime.showControls || runtime.showQuickSettings) return
+    if (!shouldShowAmbientProgressBar(
+            isPlaying = runtime.isPlaying,
+            showControls = runtime.showControls,
+            showQuickSettings = runtime.showQuickSettings,
+        )
+    ) {
+        return
+    }
 
     val frames = context.frameState.frames
     val progress = (runtime.frameIndex + 1).toFloat() / frames.size.toFloat()
-    val progressAlpha = if (runtime.isPlaying) 0.52f else 0.78f
 
     LinearProgressIndicator(
         progress = { progress },
@@ -63,10 +69,17 @@ internal fun BoxScope.RsvpProgressBar(context: RsvpUiContext) {
             )
             .clip(RoundedCornerShape(PROGRESS_CORNER_RADIUS))
             .height(PROGRESS_HEIGHT),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = progressAlpha),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = PROGRESS_PRIMARY_ALPHA),
         trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = PROGRESS_TRACK_ALPHA),
     )
 }
+
+internal fun shouldShowAmbientProgressBar(
+    isPlaying: Boolean,
+    showControls: Boolean,
+    showQuickSettings: Boolean,
+): Boolean =
+    !isPlaying && !showControls && !showQuickSettings
 
 @Composable
 internal fun BoxScope.RsvpTopBar(

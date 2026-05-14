@@ -66,6 +66,7 @@ internal fun OrpTextLine(
     textColor: Color,
     translationX: Float,
 ) {
+    val renderedTranslationX = snapTranslationToRenderPixel(translationX)
     Box(
         modifier =
         Modifier
@@ -89,7 +90,7 @@ internal fun OrpTextLine(
                             ORP_TRANSFORM_ORIGIN_X,
                             ORP_TRANSFORM_ORIGIN_Y,
                         )
-                    this.translationX = translationX
+                    this.translationX = renderedTranslationX
                 },
         )
     }

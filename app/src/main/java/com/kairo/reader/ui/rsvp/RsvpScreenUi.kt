@@ -251,7 +251,16 @@ private fun RsvpFocusWord(
                 preferWindowing = profile.config.prefersOrpWindowing(runtime.currentTempoMsPerWord),
                 simplifyPunctuation =
                     profile.config.prefersSimplifiedOrpDisplay(runtime.currentTempoMsPerWord),
-                guideVisible = profile.config.orpGuideEnabled,
+                guideVisible =
+                    shouldShowOrpVisualAnchor(
+                        phraseChunkingEnabled = profile.config.enablePhraseChunking,
+                        visualAnchorEnabled = profile.config.orpGuideEnabled,
+                    ),
+                pivotHighlightVisible =
+                    shouldShowOrpVisualAnchor(
+                        phraseChunkingEnabled = profile.config.enablePhraseChunking,
+                        visualAnchorEnabled = profile.config.orpHighlightEnabled,
+                    ),
                 guideThickness =
                     profile.config.orpGuideThickness
                         .toFloat()
@@ -260,6 +269,11 @@ private fun RsvpFocusWord(
         )
     }
 }
+
+internal fun shouldShowOrpVisualAnchor(
+    phraseChunkingEnabled: Boolean,
+    visualAnchorEnabled: Boolean,
+): Boolean = visualAnchorEnabled && !phraseChunkingEnabled
 
 @Composable
 private fun RsvpPositionGuide(

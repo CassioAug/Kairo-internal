@@ -37,6 +37,7 @@ internal fun buildOrpAnnotatedText(
     highlightStart: Int,
     highlightEndExclusive: Int,
     highlightColor: Color,
+    pivotHighlightVisible: Boolean = true,
 ): AnnotatedString =
     buildAnnotatedString {
         append(fullText)
@@ -51,7 +52,7 @@ internal fun buildOrpAnnotatedText(
                 )
             }
         }
-        if (fullText.isNotEmpty()) {
+        if (pivotHighlightVisible && fullText.isNotEmpty()) {
             val safeIndex = pivotPosition.coerceIn(0, fullText.lastIndex)
             addStyle(
                 style = SpanStyle(color = pivotColor),

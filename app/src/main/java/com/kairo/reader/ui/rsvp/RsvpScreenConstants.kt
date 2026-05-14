@@ -5,7 +5,7 @@ import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 
-const val DEFAULT_FONT_SIZE_SP = 44f
+const val DEFAULT_FONT_SIZE_SP = 38f
 val DEFAULT_FONT_FAMILY = RsvpFontFamily.INTER
 val DEFAULT_FONT_WEIGHT = RsvpFontWeight.LIGHT
 const val DEFAULT_TEXT_BRIGHTNESS = 0.88f
@@ -105,6 +105,7 @@ const val ORP_EDGE_FRACTION_MAX = 0.45f
 const val ORP_CENTER_FRACTION = 0.5f
 const val ORP_TRANSFORM_ORIGIN_X = 0f
 const val ORP_TRANSFORM_ORIGIN_Y = 0.5f
+const val ORP_TEXT_LINE_HEIGHT_MULTIPLIER = 1.18f
 const val MIN_ORP_WIDTH_PX = 1f
 const val ORP_MIN_AUTO_FIT_SCALE = 0.72f
 const val ORP_ELLIPSIS = '\u2026'
@@ -119,7 +120,7 @@ val PROGRESS_HORIZONTAL_PADDING = 16.dp
 val PROGRESS_BOTTOM_PADDING = 10.dp
 val PROGRESS_CORNER_RADIUS = 8.dp
 val TOP_BAR_PADDING = 16.dp
-val TOP_BAR_SPACING = 8.dp
+val TOP_BAR_SPACING = 12.dp
 val TOP_BAR_BUTTON_SIZE = 40.dp
 val TOP_BAR_ICON_SIZE = 22.dp
 val TEMPO_INDICATOR_TOP_PADDING = 60.dp
