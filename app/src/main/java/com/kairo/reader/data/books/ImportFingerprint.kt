@@ -15,6 +15,11 @@ internal object ImportFingerprint {
         return "source:$normalizedExtension:${input.sha256Hex()}"
     }
 
+    fun webUrlFingerprint(normalizedUrl: String): String =
+        "web:${normalizeContent(normalizedUrl)}".toByteArray(Charsets.UTF_8).sha256Hex().let {
+            "web:url:$it"
+        }
+
     fun contentFingerprint(book: Book): String {
         val digest = MessageDigest.getInstance("SHA-256")
         digest.updateValue(normalizeMetadata(book.title))

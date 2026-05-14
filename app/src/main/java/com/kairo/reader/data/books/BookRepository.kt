@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.Flow
 interface BookRepository {
     suspend fun importBook(uri: Uri): BookImportResult
 
+    suspend fun importUrl(rawUrl: String): BookImportResult
+
     suspend fun getBook(bookId: BookId): Book
 
     suspend fun getChapter(

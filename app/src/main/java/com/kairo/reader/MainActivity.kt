@@ -61,6 +61,8 @@ import com.kairo.reader.core.model.wordIndexForToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.core.rsvp.RsvpEffectivePace
+import com.kairo.reader.data.books.BookImportResult
+import com.kairo.reader.data.books.WebArticleUrl
 import com.kairo.reader.sample.SampleBooks
 import com.kairo.reader.ui.LocalDispatcherProvider
 import com.kairo.reader.ui.focus.FocusModeSideEffects
@@ -122,11 +124,14 @@ private fun rememberSystemDefaultPreferences(): UserPreferences {
 
 class MainActivity : AppCompatActivity() {
     private val pendingExternalImportUriState = mutableStateOf<Uri?>(null)
+    private val pendingSharedArticleUrlState = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         pendingExternalImportUriState.value = intent.bookImportUri()
+        pendingSharedArticleUrlState.value =
+            if (pendingExternalImportUriState.value == null) intent.sharedArticleUrl() else null
 
         val container = application as KairoApplication
 
@@ -158,8 +163,12 @@ class MainActivity : AppCompatActivity() {
                                 container = container,
                                 prefs = effectivePrefs,
                                 externalImportUri = pendingExternalImportUriState.value,
+                                externalArticleUrl = pendingSharedArticleUrlState.value,
                                 onExternalImportUriConsumed = { consumedUri ->
                                     clearConsumedExternalImportIntent(consumedUri)
+                                },
+                                onExternalArticleUrlConsumed = { consumedUrl ->
+                                    clearConsumedSharedArticleIntent(consumedUrl)
                                 },
                             )
                         }
@@ -172,7 +181,10 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        pendingExternalImportUriState.value = intent.bookImportUri()
+        val importUri = intent.bookImportUri()
+        pendingExternalImportUriState.value = importUri
+        pendingSharedArticleUrlState.value =
+            if (importUri == null) intent.sharedArticleUrl() else null
     }
 
     private fun clearConsumedExternalImportIntent(consumedUri: Uri) {
@@ -183,11 +195,29 @@ class MainActivity : AppCompatActivity() {
             setIntent(Intent(this, MainActivity::class.java))
         }
     }
+
+    private fun clearConsumedSharedArticleIntent(consumedUrl: String) {
+        if (pendingSharedArticleUrlState.value == consumedUrl) {
+            pendingSharedArticleUrlState.value = null
+        }
+        if (intent.sharedArticleUrl() == consumedUrl) {
+            setIntent(Intent(this, MainActivity::class.java))
+        }
+    }
 }
 
 private fun Intent.bookImportUri(): Uri? =
     if (action == Intent.ACTION_VIEW) {
         data
+    } else {
+        null
+    }
+
+private fun Intent.sharedArticleUrl(): String? =
+    if (action == Intent.ACTION_SEND && type?.startsWith("text/", ignoreCase = true) == true) {
+        getCharSequenceExtra(Intent.EXTRA_TEXT)
+            ?.toString()
+            ?.let(WebArticleUrl::extractFirstWebUrl)
     } else {
         null
     }
@@ -363,6 +393,9 @@ private fun resolveImportFileName(
         }
     }.getOrNull()
 
+private fun resolveImportUrlName(rawUrl: String): String? =
+    runCatching { WebArticleUrl.displayHost(WebArticleUrl.normalize(rawUrl)) }.getOrNull()
+
 private suspend fun driveImportProgress(onUpdate: (Float) -> Unit) {
     var progress = 0f
     onUpdate(progress)
@@ -379,7 +412,9 @@ private fun KairoNavHost(
     container: KairoApplication,
     prefs: UserPreferences,
     externalImportUri: Uri?,
+    externalArticleUrl: String?,
     onExternalImportUriConsumed: (Uri) -> Unit,
+    onExternalArticleUrlConsumed: (String) -> Unit,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -591,9 +626,11 @@ private fun KairoNavHost(
         }
     }
 
-    fun handleImportFile(uri: Uri) {
+    fun handleImport(
+        displayName: String?,
+        importBook: suspend () -> BookImportResult,
+    ) {
         if (importState.isImporting) return
-        val displayName = resolveImportFileName(context, uri)
         importState =
             ImportUiState(
                 isImporting = true,
@@ -608,7 +645,7 @@ private fun KairoNavHost(
                 }
             }
         coroutineScope.launch(dispatcherProvider.io) {
-            val result = runCatching { container.libraryRepository.import(uri) }
+            val result = runCatching { importBook() }
             withContext(Dispatchers.Main) {
                 importProgressJob?.cancel()
                 if (result.isSuccess) {
@@ -649,6 +686,18 @@ private fun KairoNavHost(
         }
     }
 
+    fun handleImportFile(uri: Uri) {
+        handleImport(resolveImportFileName(context, uri)) {
+            container.libraryRepository.import(uri)
+        }
+    }
+
+    fun handleImportUrl(rawUrl: String) {
+        handleImport(resolveImportUrlName(rawUrl)) {
+            container.libraryRepository.importUrl(rawUrl)
+        }
+    }
+
     LaunchedEffect(externalImportUri, importState.isImporting) {
         val uri = externalImportUri ?: return@LaunchedEffect
         if (importState.isImporting) return@LaunchedEffect
@@ -660,10 +709,27 @@ private fun KairoNavHost(
         handleImportFile(uri)
     }
 
-    LaunchedEffect(prefs.hasSeenStartingTutorial, externalImportUri, importState.isImporting) {
+    LaunchedEffect(externalArticleUrl, importState.isImporting) {
+        val url = externalArticleUrl ?: return@LaunchedEffect
+        if (importState.isImporting) return@LaunchedEffect
+        onExternalArticleUrlConsumed(url)
+        navController.navigate("library") {
+            popUpTo("library") { inclusive = false }
+            launchSingleTop = true
+        }
+        handleImportUrl(url)
+    }
+
+    LaunchedEffect(
+        prefs.hasSeenStartingTutorial,
+        externalImportUri,
+        externalArticleUrl,
+        importState.isImporting,
+    ) {
         if (!prefs.hasSeenStartingTutorial &&
             !tutorialAutoStarted &&
             externalImportUri == null &&
+            externalArticleUrl == null &&
             !importState.isImporting
         ) {
             startStartingTutorial()
@@ -718,6 +784,7 @@ private fun KairoNavHost(
                         }
                     },
                     onImportFile = ::handleImportFile,
+                    onImportUrl = ::handleImportUrl,
                     onSettings = { navController.navigate("settings") },
                     onSetCompleted = { book, isCompleted ->
                         coroutineScope.launch {
@@ -777,6 +844,7 @@ private fun KairoNavHost(
                     }
                 },
                 onImportFile = ::handleImportFile,
+                onImportUrl = ::handleImportUrl,
                 onSettings = { navController.navigate("settings") },
                 onSetCompleted = { book, isCompleted ->
                     coroutineScope.launch {

@@ -11,6 +11,7 @@ import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.books.BookRepositoryImpl
 import com.kairo.reader.data.books.EpubBookParser
 import com.kairo.reader.data.books.MobiBookParser
+import com.kairo.reader.data.books.WebArticleExtractor
 import com.kairo.reader.data.library.LibraryRepository
 import com.kairo.reader.data.library.LibraryRepositoryImpl
 import com.kairo.reader.data.local.KairoDatabase
@@ -86,7 +87,13 @@ class KairoApplication : Application() {
                 MobiBookParser(dispatcherProvider),
             )
 
-        bookRepository = BookRepositoryImpl(database.bookDao(), parsers, applicationContext)
+        bookRepository =
+            BookRepositoryImpl(
+                database.bookDao(),
+                parsers,
+                WebArticleExtractor(dispatcherProvider),
+                applicationContext,
+            )
         tokenRepository = TokenRepositoryImpl(bookRepository, dispatcherProvider)
         readingPositionRepository = ReadingPositionRepositoryImpl(database.readingPositionDao())
         bookmarkRepository = BookmarkRepositoryImpl(database.bookmarkDao())

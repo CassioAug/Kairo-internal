@@ -112,6 +112,9 @@ private class FakeBookRepository(
     override suspend fun importBook(uri: android.net.Uri): BookImportResult =
         BookImportResult(book = book, alreadyImported = false)
 
+    override suspend fun importUrl(rawUrl: String): BookImportResult =
+        BookImportResult(book = book, alreadyImported = false)
+
     override suspend fun getBook(bookId: BookId): Book = book
 
     override suspend fun getChapter(

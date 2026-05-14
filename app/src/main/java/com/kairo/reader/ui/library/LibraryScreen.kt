@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -42,6 +43,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -93,6 +96,7 @@ fun LibraryScreen(
     onDeleteBookmark: (bookmarkId: String) -> Unit,
     onDeleteBookmarksForBook: (bookId: String) -> Unit,
     onImportFile: (Uri) -> Unit,
+    onImportUrl: (String) -> Unit,
     onSettings: () -> Unit,
     onSetCompleted: (Book, Boolean) -> Unit,
     onDelete: (Book) -> Unit,
@@ -115,6 +119,8 @@ fun LibraryScreen(
     var selectedTab by rememberSaveable(initialTab) { mutableIntStateOf(initialTab.ordinal) }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
     var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
+    var showReadLinkDialog by rememberSaveable { mutableStateOf(false) }
+    var linkInput by rememberSaveable { mutableStateOf("") }
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
     val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
     val completedBooks = remember(books) { books.filter { it.isCompleted } }
@@ -169,18 +175,25 @@ fun LibraryScreen(
                     )
                 }
                 if (compactLandscape && selectedTab == LibraryTab.Library.ordinal) {
-                    ImportBookButton(
-                        onClick = launchBookImport,
-                        enabled = !importState.isImporting,
-                        compact = true,
-                        modifier =
-                            Modifier.startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
-                                targetId,
-                                bounds,
-                                ->
-                                tutorialTargets[targetId] = bounds
-                            },
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ImportBookButton(
+                            onClick = launchBookImport,
+                            enabled = !importState.isImporting,
+                            compact = true,
+                            modifier =
+                                Modifier.startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
+                                    targetId,
+                                    bounds,
+                                    ->
+                                    tutorialTargets[targetId] = bounds
+                                },
+                        )
+                        ReadFromLinkButton(
+                            onClick = { showReadLinkDialog = true },
+                            enabled = !importState.isImporting,
+                            compact = true,
+                        )
+                    }
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 IconButton(
@@ -229,20 +242,31 @@ fun LibraryScreen(
 
             if (selectedTab == LibraryTab.Library.ordinal) {
                 if (!compactLandscape) {
-                    ImportBookButton(
-                        onClick = launchBookImport,
-                        enabled = !importState.isImporting,
-                        compact = false,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
-                                    targetId,
-                                    bounds,
-                                    ->
-                                    tutorialTargets[targetId] = bounds
-                                },
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        ImportBookButton(
+                            onClick = launchBookImport,
+                            enabled = !importState.isImporting,
+                            compact = false,
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .startingTutorialTarget(StartingTutorialTargetIds.LIBRARY_IMPORT) {
+                                        targetId,
+                                        bounds,
+                                        ->
+                                        tutorialTargets[targetId] = bounds
+                                    },
+                        )
+                        ReadFromLinkButton(
+                            onClick = { showReadLinkDialog = true },
+                            enabled = !importState.isImporting,
+                            compact = false,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
 
                 LazyColumn(
@@ -409,6 +433,22 @@ fun LibraryScreen(
             },
         )
     }
+
+    if (showReadLinkDialog) {
+        ReadFromLinkDialog(
+            value = linkInput,
+            onValueChange = { linkInput = it },
+            onDismiss = { showReadLinkDialog = false },
+            onSubmit = {
+                val submitted = linkInput.trim()
+                if (submitted.isNotBlank()) {
+                    onImportUrl(submitted)
+                    linkInput = ""
+                    showReadLinkDialog = false
+                }
+            },
+        )
+    }
 }
 
 enum class LibraryTab { Library, Completed, Bookmarks }
@@ -437,6 +477,70 @@ private fun ImportBookButton(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun ReadFromLinkButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+    ) {
+        Icon(
+            Icons.Default.Link,
+            contentDescription = null,
+            modifier = Modifier.size(if (compact) 18.dp else 24.dp),
+        )
+        Spacer(modifier = Modifier.width(if (compact) 6.dp else 8.dp))
+        Text(
+            stringResource(R.string.library_read_from_link_button),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun ReadFromLinkDialog(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.library_read_from_link_title)) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text(stringResource(R.string.library_read_from_link_label)) },
+                placeholder = {
+                    Text(stringResource(R.string.library_read_from_link_placeholder))
+                },
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onSubmit,
+                enabled = value.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.library_read_from_link_submit))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
 
 @Composable
