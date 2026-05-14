@@ -704,7 +704,7 @@ private fun mergeTrailingSparsePage(
             endTokenIndex = lastPage.endTokenIndex,
             wordCount = mergedWordCount,
         )
-    mergedPages.removeLast()
+    mergedPages.removeAt(mergedPages.lastIndex)
     return mergedPages.mapIndexed { index, page ->
         if (page.index == index) page else page.copy(index = index)
     }
