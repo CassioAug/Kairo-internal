@@ -172,6 +172,7 @@ fun SettingsSliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     subtitle: String? = null,
     onValueChangeFinished: (() -> Unit)? = null,
+    steps: Int = 0,
 ) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
@@ -193,6 +194,7 @@ fun SettingsSliderRow(
                 value = value,
                 onValueChange = onValueChange,
                 valueRange = valueRange,
+                steps = steps,
                 onValueChangeFinished = { onValueChangeFinished?.invoke() },
                 modifier = Modifier.weight(1f),
             )

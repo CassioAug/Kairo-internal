@@ -229,6 +229,7 @@ private fun DeferredSliderRow(
     onCommit: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     subtitle: String? = null,
+    steps: Int = 0,
 ) {
     var localValue by remember { mutableFloatStateOf(rawValue) }
     LaunchedEffect(rawValue) {
@@ -246,6 +247,38 @@ private fun DeferredSliderRow(
             onCommit(localValue.coerceIn(valueRange.start, valueRange.endInclusive))
         },
         valueRange = valueRange,
+        steps = steps,
+    )
+}
+
+@Composable
+private fun DeferredIntegerSliderRow(
+    title: String,
+    valueLabel: (Int) -> String,
+    rawValue: Int,
+    onCommit: (Int) -> Unit,
+    valueRange: IntRange,
+    subtitle: String? = null,
+) {
+    var localValue by remember { mutableFloatStateOf(rawValue.toFloat()) }
+    LaunchedEffect(rawValue, valueRange) {
+        localValue = rawValue.coerceIn(valueRange.first, valueRange.last).toFloat()
+    }
+
+    val coercedValue = localValue.roundToInt().coerceIn(valueRange.first, valueRange.last)
+    SettingsSliderRow(
+        title = title,
+        subtitle = subtitle,
+        valueLabel = valueLabel(coercedValue),
+        value = coercedValue.toFloat(),
+        onValueChange = {
+            localValue = it.roundToInt().coerceIn(valueRange.first, valueRange.last).toFloat()
+        },
+        onValueChangeFinished = {
+            onCommit(localValue.roundToInt().coerceIn(valueRange.first, valueRange.last))
+        },
+        valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+        steps = (valueRange.last - valueRange.first - 1).coerceAtLeast(0),
     )
 }
 
@@ -669,6 +702,15 @@ fun RsvpSettingsContent(
             checked = config.orpGuideEnabled,
             onCheckedChange = { enabled ->
                 updateConfig { it.copy(orpGuideEnabled = enabled) }
+            },
+        )
+
+        SettingsSwitchRow(
+            title = stringResource(R.string.rsvp_orp_highlight_title),
+            subtitle = stringResource(R.string.rsvp_orp_highlight_subtitle),
+            checked = config.orpHighlightEnabled,
+            onCheckedChange = { enabled ->
+                updateConfig { it.copy(orpHighlightEnabled = enabled) }
             },
         )
 
@@ -1225,7 +1267,7 @@ fun RsvpSettingsContent(
                                 enablePhraseChunking = enabled,
                                 maxWordsPerUnit =
                                 if (enabled) {
-                                    it.maxWordsPerUnit.coerceAtLeast(2)
+                                    coercePhraseChunkWordLimit(it.maxWordsPerUnit)
                                 } else {
                                     it.maxWordsPerUnit
                                 },
@@ -1233,6 +1275,21 @@ fun RsvpSettingsContent(
                         }
                     },
                 )
+
+                if (config.enablePhraseChunking) {
+                    DeferredIntegerSliderRow(
+                        title = stringResource(R.string.rsvp_phrase_chunk_size_title),
+                        subtitle = stringResource(R.string.rsvp_phrase_chunk_size_subtitle),
+                        valueLabel = { context.getString(R.string.format_words, it) },
+                        rawValue = config.maxWordsPerUnit,
+                        onCommit = { wordLimit ->
+                            updateConfig {
+                                it.copy(maxWordsPerUnit = coercePhraseChunkWordLimit(wordLimit))
+                            }
+                        },
+                        valueRange = PHRASE_CHUNK_MIN_WORDS..PHRASE_CHUNK_MAX_WORDS,
+                    )
+                }
             }
 
             ExpandableSettingsSection(
@@ -1559,6 +1616,9 @@ private fun RsvpConfig.asProfileIdentityConfig(): RsvpConfig {
     )
 }
 
+internal fun coercePhraseChunkWordLimit(value: Int): Int =
+    value.coerceIn(PHRASE_CHUNK_MIN_WORDS, PHRASE_CHUNK_MAX_WORDS)
+
 @Composable
 private fun RsvpFontFamilySelector(
     selected: RsvpFontFamily,
@@ -1588,6 +1648,9 @@ private fun RsvpFontFamilySelector(
         }
     }
 }
+
+private const val PHRASE_CHUNK_MIN_WORDS = 2
+private const val PHRASE_CHUNK_MAX_WORDS = 3
 
 @Composable
 private fun RsvpFontWeightSelector(

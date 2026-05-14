@@ -12,6 +12,7 @@
 package com.kairo.reader.data.preferences
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -50,6 +51,12 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 private fun <T> Preferences.readOrDefault(key: Preferences.Key<T>, fallback: T): T =
     this[key] ?: fallback
 
+internal fun readerThemeForNightMode(uiMode: Int): ReaderTheme =
+    when (uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+        Configuration.UI_MODE_NIGHT_YES -> ReaderTheme.DARK
+        else -> ReaderTheme.LIGHT
+    }
+
 class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepository {
     private val keys = PrefKeys
 
@@ -74,7 +81,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     }
 
     private fun buildUserPreferences(prefs: Preferences): UserPreferences {
-        val defaults = UserPreferences()
+        val defaults = systemDefaultUserPreferences()
         val customProfiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
         val selectedProfileId = migrateAndReadSelectedProfileId(prefs, customProfiles)
         val configDefaults = rsvpConfigDefaultsForProfile(selectedProfileId, customProfiles)
@@ -173,6 +180,9 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             focusApplyInRsvp =
                 prefs.readOrDefault(keys.focusApplyInRsvp, defaults.focusApplyInRsvp),
         )
+
+    private fun systemDefaultUserPreferences(): UserPreferences =
+        UserPreferences(readerTheme = readerThemeForNightMode(context.resources.configuration.uiMode))
 
     override suspend fun updateRsvpConfig(updater: (RsvpConfig) -> RsvpConfig) {
         context.dataStore.edit { prefs ->
@@ -566,6 +576,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     private fun JSONObject.putOrpAndDelays(config: RsvpConfig) {
         put("orpEnabled", config.orpEnabled)
+        put("orpHighlightEnabled", config.orpHighlightEnabled)
         put("orpGuideEnabled", config.orpGuideEnabled)
         put("orpGuideBrightness", config.orpGuideBrightness)
         put("orpGuideThickness", config.orpGuideThickness)
@@ -764,6 +775,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     ): RsvpConfig =
         copy(
             orpEnabled = obj.optBoolean("orpEnabled", defaults.orpEnabled),
+            orpHighlightEnabled =
+                obj.optBoolean("orpHighlightEnabled", defaults.orpHighlightEnabled),
             orpGuideEnabled = obj.optBoolean("orpGuideEnabled", defaults.orpGuideEnabled),
             orpGuideBrightness = obj.optDouble("orpGuideBrightness", defaults.orpGuideBrightness),
             orpGuideThickness = obj.optDouble("orpGuideThickness", defaults.orpGuideThickness),
@@ -933,6 +946,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     private fun writeOrpAndDelays(prefs: MutablePreferences, config: RsvpConfig) {
         prefs[keys.orpEnabled] = config.orpEnabled
+        prefs[keys.orpHighlightEnabled] = config.orpHighlightEnabled
         prefs[keys.orpGuideEnabled] = config.orpGuideEnabled
         prefs[keys.orpGuideBrightness] = config.orpGuideBrightness
         prefs[keys.orpGuideThickness] = config.orpGuideThickness
@@ -1270,6 +1284,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     ): RsvpConfig =
         copy(
             orpEnabled = prefs.readOrDefault(keys.orpEnabled, defaults.orpEnabled),
+            orpHighlightEnabled =
+                prefs.readOrDefault(keys.orpHighlightEnabled, defaults.orpHighlightEnabled),
             orpGuideEnabled =
                 prefs.readOrDefault(keys.orpGuideEnabled, defaults.orpGuideEnabled),
             orpGuideBrightness =
@@ -1331,6 +1347,7 @@ private object PrefKeys {
     val useProsodyPacing = booleanPreferencesKey("use_prosody_pacing")
     val prosodyStrength = doublePreferencesKey("prosody_strength")
     val orpEnabled = booleanPreferencesKey("orp_enabled")
+    val orpHighlightEnabled = booleanPreferencesKey("orp_highlight_enabled")
     val orpGuideEnabled = booleanPreferencesKey("orp_guide_enabled")
     val orpGuideBrightness = doublePreferencesKey("orp_guide_brightness")
     val orpGuideThickness = doublePreferencesKey("orp_guide_thickness")

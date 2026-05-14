@@ -123,6 +123,40 @@ class RsvpPunctuationTimingPolicyTest {
     }
 
     @Test
+    fun ellipsisTimingSitsBetweenCommaAndFullStop() {
+        val config =
+            RsvpConfig(
+                commaPauseMs = 120L,
+                periodPauseMs = 300L,
+                minPauseScale = 0.8,
+            )
+        val comma =
+            RsvpPunctuationTimingPolicy.resolvePauseTiming(
+                token = punctuation(","),
+                prevWord = word("Wait"),
+                nextToken = word("now"),
+                config = config,
+            )
+        val ellipsis =
+            RsvpPunctuationTimingPolicy.resolvePauseTiming(
+                token = punctuation("\u2026"),
+                prevWord = word("Wait"),
+                nextToken = word("Now"),
+                config = config,
+            )
+        val period =
+            RsvpPunctuationTimingPolicy.resolvePauseTiming(
+                token = punctuation("."),
+                prevWord = word("Wait"),
+                nextToken = word("Now"),
+                config = config,
+            )
+
+        assertTrue("Expected ellipsis to linger more than a comma", ellipsis.baseMs > comma.baseMs)
+        assertTrue("Expected ellipsis to stay softer than a full stop", ellipsis.baseMs < period.baseMs)
+    }
+
+    @Test
     fun sentenceEndContourDampensTailLiftWhenLandingIsActive() {
         val contour =
             RsvpPunctuationTimingPolicy.resolveBoundaryContour(

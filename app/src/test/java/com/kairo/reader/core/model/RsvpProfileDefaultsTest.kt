@@ -17,6 +17,14 @@ class RsvpProfileDefaultsTest {
     }
 
     @Test
+    fun userPreferencesStartWithSaneFontSizes() {
+        val defaults = UserPreferences()
+
+        assertEquals(18f, defaults.readerFontSizeSp, 0.0f)
+        assertEquals(38f, defaults.rsvpFontSizeSp, 0.0f)
+    }
+
+    @Test
     fun builtInProfilesHavePhraseChunkingOffByDefault() {
         RsvpProfile.entries.forEach { profile ->
             val config = profile.defaultConfig()
@@ -34,6 +42,48 @@ class RsvpProfileDefaultsTest {
             assertTrue(
                 "Expected punctuation landing on for ${profile.name}",
                 config.usePunctuationLandingHold,
+            )
+        }
+    }
+
+    @Test
+    fun balancedProfileStartsWithBreathablePunctuation() {
+        val config = RsvpProfile.BALANCED.defaultConfig()
+
+        assertTrue("Expected comma breath to be noticeable", config.commaPauseMs >= 140L)
+        assertTrue("Expected semicolon breath to exceed commas", config.semicolonPauseMs >= 240L)
+        assertTrue("Expected full stops to settle", config.periodPauseMs >= 300L)
+        assertTrue("Expected expressive sentence marks to settle", config.sentenceEndPauseMs >= 330L)
+        assertTrue("Expected paragraphs to create a real reset", config.paragraphPauseMs >= 400L)
+        assertTrue("Expected global punctuation breathing above neutral", config.punctuationPauseFactor >= 1.08)
+        assertTrue("Expected dialogue punctuation to stay readable", config.dialoguePunctuationScale >= 0.94)
+        assertFalse("Expected first-run parentheticals to stay readable", config.useParentheticalAside)
+    }
+
+    @Test
+    fun builtInProfilesLeanIntoPunctuationWithoutLosingTheirSpeedShape() {
+        RsvpProfile.entries.forEach { profile ->
+            val config = profile.defaultConfig()
+            assertTrue("Expected readable comma breath for ${profile.name}", config.commaPauseMs >= 100L)
+            assertTrue(
+                "Expected semicolon to be closer to a stop than a comma for ${profile.name}",
+                config.semicolonPauseMs >= (config.commaPauseMs * 1.45).toLong(),
+            )
+            assertTrue(
+                "Expected ellipses/sentence timing to have a real floor for ${profile.name}",
+                config.minPauseScale >= 0.82,
+            )
+            assertTrue(
+                "Expected punctuation breathing to be above neutral for ${profile.name}",
+                config.punctuationPauseFactor >= 1.04,
+            )
+            assertTrue(
+                "Expected dialogue punctuation not to collapse for ${profile.name}",
+                config.dialoguePunctuationScale >= 0.92,
+            )
+            assertFalse(
+                "Expected parentheticals to remain readable by default for ${profile.name}",
+                config.useParentheticalAside,
             )
         }
     }
@@ -101,19 +151,35 @@ class RsvpProfileDefaultsTest {
             )
             assertTrue(
                 "Expected dialogue punctuation to stay readable for ${profile.name}",
-                config.dialoguePunctuationScale in 0.78..0.98,
+                config.dialoguePunctuationScale in 0.90..1.0,
             )
             assertTrue(
                 "Expected paragraph strength to hold natural breaks for ${profile.name}",
-                config.paragraphPauseMultiplier in 1.10..1.65,
+                config.paragraphPauseMultiplier in 1.10..1.75,
             )
             assertTrue(
                 "Expected page breaks to remain stronger than paragraph breaks for ${profile.name}",
                 config.pageBreakPauseMultiplier > config.paragraphPauseMultiplier + 1.5,
             )
             assertTrue(
+                "Expected ORP highlight on by default for ${profile.name}",
+                config.orpHighlightEnabled,
+            )
+            assertTrue(
                 "Expected punctuation breathing to be intentionally profiled for ${profile.name}",
-                config.punctuationPauseFactor in 0.9..1.2,
+                config.punctuationPauseFactor in 1.0..1.25,
+            )
+            assertFalse(
+                "Expected phrase chunking to stay opt-in for ${profile.name}",
+                config.enablePhraseChunking,
+            )
+            assertTrue(
+                "Expected opt-in phrase chunks to stay short for ${profile.name}",
+                config.maxWordsPerUnit == 2,
+            )
+            assertTrue(
+                "Expected opt-in phrase chunk character budget to stay compact for ${profile.name}",
+                config.maxCharsPerUnit in 12..15,
             )
         }
 
