@@ -31,7 +31,8 @@ interface BookDao {
                    WHEN coverImage IS NOT NULL AND length(coverImage) <= 1900000 THEN coverImage
                    ELSE NULL
                END AS coverImage,
-               books.isCompleted AS isCompleted
+               books.isCompleted AS isCompleted,
+               books.importFingerprint AS importFingerprint
         FROM books
         LEFT JOIN chapters ON chapters.bookId = books.id
         GROUP BY books.id
@@ -46,7 +47,8 @@ interface BookDao {
                    WHEN coverImage IS NOT NULL AND length(coverImage) <= 1900000 THEN coverImage
                    ELSE NULL
                END AS coverImage,
-               isCompleted
+               isCompleted,
+               importFingerprint
         FROM books
         WHERE id = :bookId
         LIMIT 1
@@ -61,12 +63,50 @@ interface BookDao {
                    WHEN coverImage IS NOT NULL AND length(coverImage) <= 1900000 THEN coverImage
                    ELSE NULL
                END AS coverImage,
-               isCompleted
+               isCompleted,
+               importFingerprint
         FROM books
         LIMIT 1
         """,
     )
     suspend fun peekBook(): BookEntity?
+
+    @Query(
+        """
+        SELECT id, title, authors, languageTag,
+               CASE
+                   WHEN coverImage IS NOT NULL AND length(coverImage) <= 1900000 THEN coverImage
+                   ELSE NULL
+               END AS coverImage,
+               isCompleted,
+               importFingerprint
+        FROM books
+        WHERE importFingerprint = :fingerprint
+        LIMIT 1
+        """,
+    )
+    suspend fun getBookByImportFingerprint(fingerprint: String): BookEntity?
+
+    @Query(
+        """
+        SELECT id, title, authors, languageTag, NULL AS coverImage, isCompleted, importFingerprint
+        FROM books
+        WHERE title = :title
+        """,
+    )
+    suspend fun getBooksByTitleForImportDedupe(title: String): List<BookEntity>
+
+    @Query(
+        """
+        UPDATE books
+        SET importFingerprint = :fingerprint
+        WHERE id = :bookId AND importFingerprint IS NULL
+        """,
+    )
+    suspend fun setImportFingerprintIfEmpty(
+        bookId: String,
+        fingerprint: String,
+    ): Int
 
     @Query("SELECT languageTag FROM books WHERE id = :bookId LIMIT 1")
     suspend fun getBookLanguageTag(bookId: String): String?
@@ -80,6 +120,16 @@ interface BookDao {
         """,
     )
     suspend fun getChapters(bookId: String): List<ChapterEntity>
+
+    @Query(
+        """
+        SELECT bookId, `index`, title, htmlContent, plainText, imagePaths, wordCount
+        FROM chapters
+        WHERE bookId = :bookId
+        ORDER BY `index`
+        """,
+    )
+    suspend fun getChaptersWithContent(bookId: String): List<ChapterEntity>
 
     @Query(
         """

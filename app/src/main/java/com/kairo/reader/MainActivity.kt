@@ -616,7 +616,18 @@ private fun KairoNavHost(
                     delay(200)
                 }
                 importState = ImportUiState()
-                result.onSuccess { book ->
+                result.onSuccess { importResult ->
+                    val book = importResult.book
+                    if (importResult.alreadyImported) {
+                        showUserMessage(
+                            resources.getString(
+                                R.string.toast_import_duplicate_detail,
+                                book.title,
+                            ),
+                            duration = SnackbarDuration.Long,
+                        )
+                        return@onSuccess
+                    }
                     val chapterCount = book.chapters.size
                     val message =
                         resources.getQuantityString(

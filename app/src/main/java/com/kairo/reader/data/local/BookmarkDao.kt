@@ -42,6 +42,7 @@ interface BookmarkDao {
             books.languageTag AS book_languageTag,
             books.coverImage AS book_coverImage,
             books.isCompleted AS book_isCompleted,
+            books.importFingerprint AS book_importFingerprint,
             (SELECT COUNT(*) FROM chapters WHERE chapters.bookId = books.id) AS chapterCount
         FROM bookmarks
         JOIN books ON bookmarks.bookId = books.id

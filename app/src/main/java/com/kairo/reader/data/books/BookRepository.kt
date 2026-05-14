@@ -7,7 +7,7 @@ import com.kairo.reader.core.model.Chapter
 import kotlinx.coroutines.flow.Flow
 
 interface BookRepository {
-    suspend fun importBook(uri: Uri): Book
+    suspend fun importBook(uri: Uri): BookImportResult
 
     suspend fun getBook(bookId: BookId): Book
 

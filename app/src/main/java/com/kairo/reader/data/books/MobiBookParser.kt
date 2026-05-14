@@ -12,7 +12,6 @@ import com.kairo.reader.data.books.mobi.MobiParserEngine
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.util.UUID
 import kotlinx.coroutines.withContext
 
 class MobiBookParser(
@@ -24,10 +23,10 @@ class MobiBookParser(
     override suspend fun parse(
         context: Context,
         uri: Uri,
+        bookId: BookId,
     ): Book =
         withContext(dispatcherProvider.io) {
             val fileName = uri.lastPathSegment ?: "book.mobi"
-            val bookId = BookId(UUID.randomUUID().toString())
 
             val fileSize = resolveFileSize(context, uri)
             require(fileSize < 0 || !isFileTooLarge(fileSize)) {
