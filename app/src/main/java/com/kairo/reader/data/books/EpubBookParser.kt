@@ -90,6 +90,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         private val HTML_COMMENT_REGEX = Regex("<!--[\\s\\S]*?-->")
         private val SCRIPT_TAG_REGEX = Regex("<script[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE)
         private val STYLE_TAG_REGEX = Regex("<style[^>]*>[\\s\\S]*?</style>", RegexOption.IGNORE_CASE)
+        private val HEAD_TAG_REGEX = Regex("<head[^>]*>[\\s\\S]*?</head>", RegexOption.IGNORE_CASE)
         private val ALL_TAGS_REGEX = Regex("<[^>]+>")
         private val HORIZONTAL_WHITESPACE_REGEX = Regex("[ \\t]+")
         private val MULTIPLE_NEWLINES_REGEX = Regex("\\n\\s*\\n+")
@@ -1199,7 +1200,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     ): String? {
         val match = blockRegex.find(html) ?: return null
         val leading = html.take(match.range.first)
-        if (visibleText(leading).isNotBlank()) return null
+        if (visibleTextIgnoringMetadata(leading).isNotBlank()) return null
         val blockText = visibleText(match.groupValues[1])
         if (normalizeTitleForComparison(blockText) != normalizedTitle) return null
         return html.removeRange(match.range.first, match.range.last + 1)
@@ -1209,6 +1210,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         decodeHtmlEntities(htmlFragment.replace(ALL_TAGS_REGEX, " "))
             .replace(WHITESPACE_REGEX, " ")
             .trim()
+
+    private fun visibleTextIgnoringMetadata(htmlFragment: String): String =
+        visibleText(htmlFragment.replace(HEAD_TAG_REGEX, " "))
 
     private fun normalizeTitleForComparison(text: String): String =
         visibleText(text)
