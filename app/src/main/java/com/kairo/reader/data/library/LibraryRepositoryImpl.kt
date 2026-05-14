@@ -28,6 +28,9 @@ class LibraryRepositoryImpl(
         return bookRepository.importBook(uri)
     }
 
+    override suspend fun importUrl(rawUrl: String): BookImportResult =
+        bookRepository.importUrl(rawUrl)
+
     override suspend fun setCompleted(
         bookId: String,
         isCompleted: Boolean,

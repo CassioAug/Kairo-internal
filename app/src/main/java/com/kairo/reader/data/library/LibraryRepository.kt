@@ -10,6 +10,8 @@ interface LibraryRepository {
 
     suspend fun import(uri: Uri): BookImportResult
 
+    suspend fun importUrl(rawUrl: String): BookImportResult
+
     suspend fun setCompleted(
         bookId: String,
         isCompleted: Boolean,

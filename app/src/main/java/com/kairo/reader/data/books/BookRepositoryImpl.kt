@@ -22,6 +22,7 @@ import kotlinx.coroutines.sync.withLock
 class BookRepositoryImpl(
     private val bookDao: BookDao,
     private val parsers: List<BookParser>,
+    private val webArticleExtractor: WebArticleExtractor,
     private val appContext: android.content.Context,
 ) : BookRepository {
     // Mutex to prevent concurrent import operations which can crash the app
@@ -44,48 +45,27 @@ class BookRepositoryImpl(
                     )
                 }
 
-            // Parse the book - let errors propagate for proper error handling
             val bookId =
                 sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
                     ?: BookId(UUID.randomUUID().toString())
             val parsedBook = parser.parse(appContext, uri, bookId)
-            val resolvedLanguageTag = BookLanguageResolver.resolve(parsedBook)
-            val book =
-                parsedBook.copy(
-                    languageTag = resolvedLanguageTag,
-                    coverImage = optimizeCoverForDb(parsedBook.coverImage),
-                    chapters =
-                    parsedBook.chapters.map { chapter ->
-                        if (chapter.wordCount > 0) {
-                            chapter
-                        } else if (chapter.plainText.length <= MAX_WORD_COUNT_CHARS) {
-                            chapter.copy(wordCount = countWords(chapter.plainText))
-                        } else {
-                            // Defer heavy word counts for very large chapters.
-                            chapter
-                        }
-                    },
-                )
-            findExistingDuplicate(
-                parsedBook = book,
-                sourceFingerprint = sourceFingerprint,
-            )?.let { existing ->
-                deleteBookAssets(book.id.value)
+            return@withLock persistImportedBook(parsedBook, sourceFingerprint)
+        }
+
+    override suspend fun importUrl(rawUrl: String): BookImportResult =
+        importMutex.withLock {
+            val normalizedUrl = WebArticleUrl.normalize(rawUrl)
+            val sourceFingerprint = ImportFingerprint.webUrlFingerprint(normalizedUrl)
+            bookDao.getBookByImportFingerprint(sourceFingerprint)?.let { existing ->
                 return@withLock BookImportResult(
-                    book = existing,
+                    book = existing.toDomain(bookDao.getChapters(existing.id)),
                     alreadyImported = true,
                 )
             }
 
-            // Save to database
-            bookDao.insertBook(
-                book.toEntity(importFingerprint = sourceFingerprint),
-                book.chapters.map { it.toEntity(book.id) },
-            )
-            return@withLock BookImportResult(
-                book = book,
-                alreadyImported = false,
-            )
+            val bookId = ImportFingerprint.bookIdForFingerprint(sourceFingerprint)
+            val parsedBook = webArticleExtractor.extract(normalizedUrl, bookId)
+            return@withLock persistImportedBook(parsedBook, sourceFingerprint)
         }
 
     private fun resolveSourceFingerprint(
@@ -124,6 +104,48 @@ class BookRepositoryImpl(
             }
         }
         return null
+    }
+
+    private suspend fun persistImportedBook(
+        parsedBook: Book,
+        sourceFingerprint: String?,
+    ): BookImportResult {
+        val resolvedLanguageTag = BookLanguageResolver.resolve(parsedBook)
+        val book =
+            parsedBook.copy(
+                languageTag = resolvedLanguageTag,
+                coverImage = optimizeCoverForDb(parsedBook.coverImage),
+                chapters =
+                parsedBook.chapters.map { chapter ->
+                    if (chapter.wordCount > 0) {
+                        chapter
+                    } else if (chapter.plainText.length <= MAX_WORD_COUNT_CHARS) {
+                        chapter.copy(wordCount = countWords(chapter.plainText))
+                    } else {
+                        // Defer heavy word counts for very large chapters.
+                        chapter
+                    }
+                },
+            )
+        findExistingDuplicate(
+            parsedBook = book,
+            sourceFingerprint = sourceFingerprint,
+        )?.let { existing ->
+            deleteBookAssets(book.id.value)
+            return BookImportResult(
+                book = existing,
+                alreadyImported = true,
+            )
+        }
+
+        bookDao.insertBook(
+            book.toEntity(importFingerprint = sourceFingerprint),
+            book.chapters.map { it.toEntity(book.id) },
+        )
+        return BookImportResult(
+            book = book,
+            alreadyImported = false,
+        )
     }
 
     private fun deleteBookAssets(bookId: String) {

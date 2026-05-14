@@ -2,11 +2,13 @@ package com.kairo.reader.ui.library
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kairo.reader.R
 import com.kairo.reader.TestActivity
@@ -51,6 +53,7 @@ class LibraryScreenTest {
                     onDeleteBookmark = {},
                     onDeleteBookmarksForBook = {},
                     onImportFile = {},
+                    onImportUrl = {},
                     onSettings = {},
                     onSetCompleted = { _, _ -> },
                     onDelete = { deleteCalls++ },
@@ -90,6 +93,7 @@ class LibraryScreenTest {
                     onDeleteBookmark = {},
                     onDeleteBookmarksForBook = {},
                     onImportFile = {},
+                    onImportUrl = {},
                     onSettings = {},
                     onSetCompleted = { _, _ -> },
                     onDelete = { deleteCalls++ },
@@ -130,6 +134,7 @@ class LibraryScreenTest {
                     onDeleteBookmark = {},
                     onDeleteBookmarksForBook = {},
                     onImportFile = {},
+                    onImportUrl = {},
                     onSettings = {},
                     onSetCompleted = { _, _ -> },
                     onDelete = {},
@@ -158,6 +163,7 @@ class LibraryScreenTest {
                     onDeleteBookmark = {},
                     onDeleteBookmarksForBook = {},
                     onImportFile = {},
+                    onImportUrl = {},
                     onSettings = {},
                     onSetCompleted = { book, isCompleted ->
                         completedBookId = book.id.value
@@ -210,6 +216,7 @@ class LibraryScreenTest {
                     onDeleteBookmark = {},
                     onDeleteBookmarksForBook = { clearedBookId = it },
                     onImportFile = {},
+                    onImportUrl = {},
                     onSettings = {},
                     onSetCompleted = { _, _ -> },
                     onDelete = {},
@@ -231,5 +238,40 @@ class LibraryScreenTest {
         composeRule.onNodeWithText(deleteText).performClick()
 
         composeRule.runOnIdle { assertEquals("book-1", clearedBookId) }
+    }
+
+    @Test
+    fun readFromLinkDialog_submitsUrl() {
+        var importedUrl = ""
+
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Library,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = { importedUrl = it },
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_read_from_link_button)
+        ).performClick()
+        composeRule.onNode(hasSetTextAction()).performTextInput("example.com/story")
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_read_from_link_submit)
+        ).performClick()
+
+        composeRule.runOnIdle { assertEquals("example.com/story", importedUrl) }
     }
 }

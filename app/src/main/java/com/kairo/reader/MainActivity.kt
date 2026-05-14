@@ -2,6 +2,7 @@ package com.kairo.reader
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -61,6 +62,8 @@ import com.kairo.reader.core.model.wordIndexForToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.core.rsvp.RsvpEffectivePace
+import com.kairo.reader.data.books.BookImportResult
+import com.kairo.reader.data.books.WebArticleUrl
 import com.kairo.reader.sample.SampleBooks
 import com.kairo.reader.ui.LocalDispatcherProvider
 import com.kairo.reader.ui.focus.FocusModeSideEffects
@@ -97,6 +100,9 @@ import com.kairo.reader.ui.theme.KairoTheme
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialRoute
 import com.kairo.reader.ui.tutorial.startingTutorialSteps
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -104,6 +110,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jsoup.HttpStatusException
 
 @Composable
 private fun rememberSystemDefaultPreferences(): UserPreferences {
@@ -122,11 +129,14 @@ private fun rememberSystemDefaultPreferences(): UserPreferences {
 
 class MainActivity : AppCompatActivity() {
     private val pendingExternalImportUriState = mutableStateOf<Uri?>(null)
+    private val pendingSharedArticleUrlState = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         pendingExternalImportUriState.value = intent.bookImportUri()
+        pendingSharedArticleUrlState.value =
+            if (pendingExternalImportUriState.value == null) intent.sharedArticleUrl() else null
 
         val container = application as KairoApplication
 
@@ -158,8 +168,12 @@ class MainActivity : AppCompatActivity() {
                                 container = container,
                                 prefs = effectivePrefs,
                                 externalImportUri = pendingExternalImportUriState.value,
+                                externalArticleUrl = pendingSharedArticleUrlState.value,
                                 onExternalImportUriConsumed = { consumedUri ->
                                     clearConsumedExternalImportIntent(consumedUri)
+                                },
+                                onExternalArticleUrlConsumed = { consumedUrl ->
+                                    clearConsumedSharedArticleIntent(consumedUrl)
                                 },
                             )
                         }
@@ -172,7 +186,10 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        pendingExternalImportUriState.value = intent.bookImportUri()
+        val importUri = intent.bookImportUri()
+        pendingExternalImportUriState.value = importUri
+        pendingSharedArticleUrlState.value =
+            if (importUri == null) intent.sharedArticleUrl() else null
     }
 
     private fun clearConsumedExternalImportIntent(consumedUri: Uri) {
@@ -180,6 +197,15 @@ class MainActivity : AppCompatActivity() {
             pendingExternalImportUriState.value = null
         }
         if (intent.bookImportUri() == consumedUri) {
+            setIntent(Intent(this, MainActivity::class.java))
+        }
+    }
+
+    private fun clearConsumedSharedArticleIntent(consumedUrl: String) {
+        if (pendingSharedArticleUrlState.value == consumedUrl) {
+            pendingSharedArticleUrlState.value = null
+        }
+        if (intent.sharedArticleUrl() == consumedUrl) {
             setIntent(Intent(this, MainActivity::class.java))
         }
     }
@@ -192,12 +218,27 @@ private fun Intent.bookImportUri(): Uri? =
         null
     }
 
+private fun Intent.sharedArticleUrl(): String? =
+    if (action == Intent.ACTION_SEND && type?.startsWith("text/", ignoreCase = true) == true) {
+        listOfNotNull(
+            getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
+            getCharSequenceExtra(Intent.EXTRA_HTML_TEXT)?.toString(),
+            getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString(),
+        )
+            .joinToString(separator = "\n")
+            .let(WebArticleUrl::extractBestWebUrl)
+    } else {
+        null
+    }
+
 private const val RSVP_RESULT_CHAPTER_INDEX_KEY = "rsvp_result_chapter_index"
 private const val RSVP_RESULT_TOKEN_INDEX_KEY = "rsvp_result_token_index"
 private const val RSVP_RESULT_RESUME_CURSOR_KEY = "rsvp_result_resume_cursor"
 private const val RSVP_PLAYBACK_IS_PLAYING_KEY = "rsvp_playback_is_playing"
 private const val RSVP_CURRENT_TOKEN_INDEX_KEY = "rsvp_current_token_index"
 private const val RSVP_CURRENT_RESUME_CURSOR_KEY = "rsvp_current_resume_cursor"
+private const val IMPORT_COMPLETE_HOLD_MS = 200L
+private const val URL_IMPORT_COMPLETE_HOLD_MS = 40L
 private data class RsvpReturnTarget(
     val chapterIndex: Int,
     val tokenIndex: Int,
@@ -363,6 +404,43 @@ private fun resolveImportFileName(
         }
     }.getOrNull()
 
+private fun resolveImportUrlName(rawUrl: String): String? =
+    runCatching { WebArticleUrl.displayHost(WebArticleUrl.normalize(rawUrl)) }.getOrNull()
+
+private fun resolveImportFailureMessage(
+    resources: Resources,
+    error: Throwable,
+): String {
+    val root = error.rootCause()
+    val message =
+        when (root) {
+            is HttpStatusException ->
+                when (root.statusCode) {
+                    401, 403 -> resources.getString(R.string.toast_import_failed_blocked)
+                    404 -> resources.getString(R.string.toast_import_failed_not_found)
+                    429 -> resources.getString(R.string.toast_import_failed_rate_limited)
+                    in 500..599 -> resources.getString(R.string.toast_import_failed_server)
+                    else -> resources.getString(R.string.toast_import_failed_detail, root.message)
+                }
+            is UnknownHostException -> resources.getString(R.string.toast_import_failed_network)
+            is SocketTimeoutException -> resources.getString(R.string.toast_import_failed_timeout)
+            is SSLException -> resources.getString(R.string.toast_import_failed_secure)
+            else ->
+                error.message?.let {
+                    resources.getString(R.string.toast_import_failed_detail, it)
+                } ?: resources.getString(R.string.toast_import_failed_unknown)
+        }
+    return message
+}
+
+private fun Throwable.rootCause(): Throwable {
+    var current = this
+    while (current.cause != null && current.cause !== current) {
+        current = current.cause ?: break
+    }
+    return current
+}
+
 private suspend fun driveImportProgress(onUpdate: (Float) -> Unit) {
     var progress = 0f
     onUpdate(progress)
@@ -379,7 +457,9 @@ private fun KairoNavHost(
     container: KairoApplication,
     prefs: UserPreferences,
     externalImportUri: Uri?,
+    externalArticleUrl: String?,
     onExternalImportUriConsumed: (Uri) -> Unit,
+    onExternalArticleUrlConsumed: (String) -> Unit,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -591,9 +671,13 @@ private fun KairoNavHost(
         }
     }
 
-    fun handleImportFile(uri: Uri) {
+    fun handleImport(
+        displayName: String?,
+        completionHoldMs: Long = IMPORT_COMPLETE_HOLD_MS,
+        onImported: (BookImportResult) -> Unit = {},
+        importBook: suspend () -> BookImportResult,
+    ) {
         if (importState.isImporting) return
-        val displayName = resolveImportFileName(context, uri)
         importState =
             ImportUiState(
                 isImporting = true,
@@ -608,12 +692,14 @@ private fun KairoNavHost(
                 }
             }
         coroutineScope.launch(dispatcherProvider.io) {
-            val result = runCatching { container.libraryRepository.import(uri) }
+            val result = runCatching { importBook() }
             withContext(Dispatchers.Main) {
                 importProgressJob?.cancel()
                 if (result.isSuccess) {
                     importState = importState.copy(progress = 1f)
-                    delay(200)
+                    if (completionHoldMs > 0L) {
+                        delay(completionHoldMs)
+                    }
                 }
                 importState = ImportUiState()
                 result.onSuccess { importResult ->
@@ -626,6 +712,7 @@ private fun KairoNavHost(
                             ),
                             duration = SnackbarDuration.Long,
                         )
+                        onImported(importResult)
                         return@onSuccess
                     }
                     val chapterCount = book.chapters.size
@@ -637,15 +724,33 @@ private fun KairoNavHost(
                             chapterCount,
                         )
                     showUserMessage(message)
+                    onImported(importResult)
                 }
                 result.onFailure { error ->
-                    val message =
-                        error.message?.let {
-                            resources.getString(R.string.toast_import_failed_detail, it)
-                        } ?: resources.getString(R.string.toast_import_failed_unknown)
+                    val message = resolveImportFailureMessage(resources, error)
                     showUserMessage(message, duration = SnackbarDuration.Long)
                 }
             }
+        }
+    }
+
+    fun handleImportFile(uri: Uri) {
+        handleImport(resolveImportFileName(context, uri)) {
+            container.libraryRepository.import(uri)
+        }
+    }
+
+    fun handleImportUrl(rawUrl: String) {
+        handleImport(
+            displayName = resolveImportUrlName(rawUrl),
+            completionHoldMs = URL_IMPORT_COMPLETE_HOLD_MS,
+            onImported = { importResult ->
+                navController.navigate("reader/${importResult.book.id.value}") {
+                    launchSingleTop = true
+                }
+            },
+        ) {
+            container.libraryRepository.importUrl(rawUrl)
         }
     }
 
@@ -660,10 +765,27 @@ private fun KairoNavHost(
         handleImportFile(uri)
     }
 
-    LaunchedEffect(prefs.hasSeenStartingTutorial, externalImportUri, importState.isImporting) {
+    LaunchedEffect(externalArticleUrl, importState.isImporting) {
+        val url = externalArticleUrl ?: return@LaunchedEffect
+        if (importState.isImporting) return@LaunchedEffect
+        onExternalArticleUrlConsumed(url)
+        navController.navigate("library") {
+            popUpTo("library") { inclusive = false }
+            launchSingleTop = true
+        }
+        handleImportUrl(url)
+    }
+
+    LaunchedEffect(
+        prefs.hasSeenStartingTutorial,
+        externalImportUri,
+        externalArticleUrl,
+        importState.isImporting,
+    ) {
         if (!prefs.hasSeenStartingTutorial &&
             !tutorialAutoStarted &&
             externalImportUri == null &&
+            externalArticleUrl == null &&
             !importState.isImporting
         ) {
             startStartingTutorial()
@@ -718,6 +840,7 @@ private fun KairoNavHost(
                         }
                     },
                     onImportFile = ::handleImportFile,
+                    onImportUrl = ::handleImportUrl,
                     onSettings = { navController.navigate("settings") },
                     onSetCompleted = { book, isCompleted ->
                         coroutineScope.launch {
@@ -777,6 +900,7 @@ private fun KairoNavHost(
                     }
                 },
                 onImportFile = ::handleImportFile,
+                onImportUrl = ::handleImportUrl,
                 onSettings = { navController.navigate("settings") },
                 onSetCompleted = { book, isCompleted ->
                     coroutineScope.launch {

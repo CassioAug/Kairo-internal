@@ -51,16 +51,21 @@
     <string name="content_desc_title_page_of_title">Title page of %1$s</string>
 
     <string name="import_status_title">Importing</string>
-    <string name="import_preparing_book">Preparing your book</string>
-    <string name="import_parsing_chapters">Parsing chapters and assets</string>
+    <string name="import_preparing_book">Preparing your reading</string>
+    <string name="import_parsing_chapters">Extracting readable text</string>
 
     <string name="library_title">Your Library</string>
-    <string name="library_subtitle">Import EPUB or MOBI files to get started.</string>
+    <string name="library_subtitle">Import files or read articles from links.</string>
     <string name="library_tab_library">Library</string>
     <string name="library_tab_completed">Completed</string>
     <string name="library_tab_bookmarks">Bookmarks</string>
     <string name="library_bookmarks_subtitle">Open saved bookmarks</string>
-    <string name="library_import_button">Import Book</string>
+    <string name="library_import_button">Import File</string>
+    <string name="library_read_from_link_button">Read Link</string>
+    <string name="library_read_from_link_title">Read from link</string>
+    <string name="library_read_from_link_label">Web link</string>
+    <string name="library_read_from_link_placeholder">https://example.com/article</string>
+    <string name="library_read_from_link_submit">Read</string>
     <string name="library_no_bookmarks">No bookmarks yet</string>
     <string name="library_no_completed_books">No completed books yet</string>
     <string name="library_time_left">~%1$s left</string>
@@ -367,6 +372,13 @@
     <string name="toast_bookmark_added">Bookmark added</string>
     <string name="toast_import_duplicate_detail">Already in your library: %1$s. No duplicate added.</string>
     <string name="toast_import_failed_detail">Import failed: %1$s</string>
+    <string name="toast_import_failed_blocked">Import failed: That site blocked article extraction.</string>
+    <string name="toast_import_failed_not_found">Import failed: That article link was not found.</string>
+    <string name="toast_import_failed_network">Import failed: Could not reach that link. Check your connection and try again.</string>
+    <string name="toast_import_failed_rate_limited">Import failed: That site is rate limiting article extraction. Try again later.</string>
+    <string name="toast_import_failed_server">Import failed: That site is not responding properly right now.</string>
+    <string name="toast_import_failed_timeout">Import failed: The link took too long to respond.</string>
+    <string name="toast_import_failed_secure">Import failed: Could not open a secure connection to that site.</string>
     <string name="toast_import_failed_unknown">Import failed: Unknown error</string>
 
     <plurals name="library_chapter_count">
