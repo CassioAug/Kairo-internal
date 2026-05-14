@@ -6,7 +6,6 @@ import android.app.Activity
 import android.app.NotificationManager
 import android.content.Context
 import android.content.ContextWrapper
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.Composable
@@ -14,7 +13,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.kairo.reader.core.model.ReaderTheme
@@ -53,7 +51,6 @@ fun FocusModeSideEffects(
 }
 
 @Composable
-@Suppress("DEPRECATION")
 fun SystemBarsStyleSideEffect(readerTheme: ReaderTheme) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -62,14 +59,6 @@ fun SystemBarsStyleSideEffect(readerTheme: ReaderTheme) {
     val controller = remember(window, view) { WindowInsetsControllerCompat(window, view) }
 
     DisposableEffect(readerTheme) {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= MIN_CONTRAST_API) {
-            window.isStatusBarContrastEnforced = false
-            window.isNavigationBarContrastEnforced = false
-        }
-
         val useDarkIcons = !readerTheme.readerThemePalette().isDark
         controller.isAppearanceLightStatusBars = useDarkIcons
         controller.isAppearanceLightNavigationBars = useDarkIcons
@@ -166,5 +155,4 @@ private tailrec fun Context.findActivity(): Activity? =
         else -> null
     }
 
-private const val MIN_CONTRAST_API = 29
 private const val DND_RESTORE_GRACE_MS = 1_500L

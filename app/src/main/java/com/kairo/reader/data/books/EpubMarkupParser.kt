@@ -67,7 +67,7 @@ internal class EpubMarkupParser(
         targetTag: String,
     ) {
         while (stack.isNotEmpty()) {
-            val node = stack.removeLast()
+            val node = stack.removeAt(stack.lastIndex)
             if (node.name == targetTag) {
                 return
             }
