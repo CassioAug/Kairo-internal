@@ -14,10 +14,29 @@ class ReadingPositionRepositoryImpl(private val dao: ReadingPositionDao,) : Read
     ): ReadingPosition? = dao.getPosition(bookId.value)?.toDomain()
 
     override suspend fun savePosition(position: ReadingPosition) {
+        val current = dao.getPosition(position.bookId.value)?.toDomain()
+        if (shouldIgnoreUnqualifiedStartOverwrite(current, position)) return
         dao.savePosition(position.toEntity())
     }
 
     override fun observePositions(): Flow<List<ReadingPosition>> = dao.getPositions().map { entities ->
         entities.map { it.toDomain() }
     }
+}
+
+internal fun shouldIgnoreUnqualifiedStartOverwrite(
+    current: ReadingPosition?,
+    next: ReadingPosition,
+): Boolean {
+    if (current == null || current.bookId != next.bookId) return false
+    val nextIsUnqualifiedBookStart =
+        next.chapterIndex == 0 &&
+            next.tokenIndex == 0 &&
+            next.wordIndex < 0 &&
+            next.rsvpResumeCursor < 0
+    if (!nextIsUnqualifiedBookStart) return false
+    return current.chapterIndex > 0 ||
+        current.tokenIndex > 0 ||
+        current.wordIndex > 0 ||
+        current.rsvpResumeCursor > 0
 }

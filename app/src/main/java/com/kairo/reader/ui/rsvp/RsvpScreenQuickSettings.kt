@@ -173,6 +173,7 @@ private fun RsvpQuickSettingsBookmarks(
         icon = Icons.Default.Bookmark,
         onClick = {
             runtime.showQuickSettings = false
+            context.callbacks.playback.onPositionChanged(currentResumePoint(context))
             context.callbacks.bookmarks.onOpenBookmarks()
         },
     )

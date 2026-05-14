@@ -20,6 +20,7 @@ internal data class OrpTextLayout(
     val preferWindowing: Boolean,
     val simplifyPunctuation: Boolean,
     val guideVisible: Boolean,
+    val pivotHighlightVisible: Boolean,
     val guideThickness: Float,
 )
 

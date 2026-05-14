@@ -594,6 +594,45 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun phraseChunkingBuildsPronounAuxiliaryTriplets() {
+        val config =
+            stableConfig.copy(
+                enablePhraseChunking = true,
+                maxWordsPerUnit = 3,
+                maxCharsPerUnit = 18,
+            )
+        val tokens = listOf(w("I"), w("was"), w("reading"), w("slowly"))
+
+        val frames = engine.generateFrames(tokens, 0, config)
+        val firstWords =
+            frames.first().tokens.filter { it.type == TokenType.WORD }.map { it.text }
+
+        assertEquals(listOf("I", "was", "reading"), firstWords)
+    }
+
+    @Test
+    fun phraseChunkingKeepsSemanticAnchorWordsSeparateUnlessHinted() {
+        val config =
+            stableConfig.copy(
+                enablePhraseChunking = true,
+                maxWordsPerUnit = 2,
+                maxCharsPerUnit = 14,
+            )
+
+        val unhinted = engine.generateFrames(listOf(w("go"), w("not"), w("there")), 0, config)
+        val hinted = engine.generateFrames(listOf(w("not"), w("yet"), w("ready")), 0, config)
+
+        assertEquals(
+            listOf("go"),
+            unhinted.first().tokens.filter { it.type == TokenType.WORD }.map { it.text },
+        )
+        assertEquals(
+            listOf("not", "yet"),
+            hinted.first().tokens.filter { it.type == TokenType.WORD }.map { it.text },
+        )
+    }
+
+    @Test
     fun phraseChunkingRecordsNextOriginalTokenIndex() {
         val config =
             stableConfig.copy(

@@ -1803,9 +1803,26 @@ class ComprehensionRsvpEngine : RsvpEngine {
     ): Boolean {
         val prevLower = prev.text.lowercase()
         val nextLower = next.text.lowercase()
+        val pairKey = "$prevLower $nextLower"
 
         if (prev.isClauseBoundary || next.isClauseBoundary) return false
         if (ClauseDetector.isCoordinatingConjunction(prevLower)) return false
+        if (pairKey in TIGHT_PAIR_HINTS) return true
+        if (nextLower in SEMANTIC_ANCHOR_WORDS) return false
+
+        val pronounAuxiliaryBridge =
+            prevLower in PRONOUN_BRIDGE_WORDS &&
+                nextLower in AUXILIARY_BRIDGE_WORDS &&
+                prev.text.length <= PRONOUN_BRIDGE_MAX_CHARS &&
+                next.text.length <= AUXILIARY_BRIDGE_MAX_CHARS
+        if (pronounAuxiliaryBridge) return true
+
+        val auxiliaryContentBridge =
+            prevLower in AUXILIARY_BRIDGE_WORDS &&
+                nextLower !in SEMANTIC_ANCHOR_WORDS &&
+                next.text.length <= AUXILIARY_CONTENT_MAX_CHARS &&
+                next.frequencyScore >= AUXILIARY_CONTENT_MIN_FREQUENCY
+        if (auxiliaryContentBridge) return true
 
         // Use coherence scoring to determine if words should be chunked together
         val coherenceScore = ClauseDetector.getCoherenceScore(prevLower, nextLower)
@@ -1818,10 +1835,6 @@ class ComprehensionRsvpEngine : RsvpEngine {
         val glue = prevLower in GLUE_WORDS || nextLower in GLUE_WORDS
         val bothShort = prev.text.length <= 4 && next.text.length <= 7
         val bothCommon = prev.frequencyScore >= 0.7 && next.frequencyScore >= 0.7
-
-        // Also consider tight pair hints
-        val pairKey = "$prevLower $nextLower"
-        if (pairKey in TIGHT_PAIR_HINTS && bothShort) return true
 
         return (glue && bothShort) || (bothShort && bothCommon)
     }
@@ -2626,6 +2639,10 @@ class ComprehensionRsvpEngine : RsvpEngine {
         private const val CONTENT_WORD_STRESS_BOOST = 0.05
         private const val SEMANTIC_ANCHOR_BOOST = 0.10
         private const val FUNCTION_BRIDGE_COHERENCE_THRESHOLD = 0.65
+        private const val PRONOUN_BRIDGE_MAX_CHARS = 6
+        private const val AUXILIARY_BRIDGE_MAX_CHARS = 6
+        private const val AUXILIARY_CONTENT_MAX_CHARS = 8
+        private const val AUXILIARY_CONTENT_MIN_FREQUENCY = 0.45
         private const val MIN_PROSODY_MULTIPLIER = 0.88
         private const val MAX_PROSODY_MULTIPLIER = 1.18
         private const val CLAUSE_LEAD_BOOST_MS = 20.0
@@ -2918,6 +2935,48 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 "their",
             )
 
+        private val PRONOUN_BRIDGE_WORDS =
+            setOf(
+                "i",
+                "you",
+                "he",
+                "she",
+                "it",
+                "we",
+                "they",
+                "there",
+                "this",
+                "that",
+                "who",
+                "what",
+            )
+
+        private val AUXILIARY_BRIDGE_WORDS =
+            setOf(
+                "am",
+                "is",
+                "are",
+                "was",
+                "were",
+                "be",
+                "been",
+                "being",
+                "have",
+                "has",
+                "had",
+                "do",
+                "does",
+                "did",
+                "will",
+                "would",
+                "can",
+                "could",
+                "should",
+                "may",
+                "might",
+                "must",
+            )
+
         private val SEMANTIC_ANCHOR_WORDS =
             setOf(
                 "not",
@@ -3044,6 +3103,25 @@ class ComprehensionRsvpEngine : RsvpEngine {
                 "must be",
                 "may be",
                 "might be",
+                "am not",
+                "is not",
+                "are not",
+                "was not",
+                "were not",
+                "do not",
+                "does not",
+                "did not",
+                "have not",
+                "has not",
+                "had not",
+                "will not",
+                "would not",
+                "can not",
+                "could not",
+                "should not",
+                "may not",
+                "might not",
+                "must not",
                 // Common idiom starters
                 "it was",
                 "it is",

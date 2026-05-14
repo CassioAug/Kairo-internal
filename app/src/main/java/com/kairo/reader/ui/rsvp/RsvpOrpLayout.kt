@@ -41,6 +41,7 @@ internal fun OrpAlignedTextLayout(
         remember(typography, baseStyle) {
             baseStyle.copy(
                 fontSize = typography.fontSizeSp.sp,
+                lineHeight = (typography.fontSizeSp * ORP_TEXT_LINE_HEIGHT_MULTIPLIER).sp,
                 fontFamily = typography.fontFamily,
                 fontWeight = typography.fontWeight,
                 letterSpacing = ORP_LETTER_SPACING_SP.sp,
@@ -55,7 +56,14 @@ internal fun OrpAlignedTextLayout(
     ) {
         val maxWidthPx = with(density) { maxWidth.toPx() }.coerceAtLeast(MIN_ORP_WIDTH_PX)
         val display =
-            remember(content, textStyle, colors, maxWidthPx, layout.preferWindowing) {
+            remember(
+                content,
+                textStyle,
+                colors,
+                maxWidthPx,
+                layout.preferWindowing,
+                layout.pivotHighlightVisible,
+            ) {
                 resolveOrpDisplay(
                     content = content,
                     textStyle = textStyle,
@@ -63,6 +71,7 @@ internal fun OrpAlignedTextLayout(
                     textMeasurer = textMeasurer,
                     maxWidthPx = maxWidthPx,
                     preferWindowing = layout.preferWindowing,
+                    pivotHighlightVisible = layout.pivotHighlightVisible,
                 )
             }
         val measuredWidthPx = display.measured.size.width.toFloat()
@@ -159,6 +168,7 @@ private fun resolveOrpDisplay(
     textMeasurer: TextMeasurer,
     maxWidthPx: Float,
     preferWindowing: Boolean,
+    pivotHighlightVisible: Boolean,
 ): OrpDisplay {
     val baseAnnotated =
         buildOrpAnnotatedText(
@@ -168,6 +178,7 @@ private fun resolveOrpDisplay(
             highlightStart = content.highlightStart,
             highlightEndExclusive = content.highlightEndExclusive,
             highlightColor = colors.highlightColor,
+            pivotHighlightVisible = pivotHighlightVisible,
         )
     val baseMeasured =
         measureOrpText(
@@ -212,6 +223,7 @@ private fun resolveOrpDisplay(
             highlightStart = windowed.highlightStart,
             highlightEndExclusive = windowed.highlightEndExclusive,
             highlightColor = colors.highlightColor,
+            pivotHighlightVisible = pivotHighlightVisible,
         )
     val windowedMeasured =
         measureOrpText(
@@ -533,7 +545,7 @@ private fun calculateOrpLayout(
 ): OrpLayoutResult =
     when {
         layout.lockPivot && content.wordCount > ORP_LOCK_PIVOT_WORDS ->
-            layoutLockedPivot(pivotRange, measured, bounds, content.fullText)
+            layoutLockedPivot(pivotRange, measured, bounds)
         bounds.maxTranslationX < bounds.safeLeftPx ->
             layoutWideWord(pivotRange, measured, bounds, content.fullText.lastIndex)
         else ->
@@ -544,26 +556,25 @@ private fun layoutLockedPivot(
     pivotRange: OrpPivotRange,
     measured: TextLayoutResult,
     bounds: OrpBounds,
-    fullText: String,
 ): OrpLayoutResult {
     val pivotIndex = pivotRange.safePivotIndex.safeCoerceIn(pivotRange.start, pivotRange.end)
-    val lastIndex = fullText.lastIndex.coerceAtLeast(DEFAULT_PIVOT_INDEX)
-    val pivotCenter = pivotCenterX(measured, pivotIndex, lastIndex)
     val measuredWidthPx = measured.size.width.toFloat()
 
     // Center the text in the available space so chunk words stay static
     // regardless of which word is the ORP/highlight word.
-    val centeredTranslationX = (bounds.maxWidthPx - measuredWidthPx) / BIAS_SCALE_FACTOR
     val minTranslationX = minOf(bounds.safeLeftPx, bounds.maxTranslationX)
     val maxTranslationX = maxOf(bounds.safeLeftPx, bounds.maxTranslationX)
     val translationX =
-        centeredTranslationX.safeCoerceIn(minTranslationX, maxTranslationX)
-
-    val alignment = alignPivotToPixel(pivotCenter, translationX)
+        stableCenteredTranslationX(
+            maxWidthPx = bounds.maxWidthPx,
+            measuredWidthPx = measuredWidthPx,
+            minTranslationX = minTranslationX,
+            maxTranslationX = maxTranslationX,
+        )
 
     return OrpLayoutResult(
         pivotIndex = pivotIndex,
-        translationX = alignment.translationX,
+        translationX = translationX,
         guideBias = stableGuideBias(bounds),
     )
 }
@@ -665,3 +676,23 @@ private fun lerpFloat(
     val safeFraction = fraction.safeCoerceIn(ZERO_FLOAT, ONE_FLOAT)
     return start + ((end - start) * safeFraction)
 }
+
+internal fun stableCenteredTranslationX(
+    maxWidthPx: Float,
+    measuredWidthPx: Float,
+    minTranslationX: Float,
+    maxTranslationX: Float,
+): Float {
+    val centeredTranslationX = (maxWidthPx - measuredWidthPx) / BIAS_SCALE_FACTOR
+    val clampedTranslationX =
+        centeredTranslationX.safeCoerceIn(minTranslationX, maxTranslationX)
+    return snapTranslationToRenderPixel(clampedTranslationX)
+        .safeCoerceIn(minTranslationX, maxTranslationX)
+}
+
+internal fun snapTranslationToRenderPixel(translationX: Float): Float =
+    if (translationX.isFinite()) {
+        translationX.roundToInt().toFloat()
+    } else {
+        ZERO_FLOAT
+    }

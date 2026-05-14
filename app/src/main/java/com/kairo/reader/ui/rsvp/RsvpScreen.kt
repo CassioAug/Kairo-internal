@@ -331,6 +331,7 @@ private fun rememberFrameLoadState(
 ): RsvpFrameLoadState {
     val loadConfigKey = remember(profile.config) { frameLoadConfigKey(profile.config) }
     val instantFrameTokenCount = book.tokens.size
+    val latestPreviewStartIndex by rememberUpdatedState(previewStartIndex)
     var frameSet by remember(
         book.bookId,
         book.chapterIndex,
@@ -347,9 +348,6 @@ private fun rememberFrameLoadState(
             ),
         )
     }
-    var activeLoadConfigKey by remember(book.bookId, book.chapterIndex, book.startIndex) {
-        mutableStateOf<com.kairo.reader.core.model.RsvpConfig?>(null)
-    }
     var isFramesLoading by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
         mutableStateOf(true)
     }
@@ -365,6 +363,12 @@ private fun rememberFrameLoadState(
         instantFrameTokenCount,
         loadAttempt,
     ) {
+        val loadStartIndex =
+            resolveFrameLoadStartIndex(
+                bookStartIndex = book.startIndex,
+                previewStartIndex = latestPreviewStartIndex,
+                tokenCount = instantFrameTokenCount,
+            )
         val hadFrames = frameSet?.frames?.isNotEmpty() == true
         if (!hadFrames) isFramesLoading = true
         if (!hadFrames && book.tokens.isNotEmpty()) {
@@ -372,7 +376,7 @@ private fun rememberFrameLoadState(
                 runCatching {
                     frameRepository.getPreviewFrames(
                         tokens = book.tokens,
-                        startIndex = book.startIndex,
+                        startIndex = loadStartIndex,
                         config = profile.config,
                     )
                 }.onFailure { error ->
@@ -391,7 +395,7 @@ private fun rememberFrameLoadState(
                     book.bookId,
                     book.chapterIndex,
                     profile.config,
-                    startIndex = book.startIndex,
+                    startIndex = loadStartIndex,
                 )
             }.onFailure { error ->
                 if (error is CancellationException) {
@@ -413,7 +417,6 @@ private fun rememberFrameLoadState(
         }
 
         frameSet = computed
-        activeLoadConfigKey = loadConfigKey
         isFramesLoading = false
     }
 
@@ -471,7 +474,7 @@ private fun shouldShowLoading(frameState: RsvpFrameLoadState): Boolean =
     frameState.isLoading && frameState.frames.isEmpty()
 
 internal fun buildSessionKey(book: RsvpBookContext): String =
-    "${book.bookId.value}:${book.chapterIndex}:${book.startIndex}"
+    "${book.bookId.value}:${book.chapterIndex}:${book.sessionStartIndex}"
 
 private fun buildAppearanceFingerprint(
     textStyle: RsvpTextStyle,
@@ -489,8 +492,20 @@ private fun buildAppearanceFingerprint(
 internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig =
     config.copy(
         baseWpm = 0,
-        tempoMsPerWord = 0L,
     )
+
+internal fun resolveFrameLoadStartIndex(
+    bookStartIndex: Int,
+    previewStartIndex: Int,
+    tokenCount: Int,
+): Int {
+    val requestedIndex = previewStartIndex.takeIf { it >= 0 } ?: bookStartIndex
+    return if (tokenCount > 0) {
+        requestedIndex.coerceIn(0, tokenCount - 1)
+    } else {
+        requestedIndex.coerceAtLeast(0)
+    }
+}
 
 private const val FRAME_LOAD_RETRY_DELAY_MS = 200L
 private const val MAX_FRAME_LOAD_RETRIES = 3
@@ -511,6 +526,7 @@ private fun RsvpPlaybackEffects(
     playbackEnabled: Boolean,
 ) {
     RsvpPositionSaveEffect(context)
+    RsvpLifecyclePositionSaveEffect(context)
     RsvpFrameAlignmentEffect(context)
     RsvpSessionResetEffect(context, sessionKey, autoPlay = autoPlay)
     RsvpPlaybackLoopEffect(context, enabled = playbackEnabled)

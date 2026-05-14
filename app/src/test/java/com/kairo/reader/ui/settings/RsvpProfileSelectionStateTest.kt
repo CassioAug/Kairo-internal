@@ -11,6 +11,14 @@ import org.junit.Test
 
 class RsvpProfileSelectionStateTest {
     @Test
+    fun phraseChunkWordLimitStaysWithinRsvpFriendlyRange() {
+        assertEquals(2, coercePhraseChunkWordLimit(1))
+        assertEquals(2, coercePhraseChunkWordLimit(2))
+        assertEquals(3, coercePhraseChunkWordLimit(3))
+        assertEquals(3, coercePhraseChunkWordLimit(4))
+    }
+
+    @Test
     fun builtInProfileWithTweakedConfigShowsUnsavedCustomState() {
         val state =
             resolveRsvpProfileSelectionState(

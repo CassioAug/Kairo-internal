@@ -1,8 +1,9 @@
 package com.kairo.reader.ui.rsvp
 
+import androidx.compose.ui.graphics.Color
+import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
-import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.tokenization.Tokenizer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -94,5 +95,36 @@ class RsvpOrpTextTest {
 
         val content = buildOrpTextContent(tokens)
         assertEquals("guy. \u201CHello there\u201D", content.fullText)
+    }
+
+    @Test
+    fun pivotHighlightCanBeHiddenForPhraseChunks() {
+        val annotated =
+            buildOrpAnnotatedText(
+                fullText = "in the",
+                pivotPosition = 2,
+                pivotColor = Color.Red,
+                highlightStart = -1,
+                highlightEndExclusive = -1,
+                highlightColor = Color.Red,
+                pivotHighlightVisible = false,
+            )
+
+        assertEquals(0, annotated.spanStyles.size)
+    }
+
+    @Test
+    fun centeredPhraseTranslationSnapsToWholePixels() {
+        assertEquals(
+            31f,
+            stableCenteredTranslationX(
+                maxWidthPx = 100f,
+                measuredWidthPx = 39f,
+                minTranslationX = 0f,
+                maxTranslationX = 100f,
+            ),
+            0f,
+        )
+        assertEquals(0f, snapTranslationToRenderPixel(Float.NaN), 0f)
     }
 }

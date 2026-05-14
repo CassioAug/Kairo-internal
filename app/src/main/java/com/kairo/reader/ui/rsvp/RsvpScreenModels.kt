@@ -25,6 +25,7 @@ data class RsvpBookContext(
     val tokens: List<Token>,
     val startIndex: Int,
     val startResumeCursor: Int = -1,
+    val sessionStartIndex: Int = startIndex,
 )
 
 data class RsvpProfileContext(val config: RsvpConfig, val selectedProfileId: String, val customProfiles: List<RsvpCustomProfile>,)

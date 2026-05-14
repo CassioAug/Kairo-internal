@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -50,6 +51,7 @@ import androidx.navigation.navArgument
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
+import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.UserPreferences
@@ -103,6 +105,21 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@Composable
+private fun rememberSystemDefaultPreferences(): UserPreferences {
+    val isDark = isSystemInDarkTheme()
+    return remember(isDark) {
+        UserPreferences(
+            readerTheme =
+                if (isDark) {
+                    ReaderTheme.DARK
+                } else {
+                    ReaderTheme.LIGHT
+                },
+        )
+    }
+}
+
 class MainActivity : AppCompatActivity() {
     private val pendingExternalImportUriState = mutableStateOf<Uri?>(null)
 
@@ -114,10 +131,11 @@ class MainActivity : AppCompatActivity() {
         val container = application as KairoApplication
 
         setContent {
+            val fallbackPrefs = rememberSystemDefaultPreferences()
             val prefs by container.preferencesRepository.preferences.collectAsState(
                 initial = null,
             )
-            val effectivePrefs = prefs ?: UserPreferences()
+            val effectivePrefs = prefs ?: fallbackPrefs
 
             CompositionLocalProvider(
                 LocalDispatcherProvider provides container.dispatcherProvider
@@ -1576,6 +1594,7 @@ private fun KairoNavHost(
             val wordCountByToken = remember(tokens) { buildWordCountByToken(tokens) }
 
             val focusEnabledInRsvp = prefs.focusModeEnabled && prefs.focusApplyInRsvp
+            val rsvpLifecycleOwner = LocalLifecycleOwner.current
             val bookIdValue = BookId(bookId)
             val savedCurrentTokenIndex =
                 remember(backStackEntry) {
@@ -1637,6 +1656,25 @@ private fun KairoNavHost(
                 }
             val resolvedRsvpConfig =
                 RsvpConfigResolver.resolve(prefs.rsvpConfig, languageTagState.value)
+            fun saveRsvpPosition(
+                targetChapterIndex: Int,
+                targetTokenIndex: Int,
+                targetWordIndex: Int,
+                targetResumeCursor: Int,
+            ) {
+                rsvpLifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
+                    container.readingPositionRepository.savePosition(
+                        ReadingPosition(
+                            bookIdValue,
+                            targetChapterIndex,
+                            targetTokenIndex,
+                            targetWordIndex,
+                            rsvpResumeCursor = targetResumeCursor,
+                        ),
+                    )
+                }
+            }
+
             val rsvpState =
                 RsvpScreenState(
                     book =
@@ -1646,6 +1684,7 @@ private fun KairoNavHost(
                         tokens = tokens,
                         startIndex = safeStartIndex,
                         startResumeCursor = startResumeCursor,
+                        sessionStartIndex = startIndex.coerceAtLeast(0),
                     ),
                     profile =
                     RsvpProfileContext(
@@ -1715,17 +1754,12 @@ private fun KairoNavHost(
                                 } else {
                                     0
                                 }
-                            coroutineScope.launch {
-                                container.readingPositionRepository.savePosition(
-                                    ReadingPosition(
-                                        bookIdValue,
-                                        returnTarget.chapterIndex,
-                                        returnTarget.tokenIndex,
-                                        wordIndex,
-                                        rsvpResumeCursor = returnTarget.resumeCursor,
-                                    ),
-                                )
-                            }
+                            saveRsvpPosition(
+                                targetChapterIndex = returnTarget.chapterIndex,
+                                targetTokenIndex = returnTarget.tokenIndex,
+                                targetWordIndex = wordIndex,
+                                targetResumeCursor = returnTarget.resumeCursor,
+                            )
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
                                 ?.set(RSVP_RESULT_CHAPTER_INDEX_KEY, returnTarget.chapterIndex)
@@ -1749,17 +1783,12 @@ private fun KairoNavHost(
                             backStackEntry.savedStateHandle[RSVP_CURRENT_RESUME_CURSOR_KEY] =
                                 resumePoint.resumeCursor
                             val wordIndex = resolveWordIndex(wordCountByToken, safeIndex)
-                            coroutineScope.launch(dispatcherProvider.io) {
-                                container.readingPositionRepository.savePosition(
-                                    ReadingPosition(
-                                        bookIdValue,
-                                        chapterIndex,
-                                        safeIndex,
-                                        wordIndex,
-                                        rsvpResumeCursor = resumePoint.resumeCursor,
-                                    ),
-                                )
-                            }
+                            saveRsvpPosition(
+                                targetChapterIndex = chapterIndex,
+                                targetTokenIndex = safeIndex,
+                                targetWordIndex = wordIndex,
+                                targetResumeCursor = resumePoint.resumeCursor,
+                            )
                         },
                         onTempoChange = { tempoMsPerWord ->
                             val baseTempoMs =
@@ -1779,17 +1808,12 @@ private fun KairoNavHost(
                                     resumePoint.tokenIndex.coerceAtLeast(0)
                                 }
                             val wordIndex = resolveWordIndex(wordCountByToken, resumeIndex)
-                            coroutineScope.launch(dispatcherProvider.io) {
-                                container.readingPositionRepository.savePosition(
-                                    ReadingPosition(
-                                        bookIdValue,
-                                        chapterIndex,
-                                        resumeIndex,
-                                        wordIndex,
-                                        rsvpResumeCursor = resumePoint.resumeCursor,
-                                    ),
-                                )
-                            }
+                            saveRsvpPosition(
+                                targetChapterIndex = chapterIndex,
+                                targetTokenIndex = resumeIndex,
+                                targetWordIndex = wordIndex,
+                                targetResumeCursor = resumePoint.resumeCursor,
+                            )
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
                                 ?.set(RSVP_RESULT_CHAPTER_INDEX_KEY, chapterIndex)
@@ -1801,7 +1825,20 @@ private fun KairoNavHost(
                                 ?.set(RSVP_RESULT_RESUME_CURSOR_KEY, resumePoint.resumeCursor)
                             navController.popBackStack()
                         },
-                        onOpenLibrary = {
+                        onOpenLibrary = { resumePoint ->
+                            val resumeIndex =
+                                if (tokens.isNotEmpty()) {
+                                    resumePoint.tokenIndex.coerceIn(0, tokens.lastIndex)
+                                } else {
+                                    resumePoint.tokenIndex.coerceAtLeast(0)
+                                }
+                            val wordIndex = resolveWordIndex(wordCountByToken, resumeIndex)
+                            saveRsvpPosition(
+                                targetChapterIndex = chapterIndex,
+                                targetTokenIndex = resumeIndex,
+                                targetWordIndex = wordIndex,
+                                targetResumeCursor = resumePoint.resumeCursor,
+                            )
                             navController.navigate("library") {
                                 popUpTo("library") { inclusive = false }
                                 launchSingleTop = true

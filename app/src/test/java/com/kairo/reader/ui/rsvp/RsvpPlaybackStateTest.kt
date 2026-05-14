@@ -14,16 +14,96 @@ import org.junit.Test
 
 class RsvpPlaybackStateTest {
     @Test
-    fun frameLoadConfigKeyIgnoresTempoButTracksFrameAffectingChanges() {
+    fun frameLoadConfigKeyTracksTempoAndFrameAffectingChanges() {
         val baseConfig = RsvpConfig(tempoMsPerWord = 120L, baseWpm = 500, commaPauseMs = 95L)
 
         assertEquals(
             frameLoadConfigKey(baseConfig),
-            frameLoadConfigKey(baseConfig.copy(tempoMsPerWord = 180L, baseWpm = 333)),
+            frameLoadConfigKey(baseConfig.copy(baseWpm = 333)),
+        )
+        assertNotEquals(
+            frameLoadConfigKey(baseConfig),
+            frameLoadConfigKey(baseConfig.copy(tempoMsPerWord = 180L)),
         )
         assertNotEquals(
             frameLoadConfigKey(baseConfig),
             frameLoadConfigKey(baseConfig.copy(commaPauseMs = 140L)),
+        )
+    }
+
+    @Test
+    fun ambientProgressOnlyShowsForPausedUncoveredSurface() {
+        assertFalse(
+            shouldShowAmbientProgressBar(
+                isPlaying = true,
+                showControls = false,
+                showQuickSettings = false,
+            ),
+        )
+        assertTrue(
+            shouldShowAmbientProgressBar(
+                isPlaying = false,
+                showControls = false,
+                showQuickSettings = false,
+            ),
+        )
+        assertFalse(
+            shouldShowAmbientProgressBar(
+                isPlaying = false,
+                showControls = true,
+                showQuickSettings = false,
+            ),
+        )
+        assertFalse(
+            shouldShowAmbientProgressBar(
+                isPlaying = false,
+                showControls = false,
+                showQuickSettings = true,
+            ),
+        )
+    }
+
+    @Test
+    fun globalDragStaysAvailableUnlessQuickSettingsAreOpen() {
+        assertTrue(
+            shouldHandleGlobalRsvpDrag(
+                showQuickSettings = false,
+                isPositioningMode = false,
+            ),
+        )
+        assertFalse(
+            shouldHandleGlobalRsvpDrag(
+                showQuickSettings = true,
+                isPositioningMode = false,
+            ),
+        )
+        assertTrue(
+            shouldHandleGlobalRsvpDrag(
+                showQuickSettings = true,
+                isPositioningMode = true,
+            ),
+        )
+    }
+
+    @Test
+    fun phraseChunkingSuppressesOrpVisualAnchorsGlobally() {
+        assertTrue(
+            shouldShowOrpVisualAnchor(
+                phraseChunkingEnabled = false,
+                visualAnchorEnabled = true,
+            ),
+        )
+        assertFalse(
+            shouldShowOrpVisualAnchor(
+                phraseChunkingEnabled = true,
+                visualAnchorEnabled = true,
+            ),
+        )
+        assertFalse(
+            shouldShowOrpVisualAnchor(
+                phraseChunkingEnabled = false,
+                visualAnchorEnabled = false,
+            ),
         )
     }
 
@@ -224,6 +304,64 @@ class RsvpPlaybackStateTest {
         assertEquals(
             buildSessionKey(base),
             buildSessionKey(base.copy(startResumeCursor = 99)),
+        )
+    }
+
+    @Test
+    fun sessionKeyStaysOnLaunchStartWhenLiveStartRestoresAfterRotation() {
+        val base =
+            RsvpBookContext(
+                bookId = BookId("book"),
+                chapterIndex = 2,
+                tokens = emptyList(),
+                startIndex = 42,
+                startResumeCursor = -1,
+                sessionStartIndex = 5,
+            )
+
+        assertEquals(
+            buildSessionKey(base),
+            buildSessionKey(base.copy(startIndex = 99)),
+        )
+        assertNotEquals(
+            buildSessionKey(base),
+            buildSessionKey(base.copy(sessionStartIndex = 6)),
+        )
+    }
+
+    @Test
+    fun frameReloadStartsFromLivePreviewPosition() {
+        assertEquals(
+            42,
+            resolveFrameLoadStartIndex(
+                bookStartIndex = 5,
+                previewStartIndex = 42,
+                tokenCount = 100,
+            ),
+        )
+    }
+
+    @Test
+    fun frameReloadFallsBackToRouteStartWhenLivePositionIsMissing() {
+        assertEquals(
+            5,
+            resolveFrameLoadStartIndex(
+                bookStartIndex = 5,
+                previewStartIndex = -1,
+                tokenCount = 100,
+            ),
+        )
+    }
+
+    @Test
+    fun frameReloadClampsLivePreviewPositionToLoadedTokens() {
+        assertEquals(
+            99,
+            resolveFrameLoadStartIndex(
+                bookStartIndex = 5,
+                previewStartIndex = 140,
+                tokenCount = 100,
+            ),
         )
     }
 

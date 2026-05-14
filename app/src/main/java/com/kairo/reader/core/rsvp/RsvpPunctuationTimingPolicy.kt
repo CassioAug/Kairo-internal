@@ -341,9 +341,12 @@ internal object RsvpPunctuationTimingPolicy {
         val breakAfterEllipsis =
             nextToken?.type == TokenType.PARAGRAPH_BREAK || nextToken?.type == TokenType.PAGE_BREAK
         return if (nextStartsSentenceLike || breakAfterEllipsis || nextWord == null) {
-            max(config.commaPauseMs * 1.15, config.periodPauseMs * 0.72)
+            max(
+                config.commaPauseMs * ELLIPSIS_SENTENCE_COMMA_FACTOR,
+                config.periodPauseMs * ELLIPSIS_PERIOD_FACTOR,
+            )
         } else {
-            config.commaPauseMs * 1.15
+            config.commaPauseMs * ELLIPSIS_INLINE_COMMA_FACTOR
         }
     }
 
@@ -468,11 +471,14 @@ internal object RsvpPunctuationTimingPolicy {
         return false
     }
 
-    private const val COMMA_RETENTION_BOOST = 0.03
-    private const val QUOTE_RETENTION_BOOST = 0.04
-    private const val PARENTHESIS_RETENTION_BOOST = 0.05
-    private const val SEMICOLON_RETENTION_BOOST = 0.12
-    private const val ELLIPSIS_RETENTION_BOOST = 0.20
+    private const val ELLIPSIS_INLINE_COMMA_FACTOR = 1.25
+    private const val ELLIPSIS_SENTENCE_COMMA_FACTOR = 1.35
+    private const val ELLIPSIS_PERIOD_FACTOR = 0.84
+    private const val COMMA_RETENTION_BOOST = 0.06
+    private const val QUOTE_RETENTION_BOOST = 0.07
+    private const val PARENTHESIS_RETENTION_BOOST = 0.08
+    private const val SEMICOLON_RETENTION_BOOST = 0.15
+    private const val ELLIPSIS_RETENTION_BOOST = 0.24
     private const val CLAUSE_LANDING_HOLD_WEIGHT = 0.18
     private const val SEMICOLON_LANDING_HOLD_WEIGHT = 0.20
     private const val STRONG_LANDING_HOLD_WEIGHT = 0.22

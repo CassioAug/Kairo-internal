@@ -155,6 +155,8 @@
     <string name="rsvp_text_brightness_subtitle">Dims the RSVP word display without changing the theme.</string>
     <string name="rsvp_orp_guide_title">ORP guide lines</string>
     <string name="rsvp_orp_guide_subtitle">Show the horizontal alignment guides around the RSVP word.</string>
+    <string name="rsvp_orp_highlight_title">ORP highlight</string>
+    <string name="rsvp_orp_highlight_subtitle">Color the pivot letter in single-word RSVP frames.</string>
     <string name="rsvp_orp_guide_brightness_title">Guide brightness</string>
     <string name="rsvp_orp_guide_brightness_subtitle">Controls how visible the ORP guide lines are.</string>
     <string name="rsvp_orp_guide_thickness_title">Guide thickness</string>
@@ -252,7 +254,10 @@
     <string name="rsvp_punctuation_landing_title">Punctuation landing</string>
     <string name="rsvp_punctuation_landing_subtitle">Adds a tiny settling hold after strong punctuation so stops and clause turns do not feel clipped.</string>
     <string name="rsvp_phrase_chunking_title">Phrase chunking</string>
-    <string name="rsvp_phrase_chunking_subtitle">Shows short 2-word units to reduce flicker.</string>
+    <string name="rsvp_phrase_chunking_subtitle">Groups natural short phrases to reduce flicker.</string>
+    <string name="rsvp_phrase_chunk_size_title">Max chunk words</string>
+    <string name="rsvp_phrase_chunk_size_subtitle">Caps phrase chunks at 2 or 3 words when the text reads naturally.</string>
+    <string name="format_words">%1$d words</string>
     <string name="rsvp_display_details_title">Display details</string>
     <string name="rsvp_display_details_summary">%1$s | %2$s | Bias %3$s/%4$s</string>
     <string name="rsvp_font_title">Font</string>
