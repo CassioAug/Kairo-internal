@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
+import com.kairo.reader.data.books.BookImportResult
 import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.local.BookDao
 import com.kairo.reader.data.local.BookmarkDao
@@ -22,7 +23,7 @@ class LibraryRepositoryImpl(
 ) : LibraryRepository {
     override fun observeLibrary(): Flow<List<Book>> = bookRepository.observeBooks()
 
-    override suspend fun import(uri: Uri): Book {
+    override suspend fun import(uri: Uri): BookImportResult {
         // Don't silently swallow errors - let them propagate so UI can show error message
         return bookRepository.importBook(uri)
     }
@@ -49,6 +50,9 @@ class LibraryRepositoryImpl(
     private fun deleteBookAssets(bookId: String) {
         runCatching {
             File(appContext.filesDir, "kairo_epub_assets/$bookId").deleteRecursively()
+        }
+        runCatching {
+            File(appContext.filesDir, "kairo_mobi_assets/$bookId").deleteRecursively()
         }
     }
 }

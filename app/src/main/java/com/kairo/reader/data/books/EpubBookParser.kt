@@ -142,9 +142,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     override suspend fun parse(
         context: Context,
         uri: Uri,
+        bookId: BookId,
     ): Book =
         withContext(dispatcherProvider.io) {
-            val bookId = BookId(UUID.randomUUID().toString())
             val zipTextEntries = mutableMapOf<String, ByteArray>() // key = lowercased path
             val zipEntryNamesLower = mutableSetOf<String>()
             val oversizedTextEntriesLower = mutableSetOf<String>()

@@ -4,7 +4,12 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "books")
+@Entity(
+    tableName = "books",
+    indices = [
+        Index(value = ["importFingerprint"], unique = true),
+    ],
+)
 data class BookEntity(
     @PrimaryKey val id: String,
     val title: String,
@@ -12,6 +17,7 @@ data class BookEntity(
     val languageTag: String?,
     val coverImage: ByteArray?,
     val isCompleted: Boolean = false,
+    val importFingerprint: String? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -22,6 +28,7 @@ data class BookEntity(
         if (authors != other.authors) return false
         if (languageTag != other.languageTag) return false
         if (isCompleted != other.isCompleted) return false
+        if (importFingerprint != other.importFingerprint) return false
         if (coverImage != null) {
             if (other.coverImage == null) return false
             if (!coverImage.contentEquals(other.coverImage)) return false
@@ -39,6 +46,7 @@ data class BookEntity(
         result = 31 * result + (languageTag?.hashCode() ?: 0)
         result = 31 * result + (coverImage?.contentHashCode() ?: 0)
         result = 31 * result + isCompleted.hashCode()
+        result = 31 * result + (importFingerprint?.hashCode() ?: 0)
         return result
     }
 }

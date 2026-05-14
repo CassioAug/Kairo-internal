@@ -365,6 +365,7 @@
     <string name="starting_tutorial_hint_close_exit">Tap X to exit</string>
 
     <string name="toast_bookmark_added">Bookmark added</string>
+    <string name="toast_import_duplicate_detail">Already in your library: %1$s. No duplicate added.</string>
     <string name="toast_import_failed_detail">Import failed: %1$s</string>
     <string name="toast_import_failed_unknown">Import failed: Unknown error</string>
 

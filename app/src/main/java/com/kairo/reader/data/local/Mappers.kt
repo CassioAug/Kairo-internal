@@ -19,7 +19,7 @@ private fun encodeImagePaths(paths: List<String>): String =
 private fun decodeImagePaths(raw: String): List<String> =
     if (raw.isBlank()) emptyList() else raw.split(IMAGE_PATHS_DELIMITER).filter { it.isNotBlank() }
 
-fun Book.toEntity(): BookEntity =
+fun Book.toEntity(importFingerprint: String? = null): BookEntity =
     BookEntity(
         id = id.value,
         title = title,
@@ -27,6 +27,7 @@ fun Book.toEntity(): BookEntity =
         languageTag = languageTag,
         coverImage = coverImage,
         isCompleted = isCompleted,
+        importFingerprint = importFingerprint,
     )
 
 fun Chapter.toEntity(bookId: BookId): ChapterEntity =

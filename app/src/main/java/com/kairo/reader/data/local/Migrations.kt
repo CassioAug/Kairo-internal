@@ -91,3 +91,13 @@ val MIGRATION_8_9 =
             db.execSQL("ALTER TABLE books ADD COLUMN isCompleted INTEGER NOT NULL DEFAULT 0")
         }
     }
+
+val MIGRATION_9_10 =
+    object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE books ADD COLUMN importFingerprint TEXT")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_books_importFingerprint ON books(importFingerprint)",
+            )
+        }
+    }

@@ -12,6 +12,8 @@ import com.kairo.reader.data.local.BookDao
 import com.kairo.reader.data.local.toDomain
 import com.kairo.reader.data.local.toEntity
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -25,16 +27,28 @@ class BookRepositoryImpl(
     // Mutex to prevent concurrent import operations which can crash the app
     private val importMutex = Mutex()
 
-    override suspend fun importBook(uri: Uri): Book =
+    override suspend fun importBook(uri: Uri): BookImportResult =
         importMutex.withLock {
             val extension = resolveExtension(uri)
-
             val parser =
                 parsers.firstOrNull { it.supports(extension) }
                     ?: throw IllegalArgumentException("No parser found for .$extension files")
 
+            val sourceFingerprint = resolveSourceFingerprint(uri, extension)
+            sourceFingerprint
+                ?.let { fingerprint -> bookDao.getBookByImportFingerprint(fingerprint) }
+                ?.let { existing ->
+                    return@withLock BookImportResult(
+                        book = existing.toDomain(bookDao.getChapters(existing.id)),
+                        alreadyImported = true,
+                    )
+                }
+
             // Parse the book - let errors propagate for proper error handling
-            val parsedBook = parser.parse(appContext, uri)
+            val bookId =
+                sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
+                    ?: BookId(UUID.randomUUID().toString())
+            val parsedBook = parser.parse(appContext, uri, bookId)
             val resolvedLanguageTag = BookLanguageResolver.resolve(parsedBook)
             val book =
                 parsedBook.copy(
@@ -52,11 +66,74 @@ class BookRepositoryImpl(
                         }
                     },
                 )
+            findExistingDuplicate(
+                parsedBook = book,
+                sourceFingerprint = sourceFingerprint,
+            )?.let { existing ->
+                deleteBookAssets(book.id.value)
+                return@withLock BookImportResult(
+                    book = existing,
+                    alreadyImported = true,
+                )
+            }
 
             // Save to database
-            bookDao.insertBook(book.toEntity(), book.chapters.map { it.toEntity(book.id) })
-            return@withLock book
+            bookDao.insertBook(
+                book.toEntity(importFingerprint = sourceFingerprint),
+                book.chapters.map { it.toEntity(book.id) },
+            )
+            return@withLock BookImportResult(
+                book = book,
+                alreadyImported = false,
+            )
         }
+
+    private fun resolveSourceFingerprint(
+        uri: Uri,
+        extension: String,
+    ): String? =
+        runCatching {
+            appContext.contentResolver.openInputStream(uri)?.use { input ->
+                ImportFingerprint.sourceFingerprint(extension, input)
+            }
+        }.getOrNull()
+
+    private suspend fun findExistingDuplicate(
+        parsedBook: Book,
+        sourceFingerprint: String?,
+    ): Book? {
+        val candidates = bookDao.getBooksByTitleForImportDedupe(parsedBook.title)
+        if (candidates.isEmpty()) return null
+
+        val parsedFingerprint = ImportFingerprint.contentFingerprint(parsedBook)
+        candidates.forEach { candidate ->
+            if (candidate.id == parsedBook.id.value) return@forEach
+            if (candidate.authors != parsedBook.authors) return@forEach
+
+            val candidateChapters = bookDao.getChaptersWithContent(candidate.id)
+            if (candidateChapters.size != parsedBook.chapters.size) return@forEach
+
+            val candidateBook = candidate.toDomain(candidateChapters)
+            if (ImportFingerprint.contentFingerprint(candidateBook) == parsedFingerprint) {
+                sourceFingerprint?.let { fingerprint ->
+                    runCatching {
+                        bookDao.setImportFingerprintIfEmpty(candidate.id, fingerprint)
+                    }
+                }
+                return candidateBook
+            }
+        }
+        return null
+    }
+
+    private fun deleteBookAssets(bookId: String) {
+        runCatching {
+            File(appContext.filesDir, "kairo_epub_assets/$bookId").deleteRecursively()
+        }
+        runCatching {
+            File(appContext.filesDir, "kairo_mobi_assets/$bookId").deleteRecursively()
+        }
+    }
 
     private fun resolveExtension(uri: Uri): String {
         // Try to get extension from the display name (most reliable for file pickers)
