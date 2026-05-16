@@ -60,6 +60,15 @@ internal fun ReaderRoute(
     val dispatcherProvider = container.dispatcherProvider
     val coroutineScope = rememberCoroutineScope()
     val resources = LocalResources.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val readerPositionSaver =
+        remember(bookId, lifecycleOwner) {
+            ReaderPositionSaver(
+                scope = lifecycleOwner.lifecycleScope,
+                repository = container.readingPositionRepository,
+                saveDispatcher = dispatcherProvider.io,
+            )
+        }
 
     val bookState =
         produceState<Book?>(
@@ -156,17 +165,15 @@ internal fun ReaderRoute(
                 } else {
                     -1
                 }
-            coroutineScope.launch(dispatcherProvider.io) {
-                container.readingPositionRepository.savePosition(
-                    ReadingPosition(
-                        BookId(bookId),
-                        rsvpResultChapterIndex,
-                        safeRsvpResultIndex,
-                        wordIndex,
-                        rsvpResumeCursor = resumeCursor,
-                    ),
-                )
-            }
+            readerPositionSaver.saveImmediate(
+                ReadingPosition(
+                    BookId(bookId),
+                    rsvpResultChapterIndex,
+                    safeRsvpResultIndex,
+                    wordIndex,
+                    rsvpResumeCursor = resumeCursor,
+                ),
+            )
             backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX] = -1
             backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX] = -1
             backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR] = -1
@@ -191,7 +198,6 @@ internal fun ReaderRoute(
         }
     }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
 
     LaunchedEffect(lifecycleState) {
@@ -217,16 +223,14 @@ internal fun ReaderRoute(
         if (tokens.isEmpty()) return@LaunchedEffect
         val safeIndex = tokens.nearestWordIndex(uiState.focusIndex).coerceIn(0, tokens.lastIndex)
         val wordIndex = resolveWordIndex(uiState.chapterData?.wordCountByToken, safeIndex)
-        withContext(dispatcherProvider.io) {
-            container.readingPositionRepository.savePosition(
-                ReadingPosition(
-                    BookId(bookId),
-                    uiState.chapterIndex,
-                    safeIndex,
-                    wordIndex,
-                ),
-            )
-        }
+        readerPositionSaver.saveDebounced(
+            ReadingPosition(
+                BookId(bookId),
+                uiState.chapterIndex,
+                safeIndex,
+                wordIndex,
+            ),
+        )
     }
 
     val resolvedRsvpConfig = RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
@@ -273,14 +277,8 @@ internal fun ReaderRoute(
         )
     }
 
-    fun saveReaderPosition(position: ReadingPosition) {
-        lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-            container.readingPositionRepository.savePosition(position)
-        }
-    }
-
     fun saveCurrentReaderPosition() {
-        buildCurrentReaderPosition()?.let(::saveReaderPosition)
+        buildCurrentReaderPosition()?.let(readerPositionSaver::saveImmediate)
     }
 
     fun navigateReaderToLibrary() {
@@ -291,7 +289,7 @@ internal fun ReaderRoute(
                 ?: buildCurrentReaderPosition()
         lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
             if (position != null) {
-                container.readingPositionRepository.savePosition(position)
+                readerPositionSaver.saveImmediateAndJoin(position)
             }
             withContext(Dispatchers.Main) {
                 navController.navigate(KairoRoutes.LIBRARY) {
@@ -372,16 +370,14 @@ internal fun ReaderRoute(
             lastExplicitFocusIndex = newFocusIndex
             readerViewModel.setFocusIndex(newFocusIndex)
             val wordIndex = resolveWordIndex(uiState.chapterData?.wordCountByToken, newFocusIndex)
-            lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                container.readingPositionRepository.savePosition(
-                    ReadingPosition(
-                        BookId(bookId),
-                        uiState.chapterIndex,
-                        newFocusIndex,
-                        wordIndex,
-                    ),
-                )
-            }
+            readerPositionSaver.saveDebounced(
+                ReadingPosition(
+                    BookId(bookId),
+                    uiState.chapterIndex,
+                    newFocusIndex,
+                    wordIndex,
+                ),
+            )
         },
         onStartRsvp = { start ->
             RsvpLaunchSnapshotStore.put(
@@ -399,7 +395,7 @@ internal fun ReaderRoute(
                             it.chapterIndex == uiState.chapterIndex &&
                                 it.tokenIndex == start
                         }?.rsvpResumeCursor ?: -1
-                container.readingPositionRepository.savePosition(
+                readerPositionSaver.saveImmediateAndJoin(
                     ReadingPosition(
                         BookId(bookId),
                         uiState.chapterIndex,
