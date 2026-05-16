@@ -1,11 +1,26 @@
 package com.kairo.reader.ui.navigation
 
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.kairo.reader.KairoApplication
+import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 
-internal fun NavGraphBuilder.rsvpDestination(dependencies: KairoNavGraphDependencies) {
+internal data class RsvpDestinationDependencies(
+    val container: KairoApplication,
+    val navController: NavHostController,
+    val prefs: UserPreferences,
+    val tutorialState: StartingTutorialOverlayState?,
+    val onShowUserMessage: (String) -> Unit,
+    val onTutorialNext: () -> Unit,
+    val onTutorialPrevious: () -> Unit,
+    val onTutorialSkip: () -> Unit,
+)
+
+internal fun NavGraphBuilder.rsvpDestination(dependencies: RsvpDestinationDependencies) {
     composable(
         route = KairoRoutes.RSVP,
         arguments =
@@ -24,11 +39,11 @@ internal fun NavGraphBuilder.rsvpDestination(dependencies: KairoNavGraphDependen
             container = dependencies.container,
             navController = dependencies.navController,
             prefs = dependencies.prefs,
-            tutorialState = dependencies.tutorialCoordinator.rsvpState,
+            tutorialState = dependencies.tutorialState,
             onShowUserMessage = dependencies.onShowUserMessage,
-            onTutorialNext = dependencies.tutorialCoordinator.next,
-            onTutorialPrevious = dependencies.tutorialCoordinator.previous,
-            onTutorialSkip = dependencies.tutorialCoordinator.skip,
+            onTutorialNext = dependencies.onTutorialNext,
+            onTutorialPrevious = dependencies.onTutorialPrevious,
+            onTutorialSkip = dependencies.onTutorialSkip,
         )
     }
 }

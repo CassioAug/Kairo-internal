@@ -3,11 +3,28 @@ package com.kairo.reader.ui.navigation
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.kairo.reader.KairoApplication
+import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 
-internal fun NavGraphBuilder.readerDestinations(dependencies: KairoNavGraphDependencies) {
+internal data class ReaderDestinationDependencies(
+    val container: KairoApplication,
+    val navController: NavHostController,
+    val prefs: UserPreferences,
+    val estimatedWpm: Int,
+    val tutorialActive: Boolean,
+    val tutorialState: StartingTutorialOverlayState?,
+    val onShowUserMessage: (String) -> Unit,
+    val onTutorialNext: () -> Unit,
+    val onTutorialPrevious: () -> Unit,
+    val onTutorialSkip: () -> Unit,
+)
+
+internal fun NavGraphBuilder.readerDestinations(dependencies: ReaderDestinationDependencies) {
     composable(
         route = KairoRoutes.READER,
         arguments =
@@ -43,7 +60,7 @@ internal fun NavGraphBuilder.readerDestinations(dependencies: KairoNavGraphDepen
 
 @Composable
 private fun KairoReaderDestination(
-    dependencies: KairoNavGraphDependencies,
+    dependencies: ReaderDestinationDependencies,
     backStackEntry: NavBackStackEntry,
     initialChapterIndex: Int? = null,
     initialTokenIndex: Int? = null,
@@ -53,14 +70,14 @@ private fun KairoReaderDestination(
         container = dependencies.container,
         navController = dependencies.navController,
         prefs = dependencies.prefs,
-        estimatedWpm = dependencies.pace.estimatedWpm,
-        tutorialActive = dependencies.tutorialCoordinator.active,
-        tutorialState = dependencies.tutorialCoordinator.readerState,
+        estimatedWpm = dependencies.estimatedWpm,
+        tutorialActive = dependencies.tutorialActive,
+        tutorialState = dependencies.tutorialState,
         initialChapterIndex = initialChapterIndex,
         initialTokenIndex = initialTokenIndex,
         onShowUserMessage = dependencies.onShowUserMessage,
-        onTutorialNext = dependencies.tutorialCoordinator.next,
-        onTutorialPrevious = dependencies.tutorialCoordinator.previous,
-        onTutorialSkip = dependencies.tutorialCoordinator.skip,
+        onTutorialNext = dependencies.onTutorialNext,
+        onTutorialPrevious = dependencies.onTutorialPrevious,
+        onTutorialSkip = dependencies.onTutorialSkip,
     )
 }

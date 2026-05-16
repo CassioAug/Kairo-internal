@@ -15,172 +15,184 @@ import com.kairo.reader.ui.settings.SettingsHomeScreen
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import kotlinx.coroutines.launch
 
-internal fun NavGraphBuilder.settingsRoutes(
-    container: KairoApplication,
-    navController: NavHostController,
-    prefs: UserPreferences,
-    tutorialState: StartingTutorialOverlayState?,
-    onOpenStartingTutorial: () -> Unit,
-    onTutorialNext: () -> Unit,
-    onTutorialPrevious: () -> Unit,
-    onTutorialSkip: () -> Unit,
-) {
+internal data class SettingsRouteDependencies(
+    val container: KairoApplication,
+    val navController: NavHostController,
+    val prefs: UserPreferences,
+    val tutorialState: StartingTutorialOverlayState?,
+    val onOpenStartingTutorial: () -> Unit,
+    val onTutorialNext: () -> Unit,
+    val onTutorialPrevious: () -> Unit,
+    val onTutorialSkip: () -> Unit,
+)
+
+internal fun NavGraphBuilder.settingsRoutes(dependencies: SettingsRouteDependencies) {
     composable(KairoRoutes.SETTINGS) {
         val coroutineScope = rememberCoroutineScope()
         SettingsHomeScreen(
             onOpenLanguage = {
-                navController.navigate(KairoRoutes.SETTINGS_LANGUAGE)
+                dependencies.navController.navigate(KairoRoutes.SETTINGS_LANGUAGE)
             },
-            onOpenRsvp = { navController.navigate(KairoRoutes.SETTINGS_RSVP) },
-            onOpenReader = { navController.navigate(KairoRoutes.SETTINGS_READER) },
-            onOpenFocus = { navController.navigate(KairoRoutes.SETTINGS_FOCUS) },
-            onOpenInfo = { navController.navigate(KairoRoutes.SETTINGS_INFO) },
-            onOpenStartingTutorial = onOpenStartingTutorial,
+            onOpenRsvp = { dependencies.navController.navigate(KairoRoutes.SETTINGS_RSVP) },
+            onOpenReader = { dependencies.navController.navigate(KairoRoutes.SETTINGS_READER) },
+            onOpenFocus = { dependencies.navController.navigate(KairoRoutes.SETTINGS_FOCUS) },
+            onOpenInfo = { dependencies.navController.navigate(KairoRoutes.SETTINGS_INFO) },
+            onOpenStartingTutorial = dependencies.onOpenStartingTutorial,
             onReset = {
                 coroutineScope.launch {
-                    container.preferencesRepository.reset()
+                    dependencies.container.preferencesRepository.reset()
                 }
             },
-            onClose = { navController.popBackStack() },
-            tutorialState = tutorialState,
-            onTutorialNext = onTutorialNext,
-            onTutorialPrevious = onTutorialPrevious,
-            onTutorialSkip = onTutorialSkip,
+            onClose = { dependencies.navController.popBackStack() },
+            tutorialState = dependencies.tutorialState,
+            onTutorialNext = dependencies.onTutorialNext,
+            onTutorialPrevious = dependencies.onTutorialPrevious,
+            onTutorialSkip = dependencies.onTutorialSkip,
         )
     }
 
     composable(KairoRoutes.SETTINGS_LANGUAGE) {
-        LanguageSettingsScreen(onBack = { navController.popBackStack() })
+        LanguageSettingsScreen(onBack = { dependencies.navController.popBackStack() })
     }
 
     composable(KairoRoutes.SETTINGS_INFO) {
-        InfoSettingsScreen(onBack = { navController.popBackStack() })
+        InfoSettingsScreen(onBack = { dependencies.navController.popBackStack() })
     }
 
     composable(KairoRoutes.SETTINGS_RSVP) {
         val coroutineScope = rememberCoroutineScope()
         RsvpSettingsScreen(
-            preferences = prefs,
+            preferences = dependencies.prefs,
             onSelectRsvpProfile = { profileId ->
                 coroutineScope.launch {
-                    container.preferencesRepository.selectRsvpProfile(profileId)
+                    dependencies.container.preferencesRepository.selectRsvpProfile(profileId)
                 }
             },
             onSaveRsvpProfile = { name, config ->
                 coroutineScope.launch {
-                    container.preferencesRepository.saveRsvpCustomProfile(name, config)
+                    dependencies.container.preferencesRepository.saveRsvpCustomProfile(name, config)
                 }
             },
             onDeleteRsvpProfile = { profileId ->
                 coroutineScope.launch {
-                    container.preferencesRepository.deleteRsvpCustomProfile(profileId)
+                    dependencies.container.preferencesRepository.deleteRsvpCustomProfile(profileId)
                 }
             },
             onRsvpTempoMsPerWordChange = { tempoMsPerWord ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpTempoMsPerWord(tempoMsPerWord)
+                    dependencies.container.preferencesRepository.updateRsvpTempoMsPerWord(
+                        tempoMsPerWord
+                    )
                 }
             },
             onRsvpConfigChange = { config ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpConfig { config }
+                    dependencies.container.preferencesRepository.updateRsvpConfig { config }
                 }
             },
             onUnlockExtremeSpeedChange = { enabled ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateUnlockExtremeSpeed(enabled)
+                    dependencies.container.preferencesRepository.updateUnlockExtremeSpeed(enabled)
                 }
             },
             onRsvpFontSizeChange = { size ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpFontSize(size)
+                    dependencies.container.preferencesRepository.updateRsvpFontSize(size)
                 }
             },
             onRsvpTextBrightnessChange = { brightness ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpTextBrightness(brightness)
+                    dependencies.container.preferencesRepository.updateRsvpTextBrightness(
+                        brightness
+                    )
                 }
             },
             onRsvpFontWeightChange = { weight ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpFontWeight(weight)
+                    dependencies.container.preferencesRepository.updateRsvpFontWeight(weight)
                 }
             },
             onRsvpFontFamilyChange = { family ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpFontFamily(family)
+                    dependencies.container.preferencesRepository.updateRsvpFontFamily(family)
                 }
             },
             onRsvpVerticalBiasChange = { bias ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpVerticalBias(bias)
+                    dependencies.container.preferencesRepository.updateRsvpVerticalBias(bias)
                 }
             },
             onRsvpHorizontalBiasChange = { bias ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateRsvpHorizontalBias(bias)
+                    dependencies.container.preferencesRepository.updateRsvpHorizontalBias(bias)
                 }
             },
-            onBack = { navController.popBackStack() },
+            onBack = { dependencies.navController.popBackStack() },
         )
     }
 
     composable(KairoRoutes.SETTINGS_READER) {
         val coroutineScope = rememberCoroutineScope()
         ReaderSettingsScreen(
-            preferences = prefs,
+            preferences = dependencies.prefs,
             onFontSizeChange = { size ->
-                coroutineScope.launch { container.preferencesRepository.updateFontSize(size) }
+                coroutineScope.launch {
+                    dependencies.container.preferencesRepository.updateFontSize(size)
+                }
             },
             onThemeChange = { theme ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateTheme(theme.name)
+                    dependencies.container.preferencesRepository.updateTheme(theme.name)
                 }
             },
             onTextBrightnessChange = { brightness ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateReaderTextBrightness(brightness)
+                    dependencies.container.preferencesRepository.updateReaderTextBrightness(
+                        brightness
+                    )
                 }
             },
             onInvertedScrollChange = { enabled ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateInvertedScroll(enabled)
+                    dependencies.container.preferencesRepository.updateInvertedScroll(enabled)
                 }
             },
-            onBack = { navController.popBackStack() },
+            onBack = { dependencies.navController.popBackStack() },
         )
     }
 
     composable(KairoRoutes.SETTINGS_FOCUS) {
         val coroutineScope = rememberCoroutineScope()
         FocusSettingsScreen(
-            preferences = prefs,
+            preferences = dependencies.prefs,
             onFocusModeEnabledChange = { enabled ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateFocusModeEnabled(enabled)
+                    dependencies.container.preferencesRepository.updateFocusModeEnabled(enabled)
                 }
             },
             onFocusHideStatusBarChange = { enabled ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateFocusHideStatusBar(enabled)
+                    dependencies.container.preferencesRepository.updateFocusHideStatusBar(enabled)
                 }
             },
             onFocusPauseNotificationsChange = { enabled ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateFocusPauseNotifications(enabled)
+                    dependencies.container.preferencesRepository.updateFocusPauseNotifications(
+                        enabled
+                    )
                 }
             },
             onFocusApplyInReaderChange = { enabled ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateFocusApplyInReader(enabled)
+                    dependencies.container.preferencesRepository.updateFocusApplyInReader(enabled)
                 }
             },
             onFocusApplyInRsvpChange = { enabled ->
                 coroutineScope.launch {
-                    container.preferencesRepository.updateFocusApplyInRsvp(enabled)
+                    dependencies.container.preferencesRepository.updateFocusApplyInRsvp(enabled)
                 }
             },
-            onBack = { navController.popBackStack() },
+            onBack = { dependencies.navController.popBackStack() },
         )
     }
 }

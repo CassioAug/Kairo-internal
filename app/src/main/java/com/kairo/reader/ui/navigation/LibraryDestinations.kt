@@ -1,12 +1,32 @@
 package com.kairo.reader.ui.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.kairo.reader.KairoApplication
+import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.ui.library.ImportUiState
+import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 
-internal fun NavGraphBuilder.libraryDestinations(dependencies: KairoNavGraphDependencies) {
+internal data class LibraryDestinationDependencies(
+    val container: KairoApplication,
+    val navController: NavHostController,
+    val prefs: UserPreferences,
+    val selectedWpm: Int,
+    val importState: ImportUiState,
+    val onImportFile: (Uri) -> Unit,
+    val onImportUrl: (String) -> Unit,
+    val tutorialState: StartingTutorialOverlayState?,
+    val onTutorialNext: () -> Unit,
+    val onTutorialPrevious: () -> Unit,
+    val onTutorialSkip: () -> Unit,
+)
+
+internal fun NavGraphBuilder.libraryDestinations(dependencies: LibraryDestinationDependencies) {
     composable(KairoRoutes.LIBRARY) {
         KairoLibraryDestination(dependencies)
     }
@@ -32,21 +52,21 @@ internal fun NavGraphBuilder.libraryDestinations(dependencies: KairoNavGraphDepe
 
 @Composable
 private fun KairoLibraryDestination(
-    dependencies: KairoNavGraphDependencies,
+    dependencies: LibraryDestinationDependencies,
     initialTabRouteValue: String? = null,
 ) {
     LibraryRoute(
         container = dependencies.container,
         navController = dependencies.navController,
         prefs = dependencies.prefs,
-        selectedWpm = dependencies.pace.selectedWpm,
-        importState = dependencies.importCoordinator.state,
+        selectedWpm = dependencies.selectedWpm,
+        importState = dependencies.importState,
         initialTabRouteValue = initialTabRouteValue,
-        onImportFile = dependencies.importCoordinator.importFile,
-        onImportUrl = dependencies.importCoordinator.importUrl,
-        tutorialState = dependencies.tutorialCoordinator.libraryState,
-        onTutorialNext = dependencies.tutorialCoordinator.next,
-        onTutorialPrevious = dependencies.tutorialCoordinator.previous,
-        onTutorialSkip = dependencies.tutorialCoordinator.skip,
+        onImportFile = dependencies.onImportFile,
+        onImportUrl = dependencies.onImportUrl,
+        tutorialState = dependencies.tutorialState,
+        onTutorialNext = dependencies.onTutorialNext,
+        onTutorialPrevious = dependencies.onTutorialPrevious,
+        onTutorialSkip = dependencies.onTutorialSkip,
     )
 }

@@ -63,13 +63,55 @@ internal fun KairoNavHost(
         NavHost(navController = navController, startDestination = KairoRoutes.LIBRARY) {
             kairoNavGraph(
                 KairoNavGraphDependencies(
-                    container = container,
-                    navController = navController,
-                    prefs = prefs,
-                    pace = paceState,
-                    importCoordinator = importCoordinator,
-                    tutorialCoordinator = tutorialCoordinator,
-                    onShowUserMessage = { message -> messageController.show(message) },
+                    library =
+                        LibraryDestinationDependencies(
+                            container = container,
+                            navController = navController,
+                            prefs = prefs,
+                            selectedWpm = paceState.selectedWpm,
+                            importState = importCoordinator.state,
+                            onImportFile = importCoordinator.importFile,
+                            onImportUrl = importCoordinator.importUrl,
+                            tutorialState = tutorialCoordinator.libraryState,
+                            onTutorialNext = tutorialCoordinator.next,
+                            onTutorialPrevious = tutorialCoordinator.previous,
+                            onTutorialSkip = tutorialCoordinator.skip,
+                        ),
+                    reader =
+                        ReaderDestinationDependencies(
+                            container = container,
+                            navController = navController,
+                            prefs = prefs,
+                            estimatedWpm = paceState.estimatedWpm,
+                            tutorialActive = tutorialCoordinator.active,
+                            tutorialState = tutorialCoordinator.readerState,
+                            onShowUserMessage = { message -> messageController.show(message) },
+                            onTutorialNext = tutorialCoordinator.next,
+                            onTutorialPrevious = tutorialCoordinator.previous,
+                            onTutorialSkip = tutorialCoordinator.skip,
+                        ),
+                    rsvp =
+                        RsvpDestinationDependencies(
+                            container = container,
+                            navController = navController,
+                            prefs = prefs,
+                            tutorialState = tutorialCoordinator.rsvpState,
+                            onShowUserMessage = { message -> messageController.show(message) },
+                            onTutorialNext = tutorialCoordinator.next,
+                            onTutorialPrevious = tutorialCoordinator.previous,
+                            onTutorialSkip = tutorialCoordinator.skip,
+                        ),
+                    settings =
+                        SettingsRouteDependencies(
+                            container = container,
+                            navController = navController,
+                            prefs = prefs,
+                            tutorialState = tutorialCoordinator.settingsState,
+                            onOpenStartingTutorial = tutorialCoordinator.start,
+                            onTutorialNext = tutorialCoordinator.next,
+                            onTutorialPrevious = tutorialCoordinator.previous,
+                            onTutorialSkip = tutorialCoordinator.skip,
+                        ),
                 )
             )
         }
