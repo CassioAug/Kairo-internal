@@ -13,5 +13,5 @@ This tracks the current RSVP core performance and refactor pass.
 - [x] Move session/resume timing policy out of mixed engine/UI ownership.
 - [x] Align RSVP helper package declarations with the new folder boundaries.
 - [x] Memoize estimated WPM by timing config and language.
-- [ ] Add frame index maps for faster resume/token alignment.
+- [x] Add frame index maps for faster resume/token alignment.
 - [ ] Remove broad engine suppressions once complexity is lower.
