@@ -39,10 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -58,7 +56,6 @@ import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.buildWordCountByToken
 import com.kairo.reader.core.model.nearestWordIndex
-import com.kairo.reader.core.model.wordIndexForToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.core.rsvp.RsvpEffectivePace
@@ -72,8 +69,11 @@ import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.library.LibraryScreen
 import com.kairo.reader.ui.library.LibraryTab
 import com.kairo.reader.ui.library.buildLibraryProgress
-import com.kairo.reader.ui.reader.ReaderScreen
-import com.kairo.reader.ui.reader.ReaderViewModel
+import com.kairo.reader.ui.navigation.KairoRoutes
+import com.kairo.reader.ui.navigation.KairoSavedStateKeys
+import com.kairo.reader.ui.navigation.ReaderRoute
+import com.kairo.reader.ui.navigation.RsvpLaunchSnapshotStore
+import com.kairo.reader.ui.navigation.resolveWordIndex
 import com.kairo.reader.ui.rsvp.RsvpBookContext
 import com.kairo.reader.ui.rsvp.RsvpBookmarkCallbacks
 import com.kairo.reader.ui.rsvp.RsvpLayoutBias
@@ -185,7 +185,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
+        this.intent = intent
         val importUri = intent.bookImportUri()
         pendingExternalImportUriState.value = importUri
         pendingSharedArticleUrlState.value =
@@ -197,7 +197,7 @@ class MainActivity : AppCompatActivity() {
             pendingExternalImportUriState.value = null
         }
         if (intent.bookImportUri() == consumedUri) {
-            setIntent(Intent(this, MainActivity::class.java))
+            intent = Intent(this, MainActivity::class.java)
         }
     }
 
@@ -206,7 +206,7 @@ class MainActivity : AppCompatActivity() {
             pendingSharedArticleUrlState.value = null
         }
         if (intent.sharedArticleUrl() == consumedUrl) {
-            setIntent(Intent(this, MainActivity::class.java))
+            intent = Intent(this, MainActivity::class.java)
         }
     }
 }
@@ -231,12 +231,6 @@ private fun Intent.sharedArticleUrl(): String? =
         null
     }
 
-private const val RSVP_RESULT_CHAPTER_INDEX_KEY = "rsvp_result_chapter_index"
-private const val RSVP_RESULT_TOKEN_INDEX_KEY = "rsvp_result_token_index"
-private const val RSVP_RESULT_RESUME_CURSOR_KEY = "rsvp_result_resume_cursor"
-private const val RSVP_PLAYBACK_IS_PLAYING_KEY = "rsvp_playback_is_playing"
-private const val RSVP_CURRENT_TOKEN_INDEX_KEY = "rsvp_current_token_index"
-private const val RSVP_CURRENT_RESUME_CURSOR_KEY = "rsvp_current_resume_cursor"
 private const val IMPORT_COMPLETE_HOLD_MS = 200L
 private const val URL_IMPORT_COMPLETE_HOLD_MS = 40L
 private data class RsvpReturnTarget(
@@ -250,44 +244,6 @@ private data class StartingTutorialLaunchContext(
     val chapterIndex: Int,
     val tokenIndex: Int,
 )
-
-private object RsvpLaunchSnapshotStore {
-    private data class Snapshot(
-        val bookId: String,
-        val chapterIndex: Int,
-        val tokens: List<Token>,
-    )
-
-    private var snapshot: Snapshot? = null
-
-    fun put(
-        bookId: String,
-        chapterIndex: Int,
-        tokens: List<Token>,
-    ) {
-        if (tokens.isEmpty()) return
-        snapshot = Snapshot(bookId = bookId, chapterIndex = chapterIndex, tokens = tokens)
-    }
-
-    fun tokensFor(
-        bookId: String,
-        chapterIndex: Int,
-    ): List<Token> =
-        snapshot
-            ?.takeIf { it.bookId == bookId && it.chapterIndex == chapterIndex }
-            ?.tokens
-            .orEmpty()
-}
-
-private fun buildRsvpRoute(
-    bookId: String,
-    chapterIndex: Int,
-    tokenIndex: Int,
-    tempoMsPerWord: Long? = null,
-): String {
-    val encodedTempoMs = tempoMsPerWord?.takeIf { it > 0L } ?: -1L
-    return "rsvp/$bookId/$chapterIndex/$tokenIndex?tempoMs=$encodedTempoMs"
-}
 
 private fun resolveRsvpReturnTarget(
     resumePoint: RsvpResumePoint,
@@ -328,39 +284,6 @@ private fun resolveRsvpReturnTarget(
         tokenIndex = tokenIndex,
         resumeCursor = resumeCursor,
     )
-}
-
-private fun resolveWordIndex(
-    wordCountByToken: IntArray?,
-    tokenIndex: Int,
-): Int {
-    if (wordCountByToken == null || wordCountByToken.isEmpty()) return -1
-    return wordIndexForToken(wordCountByToken, tokenIndex)
-}
-
-@Composable
-private fun rememberReaderEstimatedWpm(
-    baseConfig: com.kairo.reader.core.model.RsvpConfig,
-    fallbackEstimatedWpm: Int,
-    dispatcherProvider: com.kairo.reader.core.dispatchers.DispatcherProvider,
-    languageTag: String? = null,
-): Int {
-    val estimatedWpm by produceState(
-        initialValue = fallbackEstimatedWpm,
-        baseConfig,
-        fallbackEstimatedWpm,
-        languageTag,
-    ) {
-        value =
-            withContext(dispatcherProvider.default) {
-                RsvpEstimatedReadingPace.estimateWpm(
-                    config = baseConfig,
-                    fallbackEstimatedWpm = fallbackEstimatedWpm,
-                    languageTag = languageTag,
-                )
-            }
-    }
-    return estimatedWpm
 }
 
 private fun resolveStartingTutorialLaunchContext(
@@ -414,9 +337,8 @@ private fun resolveImportFailureMessage(
     resources: Resources,
     error: Throwable,
 ): String {
-    val root = error.rootCause()
     val message =
-        when (root) {
+        when (val root = error.rootCause()) {
             is HttpStatusException ->
                 when (root.statusCode) {
                     401, 403 -> resources.getString(R.string.toast_import_failed_blocked)
@@ -544,13 +466,15 @@ private fun KairoNavHost(
 
     fun resolveCurrentTutorialRoute(route: String?): StartingTutorialRoute? =
         when (route) {
-            "library", "library?tab={tab}" -> StartingTutorialRoute.LIBRARY
-            "settings" -> StartingTutorialRoute.SETTINGS
-            "reader/{bookId}", "reader/{bookId}/{chapterIndex}/{tokenIndex}" ->
+            KairoRoutes.LIBRARY,
+            KairoRoutes.LIBRARY_WITH_TAB,
+            -> StartingTutorialRoute.LIBRARY
+            KairoRoutes.SETTINGS -> StartingTutorialRoute.SETTINGS
+            KairoRoutes.READER,
+            KairoRoutes.READER_WITH_POSITION,
+            ->
                 StartingTutorialRoute.READER
-            "rsvp/{bookId}/{chapterIndex}/{tokenIndex}" -> StartingTutorialRoute.RSVP
-            "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}" ->
-                StartingTutorialRoute.RSVP
+            KairoRoutes.RSVP -> StartingTutorialRoute.RSVP
             else -> null
         }
 
@@ -558,14 +482,14 @@ private fun KairoNavHost(
         if (resolveCurrentTutorialRoute(currentRoute) == route) return
         when (route) {
             StartingTutorialRoute.LIBRARY -> {
-                navController.navigate("library") {
-                    popUpTo("library") { inclusive = false }
+                navController.navigate(KairoRoutes.LIBRARY) {
+                    popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
                     launchSingleTop = true
                 }
             }
 
             StartingTutorialRoute.SETTINGS -> {
-                navController.navigate("settings") {
+                navController.navigate(KairoRoutes.SETTINGS) {
                     launchSingleTop = true
                 }
             }
@@ -573,7 +497,11 @@ private fun KairoNavHost(
             StartingTutorialRoute.READER -> {
                 val context = tutorialLaunchContext ?: return
                 navController.navigate(
-                    "reader/${context.bookId}/${context.chapterIndex}/${context.tokenIndex}"
+                    KairoRoutes.reader(
+                        context.bookId,
+                        context.chapterIndex,
+                        context.tokenIndex,
+                    )
                 ) {
                     launchSingleTop = true
                 }
@@ -582,7 +510,11 @@ private fun KairoNavHost(
             StartingTutorialRoute.RSVP -> {
                 val context = tutorialLaunchContext ?: return
                 navController.navigate(
-                    "rsvp/${context.bookId}/${context.chapterIndex}/${context.tokenIndex}"
+                    KairoRoutes.rsvp(
+                        context.bookId,
+                        context.chapterIndex,
+                        context.tokenIndex,
+                    )
                 ) {
                     launchSingleTop = true
                 }
@@ -749,7 +681,7 @@ private fun KairoNavHost(
             displayName = resolveImportUrlName(rawUrl),
             completionHoldMs = URL_IMPORT_COMPLETE_HOLD_MS,
             onImported = { importResult ->
-                navController.navigate("reader/${importResult.book.id.value}") {
+                navController.navigate(KairoRoutes.reader(importResult.book.id.value)) {
                     launchSingleTop = true
                 }
             },
@@ -762,8 +694,8 @@ private fun KairoNavHost(
         val uri = externalImportUri ?: return@LaunchedEffect
         if (importState.isImporting) return@LaunchedEffect
         onExternalImportUriConsumed(uri)
-        navController.navigate("library") {
-            popUpTo("library") { inclusive = false }
+        navController.navigate(KairoRoutes.LIBRARY) {
+            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
             launchSingleTop = true
         }
         handleImportFile(uri)
@@ -773,8 +705,8 @@ private fun KairoNavHost(
         val url = externalArticleUrl ?: return@LaunchedEffect
         if (importState.isImporting) return@LaunchedEffect
         onExternalArticleUrlConsumed(url)
-        navController.navigate("library") {
-            popUpTo("library") { inclusive = false }
+        navController.navigate(KairoRoutes.LIBRARY) {
+            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
             launchSingleTop = true
         }
         handleImportUrl(url)
@@ -798,14 +730,14 @@ private fun KairoNavHost(
     val focusEnabledForRoute =
         prefs.focusModeEnabled &&
             when (currentRoute) {
-                "settings" -> true
-                "settings/language" -> true
-                "settings/info" -> true
-                "reader/{bookId}" -> prefs.focusApplyInReader
-                "reader/{bookId}/{chapterIndex}/{tokenIndex}" -> prefs.focusApplyInReader
-                "rsvp/{bookId}/{chapterIndex}/{tokenIndex}" -> prefs.focusApplyInRsvp
-                "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}" ->
-                    prefs.focusApplyInRsvp
+                KairoRoutes.SETTINGS,
+                KairoRoutes.SETTINGS_LANGUAGE,
+                KairoRoutes.SETTINGS_INFO,
+                -> true
+                KairoRoutes.READER,
+                KairoRoutes.READER_WITH_POSITION,
+                -> prefs.focusApplyInReader
+                KairoRoutes.RSVP -> prefs.focusApplyInRsvp
                 else -> false
             }
     FocusModeSideEffects(
@@ -815,8 +747,8 @@ private fun KairoNavHost(
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        NavHost(navController = navController, startDestination = "library") {
-            composable("library") {
+        NavHost(navController = navController, startDestination = KairoRoutes.LIBRARY) {
+            composable(KairoRoutes.LIBRARY) {
                 LibraryScreen(
                     books = books,
                     bookmarks = bookmarks,
@@ -825,7 +757,7 @@ private fun KairoNavHost(
                     importState = importState,
                     onOpen = { book ->
                         // Navigate to reader - saved position will be restored there
-                        navController.navigate("reader/${book.id.value}")
+                        navController.navigate(KairoRoutes.reader(book.id.value))
                     },
                     onOpenBookmark = { bookId, chapterIndex, tokenIndex ->
                         coroutineScope.launch(dispatcherProvider.io) {
@@ -833,7 +765,7 @@ private fun KairoNavHost(
                                 ReadingPosition(BookId(bookId), chapterIndex, tokenIndex),
                             )
                         }
-                        navController.navigate("reader/$bookId/$chapterIndex/$tokenIndex")
+                        navController.navigate(KairoRoutes.reader(bookId, chapterIndex, tokenIndex))
                     },
                     onDeleteBookmark = { bookmarkId ->
                         coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
@@ -845,7 +777,7 @@ private fun KairoNavHost(
                     },
                     onImportFile = ::handleImportFile,
                     onImportUrl = ::handleImportUrl,
-                    onSettings = { navController.navigate("settings") },
+                    onSettings = { navController.navigate(KairoRoutes.SETTINGS) },
                     onSetCompleted = { book, isCompleted ->
                         coroutineScope.launch {
                             container.libraryRepository.setCompleted(book.id.value, isCompleted)
@@ -862,444 +794,83 @@ private fun KairoNavHost(
             }
 
             composable(
-                route = "library?tab={tab}",
+                route = KairoRoutes.LIBRARY_WITH_TAB,
                 arguments =
-                listOf(
-                    navArgument("tab") {
-                        type = NavType.StringType
-                        defaultValue = "library"
-                    },
-                ),
+                    listOf(
+                        navArgument(KairoRoutes.ARG_LIBRARY_TAB) {
+                            type = NavType.StringType
+                            defaultValue = KairoRoutes.TAB_LIBRARY
+                        },
+                    ),
             ) { backStackEntry ->
-            val tab = backStackEntry.arguments?.getString("tab") ?: "library"
-            val initialTab =
-                when (tab.lowercase()) {
-                    "completed" -> LibraryTab.Completed
-                    "bookmarks" -> LibraryTab.Bookmarks
-                    else -> LibraryTab.Library
-                }
-            LibraryScreen(
-                books = books,
-                bookmarks = bookmarks,
-                bookProgress = libraryProgress,
-                initialTab = initialTab,
-                importState = importState,
-                onOpen = { book ->
-                    navController.navigate("reader/${book.id.value}")
-                },
-                onOpenBookmark = { bookId, chapterIndex, tokenIndex ->
-                    coroutineScope.launch(dispatcherProvider.io) {
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(BookId(bookId), chapterIndex, tokenIndex),
-                        )
+                val tab =
+                    backStackEntry.arguments?.getString(KairoRoutes.ARG_LIBRARY_TAB)
+                        ?: KairoRoutes.TAB_LIBRARY
+                val initialTab =
+                    when (tab.lowercase()) {
+                        KairoRoutes.TAB_COMPLETED -> LibraryTab.Completed
+                        KairoRoutes.TAB_BOOKMARKS -> LibraryTab.Bookmarks
+                        else -> LibraryTab.Library
                     }
-                    navController.navigate("reader/$bookId/$chapterIndex/$tokenIndex")
-                },
-                onDeleteBookmark = { bookmarkId ->
-                    coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
-                },
-                onDeleteBookmarksForBook = { bookId ->
-                    coroutineScope.launch {
-                        container.bookmarkRepository.deleteForBook(BookId(bookId))
-                    }
-                },
-                onImportFile = ::handleImportFile,
-                onImportUrl = ::handleImportUrl,
-                onSettings = { navController.navigate("settings") },
-                onSetCompleted = { book, isCompleted ->
-                    coroutineScope.launch {
-                        container.libraryRepository.setCompleted(book.id.value, isCompleted)
-                    }
-                },
-                onDelete = { book ->
-                    coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
-                },
-                tutorialState = libraryTutorialState,
-                onTutorialNext = { moveStartingTutorial(1) },
-                onTutorialPrevious = { moveStartingTutorial(-1) },
-                onTutorialSkip = { dismissStartingTutorial() },
-            )
-        }
+                LibraryScreen(
+                    books = books,
+                    bookmarks = bookmarks,
+                    bookProgress = libraryProgress,
+                    initialTab = initialTab,
+                    importState = importState,
+                    onOpen = { book ->
+                        navController.navigate(KairoRoutes.reader(book.id.value))
+                    },
+                    onOpenBookmark = { bookId, chapterIndex, tokenIndex ->
+                        coroutineScope.launch(dispatcherProvider.io) {
+                            container.readingPositionRepository.savePosition(
+                                ReadingPosition(BookId(bookId), chapterIndex, tokenIndex),
+                            )
+                        }
+                        navController.navigate(KairoRoutes.reader(bookId, chapterIndex, tokenIndex))
+                    },
+                    onDeleteBookmark = { bookmarkId ->
+                        coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
+                    },
+                    onDeleteBookmarksForBook = { bookId ->
+                        coroutineScope.launch {
+                            container.bookmarkRepository.deleteForBook(BookId(bookId))
+                        }
+                    },
+                    onImportFile = ::handleImportFile,
+                    onImportUrl = ::handleImportUrl,
+                    onSettings = { navController.navigate(KairoRoutes.SETTINGS) },
+                    onSetCompleted = { book, isCompleted ->
+                        coroutineScope.launch {
+                            container.libraryRepository.setCompleted(book.id.value, isCompleted)
+                        }
+                    },
+                    onDelete = { book ->
+                        coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
+                    },
+                    tutorialState = libraryTutorialState,
+                    onTutorialNext = { moveStartingTutorial(1) },
+                    onTutorialPrevious = { moveStartingTutorial(-1) },
+                    onTutorialSkip = { dismissStartingTutorial() },
+                )
+            }
 
         composable(
-            route = "reader/{bookId}",
+            route = KairoRoutes.READER,
             arguments =
-            listOf(
-                navArgument("bookId") { type = NavType.StringType },
-            ),
+                listOf(
+                    navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+                ),
         ) { backStackEntry ->
-            val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
-
-            // Load book once
-            val initialBook: Book? = null
-            val bookState =
-                produceState(
-                    initialValue = initialBook,
-                    bookId,
-                ) {
-                    value =
-                        runCatching { container.bookRepository.getBook(BookId(bookId)) }.getOrNull()
-                }
-            val book = bookState.value
-            if (book == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                return@composable
-            }
-
-            // Use ViewModel for chapter caching and preloading
-            val readerViewModel: ReaderViewModel =
-                viewModel(
-                    factory =
-                    ReaderViewModel.factory(
-                        container.bookRepository,
-                        container.tokenRepository,
-                        dispatcherProvider,
-                    ),
-                )
-            val uiState by readerViewModel.uiState.collectAsState()
-
-            // Resume index returned from RSVP. Use it immediately to avoid focus "jump".
-            val rsvpResultFlow =
-                remember(backStackEntry) {
-                    backStackEntry.savedStateHandle.getStateFlow(RSVP_RESULT_TOKEN_INDEX_KEY, -1)
-                }
-            val rsvpResultIndex by rsvpResultFlow.collectAsState(initial = -1)
-            val rsvpResultChapterFlow =
-                remember(backStackEntry) {
-                    backStackEntry.savedStateHandle.getStateFlow(RSVP_RESULT_CHAPTER_INDEX_KEY, -1)
-                }
-            val rsvpResultChapterIndex by rsvpResultChapterFlow.collectAsState(initial = -1)
-            val rsvpResumeCursorFlow =
-                remember(backStackEntry) {
-                    backStackEntry.savedStateHandle.getStateFlow(RSVP_RESULT_RESUME_CURSOR_KEY, -1)
-                }
-            val rsvpResultResumeCursor by rsvpResumeCursorFlow.collectAsState(initial = -1)
-            val safeRsvpResultIndex =
-                if (rsvpResultIndex >= 0) {
-                    val tokens = uiState.chapterData?.tokens
-                    if (rsvpResultChapterIndex == uiState.chapterIndex &&
-                        tokens != null &&
-                        tokens.isNotEmpty()
-                    ) {
-                        tokens.nearestWordIndex(rsvpResultIndex)
-                    } else {
-                        rsvpResultIndex.coerceAtLeast(0)
-                    }
-                } else {
-                    rsvpResultIndex
-                }
-            val effectiveUiState =
-                if (safeRsvpResultIndex >= 0 &&
-                    rsvpResultChapterIndex == uiState.chapterIndex
-                ) {
-                    uiState.copy(focusIndex = safeRsvpResultIndex)
-                } else {
-                    uiState
-                }
-
-            LaunchedEffect(rsvpResultChapterIndex, safeRsvpResultIndex, rsvpResultResumeCursor) {
-                if (rsvpResultChapterIndex >= 0 && safeRsvpResultIndex >= 0) {
-                    if (rsvpResultChapterIndex != uiState.chapterIndex) {
-                        readerViewModel.loadChapter(rsvpResultChapterIndex, safeRsvpResultIndex)
-                    } else if (safeRsvpResultIndex != uiState.focusIndex) {
-                        readerViewModel.applyFocusIndex(safeRsvpResultIndex)
-                    }
-                    val wordIndex =
-                        if (rsvpResultChapterIndex == uiState.chapterIndex) {
-                            resolveWordIndex(
-                                uiState.chapterData?.wordCountByToken,
-                                safeRsvpResultIndex,
-                            )
-                        } else {
-                            0
-                        }
-                    val resumeCursor =
-                        if (rsvpResultChapterIndex == uiState.chapterIndex) {
-                            rsvpResultResumeCursor
-                        } else {
-                            -1
-                        }
-                    coroutineScope.launch(dispatcherProvider.io) {
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(
-                                BookId(bookId),
-                                rsvpResultChapterIndex,
-                                safeRsvpResultIndex,
-                                wordIndex,
-                                rsvpResumeCursor = resumeCursor,
-                            ),
-                        )
-                    }
-                    backStackEntry.savedStateHandle[RSVP_RESULT_CHAPTER_INDEX_KEY] = -1
-                    backStackEntry.savedStateHandle[RSVP_RESULT_TOKEN_INDEX_KEY] = -1
-                    backStackEntry.savedStateHandle[RSVP_RESULT_RESUME_CURSOR_KEY] = -1
-                }
-            }
-
-            // Track if we've done initial load
-            var hasInitialized by rememberSaveable { mutableStateOf(false) }
-
-            // Load book with saved position on first entry
-            LaunchedEffect(book) {
-                if (!hasInitialized || uiState.chapterData == null) {
-                    val savedPosition = container.readingPositionRepository.getPosition(
-                        BookId(bookId)
-                    )
-                    val initialChapter = savedPosition?.chapterIndex ?: 0
-                    val initialFocus = savedPosition?.tokenIndex ?: 0
-                    readerViewModel.loadBook(book, initialChapter, initialFocus)
-                    hasInitialized = true
-                }
-            }
-
-            // Sync focus from storage when returning from RSVP (lifecycle resumes)
-            val lifecycleOwner = LocalLifecycleOwner.current
-            val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
-
-            LaunchedEffect(lifecycleState) {
-                if (lifecycleState == Lifecycle.State.RESUMED && hasInitialized) {
-                    // If a resume index from RSVP is pending, don't overwrite it.
-                    if (rsvpResultChapterIndex >= 0 && safeRsvpResultIndex >= 0) {
-                        return@LaunchedEffect
-                    }
-                    val savedPosition = container.readingPositionRepository.getPosition(
-                        BookId(bookId)
-                    )
-                    if (savedPosition != null &&
-                        savedPosition.chapterIndex == uiState.chapterIndex
-                    ) {
-                        val tokens = uiState.chapterData?.tokens
-                        if (tokens != null && savedPosition.tokenIndex != uiState.focusIndex) {
-                            readerViewModel.applyFocusIndex(
-                                savedPosition.tokenIndex.coerceIn(0, tokens.lastIndex)
-                            )
-                        }
-                    }
-                }
-            }
-
-            LaunchedEffect(uiState.chapterIndex, uiState.chapterData) {
-                if (!hasInitialized) return@LaunchedEffect
-                val tokens = uiState.chapterData?.tokens ?: return@LaunchedEffect
-                if (tokens.isEmpty()) return@LaunchedEffect
-                val safeIndex =
-                    tokens.nearestWordIndex(uiState.focusIndex).coerceIn(0, tokens.lastIndex)
-                val wordIndex =
-                    resolveWordIndex(uiState.chapterData?.wordCountByToken, safeIndex)
-                withContext(dispatcherProvider.io) {
-                    container.readingPositionRepository.savePosition(
-                        ReadingPosition(
-                            BookId(bookId),
-                            uiState.chapterIndex,
-                            safeIndex,
-                            wordIndex,
-                        ),
-                    )
-                }
-            }
-
-            val resolvedRsvpConfig =
-                RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
-            val readerEstimatedWpm =
-                rememberReaderEstimatedWpm(
-                    baseConfig = resolvedRsvpConfig,
-                    fallbackEstimatedWpm = estimatedWpm,
-                    dispatcherProvider = dispatcherProvider,
-                    languageTag = book.languageTag,
-                )
-            LaunchedEffect(
-                uiState.chapterIndex,
-                uiState.chapterData,
-                uiState.focusIndex,
-                resolvedRsvpConfig,
-            ) {
-                if (!hasInitialized) return@LaunchedEffect
-                val chapterData = uiState.chapterData ?: return@LaunchedEffect
-                if (chapterData.tokens.isEmpty()) return@LaunchedEffect
-                val safeStartIndex =
-                    chapterData.tokens.nearestWordIndex(uiState.focusIndex)
-                        .coerceIn(0, chapterData.tokens.lastIndex)
-                container.rsvpFrameRepository.prefetchFrames(
-                    BookId(bookId),
-                    uiState.chapterIndex,
-                    resolvedRsvpConfig,
-                    startIndex = safeStartIndex,
-                )
-            }
-
-            val focusEnabledInReader = prefs.focusModeEnabled && prefs.focusApplyInReader
-            var lastExplicitFocusIndex by remember(bookId) { mutableIntStateOf(-1) }
-            fun buildCurrentReaderPosition(tokenIndex: Int = effectiveUiState.focusIndex): ReadingPosition? {
-                val chapterData = effectiveUiState.chapterData ?: return null
-                val tokens = chapterData.tokens
-                if (tokens.isEmpty()) return null
-                val safeIndex = tokens.nearestWordIndex(tokenIndex).coerceIn(0, tokens.lastIndex)
-                val wordIndex = resolveWordIndex(chapterData.wordCountByToken, safeIndex)
-                return ReadingPosition(
-                    BookId(bookId),
-                    effectiveUiState.chapterIndex,
-                    safeIndex,
-                    wordIndex,
-                )
-            }
-
-            fun saveReaderPosition(position: ReadingPosition) {
-                lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                    container.readingPositionRepository.savePosition(position)
-                }
-            }
-
-            fun saveCurrentReaderPosition() {
-                buildCurrentReaderPosition()?.let(::saveReaderPosition)
-            }
-
-            fun navigateReaderToLibrary() {
-                val position =
-                    lastExplicitFocusIndex
-                        .takeIf { it >= 0 }
-                        ?.let(::buildCurrentReaderPosition)
-                        ?: buildCurrentReaderPosition()
-                lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                    if (position != null) {
-                        container.readingPositionRepository.savePosition(position)
-                    }
-                    withContext(Dispatchers.Main) {
-                        navController.navigate("library") {
-                            popUpTo("library") { inclusive = false }
-                            launchSingleTop = true
-                        }
-                    }
-                }
-            }
-
-            BackHandler(enabled = !tutorialActive) {
-                navigateReaderToLibrary()
-            }
-
-            ReaderScreen(
-                book = book,
-                uiState = effectiveUiState,
-                fontSizeSp = prefs.readerFontSizeSp,
-                invertedScroll = prefs.invertedScroll,
-                readerTheme = prefs.readerTheme,
-                textBrightness = prefs.readerTextBrightness,
-                estimatedWpm = readerEstimatedWpm,
-                onFontSizeChange = { size ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateFontSize(size)
-                    }
-                },
-                onThemeChange = { theme ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateTheme(theme.name)
-                    }
-                },
-                onTextBrightnessChange = { brightness ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateReaderTextBrightness(brightness)
-                    }
-                },
-                onInvertedScrollChange = { enabled ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateInvertedScroll(enabled)
-                    }
-                },
-                focusModeEnabled = focusEnabledInReader,
-                onFocusModeEnabledChange = { enabled ->
-                    coroutineScope.launch {
-                        if (enabled) {
-                            if (!prefs.focusModeEnabled) {
-                                container.preferencesRepository.updateFocusModeEnabled(true)
-                            }
-                            container.preferencesRepository.updateFocusApplyInReader(true)
-                        } else {
-                            container.preferencesRepository.updateFocusApplyInReader(false)
-                        }
-                    }
-                },
-                onAddBookmark = { chapterIndex, tokenIndex, previewText ->
-                    coroutineScope.launch {
-                        val id = "$bookId:$chapterIndex:$tokenIndex"
-                        container.bookmarkRepository.add(
-                            Bookmark(
-                                id = id,
-                                bookId = BookId(bookId),
-                                chapterIndex = chapterIndex,
-                                tokenIndex = tokenIndex,
-                                previewText = previewText,
-                                createdAt = System.currentTimeMillis(),
-                            ),
-                        )
-                        showUserMessage(resources.getString(R.string.toast_bookmark_added))
-                    }
-                },
-                onOpenBookmarks = {
-                    saveCurrentReaderPosition()
-                    navController.navigate("library?tab=bookmarks")
-                },
-                onOpenLibrary = ::navigateReaderToLibrary,
-                onFocusChange = { newFocusIndex ->
-                    lastExplicitFocusIndex = newFocusIndex
-                    readerViewModel.setFocusIndex(newFocusIndex)
-                    // Save position when focus changes
-                    val wordIndex =
-                        resolveWordIndex(uiState.chapterData?.wordCountByToken, newFocusIndex)
-                    lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(
-                                BookId(bookId),
-                                uiState.chapterIndex,
-                                newFocusIndex,
-                                wordIndex,
-                            ),
-                        )
-                    }
-                },
-                onStartRsvp = { start ->
-                    RsvpLaunchSnapshotStore.put(
-                        bookId = bookId,
-                        chapterIndex = uiState.chapterIndex,
-                        tokens = uiState.chapterData?.tokens.orEmpty(),
-                    )
-                    val wordIndex =
-                        resolveWordIndex(uiState.chapterData?.wordCountByToken, start)
-                    lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                        val existingPosition = container.readingPositionRepository.getPosition(BookId(bookId))
-                        val resumeCursor =
-                            existingPosition
-                                ?.takeIf {
-                                    it.chapterIndex == uiState.chapterIndex &&
-                                        it.tokenIndex == start
-                                }?.rsvpResumeCursor ?: -1
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(
-                                BookId(bookId),
-                                uiState.chapterIndex,
-                                start,
-                                wordIndex,
-                                rsvpResumeCursor = resumeCursor,
-                            ),
-                        )
-                        withContext(Dispatchers.Main) {
-                            navController.navigate(
-                                buildRsvpRoute(
-                                    bookId = bookId,
-                                    chapterIndex = uiState.chapterIndex,
-                                    tokenIndex = start,
-                                )
-                            )
-                        }
-                    }
-                },
-                onChapterChange = { newIndex, focusIndex ->
-                    readerViewModel.loadChapter(newIndex, focusIndex)
-                },
-                onViewportMetricsChanged = { resolvedFontSizeSp, viewportHeightDp ->
-                    readerViewModel.updatePaginationMetrics(resolvedFontSizeSp, viewportHeightDp)
-                },
+            ReaderRoute(
+                backStackEntry = backStackEntry,
+                container = container,
+                navController = navController,
+                prefs = prefs,
+                estimatedWpm = estimatedWpm,
+                tutorialActive = tutorialActive,
                 tutorialState = readerTutorialState,
+                onShowUserMessage = { message -> showUserMessage(message) },
                 onTutorialNext = { moveStartingTutorial(1) },
                 onTutorialPrevious = { moveStartingTutorial(-1) },
                 onTutorialSkip = { dismissStartingTutorial() },
@@ -1307,390 +878,27 @@ private fun KairoNavHost(
         }
 
         composable(
-            route = "reader/{bookId}/{chapterIndex}/{tokenIndex}",
+            route = KairoRoutes.READER_WITH_POSITION,
             arguments =
-            listOf(
-                navArgument("bookId") { type = NavType.StringType },
-                navArgument("chapterIndex") { type = NavType.IntType },
-                navArgument("tokenIndex") { type = NavType.IntType },
-            ),
+                listOf(
+                    navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+                    navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
+                    navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
+                ),
         ) { backStackEntry ->
-            val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
-            val initialChapterIndex = backStackEntry.arguments?.getInt("chapterIndex") ?: 0
-            val initialTokenIndex = backStackEntry.arguments?.getInt("tokenIndex") ?: 0
-
-            val initialBook: Book? = null
-            val bookState =
-                produceState(
-                    initialValue = initialBook,
-                    bookId,
-                ) {
-                    value =
-                        runCatching {
-                            container.bookRepository.getBook(BookId(bookId))
-                        }.getOrNull()
-                }
-            val book = bookState.value
-            if (book == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                return@composable
-            }
-
-            val readerViewModel: ReaderViewModel =
-                viewModel(
-                    factory =
-                    ReaderViewModel.factory(
-                        container.bookRepository,
-                        container.tokenRepository,
-                        dispatcherProvider,
-                    ),
-                )
-            val uiState by readerViewModel.uiState.collectAsState()
-
-            // Resume index returned from RSVP. Use it immediately to avoid focus "jump".
-            val rsvpResultFlow =
-                remember(backStackEntry) {
-                    backStackEntry.savedStateHandle.getStateFlow(RSVP_RESULT_TOKEN_INDEX_KEY, -1)
-                }
-            val rsvpResultIndex by rsvpResultFlow.collectAsState(initial = -1)
-            val rsvpResultChapterFlow =
-                remember(backStackEntry) {
-                    backStackEntry.savedStateHandle.getStateFlow(RSVP_RESULT_CHAPTER_INDEX_KEY, -1)
-                }
-            val rsvpResultChapterIndex by rsvpResultChapterFlow.collectAsState(initial = -1)
-            val rsvpResumeCursorFlow =
-                remember(backStackEntry) {
-                    backStackEntry.savedStateHandle.getStateFlow(RSVP_RESULT_RESUME_CURSOR_KEY, -1)
-                }
-            val rsvpResultResumeCursor by rsvpResumeCursorFlow.collectAsState(initial = -1)
-            val safeRsvpResultIndex =
-                if (rsvpResultIndex >= 0) {
-                    val tokens = uiState.chapterData?.tokens
-                    if (rsvpResultChapterIndex == uiState.chapterIndex &&
-                        tokens != null &&
-                        tokens.isNotEmpty()
-                    ) {
-                        tokens.nearestWordIndex(rsvpResultIndex)
-                    } else {
-                        rsvpResultIndex.coerceAtLeast(0)
-                    }
-                } else {
-                    rsvpResultIndex
-                }
-            val effectiveUiState =
-                if (safeRsvpResultIndex >= 0 &&
-                    rsvpResultChapterIndex == uiState.chapterIndex
-                ) {
-                    uiState.copy(focusIndex = safeRsvpResultIndex)
-                } else {
-                    uiState
-                }
-
-            LaunchedEffect(rsvpResultChapterIndex, safeRsvpResultIndex, rsvpResultResumeCursor) {
-                if (rsvpResultChapterIndex >= 0 && safeRsvpResultIndex >= 0) {
-                    if (rsvpResultChapterIndex != uiState.chapterIndex) {
-                        readerViewModel.loadChapter(rsvpResultChapterIndex, safeRsvpResultIndex)
-                    } else if (safeRsvpResultIndex != uiState.focusIndex) {
-                        readerViewModel.applyFocusIndex(safeRsvpResultIndex)
-                    }
-                    val wordIndex =
-                        if (rsvpResultChapterIndex == uiState.chapterIndex) {
-                            resolveWordIndex(
-                                uiState.chapterData?.wordCountByToken,
-                                safeRsvpResultIndex,
-                            )
-                        } else {
-                            0
-                        }
-                    val resumeCursor =
-                        if (rsvpResultChapterIndex == uiState.chapterIndex) {
-                            rsvpResultResumeCursor
-                        } else {
-                            -1
-                        }
-                    coroutineScope.launch(dispatcherProvider.io) {
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(
-                                BookId(bookId),
-                                rsvpResultChapterIndex,
-                                safeRsvpResultIndex,
-                                wordIndex,
-                                rsvpResumeCursor = resumeCursor,
-                            ),
-                        )
-                    }
-                    backStackEntry.savedStateHandle[RSVP_RESULT_CHAPTER_INDEX_KEY] = -1
-                    backStackEntry.savedStateHandle[RSVP_RESULT_TOKEN_INDEX_KEY] = -1
-                    backStackEntry.savedStateHandle[RSVP_RESULT_RESUME_CURSOR_KEY] = -1
-                }
-            }
-
-            // Track if we've done initial load
-            var hasInitialized by rememberSaveable { mutableStateOf(false) }
-
-            LaunchedEffect(book) {
-                if (!hasInitialized || uiState.chapterData == null) {
-                    val savedPosition =
-                        if (hasInitialized) {
-                            container.readingPositionRepository.getPosition(
-                                BookId(bookId)
-                            )
-                        } else {
-                            null
-                        }
-                    val initialChapter = savedPosition?.chapterIndex ?: initialChapterIndex
-                    val initialFocus = savedPosition?.tokenIndex ?: initialTokenIndex
-                    readerViewModel.loadBook(book, initialChapter, initialFocus)
-                    hasInitialized = true
-                }
-            }
-
-            // Sync focus from storage when returning from RSVP (lifecycle resumes)
-            val lifecycleOwner = LocalLifecycleOwner.current
-            val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
-
-            LaunchedEffect(lifecycleState) {
-                if (lifecycleState == Lifecycle.State.RESUMED && hasInitialized) {
-                    if (rsvpResultChapterIndex >= 0 && safeRsvpResultIndex >= 0) {
-                        return@LaunchedEffect
-                    }
-                    val savedPosition = container.readingPositionRepository.getPosition(
-                        BookId(bookId)
-                    )
-                    if (savedPosition != null &&
-                        savedPosition.chapterIndex == uiState.chapterIndex
-                    ) {
-                        val tokens = uiState.chapterData?.tokens
-                        if (tokens != null && savedPosition.tokenIndex != uiState.focusIndex) {
-                            readerViewModel.applyFocusIndex(
-                                savedPosition.tokenIndex.coerceIn(0, tokens.lastIndex)
-                            )
-                        }
-                    }
-                }
-            }
-
-            LaunchedEffect(uiState.chapterIndex, uiState.chapterData) {
-                if (!hasInitialized) return@LaunchedEffect
-                val tokens = uiState.chapterData?.tokens ?: return@LaunchedEffect
-                if (tokens.isEmpty()) return@LaunchedEffect
-                val safeIndex =
-                    tokens.nearestWordIndex(uiState.focusIndex).coerceIn(0, tokens.lastIndex)
-                val wordIndex =
-                    resolveWordIndex(uiState.chapterData?.wordCountByToken, safeIndex)
-                withContext(dispatcherProvider.io) {
-                    container.readingPositionRepository.savePosition(
-                        ReadingPosition(
-                            BookId(bookId),
-                            uiState.chapterIndex,
-                            safeIndex,
-                            wordIndex,
-                        ),
-                    )
-                }
-            }
-
-            val resolvedRsvpConfig =
-                RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
-            val readerEstimatedWpm =
-                rememberReaderEstimatedWpm(
-                    baseConfig = resolvedRsvpConfig,
-                    fallbackEstimatedWpm = estimatedWpm,
-                    dispatcherProvider = dispatcherProvider,
-                    languageTag = book.languageTag,
-                )
-            LaunchedEffect(
-                uiState.chapterIndex,
-                uiState.chapterData,
-                uiState.focusIndex,
-                resolvedRsvpConfig,
-            ) {
-                if (!hasInitialized) return@LaunchedEffect
-                val chapterData = uiState.chapterData ?: return@LaunchedEffect
-                if (chapterData.tokens.isEmpty()) return@LaunchedEffect
-                val safeStartIndex =
-                    chapterData.tokens.nearestWordIndex(uiState.focusIndex)
-                        .coerceIn(0, chapterData.tokens.lastIndex)
-                container.rsvpFrameRepository.prefetchFrames(
-                    BookId(bookId),
-                    uiState.chapterIndex,
-                    resolvedRsvpConfig,
-                    startIndex = safeStartIndex,
-                )
-            }
-
-            val focusEnabledInReader = prefs.focusModeEnabled && prefs.focusApplyInReader
-            var lastExplicitFocusIndex by remember(bookId) { mutableIntStateOf(-1) }
-            fun buildCurrentReaderPosition(tokenIndex: Int = effectiveUiState.focusIndex): ReadingPosition? {
-                val chapterData = effectiveUiState.chapterData ?: return null
-                val tokens = chapterData.tokens
-                if (tokens.isEmpty()) return null
-                val safeIndex = tokens.nearestWordIndex(tokenIndex).coerceIn(0, tokens.lastIndex)
-                val wordIndex = resolveWordIndex(chapterData.wordCountByToken, safeIndex)
-                return ReadingPosition(
-                    BookId(bookId),
-                    effectiveUiState.chapterIndex,
-                    safeIndex,
-                    wordIndex,
-                )
-            }
-
-            fun saveReaderPosition(position: ReadingPosition) {
-                lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                    container.readingPositionRepository.savePosition(position)
-                }
-            }
-
-            fun saveCurrentReaderPosition() {
-                buildCurrentReaderPosition()?.let(::saveReaderPosition)
-            }
-
-            fun navigateReaderToLibrary() {
-                val position =
-                    lastExplicitFocusIndex
-                        .takeIf { it >= 0 }
-                        ?.let(::buildCurrentReaderPosition)
-                        ?: buildCurrentReaderPosition()
-                lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                    if (position != null) {
-                        container.readingPositionRepository.savePosition(position)
-                    }
-                    withContext(Dispatchers.Main) {
-                        navController.navigate("library") {
-                            popUpTo("library") { inclusive = false }
-                            launchSingleTop = true
-                        }
-                    }
-                }
-            }
-
-            BackHandler(enabled = !tutorialActive) {
-                navigateReaderToLibrary()
-            }
-
-            ReaderScreen(
-                book = book,
-                uiState = effectiveUiState,
-                fontSizeSp = prefs.readerFontSizeSp,
-                invertedScroll = prefs.invertedScroll,
-                readerTheme = prefs.readerTheme,
-                textBrightness = prefs.readerTextBrightness,
-                estimatedWpm = readerEstimatedWpm,
-                onFontSizeChange = { size ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateFontSize(size)
-                    }
-                },
-                onThemeChange = { theme ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateTheme(theme.name)
-                    }
-                },
-                onTextBrightnessChange = { brightness ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateReaderTextBrightness(brightness)
-                    }
-                },
-                onInvertedScrollChange = { enabled ->
-                    coroutineScope.launch {
-                        container.preferencesRepository.updateInvertedScroll(enabled)
-                    }
-                },
-                focusModeEnabled = focusEnabledInReader,
-                onFocusModeEnabledChange = { enabled ->
-                    coroutineScope.launch {
-                        if (enabled) {
-                            if (!prefs.focusModeEnabled) {
-                                container.preferencesRepository.updateFocusModeEnabled(true)
-                            }
-                            container.preferencesRepository.updateFocusApplyInReader(true)
-                        } else {
-                            container.preferencesRepository.updateFocusApplyInReader(false)
-                        }
-                    }
-                },
-                onAddBookmark = { chapterIndex, tokenIndex, previewText ->
-                    coroutineScope.launch {
-                        val id = "$bookId:$chapterIndex:$tokenIndex"
-                        container.bookmarkRepository.add(
-                            Bookmark(
-                                id = id,
-                                bookId = BookId(bookId),
-                                chapterIndex = chapterIndex,
-                                tokenIndex = tokenIndex,
-                                previewText = previewText,
-                                createdAt = System.currentTimeMillis(),
-                            ),
-                        )
-                        showUserMessage(resources.getString(R.string.toast_bookmark_added))
-                    }
-                },
-                onOpenBookmarks = {
-                    saveCurrentReaderPosition()
-                    navController.navigate("library?tab=bookmarks")
-                },
-                onOpenLibrary = ::navigateReaderToLibrary,
-                onFocusChange = { newFocusIndex ->
-                    lastExplicitFocusIndex = newFocusIndex
-                    readerViewModel.setFocusIndex(newFocusIndex)
-                    val wordIndex =
-                        resolveWordIndex(uiState.chapterData?.wordCountByToken, newFocusIndex)
-                    lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(
-                                BookId(bookId),
-                                uiState.chapterIndex,
-                                newFocusIndex,
-                                wordIndex,
-                            ),
-                        )
-                    }
-                },
-                onStartRsvp = { start ->
-                    RsvpLaunchSnapshotStore.put(
-                        bookId = bookId,
-                        chapterIndex = uiState.chapterIndex,
-                        tokens = uiState.chapterData?.tokens.orEmpty(),
-                    )
-                    val wordIndex =
-                        resolveWordIndex(uiState.chapterData?.wordCountByToken, start)
-                    lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                        val existingPosition = container.readingPositionRepository.getPosition(BookId(bookId))
-                        val resumeCursor =
-                            existingPosition
-                                ?.takeIf {
-                                    it.chapterIndex == uiState.chapterIndex &&
-                                        it.tokenIndex == start
-                                }?.rsvpResumeCursor ?: -1
-                        container.readingPositionRepository.savePosition(
-                            ReadingPosition(
-                                BookId(bookId),
-                                uiState.chapterIndex,
-                                start,
-                                wordIndex,
-                                rsvpResumeCursor = resumeCursor,
-                            ),
-                        )
-                        withContext(Dispatchers.Main) {
-                            navController.navigate(
-                                buildRsvpRoute(
-                                    bookId = bookId,
-                                    chapterIndex = uiState.chapterIndex,
-                                    tokenIndex = start,
-                                )
-                            )
-                        }
-                    }
-                },
-                onChapterChange = { newIndex, focusIndex ->
-                    readerViewModel.loadChapter(newIndex, focusIndex)
-                },
-                onViewportMetricsChanged = { resolvedFontSizeSp, viewportHeightDp ->
-                    readerViewModel.updatePaginationMetrics(resolvedFontSizeSp, viewportHeightDp)
-                },
+            ReaderRoute(
+                backStackEntry = backStackEntry,
+                container = container,
+                navController = navController,
+                prefs = prefs,
+                estimatedWpm = estimatedWpm,
+                tutorialActive = tutorialActive,
                 tutorialState = readerTutorialState,
+                initialChapterIndex =
+                    backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0,
+                initialTokenIndex =
+                    backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0,
+                onShowUserMessage = { message -> showUserMessage(message) },
                 onTutorialNext = { moveStartingTutorial(1) },
                 onTutorialPrevious = { moveStartingTutorial(-1) },
                 onTutorialSkip = { dismissStartingTutorial() },
@@ -1698,21 +906,24 @@ private fun KairoNavHost(
         }
 
         composable(
-            route = "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}",
+            route = KairoRoutes.RSVP,
             arguments =
             listOf(
-                navArgument("bookId") { type = NavType.StringType },
-                navArgument("chapterIndex") { type = NavType.IntType },
-                navArgument("tokenIndex") { type = NavType.IntType },
-                navArgument("tempoMs") {
+                navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+                navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
+                navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
+                navArgument(KairoRoutes.ARG_TEMPO_MS) {
                     type = NavType.LongType
                     defaultValue = -1L
                 },
             ),
         ) { backStackEntry ->
-            val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
-            val chapterIndex = backStackEntry.arguments?.getInt("chapterIndex") ?: 0
-            val startIndex = backStackEntry.arguments?.getInt("tokenIndex") ?: 0
+            val bookId =
+                backStackEntry.arguments?.getString(KairoRoutes.ARG_BOOK_ID)
+                    ?: return@composable
+            val chapterIndex =
+                backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0
+            val startIndex = backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0
             val launchSnapshotTokens =
                 remember(bookId, chapterIndex) {
                     RsvpLaunchSnapshotStore.tokensFor(bookId, chapterIndex)
@@ -1739,11 +950,13 @@ private fun KairoNavHost(
             val bookIdValue = BookId(bookId)
             val savedCurrentTokenIndex =
                 remember(backStackEntry) {
-                    backStackEntry.savedStateHandle[RSVP_CURRENT_TOKEN_INDEX_KEY] ?: -1
+                    backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_CURRENT_TOKEN_INDEX]
+                        ?: -1
                 }
             val savedCurrentResumeCursor =
                 remember(backStackEntry) {
-                    backStackEntry.savedStateHandle[RSVP_CURRENT_RESUME_CURSOR_KEY] ?: -1
+                    backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_CURRENT_RESUME_CURSOR]
+                        ?: -1
                 }
             val safeStartIndex =
                 savedCurrentTokenIndex
@@ -1781,7 +994,7 @@ private fun KairoNavHost(
             val playbackIsPlayingFlow =
                 remember(backStackEntry) {
                     backStackEntry.savedStateHandle.getStateFlow(
-                        RSVP_PLAYBACK_IS_PLAYING_KEY,
+                        KairoSavedStateKeys.RSVP_PLAYBACK_IS_PLAYING,
                         true,
                     )
                 }
@@ -1874,8 +1087,8 @@ private fun KairoNavHost(
                             }
                         },
                         onOpenBookmarks = {
-                            navController.navigate("library?tab=bookmarks") {
-                                popUpTo("library") { inclusive = false }
+                            navController.navigate(KairoRoutes.libraryBookmarks()) {
+                                popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
                             }
                         },
                     ),
@@ -1903,13 +1116,22 @@ private fun KairoNavHost(
                             )
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set(RSVP_RESULT_CHAPTER_INDEX_KEY, returnTarget.chapterIndex)
+                                ?.set(
+                                    KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX,
+                                    returnTarget.chapterIndex,
+                                )
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set(RSVP_RESULT_TOKEN_INDEX_KEY, returnTarget.tokenIndex)
+                                ?.set(
+                                    KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX,
+                                    returnTarget.tokenIndex,
+                                )
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set(RSVP_RESULT_RESUME_CURSOR_KEY, returnTarget.resumeCursor)
+                                ?.set(
+                                    KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR,
+                                    returnTarget.resumeCursor,
+                                )
                             navController.popBackStack()
                         },
                         onPositionChanged = { resumePoint ->
@@ -1919,9 +1141,13 @@ private fun KairoNavHost(
                                 } else {
                                     0
                                 }
-                            backStackEntry.savedStateHandle[RSVP_CURRENT_TOKEN_INDEX_KEY] =
+                            backStackEntry.savedStateHandle[
+                                KairoSavedStateKeys.RSVP_CURRENT_TOKEN_INDEX
+                            ] =
                                 safeIndex
-                            backStackEntry.savedStateHandle[RSVP_CURRENT_RESUME_CURSOR_KEY] =
+                            backStackEntry.savedStateHandle[
+                                KairoSavedStateKeys.RSVP_CURRENT_RESUME_CURSOR
+                            ] =
                                 resumePoint.resumeCursor
                             val wordIndex = resolveWordIndex(wordCountByToken, safeIndex)
                             saveRsvpPosition(
@@ -1957,13 +1183,16 @@ private fun KairoNavHost(
                             )
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set(RSVP_RESULT_CHAPTER_INDEX_KEY, chapterIndex)
+                                ?.set(KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX, chapterIndex)
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set(RSVP_RESULT_TOKEN_INDEX_KEY, resumeIndex)
+                                ?.set(KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX, resumeIndex)
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set(RSVP_RESULT_RESUME_CURSOR_KEY, resumePoint.resumeCursor)
+                                ?.set(
+                                    KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR,
+                                    resumePoint.resumeCursor,
+                                )
                             navController.popBackStack()
                         },
                         onOpenLibrary = { resumePoint ->
@@ -1980,13 +1209,15 @@ private fun KairoNavHost(
                                 targetWordIndex = wordIndex,
                                 targetResumeCursor = resumePoint.resumeCursor,
                             )
-                            navController.navigate("library") {
-                                popUpTo("library") { inclusive = false }
+                            navController.navigate(KairoRoutes.LIBRARY) {
+                                popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
                                 launchSingleTop = true
                             }
                         },
                         onPlaybackStateChanged = { isPlaying ->
-                            backStackEntry.savedStateHandle[RSVP_PLAYBACK_IS_PLAYING_KEY] =
+                            backStackEntry.savedStateHandle[
+                                KairoSavedStateKeys.RSVP_PLAYBACK_IS_PLAYING
+                            ] =
                                 isPlaying
                         },
                     ),
@@ -2098,15 +1329,15 @@ private fun KairoNavHost(
             )
         }
 
-        composable("settings") {
+        composable(KairoRoutes.SETTINGS) {
             SettingsHomeScreen(
                 onOpenLanguage = {
-                    navController.navigate("settings/language")
+                    navController.navigate(KairoRoutes.SETTINGS_LANGUAGE)
                 },
-                onOpenRsvp = { navController.navigate("settings/rsvp") },
-                onOpenReader = { navController.navigate("settings/reader") },
-                onOpenFocus = { navController.navigate("settings/focus") },
-                onOpenInfo = { navController.navigate("settings/info") },
+                onOpenRsvp = { navController.navigate(KairoRoutes.SETTINGS_RSVP) },
+                onOpenReader = { navController.navigate(KairoRoutes.SETTINGS_READER) },
+                onOpenFocus = { navController.navigate(KairoRoutes.SETTINGS_FOCUS) },
+                onOpenInfo = { navController.navigate(KairoRoutes.SETTINGS_INFO) },
                 onOpenStartingTutorial = ::startStartingTutorial,
                 onReset = {
                     coroutineScope.launch {
@@ -2121,15 +1352,15 @@ private fun KairoNavHost(
             )
         }
 
-        composable("settings/language") {
+        composable(KairoRoutes.SETTINGS_LANGUAGE) {
             LanguageSettingsScreen(onBack = { navController.popBackStack() })
         }
 
-        composable("settings/info") {
+        composable(KairoRoutes.SETTINGS_INFO) {
             InfoSettingsScreen(onBack = { navController.popBackStack() })
         }
 
-        composable("settings/rsvp") {
+        composable(KairoRoutes.SETTINGS_RSVP) {
             RsvpSettingsScreen(
                 preferences = prefs,
                 onSelectRsvpProfile = { profileId ->
@@ -2196,7 +1427,7 @@ private fun KairoNavHost(
             )
         }
 
-        composable("settings/reader") {
+        composable(KairoRoutes.SETTINGS_READER) {
             ReaderSettingsScreen(
                 preferences = prefs,
                 onFontSizeChange = { size ->
@@ -2221,7 +1452,7 @@ private fun KairoNavHost(
             )
         }
 
-            composable("settings/focus") {
+            composable(KairoRoutes.SETTINGS_FOCUS) {
                 FocusSettingsScreen(
                     preferences = prefs,
                     onFocusModeEnabledChange = { enabled ->
