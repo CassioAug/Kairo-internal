@@ -6,6 +6,7 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.rsvp.RsvpEngine
+import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
@@ -28,7 +29,7 @@ class RsvpFrameRepositoryImpl(
     private data class CacheKey(
         val bookId: String,
         val chapterIndex: Int,
-        val configHash: Int,
+        val timingConfig: RsvpConfig,
         val startIndex: Int,
     )
 
@@ -57,7 +58,7 @@ class RsvpFrameRepositoryImpl(
         startIndex: Int,
     ): RsvpFrameSet {
         val safeStartIndex = startIndex.coerceAtLeast(0)
-        val key = CacheKey(bookId.value, chapterIndex, config.hashCode(), safeStartIndex)
+        val key = CacheKey(bookId.value, chapterIndex, config.frameTimingKey(), safeStartIndex)
         val cached = mutex.withLock { cache[key] }
         if (cached != null) return cached
 
@@ -71,7 +72,7 @@ class RsvpFrameRepositoryImpl(
         startIndex: Int,
     ) {
         val safeStartIndex = startIndex.coerceAtLeast(0)
-        val key = CacheKey(bookId.value, chapterIndex, config.hashCode(), safeStartIndex)
+        val key = CacheKey(bookId.value, chapterIndex, config.frameTimingKey(), safeStartIndex)
         scope.launch {
             val cached = mutex.withLock { cache.containsKey(key) }
             if (cached) return@launch

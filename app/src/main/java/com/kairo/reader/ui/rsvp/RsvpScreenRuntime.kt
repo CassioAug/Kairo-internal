@@ -7,8 +7,14 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.kairo.reader.core.model.RsvpFrame
+import com.kairo.reader.data.rsvp.RsvpFrameIndexMap
 
-internal data class RsvpFrameLoadState(val frames: List<RsvpFrame>, val baseTempoMs: Long, val isLoading: Boolean,)
+internal data class RsvpFrameLoadState(
+    val frames: List<RsvpFrame>,
+    val baseTempoMs: Long,
+    val isLoading: Boolean,
+    val frameIndexMap: RsvpFrameIndexMap = RsvpFrameIndexMap.from(frames),
+)
 
 internal data class RsvpTimingInfo(val minTempoMs: Long, val maxTempoMs: Long, val tempoScale: Double,)
 

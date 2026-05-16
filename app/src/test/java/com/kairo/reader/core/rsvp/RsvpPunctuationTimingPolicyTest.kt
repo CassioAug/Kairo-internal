@@ -1,8 +1,10 @@
 package com.kairo.reader.core.rsvp
 
+import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
-import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTier
+import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -1,8 +1,8 @@
 package com.kairo.reader.ui.rsvp
 
 import com.kairo.reader.core.model.RsvpFrame
-import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.nearestWordIndex
+import com.kairo.reader.data.rsvp.RsvpFrameIndexMap
 
 internal fun resolveCurrentTokenIndex(
     frames: List<RsvpFrame>,
@@ -20,42 +20,13 @@ internal fun alignFrameIndex(
     frames: List<RsvpFrame>,
     tokenIndex: Int,
     resumeCursor: Int = -1,
-): Int {
-    if (frames.isEmpty()) return 0
-    if (resumeCursor >= 0) {
-        val exactResumeWordMatch =
-            frames.indexOfLast { frame ->
-                frame.resumeCursor == resumeCursor &&
-                    frame.tokens.any { it.type == TokenType.WORD }
-            }
-        if (exactResumeWordMatch != -1) return exactResumeWordMatch.coerceIn(0, frames.lastIndex)
-
-        val exactResumeMatch = frames.indexOfLast { it.resumeCursor == resumeCursor }
-        if (exactResumeMatch != -1) return exactResumeMatch.coerceIn(0, frames.lastIndex)
-    }
-
-    val exactWordMatch =
-        frames.indexOfLast { frame ->
-            frame.originalTokenIndex == tokenIndex &&
-                frame.tokens.any { it.type == TokenType.WORD }
-        }
-    if (exactWordMatch != -1) return exactWordMatch.coerceIn(0, frames.lastIndex)
-
-    val exactMatch = frames.indexOfLast { it.originalTokenIndex == tokenIndex }
-    if (exactMatch != -1) return exactMatch.coerceIn(0, frames.lastIndex)
-
-    val priorWordMatch =
-        frames.indexOfLast { frame ->
-            frame.originalTokenIndex < tokenIndex &&
-                frame.tokens.any { it.type == TokenType.WORD }
-        }
-    val safeIdx =
-        when {
-            priorWordMatch != -1 -> priorWordMatch
-            else -> frames.indexOfLast { it.originalTokenIndex < tokenIndex }
-        }.takeIf { it != -1 } ?: 0
-    return safeIdx.coerceIn(0, frames.lastIndex)
-}
+    frameIndexMap: RsvpFrameIndexMap = RsvpFrameIndexMap.from(frames),
+): Int =
+    frameIndexMap.alignFrameIndex(
+        tokenIndex = tokenIndex,
+        resumeCursor = resumeCursor,
+        frameCount = frames.size,
+    )
 
 internal fun currentResumePoint(context: RsvpUiContext): RsvpResumePoint {
     val runtime = context.runtime
