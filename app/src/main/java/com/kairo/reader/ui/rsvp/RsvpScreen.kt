@@ -18,6 +18,7 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.nearestWordIndex
+import com.kairo.reader.core.rsvp.frameTimingKey
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
 import com.kairo.reader.data.rsvp.RsvpFrameSet
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
@@ -489,10 +490,7 @@ private fun buildAppearanceFingerprint(
         layoutBias.horizontalBias,
     ).joinToString("|")
 
-internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig =
-    config.copy(
-        baseWpm = 0,
-    )
+internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig = config.frameTimingKey()
 
 internal fun resolveFrameLoadStartIndex(
     bookStartIndex: Int,

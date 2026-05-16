@@ -84,6 +84,48 @@ class RsvpFrameRepositoryImplTest {
     }
 
     @Test
+    fun getFramesReusesCacheForVisualOnlyConfigChanges() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val engine = CountingEngine()
+        val repository =
+            RsvpFrameRepositoryImpl(
+                tokenRepository = StaticTokenRepository,
+                engine = engine,
+                dispatcherProvider =
+                    object : DispatcherProvider {
+                        override val default: CoroutineDispatcher = dispatcher
+                        override val io: CoroutineDispatcher = dispatcher
+                    },
+            )
+        val bookId = BookId("book")
+        val config = RsvpConfig()
+
+        val firstRequest = backgroundScope.launch {
+            repository.getFrames(bookId, 0, config, startIndex = 4)
+        }
+        advanceUntilIdle()
+        firstRequest.join()
+
+        val secondRequest = backgroundScope.launch {
+            repository.getFrames(
+                bookId,
+                0,
+                config.copy(
+                    orpHighlightEnabled = !config.orpHighlightEnabled,
+                    orpGuideEnabled = !config.orpGuideEnabled,
+                    orpGuideBrightness = config.orpGuideBrightness + 0.25,
+                    orpGuideThickness = config.orpGuideThickness + 0.25,
+                ),
+                startIndex = 4,
+            )
+        }
+        advanceUntilIdle()
+        secondRequest.join()
+
+        assertEquals(listOf(4), engine.startIndexes)
+    }
+
+    @Test
     fun getPreviewFramesUsesLocalWindowAndShiftsOriginalIndexes() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val engine = CountingEngine()
