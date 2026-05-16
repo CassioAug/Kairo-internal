@@ -67,7 +67,6 @@ import com.kairo.reader.ui.focus.FocusModeSideEffects
 import com.kairo.reader.ui.focus.SystemBarsStyleSideEffect
 import com.kairo.reader.ui.focus.shouldApplyFocusMode
 import com.kairo.reader.ui.library.ImportUiState
-import com.kairo.reader.ui.library.buildLibraryProgress
 import com.kairo.reader.ui.navigation.KairoRoutes
 import com.kairo.reader.ui.navigation.KairoSavedStateKeys
 import com.kairo.reader.ui.navigation.LibraryRoute
@@ -107,6 +106,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -389,19 +390,11 @@ private fun KairoNavHost(
     val navController = rememberNavController()
     val context = LocalContext.current
     val resources = LocalResources.current
-    val libraryFlow = container.libraryRepository.observeLibrary()
-    val books by libraryFlow.collectAsState(initial = emptyList())
-    val bookmarksFlow = container.bookmarkRepository.observeBookmarks()
-    val bookmarks by bookmarksFlow.collectAsState(initial = emptyList())
-    val positionsFlow = container.readingPositionRepository.observePositions()
-    val positions by positionsFlow.collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val dispatcherProvider = container.dispatcherProvider
     var importState by remember { mutableStateOf(ImportUiState()) }
     var importProgressJob by remember { mutableStateOf<Job?>(null) }
-    val availableTutorialLaunchContext =
-        remember(books, positions) { resolveStartingTutorialLaunchContext(books, positions) }
     var tutorialSteps by remember {
         mutableStateOf(startingTutorialSteps(includeReaderAndRsvp = false))
     }
@@ -409,6 +402,26 @@ private fun KairoNavHost(
     var tutorialStepIndex by rememberSaveable { mutableIntStateOf(0) }
     var tutorialActive by rememberSaveable { mutableStateOf(false) }
     var tutorialAutoStarted by rememberSaveable { mutableStateOf(false) }
+    val availableTutorialLaunchContext by produceState<StartingTutorialLaunchContext?>(
+        initialValue = null,
+        prefs.hasSeenStartingTutorial,
+        tutorialAutoStarted,
+    ) {
+        if (prefs.hasSeenStartingTutorial || tutorialAutoStarted) {
+            value = null
+            return@produceState
+        }
+        combine(
+            container.libraryRepository.observeLibrary(),
+            container.readingPositionRepository.observePositions(),
+        ) { books, positions ->
+            resolveStartingTutorialLaunchContext(books, positions)
+        }
+            .distinctUntilChanged()
+            .collect { context ->
+                value = context
+            }
+    }
 
     val selectedWpm by produceState(initialValue = 0, prefs.rsvpConfig) {
         value =
@@ -422,42 +435,6 @@ private fun KairoNavHost(
                 RsvpEstimatedReadingPace.estimateWpm(
                     config = prefs.rsvpConfig,
                     fallbackEstimatedWpm = selectedWpm,
-                )
-            }
-    }
-    val libraryEstimatedWpmByBook by produceState(
-        initialValue = emptyMap(),
-        books,
-        prefs.rsvpConfig,
-        estimatedWpm,
-        selectedWpm,
-    ) {
-        value =
-            withContext(dispatcherProvider.default) {
-                books.associate { book ->
-                    val resolvedRsvpConfig =
-                        RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
-                    book.id.value to
-                        RsvpEstimatedReadingPace.estimateWpm(
-                            config = resolvedRsvpConfig,
-                            fallbackEstimatedWpm = selectedWpm,
-                            languageTag = book.languageTag,
-                        )
-                }
-            }
-    }
-    val libraryProgress by produceState(
-        initialValue = emptyMap(),
-        books,
-        positions,
-        libraryEstimatedWpmByBook,
-    ) {
-        value =
-            withContext(dispatcherProvider.io) {
-                buildLibraryProgress(
-                    books = books,
-                    positions = positions,
-                    estimatedWpmByBookId = libraryEstimatedWpmByBook,
                 )
             }
     }
@@ -739,9 +716,8 @@ private fun KairoNavHost(
                 LibraryRoute(
                     container = container,
                     navController = navController,
-                    books = books,
-                    bookmarks = bookmarks,
-                    bookProgress = libraryProgress,
+                    prefs = prefs,
+                    selectedWpm = selectedWpm,
                     importState = importState,
                     onImportFile = ::handleImportFile,
                     onImportUrl = ::handleImportUrl,
@@ -768,9 +744,8 @@ private fun KairoNavHost(
                 LibraryRoute(
                     container = container,
                     navController = navController,
-                    books = books,
-                    bookmarks = bookmarks,
-                    bookProgress = libraryProgress,
+                    prefs = prefs,
+                    selectedWpm = selectedWpm,
                     importState = importState,
                     initialTabRouteValue = tab,
                     onImportFile = ::handleImportFile,

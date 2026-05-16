@@ -2,27 +2,32 @@ package com.kairo.reader.ui.navigation
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
-import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
-import com.kairo.reader.core.model.BookmarkItem
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.library.LibraryBookProgress
 import com.kairo.reader.ui.library.LibraryScreen
 import com.kairo.reader.ui.library.LibraryTab
+import com.kairo.reader.ui.library.buildLibraryProgress
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun LibraryRoute(
     container: KairoApplication,
     navController: NavHostController,
-    books: List<Book>,
-    bookmarks: List<BookmarkItem>,
-    bookProgress: Map<String, LibraryBookProgress>,
+    prefs: UserPreferences,
+    selectedWpm: Int,
     importState: ImportUiState,
     initialTabRouteValue: String? = null,
     onImportFile: (Uri) -> Unit,
@@ -34,6 +39,48 @@ internal fun LibraryRoute(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val dispatcherProvider = container.dispatcherProvider
+    val books by container.libraryRepository.observeLibrary().collectAsState(initial = emptyList())
+    val bookmarks by container.bookmarkRepository.observeBookmarks().collectAsState(
+        initial = emptyList()
+    )
+    val positions by container.readingPositionRepository.observePositions().collectAsState(
+        initial = emptyList()
+    )
+    val libraryEstimatedWpmByBook by produceState<Map<String, Int>>(
+        initialValue = emptyMap(),
+        books,
+        prefs.rsvpConfig,
+        selectedWpm,
+    ) {
+        value =
+            withContext(dispatcherProvider.default) {
+                books.associate { book ->
+                    val resolvedRsvpConfig =
+                        RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
+                    book.id.value to
+                        RsvpEstimatedReadingPace.estimateWpm(
+                            config = resolvedRsvpConfig,
+                            fallbackEstimatedWpm = selectedWpm,
+                            languageTag = book.languageTag,
+                        )
+                }
+            }
+    }
+    val bookProgress by produceState<Map<String, LibraryBookProgress>>(
+        initialValue = emptyMap(),
+        books,
+        positions,
+        libraryEstimatedWpmByBook,
+    ) {
+        value =
+            withContext(dispatcherProvider.io) {
+                buildLibraryProgress(
+                    books = books,
+                    positions = positions,
+                    estimatedWpmByBookId = libraryEstimatedWpmByBook,
+                )
+            }
+    }
     val initialTab =
         when (initialTabRouteValue?.lowercase()) {
             KairoRoutes.TAB_COMPLETED -> LibraryTab.Completed
