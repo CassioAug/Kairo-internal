@@ -14,4 +14,4 @@ This tracks the current RSVP core performance and refactor pass.
 - [x] Align RSVP helper package declarations with the new folder boundaries.
 - [x] Memoize estimated WPM by timing config and language.
 - [x] Add frame index maps for faster resume/token alignment.
-- [ ] Remove broad engine suppressions once complexity is lower.
+- [x] Remove broad engine suppressions once complexity is lower.
