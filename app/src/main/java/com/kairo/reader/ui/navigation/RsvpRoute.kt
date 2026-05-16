@@ -1,10 +1,8 @@
 package com.kairo.reader.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -55,34 +53,6 @@ internal fun RsvpRoute(
     val coroutineScope = rememberCoroutineScope()
     val dispatcherProvider = container.dispatcherProvider
     val resources = LocalResources.current
-    val launchSnapshotTokens =
-        remember(bookId, chapterIndex) {
-            RsvpLaunchSnapshotStore.tokensFor(bookId, chapterIndex)
-        }
-    DisposableEffect(bookId, chapterIndex) {
-        onDispose {
-            RsvpLaunchSnapshotStore.clear(bookId, chapterIndex)
-        }
-    }
-    val tokensState =
-        produceState(
-            initialValue = launchSnapshotTokens,
-            bookId,
-            chapterIndex,
-        ) {
-            val loadedTokens =
-                runCatching {
-                    container.tokenRepository.getTokens(BookId(bookId), chapterIndex)
-                }.getOrElse { emptyList() }
-            if (loadedTokens.isNotEmpty() || value.isEmpty()) {
-                value = loadedTokens
-            }
-            if (loadedTokens.isNotEmpty()) {
-                RsvpLaunchSnapshotStore.clear(bookId, chapterIndex)
-            }
-        }
-    val tokens = tokensState.value
-    val wordCountByToken = remember(tokens) { buildWordCountByToken(tokens) }
 
     val focusEnabledInRsvp = prefs.focusModeEnabled && prefs.focusApplyInRsvp
     val rsvpLifecycleOwner = LocalLifecycleOwner.current
@@ -99,29 +69,19 @@ internal fun RsvpRoute(
         savedCurrentTokenIndex
             .takeIf { it >= 0 }
             ?: startIndex.coerceAtLeast(0)
-    val chapterCountState =
-        produceState(
-            initialValue = chapterIndex + 1,
-            bookId,
-        ) {
-            value =
-                runCatching {
-                    container.bookRepository.getBook(bookIdValue).chapters.size
-                }.getOrDefault(chapterIndex + 1)
-        }
-    val savedResumePositionState =
-        produceState<ReadingPosition?>(
-            initialValue = null,
-            bookId,
-            chapterIndex,
-            safeStartIndex,
-        ) {
-            value = container.readingPositionRepository.getPosition(bookIdValue)
-        }
+    val routeData =
+        rememberRsvpRouteData(
+            container = container,
+            bookId = bookId,
+            chapterIndex = chapterIndex,
+            safeStartIndex = safeStartIndex,
+        )
+    val tokens = routeData.tokens
+    val wordCountByToken = remember(tokens) { buildWordCountByToken(tokens) }
     val startResumeCursor =
         savedCurrentResumeCursor
             .takeIf { savedCurrentTokenIndex >= 0 && it >= 0 }
-            ?: savedResumePositionState.value
+            ?: routeData.savedResumePosition
                 ?.takeIf {
                     it.chapterIndex == chapterIndex &&
                         it.tokenIndex == safeStartIndex &&
@@ -136,17 +96,8 @@ internal fun RsvpRoute(
             )
         }
     val playbackIsPlaying by playbackIsPlayingFlow.collectAsState(initial = true)
-    val languageTagState =
-        produceState<String?>(
-            initialValue = null,
-            bookId,
-        ) {
-            value =
-                runCatching { container.bookRepository.getBookLanguageTag(bookIdValue) }
-                    .getOrNull()
-        }
     val resolvedRsvpConfig =
-        RsvpConfigResolver.resolve(prefs.rsvpConfig, languageTagState.value)
+        RsvpConfigResolver.resolve(prefs.rsvpConfig, routeData.languageTag)
     fun saveRsvpPosition(
         targetChapterIndex: Int,
         targetTokenIndex: Int,
@@ -236,7 +187,7 @@ internal fun RsvpRoute(
                             resolveRsvpReturnTarget(
                                 resumePoint = resumePoint,
                                 currentChapterIndex = chapterIndex,
-                                chapterCount = chapterCountState.value,
+                                chapterCount = routeData.chapterCount,
                                 currentChapterTokens = tokens,
                             )
                         val wordIndex =
@@ -298,7 +249,7 @@ internal fun RsvpRoute(
                         val baseTempoMs =
                             RsvpConfigResolver.toBaseTempoMs(
                                 tempoMsPerWord,
-                                languageTagState.value,
+                                routeData.languageTag,
                             )
                         coroutineScope.launch {
                             container.preferencesRepository.updateRsvpTempoMsPerWord(baseTempoMs)
