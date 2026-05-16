@@ -65,12 +65,12 @@ import com.kairo.reader.sample.SampleBooks
 import com.kairo.reader.ui.LocalDispatcherProvider
 import com.kairo.reader.ui.focus.FocusModeSideEffects
 import com.kairo.reader.ui.focus.SystemBarsStyleSideEffect
+import com.kairo.reader.ui.focus.shouldApplyFocusMode
 import com.kairo.reader.ui.library.ImportUiState
-import com.kairo.reader.ui.library.LibraryScreen
-import com.kairo.reader.ui.library.LibraryTab
 import com.kairo.reader.ui.library.buildLibraryProgress
 import com.kairo.reader.ui.navigation.KairoRoutes
 import com.kairo.reader.ui.navigation.KairoSavedStateKeys
+import com.kairo.reader.ui.navigation.LibraryRoute
 import com.kairo.reader.ui.navigation.ReaderRoute
 import com.kairo.reader.ui.navigation.RsvpLaunchSnapshotStore
 import com.kairo.reader.ui.navigation.resolveWordIndex
@@ -727,21 +727,8 @@ private fun KairoNavHost(
             startStartingTutorial()
         }
     }
-    val focusEnabledForRoute =
-        prefs.focusModeEnabled &&
-            when (currentRoute) {
-                KairoRoutes.SETTINGS,
-                KairoRoutes.SETTINGS_LANGUAGE,
-                KairoRoutes.SETTINGS_INFO,
-                -> true
-                KairoRoutes.READER,
-                KairoRoutes.READER_WITH_POSITION,
-                -> prefs.focusApplyInReader
-                KairoRoutes.RSVP -> prefs.focusApplyInRsvp
-                else -> false
-            }
     FocusModeSideEffects(
-        enabled = focusEnabledForRoute,
+        enabled = shouldApplyFocusMode(currentRoute, prefs),
         hideStatusBar = prefs.focusHideStatusBar,
         pauseNotifications = prefs.focusPauseNotifications,
     )
@@ -749,43 +736,15 @@ private fun KairoNavHost(
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = KairoRoutes.LIBRARY) {
             composable(KairoRoutes.LIBRARY) {
-                LibraryScreen(
+                LibraryRoute(
+                    container = container,
+                    navController = navController,
                     books = books,
                     bookmarks = bookmarks,
                     bookProgress = libraryProgress,
-                    initialTab = LibraryTab.Library,
                     importState = importState,
-                    onOpen = { book ->
-                        // Navigate to reader - saved position will be restored there
-                        navController.navigate(KairoRoutes.reader(book.id.value))
-                    },
-                    onOpenBookmark = { bookId, chapterIndex, tokenIndex ->
-                        coroutineScope.launch(dispatcherProvider.io) {
-                            container.readingPositionRepository.savePosition(
-                                ReadingPosition(BookId(bookId), chapterIndex, tokenIndex),
-                            )
-                        }
-                        navController.navigate(KairoRoutes.reader(bookId, chapterIndex, tokenIndex))
-                    },
-                    onDeleteBookmark = { bookmarkId ->
-                        coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
-                    },
-                    onDeleteBookmarksForBook = { bookId ->
-                        coroutineScope.launch {
-                            container.bookmarkRepository.deleteForBook(BookId(bookId))
-                        }
-                    },
                     onImportFile = ::handleImportFile,
                     onImportUrl = ::handleImportUrl,
-                    onSettings = { navController.navigate(KairoRoutes.SETTINGS) },
-                    onSetCompleted = { book, isCompleted ->
-                        coroutineScope.launch {
-                            container.libraryRepository.setCompleted(book.id.value, isCompleted)
-                        }
-                    },
-                    onDelete = { book ->
-                        coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
-                    },
                     tutorialState = libraryTutorialState,
                     onTutorialNext = { moveStartingTutorial(1) },
                     onTutorialPrevious = { moveStartingTutorial(-1) },
@@ -806,48 +765,16 @@ private fun KairoNavHost(
                 val tab =
                     backStackEntry.arguments?.getString(KairoRoutes.ARG_LIBRARY_TAB)
                         ?: KairoRoutes.TAB_LIBRARY
-                val initialTab =
-                    when (tab.lowercase()) {
-                        KairoRoutes.TAB_COMPLETED -> LibraryTab.Completed
-                        KairoRoutes.TAB_BOOKMARKS -> LibraryTab.Bookmarks
-                        else -> LibraryTab.Library
-                    }
-                LibraryScreen(
+                LibraryRoute(
+                    container = container,
+                    navController = navController,
                     books = books,
                     bookmarks = bookmarks,
                     bookProgress = libraryProgress,
-                    initialTab = initialTab,
                     importState = importState,
-                    onOpen = { book ->
-                        navController.navigate(KairoRoutes.reader(book.id.value))
-                    },
-                    onOpenBookmark = { bookId, chapterIndex, tokenIndex ->
-                        coroutineScope.launch(dispatcherProvider.io) {
-                            container.readingPositionRepository.savePosition(
-                                ReadingPosition(BookId(bookId), chapterIndex, tokenIndex),
-                            )
-                        }
-                        navController.navigate(KairoRoutes.reader(bookId, chapterIndex, tokenIndex))
-                    },
-                    onDeleteBookmark = { bookmarkId ->
-                        coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
-                    },
-                    onDeleteBookmarksForBook = { bookId ->
-                        coroutineScope.launch {
-                            container.bookmarkRepository.deleteForBook(BookId(bookId))
-                        }
-                    },
+                    initialTabRouteValue = tab,
                     onImportFile = ::handleImportFile,
                     onImportUrl = ::handleImportUrl,
-                    onSettings = { navController.navigate(KairoRoutes.SETTINGS) },
-                    onSetCompleted = { book, isCompleted ->
-                        coroutineScope.launch {
-                            container.libraryRepository.setCompleted(book.id.value, isCompleted)
-                        }
-                    },
-                    onDelete = { book ->
-                        coroutineScope.launch { container.libraryRepository.delete(book.id.value) }
-                    },
                     tutorialState = libraryTutorialState,
                     onTutorialNext = { moveStartingTutorial(1) },
                     onTutorialPrevious = { moveStartingTutorial(-1) },
@@ -855,69 +782,69 @@ private fun KairoNavHost(
                 )
             }
 
-        composable(
-            route = KairoRoutes.READER,
-            arguments =
-                listOf(
-                    navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
-                ),
-        ) { backStackEntry ->
-            ReaderRoute(
-                backStackEntry = backStackEntry,
-                container = container,
-                navController = navController,
-                prefs = prefs,
-                estimatedWpm = estimatedWpm,
-                tutorialActive = tutorialActive,
-                tutorialState = readerTutorialState,
-                onShowUserMessage = { message -> showUserMessage(message) },
-                onTutorialNext = { moveStartingTutorial(1) },
-                onTutorialPrevious = { moveStartingTutorial(-1) },
-                onTutorialSkip = { dismissStartingTutorial() },
-            )
-        }
+            composable(
+                route = KairoRoutes.READER,
+                arguments =
+                    listOf(
+                        navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+                    ),
+            ) { backStackEntry ->
+                ReaderRoute(
+                    backStackEntry = backStackEntry,
+                    container = container,
+                    navController = navController,
+                    prefs = prefs,
+                    estimatedWpm = estimatedWpm,
+                    tutorialActive = tutorialActive,
+                    tutorialState = readerTutorialState,
+                    onShowUserMessage = { message -> showUserMessage(message) },
+                    onTutorialNext = { moveStartingTutorial(1) },
+                    onTutorialPrevious = { moveStartingTutorial(-1) },
+                    onTutorialSkip = { dismissStartingTutorial() },
+                )
+            }
 
-        composable(
-            route = KairoRoutes.READER_WITH_POSITION,
-            arguments =
-                listOf(
-                    navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
-                    navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
-                    navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
-                ),
-        ) { backStackEntry ->
-            ReaderRoute(
-                backStackEntry = backStackEntry,
-                container = container,
-                navController = navController,
-                prefs = prefs,
-                estimatedWpm = estimatedWpm,
-                tutorialActive = tutorialActive,
-                tutorialState = readerTutorialState,
-                initialChapterIndex =
-                    backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0,
-                initialTokenIndex =
-                    backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0,
-                onShowUserMessage = { message -> showUserMessage(message) },
-                onTutorialNext = { moveStartingTutorial(1) },
-                onTutorialPrevious = { moveStartingTutorial(-1) },
-                onTutorialSkip = { dismissStartingTutorial() },
-            )
-        }
+            composable(
+                route = KairoRoutes.READER_WITH_POSITION,
+                arguments =
+                    listOf(
+                        navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+                        navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
+                        navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
+                    ),
+            ) { backStackEntry ->
+                ReaderRoute(
+                    backStackEntry = backStackEntry,
+                    container = container,
+                    navController = navController,
+                    prefs = prefs,
+                    estimatedWpm = estimatedWpm,
+                    tutorialActive = tutorialActive,
+                    tutorialState = readerTutorialState,
+                    initialChapterIndex =
+                        backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0,
+                    initialTokenIndex =
+                        backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0,
+                    onShowUserMessage = { message -> showUserMessage(message) },
+                    onTutorialNext = { moveStartingTutorial(1) },
+                    onTutorialPrevious = { moveStartingTutorial(-1) },
+                    onTutorialSkip = { dismissStartingTutorial() },
+                )
+            }
 
-        composable(
-            route = KairoRoutes.RSVP,
-            arguments =
-            listOf(
-                navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
-                navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
-                navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
-                navArgument(KairoRoutes.ARG_TEMPO_MS) {
-                    type = NavType.LongType
-                    defaultValue = -1L
-                },
-            ),
-        ) { backStackEntry ->
+            composable(
+                route = KairoRoutes.RSVP,
+                arguments =
+                    listOf(
+                        navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+                        navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
+                        navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
+                        navArgument(KairoRoutes.ARG_TEMPO_MS) {
+                            type = NavType.LongType
+                            defaultValue = -1L
+                        },
+                    ),
+            ) { backStackEntry ->
             val bookId =
                 backStackEntry.arguments?.getString(KairoRoutes.ARG_BOOK_ID)
                     ?: return@composable
