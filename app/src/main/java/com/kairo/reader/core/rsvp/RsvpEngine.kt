@@ -1,15 +1,3 @@
-@file:Suppress(
-    "ComplexCondition",
-    "CyclomaticComplexMethod",
-    "LongMethod",
-    "LongParameterList",
-    "LoopWithTooManyJumpStatements",
-    "MagicNumber",
-    "MaxLineLength",
-    "ReturnCount",
-    "UnreachableCode",
-)
-
 package com.kairo.reader.core.rsvp
 
 import com.kairo.reader.core.model.RsvpConfig
@@ -17,6 +5,7 @@ import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.splitTokenForRsvp
+import com.kairo.reader.core.rsvp.analysis.RsvpTokenAnalysis
 import com.kairo.reader.core.rsvp.analysis.analyzeExpandedTokens
 import com.kairo.reader.core.rsvp.analysis.shouldKeepFullFocalDuration
 import com.kairo.reader.core.rsvp.engine.BoundaryBefore
@@ -70,244 +59,304 @@ interface RsvpEngine {
  *
  * The result is a calm, legible cadence where long words and punctuation never "flash" away.
  */
-@Suppress("LargeClass", "TooManyFunctions")
 class ComprehensionRsvpEngine : RsvpEngine {
     override fun generateFrames(
         tokens: List<Token>,
         startIndex: Int,
         config: RsvpConfig,
     ): List<RsvpFrame> =
-        generateFramesWithConfig(
+        generateFramesWithNormalizedConfig(
             tokens = tokens,
             startIndex = startIndex,
             config = config.normalizedForPlayback(),
         )
+}
 
-    private fun generateFramesWithConfig(
-        tokens: List<Token>,
-        startIndex: Int,
-        config: RsvpConfig,
-    ): List<RsvpFrame> {
-        if (tokens.isEmpty()) return emptyList()
+private data class RsvpGenerationContext(
+    val tokens: List<Token>,
+    val expanded: List<ExpandedToken>,
+    val config: RsvpConfig,
+    val analysis: RsvpTokenAnalysis,
+    val frames: MutableList<RsvpFrame>,
+    val state: ContextState,
+    val rhythm: RhythmState,
+    val flow: FlowState,
+)
 
-        val analysisStartIndex = resolveAnalysisStartIndex(tokens, startIndex)
-        val analysisTokens = tokens.subList(analysisStartIndex, tokens.size)
-        val expanded =
-            analysisTokens.flatMapIndexed { index, token ->
-                splitTokenForRsvp(
-                    token = token,
-                    maxChunkLength = config.maxChunkLength,
-                    subwordChunkPauseMs = config.subwordChunkPauseMs,
-                ).map { splitToken ->
-                    ExpandedToken(splitToken, analysisStartIndex + index, -1)
-                }
-            }.mapIndexed { expandedIndex, expandedToken ->
-                expandedToken.copy(expandedIndex = expandedIndex)
-            }
+private fun generateFramesWithNormalizedConfig(
+    tokens: List<Token>,
+    startIndex: Int,
+    config: RsvpConfig,
+): List<RsvpFrame> {
+    if (tokens.isEmpty()) return emptyList()
 
-        val tokenAnalysis = analyzeExpandedTokens(expanded, config)
+    val analysisStartIndex = resolveAnalysisStartIndex(tokens, startIndex)
+    val expanded = buildExpandedTokens(tokens, analysisStartIndex, config)
+    val cursor = resolveFirstPlaybackCursor(expanded, startIndex) ?: return emptyList()
+    val context =
+        RsvpGenerationContext(
+            tokens = tokens,
+            expanded = expanded,
+            config = config,
+            analysis = analyzeExpandedTokens(expanded, config),
+            frames = mutableListOf(),
+            state = ContextState(),
+            rhythm = createRhythmState(config),
+            flow = createFlowState(),
+        )
 
-        val startCursor = expanded.indexOfFirst { it.originalIndex >= startIndex }
-        val fallbackCursor =
-            expanded.indexOfLast { it.originalIndex <= startIndex }
-                .coerceAtLeast(0)
-        var cursor = if (startCursor == -1) fallbackCursor else startCursor
-        cursor = cursor.coerceIn(0, expanded.lastIndex)
-        val firstWordCursor = findFirstWordCursor(expanded, cursor)
-        if (firstWordCursor >= expanded.size) return emptyList()
-        cursor = firstWordCursor
-        while (cursor > 0) {
-            val prevExpandedToken = expanded[cursor - 1]
-            val prevToken = prevExpandedToken.token
-            val nextToken = expanded.getOrNull(cursor)?.token
-            val isCurrencyPrefix = isCurrencyPrefixPunctuation(prevToken, nextToken)
-            if (prevExpandedToken.originalIndex < startIndex && !isCurrencyPrefix) break
-            val ch = prevToken.text.firstOrNull() ?: break
-            val isLeadingOpening =
-                prevToken.type == TokenType.PUNCTUATION &&
-                    (ch == '"' ||
-                        ch in OPENING_PUNCTUATION ||
-                        isCurrencyPrefix)
-            if (!isLeadingOpening) break
-            cursor--
-        }
-
-        val frames = mutableListOf<RsvpFrame>()
-
-        val state = ContextState()
-        val rhythm =
-            RhythmState(
-                smoothingAlpha = config.smoothingAlpha,
-                maxSpeedupFactor = config.maxSpeedupFactor,
-                maxSlowdownFactor = config.maxSlowdownFactor,
-            )
-        val flow =
-            FlowState(
-                alpha = FLOW_EMA_ALPHA,
-                maxBoost = FLOW_MAX_BOOST,
-                maxSlowdown = FLOW_MAX_SLOWDOWN,
-                strength = FLOW_STRENGTH,
-            )
-
-        while (cursor < expanded.size) {
-            val cursorToken = expanded[cursor].token
-            if (cursorToken.type == TokenType.PARAGRAPH_BREAK ||
-                cursorToken.type == TokenType.PAGE_BREAK
-            ) {
-                val nextWordCursor = findFirstWordCursor(expanded, cursor + 1)
-                if (nextWordCursor >= expanded.size) break
-
-                val msPerWord = config.tempoMsPerWord.toDouble()
-                val paragraphPauseScale =
-                    pauseScale(
-                        msPerWord = msPerWord,
-                        config = config,
-                        extraRetention = PARAGRAPH_BREAK_RETENTION_BOOST,
-                    )
-                val pagePauseScale =
-                    pauseScale(
-                        msPerWord = msPerWord,
-                        config = config,
-                        extraRetention = PAGE_BREAK_RETENTION_BOOST,
-                    )
-                val paragraphBase = paragraphBreakBasePauseMs(config)
-                val paragraphFloor = paragraphBase * config.minPauseScale
-                val pageFloor = pageBreakBasePauseMs(config) * config.minPauseScale
-                val extraPause =
-                    (cursorToken.pauseAfterMs.coerceAtLeast(0L).toDouble()) *
-                        when (cursorToken.type) {
-                            TokenType.PAGE_BREAK -> pagePauseScale
-                            TokenType.PARAGRAPH_BREAK -> paragraphPauseScale
-                            else -> paragraphPauseScale
-                        }
-                val durationMs =
-                    when (cursorToken.type) {
-                        TokenType.PAGE_BREAK -> max(
-                            pageBreakBasePauseMs(config) * pagePauseScale,
-                            pageFloor
-                        ).toLong()
-                        TokenType.PARAGRAPH_BREAK -> max(
-                            paragraphBase * paragraphPauseScale,
-                            paragraphFloor
-                        ).toLong()
-                        else -> 0L
-                    }.let { base ->
-                        (base + extraPause).toLong()
-                    }.coerceAtLeast(MIN_FRAME_MS)
-
-                frames +=
-                    RsvpFrame(
-                        tokens = listOf(breakMarkerToken(cursorToken.type)),
-                        durationMs = durationMs,
-                        originalTokenIndex = expanded[cursor].originalIndex,
-                        resumeCursor = expanded[cursor].expandedIndex,
-                        nextOriginalTokenIndex = expanded[nextWordCursor].originalIndex,
-                    )
-                rhythm.reset()
-                flow.reset()
-                cursor++
-                continue
-            }
-
-            val contextBefore = state.snapshot()
-            val wordCursor = findFirstWordCursor(expanded, cursor)
-            if (wordCursor >= expanded.size) break
-            val boundaryBefore = boundaryBefore(expanded, wordCursor)
-
-            val frameStartCursor = cursor
-            val (frameTokens, frameOriginalIndex, nextCursor) =
-                buildUnit(
-                    expandedTokens = expanded,
-                    startCursor = cursor,
-                    config = config,
-                    state = state,
-                )
-            val prevTokenGlobal = expanded.getOrNull(cursor - 1)?.token
-            val prevWordGlobal = findPrevWord(expanded, beforeIndex = cursor)
-            val nextTokenGlobal = expanded.getOrNull(nextCursor)?.token
-            val nextWordGlobal = expanded.getOrNull(
-                findFirstWordCursor(expanded, nextCursor)
-            )?.token
-            cursor = nextCursor
-            val nextFrameWordCursor = findFirstWordCursor(expanded, cursor)
-            val frameNextOriginalIndex =
-                if (nextFrameWordCursor < expanded.size) {
-                    expanded[nextFrameWordCursor].originalIndex
-                } else {
-                    tokens.size
-                }
-
-            val contourWord = expanded[wordCursor].token
-            val focalSuppression =
-                if (config.useFocalStress &&
-                    wordCursor !in tokenAnalysis.focalWordIndices &&
-                    !shouldKeepFullFocalDuration(contourWord)
-                ) {
-                    config.focalSupportCompression.coerceIn(MIN_FOCAL_SUPPORT_COMPRESSION, 1.0)
-                } else {
-                    1.0
-                }
-            val anticipatoryLanding =
-                if (config.useAnticipatoryLanding && wordCursor in tokenAnalysis.landingWordIndices) {
-                    config.anticipatoryLandingBoost.coerceIn(1.0, MAX_ANTICIPATORY_LANDING_BOOST)
-                } else {
-                    1.0
-                }
-            val emDashAside =
-                config.useParentheticalAside && wordCursor in tokenAnalysis.emDashAsideIndices
-            val phraseContour = tokenAnalysis.phraseContours[wordCursor] ?: PhraseContour.NONE
-
-            val durationMs =
-                computeUnitDurationMs(
-                    frameTokens = frameTokens,
-                    config = config,
-                    contextBefore = contextBefore,
-                    rhythm = rhythm,
-                    flow = flow,
-                    prevToken = prevTokenGlobal,
-                    prevWord = prevWordGlobal,
-                    nextToken = nextTokenGlobal,
-                    nextWord = nextWordGlobal,
-                    boundaryBefore = boundaryBefore,
-                    focalSuppression = focalSuppression,
-                    anticipatoryLanding = anticipatoryLanding,
-                    emDashAside = emDashAside,
-                    phraseContour = phraseContour,
-                )
-
-            frames +=
-                RsvpFrame(
-                    tokens = frameTokens,
-                    durationMs = durationMs,
-                    originalTokenIndex = frameOriginalIndex,
-                    resumeCursor = expanded[frameStartCursor].expandedIndex,
-                    nextOriginalTokenIndex = frameNextOriginalIndex,
-                )
-
-            while (cursor < expanded.size &&
-                expanded[cursor].token.type != TokenType.WORD &&
-                expanded[cursor].token.type != TokenType.PARAGRAPH_BREAK &&
-                expanded[cursor].token.type != TokenType.PAGE_BREAK &&
-                !(
-                    expanded[cursor].token.type == TokenType.PUNCTUATION &&
-                        isOpeningPunctuation(
-                            token = expanded[cursor].token,
-                            state = state,
-                            nextToken = expanded.getOrNull(cursor + 1)?.token,
-                        )
-                    )
-            ) {
-                state.consume(expanded[cursor].token)
-                cursor++
-            }
-        }
-
-        applySessionRamps(frames, config)
-        applyBlinkSeparation(frames, config)
-        return frames
+    var nextCursor = cursor
+    while (nextCursor < expanded.size) {
+        nextCursor = context.appendNextFrame(nextCursor) ?: break
     }
 
+    applySessionRamps(context.frames, config)
+    applyBlinkSeparation(context.frames, config)
+    return context.frames
 }
+
+private fun buildExpandedTokens(
+    tokens: List<Token>,
+    analysisStartIndex: Int,
+    config: RsvpConfig,
+): List<ExpandedToken> =
+    tokens
+        .subList(analysisStartIndex, tokens.size)
+        .flatMapIndexed { index, token ->
+            splitTokenForRsvp(
+                token = token,
+                maxChunkLength = config.maxChunkLength,
+                subwordChunkPauseMs = config.subwordChunkPauseMs,
+            ).map { splitToken ->
+                ExpandedToken(splitToken, analysisStartIndex + index, -1)
+            }
+        }.mapIndexed { expandedIndex, expandedToken ->
+            expandedToken.copy(expandedIndex = expandedIndex)
+        }
+
+private fun resolveFirstPlaybackCursor(
+    expanded: List<ExpandedToken>,
+    startIndex: Int,
+): Int? {
+    if (expanded.isEmpty()) return null
+
+    val startCursor = expanded.indexOfFirst { it.originalIndex >= startIndex }
+    val fallbackCursor =
+        expanded.indexOfLast { it.originalIndex <= startIndex }
+            .coerceAtLeast(0)
+    val cursor =
+        (if (startCursor == -1) fallbackCursor else startCursor)
+            .coerceIn(0, expanded.lastIndex)
+    val firstWordCursor = findFirstWordCursor(expanded, cursor)
+    if (firstWordCursor >= expanded.size) return null
+    return includeLeadingOpeningPunctuation(expanded, firstWordCursor, startIndex)
+}
+
+private fun includeLeadingOpeningPunctuation(
+    expanded: List<ExpandedToken>,
+    initialCursor: Int,
+    startIndex: Int,
+): Int {
+    var cursor = initialCursor
+    while (cursor > 0 && shouldIncludePreviousOpeningPunctuation(expanded, cursor, startIndex)) {
+        cursor--
+    }
+    return cursor
+}
+
+private fun shouldIncludePreviousOpeningPunctuation(
+    expanded: List<ExpandedToken>,
+    cursor: Int,
+    startIndex: Int,
+): Boolean {
+    val prevExpandedToken = expanded[cursor - 1]
+    val prevToken = prevExpandedToken.token
+    val nextToken = expanded.getOrNull(cursor)?.token
+    val isCurrencyPrefix = isCurrencyPrefixPunctuation(prevToken, nextToken)
+    if (prevExpandedToken.originalIndex < startIndex && !isCurrencyPrefix) return false
+    val ch = prevToken.text.firstOrNull() ?: return false
+    return prevToken.type == TokenType.PUNCTUATION &&
+        (ch == '"' || ch in OPENING_PUNCTUATION || isCurrencyPrefix)
+}
+
+private fun createRhythmState(config: RsvpConfig): RhythmState =
+    RhythmState(
+        smoothingAlpha = config.smoothingAlpha,
+        maxSpeedupFactor = config.maxSpeedupFactor,
+        maxSlowdownFactor = config.maxSlowdownFactor,
+    )
+
+private fun createFlowState(): FlowState =
+    FlowState(
+        alpha = FLOW_EMA_ALPHA,
+        maxBoost = FLOW_MAX_BOOST,
+        maxSlowdown = FLOW_MAX_SLOWDOWN,
+        strength = FLOW_STRENGTH,
+    )
+
+private fun RsvpGenerationContext.appendNextFrame(cursor: Int): Int? {
+    val cursorToken = expanded[cursor].token
+    return if (cursorToken.isBreakToken()) {
+        appendBreakFrame(cursor)
+    } else {
+        appendReadingFrame(cursor)
+    }
+}
+
+private fun RsvpGenerationContext.appendBreakFrame(cursor: Int): Int? {
+    val nextWordCursor = findFirstWordCursor(expanded, cursor + 1)
+    if (nextWordCursor >= expanded.size) return null
+
+    val cursorToken = expanded[cursor].token
+    frames +=
+        RsvpFrame(
+            tokens = listOf(breakMarkerToken(cursorToken.type)),
+            durationMs = breakFrameDurationMs(cursorToken, config),
+            originalTokenIndex = expanded[cursor].originalIndex,
+            resumeCursor = expanded[cursor].expandedIndex,
+            nextOriginalTokenIndex = expanded[nextWordCursor].originalIndex,
+        )
+    rhythm.reset()
+    flow.reset()
+    return cursor + 1
+}
+
+private fun breakFrameDurationMs(
+    token: Token,
+    config: RsvpConfig,
+): Long {
+    val msPerWord = config.tempoMsPerWord.toDouble()
+    val paragraphPauseScale =
+        pauseScale(
+            msPerWord = msPerWord,
+            config = config,
+            extraRetention = PARAGRAPH_BREAK_RETENTION_BOOST,
+        )
+    val pagePauseScale =
+        pauseScale(
+            msPerWord = msPerWord,
+            config = config,
+            extraRetention = PAGE_BREAK_RETENTION_BOOST,
+        )
+    val paragraphBase = paragraphBreakBasePauseMs(config)
+    val base =
+        when (token.type) {
+            TokenType.PAGE_BREAK ->
+                max(
+                    pageBreakBasePauseMs(config) * pagePauseScale,
+                    pageBreakBasePauseMs(config) * config.minPauseScale,
+                )
+            TokenType.PARAGRAPH_BREAK ->
+                max(paragraphBase * paragraphPauseScale, paragraphBase * config.minPauseScale)
+            else -> 0.0
+        }
+    val extraPause =
+        token.pauseAfterMs.coerceAtLeast(0L).toDouble() *
+            when (token.type) {
+                TokenType.PAGE_BREAK -> pagePauseScale
+                else -> paragraphPauseScale
+            }
+    return (base + extraPause).toLong().coerceAtLeast(MIN_FRAME_MS)
+}
+
+private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
+    val wordCursor = findFirstWordCursor(expanded, cursor)
+    if (wordCursor >= expanded.size) return null
+    val frameStartCursor = cursor
+    val contextBefore = state.snapshot()
+    val (frameTokens, frameOriginalIndex, nextCursor) =
+        buildUnit(
+            expandedTokens = expanded,
+            startCursor = cursor,
+            config = config,
+            state = state,
+        )
+
+    val durationMs =
+        computeUnitDurationMs(
+            frameTokens = frameTokens,
+            config = config,
+            contextBefore = contextBefore,
+            rhythm = rhythm,
+            flow = flow,
+            prevToken = expanded.getOrNull(cursor - 1)?.token,
+            prevWord = findPrevWord(expanded, beforeIndex = cursor),
+            nextToken = expanded.getOrNull(nextCursor)?.token,
+            nextWord = expanded.getOrNull(findFirstWordCursor(expanded, nextCursor))?.token,
+            boundaryBefore = boundaryBefore(expanded, wordCursor),
+            focalSuppression = focalSuppression(wordCursor),
+            anticipatoryLanding = anticipatoryLanding(wordCursor),
+            emDashAside = config.useParentheticalAside && wordCursor in analysis.emDashAsideIndices,
+            phraseContour = analysis.phraseContours[wordCursor] ?: PhraseContour.NONE,
+        )
+
+    frames +=
+        RsvpFrame(
+            tokens = frameTokens,
+            durationMs = durationMs,
+            originalTokenIndex = frameOriginalIndex,
+            resumeCursor = expanded[frameStartCursor].expandedIndex,
+            nextOriginalTokenIndex = nextOriginalTokenIndex(nextCursor),
+        )
+
+    return consumeContextPunctuation(nextCursor)
+}
+
+private fun RsvpGenerationContext.focalSuppression(wordCursor: Int): Double {
+    val word = expanded[wordCursor].token
+    return if (config.useFocalStress &&
+        wordCursor !in analysis.focalWordIndices &&
+        !shouldKeepFullFocalDuration(word)
+    ) {
+        config.focalSupportCompression.coerceIn(MIN_FOCAL_SUPPORT_COMPRESSION, 1.0)
+    } else {
+        1.0
+    }
+}
+
+private fun RsvpGenerationContext.anticipatoryLanding(wordCursor: Int): Double =
+    if (config.useAnticipatoryLanding && wordCursor in analysis.landingWordIndices) {
+        config.anticipatoryLandingBoost.coerceIn(1.0, MAX_ANTICIPATORY_LANDING_BOOST)
+    } else {
+        1.0
+    }
+
+private fun RsvpGenerationContext.nextOriginalTokenIndex(nextCursor: Int): Int {
+    val nextFrameWordCursor = findFirstWordCursor(expanded, nextCursor)
+    return if (nextFrameWordCursor < expanded.size) {
+        expanded[nextFrameWordCursor].originalIndex
+    } else {
+        tokens.size
+    }
+}
+
+private fun RsvpGenerationContext.consumeContextPunctuation(cursor: Int): Int {
+    var nextCursor = cursor
+    while (nextCursor < expanded.size && shouldConsumeContextToken(nextCursor)) {
+        state.consume(expanded[nextCursor].token)
+        nextCursor++
+    }
+    return nextCursor
+}
+
+private fun RsvpGenerationContext.shouldConsumeContextToken(cursor: Int): Boolean {
+    val token = expanded[cursor].token
+    if (token.type == TokenType.WORD ||
+        token.type == TokenType.PARAGRAPH_BREAK ||
+        token.type == TokenType.PAGE_BREAK
+    ) {
+        return false
+    }
+    return token.type != TokenType.PUNCTUATION ||
+        !isOpeningPunctuation(
+            token = token,
+            state = state,
+            nextToken = expanded.getOrNull(cursor + 1)?.token,
+        )
+}
+
+private fun Token.isBreakToken(): Boolean =
+    type == TokenType.PARAGRAPH_BREAK || type == TokenType.PAGE_BREAK
 
 internal fun resolveAnalysisStartIndex(
     tokens: List<Token>,
