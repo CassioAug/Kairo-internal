@@ -1,4 +1,4 @@
-package com.kairo.reader.core.rsvp
+package com.kairo.reader.core.rsvp.engine
 
 import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
@@ -7,6 +7,12 @@ import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.effectiveBlinkMode
 import com.kairo.reader.core.model.isMidSentencePunctuation
+import com.kairo.reader.core.rsvp.analysis.shouldPreferHold
+import com.kairo.reader.core.rsvp.analysis.wordEase
+import com.kairo.reader.core.rsvp.text.isHardBoundary
+import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
+import com.kairo.reader.core.rsvp.timing.speedStrength
+import com.kairo.reader.core.rsvp.timing.wordFloorMs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToLong
@@ -14,50 +20,7 @@ import kotlin.math.roundToLong
 internal fun applySessionRamps(
     frames: MutableList<RsvpFrame>,
     config: RsvpConfig,
-) {
-    if (frames.isEmpty()) return
-
-    val total = frames.size
-    val rampUp = min(config.rampUpFrames.coerceAtLeast(0), total / 2)
-    for (i in 0 until rampUp) {
-        val progress = i.toDouble() / rampUp.coerceAtLeast(1)
-        val multiplier = 1.35 - (0.35 * progress)
-        frames[i] = frames[i].copy(durationMs = (frames[i].durationMs * multiplier).toLong())
-    }
-
-    frames[0] =
-        frames[0].copy(
-            durationMs = addNonNegativeDelay(frames[0].durationMs, config.startDelayMs)
-                .coerceAtLeast(MIN_FRAME_MS),
-        )
-
-    val rampDown = min(config.rampDownFrames.coerceAtLeast(0), total / 2)
-    val start = total - rampDown
-    for (i in start until total) {
-        val progress = (i - start).toDouble() / rampDown.coerceAtLeast(1)
-        val multiplier = 1.0 + (0.25 * progress)
-        frames[i] = frames[i].copy(durationMs = (frames[i].durationMs * multiplier).toLong())
-    }
-
-    frames[frames.lastIndex] =
-        frames.last().copy(
-            durationMs = addNonNegativeDelay(frames.last().durationMs, config.endDelayMs)
-                .coerceAtLeast(MIN_FRAME_MS),
-        )
-}
-
-
-internal fun addNonNegativeDelay(
-    durationMs: Long,
-    delayMs: Long,
-): Long {
-    val safeDelay = delayMs.coerceAtLeast(0L)
-    return if (Long.MAX_VALUE - durationMs < safeDelay) {
-        Long.MAX_VALUE
-    } else {
-        durationMs + safeDelay
-    }
-}
+) = RsvpSessionTimingPolicy.applyInitialSessionRamps(frames = frames, config = config)
 
 
 internal fun applyBlinkSeparation(

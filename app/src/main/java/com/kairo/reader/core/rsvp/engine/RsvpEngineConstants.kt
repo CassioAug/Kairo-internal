@@ -1,4 +1,4 @@
-package com.kairo.reader.core.rsvp
+package com.kairo.reader.core.rsvp.engine
 
 internal const val MIN_FRAME_MS = 40L
 internal const val MAX_MIN_PAUSE_SCALE = 0.97

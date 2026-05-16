@@ -1,4 +1,4 @@
-package com.kairo.reader.core.rsvp
+package com.kairo.reader.core.rsvp.engine
 
 import com.kairo.reader.core.model.RsvpConfig
 

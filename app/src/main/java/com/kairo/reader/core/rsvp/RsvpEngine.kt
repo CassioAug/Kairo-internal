@@ -17,6 +17,39 @@ import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.splitTokenForRsvp
+import com.kairo.reader.core.rsvp.analysis.analyzeExpandedTokens
+import com.kairo.reader.core.rsvp.analysis.shouldKeepFullFocalDuration
+import com.kairo.reader.core.rsvp.engine.BoundaryBefore
+import com.kairo.reader.core.rsvp.engine.ContextState
+import com.kairo.reader.core.rsvp.engine.ExpandedToken
+import com.kairo.reader.core.rsvp.engine.FLOW_EMA_ALPHA
+import com.kairo.reader.core.rsvp.engine.FLOW_MAX_BOOST
+import com.kairo.reader.core.rsvp.engine.FLOW_MAX_SLOWDOWN
+import com.kairo.reader.core.rsvp.engine.FLOW_STRENGTH
+import com.kairo.reader.core.rsvp.engine.FlowState
+import com.kairo.reader.core.rsvp.engine.MAX_ANTICIPATORY_LANDING_BOOST
+import com.kairo.reader.core.rsvp.engine.MIN_FOCAL_SUPPORT_COMPRESSION
+import com.kairo.reader.core.rsvp.engine.MIN_FRAME_MS
+import com.kairo.reader.core.rsvp.engine.OPENING_PUNCTUATION
+import com.kairo.reader.core.rsvp.engine.PAGE_BREAK_RETENTION_BOOST
+import com.kairo.reader.core.rsvp.engine.PARAGRAPH_BREAK_RETENTION_BOOST
+import com.kairo.reader.core.rsvp.engine.PhraseContour
+import com.kairo.reader.core.rsvp.engine.RhythmState
+import com.kairo.reader.core.rsvp.engine.applyBlinkSeparation
+import com.kairo.reader.core.rsvp.engine.applySessionRamps
+import com.kairo.reader.core.rsvp.engine.buildUnit
+import com.kairo.reader.core.rsvp.engine.normalizedForPlayback
+import com.kairo.reader.core.rsvp.text.boundaryBefore
+import com.kairo.reader.core.rsvp.text.boundaryBeforeForPunctuation
+import com.kairo.reader.core.rsvp.text.breakMarkerToken
+import com.kairo.reader.core.rsvp.text.findFirstWordCursor
+import com.kairo.reader.core.rsvp.text.findPrevWord
+import com.kairo.reader.core.rsvp.text.isCurrencyPrefixPunctuation
+import com.kairo.reader.core.rsvp.text.isOpeningPunctuation
+import com.kairo.reader.core.rsvp.timing.computeUnitDurationMs
+import com.kairo.reader.core.rsvp.timing.pageBreakBasePauseMs
+import com.kairo.reader.core.rsvp.timing.paragraphBreakBasePauseMs
+import com.kairo.reader.core.rsvp.timing.pauseScale
 import kotlin.math.max
 
 interface RsvpEngine {
@@ -294,7 +327,7 @@ internal fun resolveAnalysisStartIndex(
                 val boundary =
                     boundaryBeforeForPunctuation(
                         token = token,
-                        prevWord = findPrevWord(tokens, beforeIndex = cursor),
+                        prevWord = findPreviousTokenWord(tokens, beforeIndex = cursor),
                         nextToken = tokens.getOrNull(cursor + 1),
                     )
                 if (boundary != BoundaryBefore.NONE) return cursor + 1
@@ -306,7 +339,7 @@ internal fun resolveAnalysisStartIndex(
     return lowerBound
 }
 
-private fun findPrevWord(
+private fun findPreviousTokenWord(
     tokens: List<Token>,
     beforeIndex: Int,
 ): Token? {

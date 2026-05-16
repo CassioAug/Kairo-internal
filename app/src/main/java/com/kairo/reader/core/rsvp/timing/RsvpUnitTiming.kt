@@ -1,11 +1,36 @@
-package com.kairo.reader.core.rsvp
+package com.kairo.reader.core.rsvp.timing
 
 import com.kairo.reader.core.linguistics.ClauseDetector
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
-import com.kairo.reader.core.rsvp.timing.CLAUSE_PUNCTUATION_RETENTION_BOOST
-import com.kairo.reader.core.rsvp.timing.STRONG_PUNCTUATION_RETENTION_BOOST
+import com.kairo.reader.core.rsvp.analysis.contextShapingMultiplier
+import com.kairo.reader.core.rsvp.analysis.emphasisMultiplier
+import com.kairo.reader.core.rsvp.analysis.frameDifficulty
+import com.kairo.reader.core.rsvp.analysis.multiWordPenalty
+import com.kairo.reader.core.rsvp.analysis.phraseContourMultiplier
+import com.kairo.reader.core.rsvp.analysis.prosodyMultiplier
+import com.kairo.reader.core.rsvp.analysis.speakerTagMultiplier
+import com.kairo.reader.core.rsvp.analysis.terminalWordMultiplier
+import com.kairo.reader.core.rsvp.analysis.transitionHoldMs
+import com.kairo.reader.core.rsvp.engine.BoundaryBefore
+import com.kairo.reader.core.rsvp.engine.CLAUSE_LEAD_HOLD_FRACTION
+import com.kairo.reader.core.rsvp.engine.ContextSnapshot
+import com.kairo.reader.core.rsvp.engine.DEFAULT_CLAUSE_PAUSE_FACTOR
+import com.kairo.reader.core.rsvp.engine.DIALOGUE_ENTRY_BOOST
+import com.kairo.reader.core.rsvp.engine.FlowState
+import com.kairo.reader.core.rsvp.engine.MIN_FRAME_MS
+import com.kairo.reader.core.rsvp.engine.PAGE_BREAK_RETENTION_BOOST
+import com.kairo.reader.core.rsvp.engine.PARAGRAPH_BREAK_RETENTION_BOOST
+import com.kairo.reader.core.rsvp.engine.PhraseContour
+import com.kairo.reader.core.rsvp.engine.QUOTE_TRANSITION_HOLD_FRACTION
+import com.kairo.reader.core.rsvp.engine.RhythmState
+import com.kairo.reader.core.rsvp.engine.SENTENCE_START_HOLD_FRACTION
+import com.kairo.reader.core.rsvp.text.boundaryBeforeForPunctuation
+import com.kairo.reader.core.rsvp.text.isHardBoundary
+import com.kairo.reader.core.rsvp.text.isQuoteChar
+import com.kairo.reader.core.rsvp.text.shouldSkipPunctuationPause
+import com.kairo.reader.core.rsvp.text.updateParentheticalDepthAfterPunctuation
 import kotlin.math.max
 
 internal fun computeUnitDurationMs(

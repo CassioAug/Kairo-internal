@@ -6,11 +6,11 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.isMidSentencePunctuation
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
 import com.kairo.reader.core.model.speedNarrowingFactor
-import com.kairo.reader.core.rsvp.isAbbreviationDot
-import com.kairo.reader.core.rsvp.isClauseLeadPunctuation
-import com.kairo.reader.core.rsvp.isDecimalPoint
-import com.kairo.reader.core.rsvp.isLikelySentenceContinuation
-import com.kairo.reader.core.rsvp.isThousandSeparator
+import com.kairo.reader.core.rsvp.text.isAbbreviationDot
+import com.kairo.reader.core.rsvp.text.isClauseLeadPunctuation
+import com.kairo.reader.core.rsvp.text.isDecimalPoint
+import com.kairo.reader.core.rsvp.text.isLikelySentenceContinuation
+import com.kairo.reader.core.rsvp.text.isThousandSeparator
 import kotlin.math.max
 import kotlin.math.min
 

@@ -1,9 +1,18 @@
-package com.kairo.reader.core.rsvp
+package com.kairo.reader.core.rsvp.analysis
 
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
+import com.kairo.reader.core.rsvp.engine.CLAUSE_ANTICIPATORY_CONTOUR
+import com.kairo.reader.core.rsvp.engine.CLAUSE_PRE_BOUNDARY_CONTOUR
+import com.kairo.reader.core.rsvp.engine.CLAUSE_RESTART_CONTOUR
+import com.kairo.reader.core.rsvp.engine.ExpandedToken
+import com.kairo.reader.core.rsvp.engine.PHRASE_CONTOUR_WORD_WINDOW
+import com.kairo.reader.core.rsvp.engine.PhraseContour
+import com.kairo.reader.core.rsvp.engine.SENTENCE_ANTICIPATORY_CONTOUR
+import com.kairo.reader.core.rsvp.engine.SENTENCE_PRE_BOUNDARY_CONTOUR
+import com.kairo.reader.core.rsvp.engine.SENTENCE_RESTART_CONTOUR
 import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTier
 import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
 import kotlin.math.max

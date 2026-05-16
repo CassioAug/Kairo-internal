@@ -6,7 +6,7 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.rsvp.RsvpEngine
-import com.kairo.reader.core.rsvp.frameTimingKey
+import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart

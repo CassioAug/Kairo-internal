@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.rsvp.frameFloorMs
 import com.kairo.reader.core.rsvp.shouldSkipBlinkFrame
+import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
 import kotlin.math.roundToLong
 import kotlinx.coroutines.delay
 
@@ -171,9 +172,17 @@ internal fun RsvpPlaybackLoopEffect(
             return@LaunchedEffect
         }
         val rampMultiplier =
-            rampMultiplier(config, runtime.frameIndex, runtime.rampStartFrameIndex)
+            RsvpSessionTimingPolicy.resumeRampMultiplier(
+                config,
+                runtime.frameIndex,
+                runtime.rampStartFrameIndex,
+            )
         val resumeDelayMs =
-            resumeDelayMs(config, runtime.frameIndex, runtime.rampStartFrameIndex)
+            RsvpSessionTimingPolicy.resumeDelayMs(
+                config,
+                runtime.frameIndex,
+                runtime.rampStartFrameIndex,
+            )
         val frameMs =
             (frame.durationMs * rampMultiplier)
                 .roundToLong()
@@ -250,33 +259,6 @@ internal fun holdAtLoadingFrameBoundary(context: RsvpUiContext) {
     }
     runtime.scheduledFrameIndex = -1
     runtime.nextFrameAtMs = 0L
-}
-
-private fun rampMultiplier(
-    config: RsvpConfig,
-    frameIndex: Int,
-    rampStartIndex: Int,
-): Double {
-    val rampFrames = config.rampUpFrames
-    if (rampStartIndex <= 0 || rampStartIndex < rampFrames) return 1.0
-    val offset = frameIndex - rampStartIndex
-    if (rampFrames <= 0 || offset < 0 || offset >= rampFrames) return 1.0
-    val progress = offset.toDouble() / rampFrames.toDouble().coerceAtLeast(1.0)
-    return 1.35 - (0.35 * progress)
-}
-
-private fun resumeDelayMs(
-    config: RsvpConfig,
-    frameIndex: Int,
-    rampStartIndex: Int,
-): Long {
-    if (rampStartIndex <= 0 ||
-        rampStartIndex < config.rampUpFrames ||
-        frameIndex != rampStartIndex
-    ) {
-        return 0L
-    }
-    return config.startDelayMs
 }
 
 private const val CATCH_UP_FACTOR = 0.25

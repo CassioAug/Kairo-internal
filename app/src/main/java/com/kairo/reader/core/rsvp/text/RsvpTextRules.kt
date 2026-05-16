@@ -1,10 +1,18 @@
-package com.kairo.reader.core.rsvp
+package com.kairo.reader.core.rsvp.text
 
 import com.kairo.reader.core.linguistics.ClauseDetector
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.isMidSentencePunctuation
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
+import com.kairo.reader.core.rsvp.engine.BoundaryBefore
+import com.kairo.reader.core.rsvp.engine.ContextState
+import com.kairo.reader.core.rsvp.engine.CURRENCY_NUMERIC_WORD_REGEX
+import com.kairo.reader.core.rsvp.engine.CURRENCY_PREFIX_PUNCTUATION
+import com.kairo.reader.core.rsvp.engine.ExpandedToken
+import com.kairo.reader.core.rsvp.engine.OPENING_PUNCTUATION
+import com.kairo.reader.core.rsvp.engine.QUOTE_OR_BRACKET_PUNCTUATION
+import com.kairo.reader.core.rsvp.engine.SKIPPABLE_BOUNDARY_PUNCTUATION
 import com.kairo.reader.core.rsvp.timing.KNOWN_ABBREVIATIONS
 import com.kairo.reader.core.rsvp.timing.SENTENCE_STARTERS
 import com.kairo.reader.core.rsvp.timing.TITLE_ABBREVIATIONS
