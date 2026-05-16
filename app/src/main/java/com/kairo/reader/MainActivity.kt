@@ -1,11 +1,8 @@
 package com.kairo.reader
 
-import android.content.Context
 import android.content.Intent
-import android.content.res.Resources
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,8 +33,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -51,14 +46,13 @@ import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.core.rsvp.RsvpEffectivePace
-import com.kairo.reader.data.books.BookImportResult
 import com.kairo.reader.data.books.WebArticleUrl
 import com.kairo.reader.sample.SampleBooks
 import com.kairo.reader.ui.LocalDispatcherProvider
 import com.kairo.reader.ui.focus.FocusModeSideEffects
 import com.kairo.reader.ui.focus.SystemBarsStyleSideEffect
 import com.kairo.reader.ui.focus.shouldApplyFocusMode
-import com.kairo.reader.ui.library.ImportUiState
+import com.kairo.reader.ui.importing.rememberImportCoordinator
 import com.kairo.reader.ui.navigation.KairoRoutes
 import com.kairo.reader.ui.navigation.LibraryRoute
 import com.kairo.reader.ui.navigation.ReaderRoute
@@ -69,19 +63,10 @@ import com.kairo.reader.ui.theme.KairoTheme
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialRoute
 import com.kairo.reader.ui.tutorial.startingTutorialSteps
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
-import javax.net.ssl.SSLException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.jsoup.HttpStatusException
 
 @Composable
 private fun rememberSystemDefaultPreferences(): UserPreferences {
@@ -202,9 +187,6 @@ private fun Intent.sharedArticleUrl(): String? =
         null
     }
 
-private const val IMPORT_COMPLETE_HOLD_MS = 200L
-private const val URL_IMPORT_COMPLETE_HOLD_MS = 40L
-
 private data class StartingTutorialLaunchContext(
     val bookId: String,
     val chapterIndex: Int,
@@ -240,67 +222,6 @@ private fun resolveStartingTutorialLaunchContext(
     )
 }
 
-private fun resolveImportFileName(
-    context: Context,
-    uri: Uri,
-): String? =
-    runCatching {
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && nameIndex >= 0) {
-                cursor.getString(nameIndex)
-            } else {
-                null
-            }
-        }
-    }.getOrNull()
-
-private fun resolveImportUrlName(rawUrl: String): String? =
-    runCatching { WebArticleUrl.displayHost(WebArticleUrl.normalize(rawUrl)) }.getOrNull()
-
-private fun resolveImportFailureMessage(
-    resources: Resources,
-    error: Throwable,
-): String {
-    val message =
-        when (val root = error.rootCause()) {
-            is HttpStatusException ->
-                when (root.statusCode) {
-                    401, 403 -> resources.getString(R.string.toast_import_failed_blocked)
-                    404 -> resources.getString(R.string.toast_import_failed_not_found)
-                    429 -> resources.getString(R.string.toast_import_failed_rate_limited)
-                    in 500..599 -> resources.getString(R.string.toast_import_failed_server)
-                    else -> resources.getString(R.string.toast_import_failed_detail, root.message)
-                }
-            is UnknownHostException -> resources.getString(R.string.toast_import_failed_network)
-            is SocketTimeoutException -> resources.getString(R.string.toast_import_failed_timeout)
-            is SSLException -> resources.getString(R.string.toast_import_failed_secure)
-            else ->
-                error.message?.let {
-                    resources.getString(R.string.toast_import_failed_detail, it)
-                } ?: resources.getString(R.string.toast_import_failed_unknown)
-        }
-    return message
-}
-
-private fun Throwable.rootCause(): Throwable {
-    var current = this
-    while (current.cause != null && current.cause !== current) {
-        current = current.cause ?: break
-    }
-    return current
-}
-
-private suspend fun driveImportProgress(onUpdate: (Float) -> Unit) {
-    var progress = 0f
-    onUpdate(progress)
-    while (currentCoroutineContext().isActive && progress < 0.92f) {
-        delay(120)
-        progress = (progress + (1f - progress) * 0.08f).coerceAtMost(0.92f)
-        onUpdate(progress)
-    }
-}
-
 @Suppress("CyclomaticComplexMethod", "FunctionNaming", "LongMethod")
 @Composable
 private fun KairoNavHost(
@@ -312,13 +233,32 @@ private fun KairoNavHost(
     onExternalArticleUrlConsumed: (String) -> Unit,
 ) {
     val navController = rememberNavController()
-    val context = LocalContext.current
-    val resources = LocalResources.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val dispatcherProvider = container.dispatcherProvider
-    var importState by remember { mutableStateOf(ImportUiState()) }
-    var importProgressJob by remember { mutableStateOf<Job?>(null) }
+    fun showUserMessage(
+        message: String,
+        duration: SnackbarDuration = SnackbarDuration.Short,
+    ) {
+        coroutineScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = duration,
+            )
+        }
+    }
+
+    val importCoordinator =
+        rememberImportCoordinator(
+            container = container,
+            navController = navController,
+            externalImportUri = externalImportUri,
+            externalArticleUrl = externalArticleUrl,
+            onExternalImportUriConsumed = onExternalImportUriConsumed,
+            onExternalArticleUrlConsumed = onExternalArticleUrlConsumed,
+            onShowUserMessage = ::showUserMessage,
+        )
     var tutorialSteps by remember {
         mutableStateOf(startingTutorialSteps(includeReaderAndRsvp = false))
     }
@@ -495,135 +435,17 @@ private fun KairoNavHost(
         }
     }
 
-    fun showUserMessage(
-        message: String,
-        duration: SnackbarDuration = SnackbarDuration.Short,
-    ) {
-        coroutineScope.launch {
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(
-                message = message,
-                duration = duration,
-            )
-        }
-    }
-
-    fun handleImport(
-        displayName: String?,
-        completionHoldMs: Long = IMPORT_COMPLETE_HOLD_MS,
-        onImported: (BookImportResult) -> Unit = {},
-        importBook: suspend () -> BookImportResult,
-    ) {
-        if (importState.isImporting) return
-        importState =
-            ImportUiState(
-                isImporting = true,
-                progress = 0f,
-                fileName = displayName,
-            )
-        importProgressJob?.cancel()
-        importProgressJob =
-            coroutineScope.launch {
-                driveImportProgress { progress ->
-                    importState = importState.copy(progress = progress)
-                }
-            }
-        coroutineScope.launch(dispatcherProvider.io) {
-            val result = runCatching { importBook() }
-            withContext(Dispatchers.Main) {
-                importProgressJob?.cancel()
-                if (result.isSuccess) {
-                    importState = importState.copy(progress = 1f)
-                    if (completionHoldMs > 0L) {
-                        delay(completionHoldMs)
-                    }
-                }
-                importState = ImportUiState()
-                result.onSuccess { importResult ->
-                    val book = importResult.book
-                    if (importResult.alreadyImported) {
-                        showUserMessage(
-                            resources.getString(
-                                R.string.toast_import_duplicate_detail,
-                                book.title,
-                            ),
-                            duration = SnackbarDuration.Long,
-                        )
-                        onImported(importResult)
-                        return@onSuccess
-                    }
-                    val chapterCount = book.chapters.size
-                    val message =
-                        resources.getQuantityString(
-                            R.plurals.toast_imported_with_chapter_count,
-                            chapterCount,
-                            book.title,
-                            chapterCount,
-                        )
-                    showUserMessage(message)
-                    onImported(importResult)
-                }
-                result.onFailure { error ->
-                    val message = resolveImportFailureMessage(resources, error)
-                    showUserMessage(message, duration = SnackbarDuration.Long)
-                }
-            }
-        }
-    }
-
-    fun handleImportFile(uri: Uri) {
-        handleImport(resolveImportFileName(context, uri)) {
-            container.libraryRepository.import(uri)
-        }
-    }
-
-    fun handleImportUrl(rawUrl: String) {
-        handleImport(
-            displayName = resolveImportUrlName(rawUrl),
-            completionHoldMs = URL_IMPORT_COMPLETE_HOLD_MS,
-            onImported = { importResult ->
-                navController.navigate(KairoRoutes.reader(importResult.book.id.value)) {
-                    launchSingleTop = true
-                }
-            },
-        ) {
-            container.libraryRepository.importUrl(rawUrl)
-        }
-    }
-
-    LaunchedEffect(externalImportUri, importState.isImporting) {
-        val uri = externalImportUri ?: return@LaunchedEffect
-        if (importState.isImporting) return@LaunchedEffect
-        onExternalImportUriConsumed(uri)
-        navController.navigate(KairoRoutes.LIBRARY) {
-            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-            launchSingleTop = true
-        }
-        handleImportFile(uri)
-    }
-
-    LaunchedEffect(externalArticleUrl, importState.isImporting) {
-        val url = externalArticleUrl ?: return@LaunchedEffect
-        if (importState.isImporting) return@LaunchedEffect
-        onExternalArticleUrlConsumed(url)
-        navController.navigate(KairoRoutes.LIBRARY) {
-            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-            launchSingleTop = true
-        }
-        handleImportUrl(url)
-    }
-
     LaunchedEffect(
         prefs.hasSeenStartingTutorial,
         externalImportUri,
         externalArticleUrl,
-        importState.isImporting,
+        importCoordinator.state.isImporting,
     ) {
         if (!prefs.hasSeenStartingTutorial &&
             !tutorialAutoStarted &&
             externalImportUri == null &&
             externalArticleUrl == null &&
-            !importState.isImporting
+            !importCoordinator.state.isImporting
         ) {
             startStartingTutorial()
         }
@@ -642,9 +464,9 @@ private fun KairoNavHost(
                     navController = navController,
                     prefs = prefs,
                     selectedWpm = selectedWpm,
-                    importState = importState,
-                    onImportFile = ::handleImportFile,
-                    onImportUrl = ::handleImportUrl,
+                    importState = importCoordinator.state,
+                    onImportFile = importCoordinator.importFile,
+                    onImportUrl = importCoordinator.importUrl,
                     tutorialState = libraryTutorialState,
                     onTutorialNext = { moveStartingTutorial(1) },
                     onTutorialPrevious = { moveStartingTutorial(-1) },
@@ -670,10 +492,10 @@ private fun KairoNavHost(
                     navController = navController,
                     prefs = prefs,
                     selectedWpm = selectedWpm,
-                    importState = importState,
+                    importState = importCoordinator.state,
                     initialTabRouteValue = tab,
-                    onImportFile = ::handleImportFile,
-                    onImportUrl = ::handleImportUrl,
+                    onImportFile = importCoordinator.importFile,
+                    onImportUrl = importCoordinator.importUrl,
                     tutorialState = libraryTutorialState,
                     onTutorialNext = { moveStartingTutorial(1) },
                     onTutorialPrevious = { moveStartingTutorial(-1) },
