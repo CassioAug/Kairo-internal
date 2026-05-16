@@ -1,12 +1,16 @@
-package com.kairo.reader.core.rsvp
+package com.kairo.reader.core.rsvp.timing
 
-import com.kairo.reader.core.linguistics.ClauseDetector
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.isMidSentencePunctuation
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
 import com.kairo.reader.core.model.speedNarrowingFactor
+import com.kairo.reader.core.rsvp.isAbbreviationDot
+import com.kairo.reader.core.rsvp.isClauseLeadPunctuation
+import com.kairo.reader.core.rsvp.isDecimalPoint
+import com.kairo.reader.core.rsvp.isLikelySentenceContinuation
+import com.kairo.reader.core.rsvp.isThousandSeparator
 import kotlin.math.max
 import kotlin.math.min
 
@@ -44,115 +48,25 @@ internal object RsvpPunctuationTimingPolicy {
         }
 
         val base =
-            when {
-                tier == RsvpPunctuationTier.SENTENCE_END && ch == '.' ->
-                    when {
-                        isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> {
-                            return ZERO_PAUSE_TIMING
-                        }
-
-                        isLikelySentenceContinuation(nextToken) ->
-                            min(config.periodPauseMs.toDouble(), config.commaPauseMs * 0.8)
-
-                        else -> config.periodPauseMs.toDouble()
-                    }
-                tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' ->
-                    ellipsisPauseBaseMs(nextToken = nextToken, config = config)
-                tier == RsvpPunctuationTier.SENTENCE_END ->
-                    config.sentenceEndPauseMs.toDouble()
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ',' ->
-                    if (isThousandSeparator(prevText, nextToken)) {
-                        return ZERO_PAUSE_TIMING
-                    } else {
-                        config.commaPauseMs.toDouble()
-                    }
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ';' ->
-                    config.semicolonPauseMs.toDouble()
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ':' ->
-                    config.colonPauseMs.toDouble()
-                tier == RsvpPunctuationTier.CLAUSE_BREAK &&
-                    (ch == '\u2014' || ch == '\u2013' || ch == '-') ->
-                    config.dashPauseMs.toDouble()
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR &&
-                    (ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}') ->
-                    config.parenthesesPauseMs.toDouble()
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR &&
-                    (ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019') ->
-                    config.quotePauseMs.toDouble()
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR && isMidSentencePunctuation(ch) ->
-                    config.commaPauseMs * 0.85
-                else -> return ZERO_PAUSE_TIMING
-            }
+            pauseBaseMs(
+                ch = ch,
+                tier = tier,
+                prevText = prevText,
+                nextToken = nextToken,
+                config = config,
+            ) ?: return ZERO_PAUSE_TIMING
 
         val floor =
-            when {
-                tier == RsvpPunctuationTier.SENTENCE_END && ch == '.' -> {
-                    if (isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken)) {
-                        0.0
-                    } else if (isLikelySentenceContinuation(nextToken)) {
-                        min(
-                            config.periodPauseMs * config.minPauseScale,
-                            (config.commaPauseMs * 0.8) * config.minPauseScale,
-                        )
-                    } else {
-                        config.periodPauseMs * config.minPauseScale
-                    }
-                }
-                tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' ->
-                    ellipsisPauseBaseMs(nextToken = nextToken, config = config) * config.minPauseScale
-                tier == RsvpPunctuationTier.SENTENCE_END ->
-                    config.sentenceEndPauseMs * config.minPauseScale
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ',' ->
-                    if (isThousandSeparator(prevText, nextToken)) {
-                        0.0
-                    } else {
-                        config.commaPauseMs * config.minPauseScale
-                    }
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ';' ->
-                    config.semicolonPauseMs * config.minPauseScale
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ':' ->
-                    config.colonPauseMs * config.minPauseScale
-                tier == RsvpPunctuationTier.CLAUSE_BREAK &&
-                    (ch == '\u2014' || ch == '\u2013' || ch == '-') ->
-                    config.dashPauseMs * config.minPauseScale
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR &&
-                    (ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}') ->
-                    config.parenthesesPauseMs * config.minPauseScale
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR &&
-                    (ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019') ->
-                    config.quotePauseMs * config.minPauseScale
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR && isMidSentencePunctuation(ch) ->
-                    (config.commaPauseMs * 0.85) * config.minPauseScale
-                else -> 0.0
-            }
+            pauseFloorMs(
+                ch = ch,
+                tier = tier,
+                prevText = prevText,
+                nextToken = nextToken,
+                config = config,
+            )
 
         val scaleRetentionBoost =
-            when {
-                tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' ->
-                    ELLIPSIS_RETENTION_BOOST
-                tier == RsvpPunctuationTier.SENTENCE_END ->
-                    STRONG_PUNCTUATION_RETENTION_BOOST
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ';' ->
-                    SEMICOLON_RETENTION_BOOST
-                tier == RsvpPunctuationTier.CLAUSE_BREAK &&
-                    (ch == ':' || ch == '\u2014' || ch == '\u2013' || ch == '-') ->
-                    CLAUSE_PUNCTUATION_RETENTION_BOOST
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ',' ->
-                    if (isClauseLeadPunctuation(ch, nextToken)) {
-                        CLAUSE_PUNCTUATION_RETENTION_BOOST
-                    } else {
-                        COMMA_RETENTION_BOOST
-                    }
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR &&
-                    (ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019') ->
-                    QUOTE_RETENTION_BOOST
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR &&
-                    (ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}') ->
-                    PARENTHESIS_RETENTION_BOOST
-                tier == RsvpPunctuationTier.SOFT_SEPARATOR && isMidSentencePunctuation(ch) ->
-                    COMMA_RETENTION_BOOST
-                else -> 0.0
-            }
+            scaleRetentionBoost(ch = ch, tier = tier, nextToken = nextToken)
 
         val breathingScale = punctuationBreathingScale(config)
         val speedScale = config.speedNarrowingFactor(config.tempoMsPerWord)
@@ -268,15 +182,15 @@ internal object RsvpPunctuationTimingPolicy {
         val prevText = prevWord?.text.orEmpty()
         return when (tier) {
             RsvpPunctuationTier.SENTENCE_END ->
-                when {
-                    ch == '.' -> {
+                when (ch) {
+                    '.' -> {
                         when {
                             isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> 0.0
                             isLikelySentenceContinuation(nextToken) -> 0.55
                             else -> 0.92
                         }
                     }
-                    ch == '\u2026' -> 1.0
+                    '\u2026' -> 1.0
                     else -> 0.88
                 }
             RsvpPunctuationTier.CLAUSE_BREAK ->
@@ -336,7 +250,7 @@ internal object RsvpPunctuationTimingPolicy {
     ): Double {
         val nextWord = nextToken?.takeIf { it.type == TokenType.WORD }?.text
         val nextStartsSentenceLike =
-            nextWord?.filter { it.isLetter() }?.firstOrNull()?.isUpperCase() == true ||
+            nextWord?.firstOrNull { it.isLetter() }?.isUpperCase() == true ||
                 nextWord?.lowercase() in SENTENCE_STARTERS
         val breakAfterEllipsis =
             nextToken?.type == TokenType.PARAGRAPH_BREAK || nextToken?.type == TokenType.PAGE_BREAK
@@ -348,31 +262,6 @@ internal object RsvpPunctuationTimingPolicy {
         } else {
             config.commaPauseMs * ELLIPSIS_INLINE_COMMA_FACTOR
         }
-    }
-
-    private fun isClauseLeadPunctuation(
-        ch: Char,
-        nextToken: Token?,
-    ): Boolean {
-        if (ch != ',' &&
-            ch != ';' &&
-            ch != ':' &&
-            ch != '\u2014' &&
-            ch != '\u2013' &&
-            ch != '-'
-        ) {
-            return false
-        }
-        val nextWord = nextToken?.takeIf { it.type == TokenType.WORD } ?: return false
-        val nextLower = nextWord.text.lowercase()
-        return ClauseDetector.isClauseBoundary(nextLower) ||
-            ClauseDetector.isCoordinatingConjunction(nextLower)
-    }
-
-    private fun isLikelySentenceContinuation(nextToken: Token?): Boolean {
-        val nextWord = nextToken?.takeIf { it.type == TokenType.WORD } ?: return false
-        val firstChar = nextWord.text.firstOrNull() ?: return false
-        return firstChar.isLowerCase()
     }
 
     private fun punctuationTier(ch: Char): RsvpPunctuationTier =
@@ -388,6 +277,175 @@ internal object RsvpPunctuationTimingPolicy {
 
     private fun punctuationBreathingScale(config: RsvpConfig): Double =
         config.punctuationPauseFactor.coerceIn(0.5, 1.75)
+
+    private fun pauseBaseMs(
+        ch: Char,
+        tier: RsvpPunctuationTier,
+        prevText: String,
+        nextToken: Token?,
+        config: RsvpConfig,
+    ): Double? =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END ->
+                sentencePauseBaseMs(ch = ch, prevText = prevText, nextToken = nextToken, config = config)
+            RsvpPunctuationTier.CLAUSE_BREAK ->
+                clausePauseBaseMs(ch = ch, prevText = prevText, nextToken = nextToken, config = config)
+            RsvpPunctuationTier.SOFT_SEPARATOR ->
+                softSeparatorPauseBaseMs(ch = ch, config = config)
+            RsvpPunctuationTier.NONE -> null
+        }
+
+    private fun pauseFloorMs(
+        ch: Char,
+        tier: RsvpPunctuationTier,
+        prevText: String,
+        nextToken: Token?,
+        config: RsvpConfig,
+    ): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END ->
+                sentencePauseFloorMs(ch = ch, prevText = prevText, nextToken = nextToken, config = config)
+            RsvpPunctuationTier.CLAUSE_BREAK ->
+                clausePauseFloorMs(ch = ch, prevText = prevText, nextToken = nextToken, config = config)
+            RsvpPunctuationTier.SOFT_SEPARATOR ->
+                softSeparatorPauseFloorMs(ch = ch, config = config)
+            RsvpPunctuationTier.NONE -> 0.0
+        }
+
+    private fun sentencePauseBaseMs(
+        ch: Char,
+        prevText: String,
+        nextToken: Token?,
+        config: RsvpConfig,
+    ): Double? =
+        when (ch) {
+            '.' ->
+                when {
+                    isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> null
+                    isLikelySentenceContinuation(nextToken) ->
+                        min(config.periodPauseMs.toDouble(), config.commaPauseMs * 0.8)
+                    else -> config.periodPauseMs.toDouble()
+                }
+            '\u2026' -> ellipsisPauseBaseMs(nextToken = nextToken, config = config)
+            else -> config.sentenceEndPauseMs.toDouble()
+        }
+
+    private fun sentencePauseFloorMs(
+        ch: Char,
+        prevText: String,
+        nextToken: Token?,
+        config: RsvpConfig,
+    ): Double =
+        when (ch) {
+            '.' ->
+                when {
+                    isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken) -> 0.0
+                    isLikelySentenceContinuation(nextToken) ->
+                        min(
+                            config.periodPauseMs * config.minPauseScale,
+                            (config.commaPauseMs * 0.8) * config.minPauseScale,
+                        )
+                    else -> config.periodPauseMs * config.minPauseScale
+                }
+            '\u2026' -> ellipsisPauseBaseMs(nextToken = nextToken, config = config) * config.minPauseScale
+            else -> config.sentenceEndPauseMs * config.minPauseScale
+        }
+
+    private fun clausePauseBaseMs(
+        ch: Char,
+        prevText: String,
+        nextToken: Token?,
+        config: RsvpConfig,
+    ): Double? =
+        when (ch) {
+            ',' ->
+                if (isThousandSeparator(prevText, nextToken)) {
+                    null
+                } else {
+                    config.commaPauseMs.toDouble()
+                }
+            ';' -> config.semicolonPauseMs.toDouble()
+            ':' -> config.colonPauseMs.toDouble()
+            '\u2014', '\u2013', '-' -> config.dashPauseMs.toDouble()
+            else -> null
+        }
+
+    private fun clausePauseFloorMs(
+        ch: Char,
+        prevText: String,
+        nextToken: Token?,
+        config: RsvpConfig,
+    ): Double =
+        when (ch) {
+            ',' ->
+                if (isThousandSeparator(prevText, nextToken)) {
+                    0.0
+                } else {
+                    config.commaPauseMs * config.minPauseScale
+                }
+            ';' -> config.semicolonPauseMs * config.minPauseScale
+            ':' -> config.colonPauseMs * config.minPauseScale
+            '\u2014', '\u2013', '-' -> config.dashPauseMs * config.minPauseScale
+            else -> 0.0
+        }
+
+    private fun softSeparatorPauseBaseMs(
+        ch: Char,
+        config: RsvpConfig,
+    ): Double? =
+        when {
+            isParenthesisPunctuation(ch) -> config.parenthesesPauseMs.toDouble()
+            isQuotePunctuation(ch) -> config.quotePauseMs.toDouble()
+            isMidSentencePunctuation(ch) -> config.commaPauseMs * 0.85
+            else -> null
+        }
+
+    private fun softSeparatorPauseFloorMs(
+        ch: Char,
+        config: RsvpConfig,
+    ): Double =
+        when {
+            isParenthesisPunctuation(ch) -> config.parenthesesPauseMs * config.minPauseScale
+            isQuotePunctuation(ch) -> config.quotePauseMs * config.minPauseScale
+            isMidSentencePunctuation(ch) -> (config.commaPauseMs * 0.85) * config.minPauseScale
+            else -> 0.0
+        }
+
+    private fun scaleRetentionBoost(
+        ch: Char,
+        tier: RsvpPunctuationTier,
+        nextToken: Token?,
+    ): Double =
+        when (tier) {
+            RsvpPunctuationTier.SENTENCE_END ->
+                if (ch == '\u2026') ELLIPSIS_RETENTION_BOOST else STRONG_PUNCTUATION_RETENTION_BOOST
+            RsvpPunctuationTier.CLAUSE_BREAK ->
+                when (ch) {
+                    ';' -> SEMICOLON_RETENTION_BOOST
+                    ':', '\u2014', '\u2013', '-' -> CLAUSE_PUNCTUATION_RETENTION_BOOST
+                    ',' ->
+                        if (isClauseLeadPunctuation(ch, nextToken)) {
+                            CLAUSE_PUNCTUATION_RETENTION_BOOST
+                        } else {
+                            COMMA_RETENTION_BOOST
+                        }
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.SOFT_SEPARATOR ->
+                when {
+                    isQuotePunctuation(ch) -> QUOTE_RETENTION_BOOST
+                    isParenthesisPunctuation(ch) -> PARENTHESIS_RETENTION_BOOST
+                    isMidSentencePunctuation(ch) -> COMMA_RETENTION_BOOST
+                    else -> 0.0
+                }
+            RsvpPunctuationTier.NONE -> 0.0
+        }
+
+    private fun isParenthesisPunctuation(ch: Char): Boolean =
+        ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}'
+
+    private fun isQuotePunctuation(ch: Char): Boolean =
+        ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019'
 
     internal fun resolveTier(
         token: Token,
@@ -414,61 +472,6 @@ internal object RsvpPunctuationTimingPolicy {
             RsvpPunctuationTier.SOFT_SEPARATOR -> RsvpPunctuationTier.SOFT_SEPARATOR
             RsvpPunctuationTier.NONE -> RsvpPunctuationTier.NONE
         }
-    }
-
-    private fun isDecimalPoint(
-        prevText: String,
-        nextToken: Token?,
-    ): Boolean {
-        if (!prevText.any { it.isDigit() }) return false
-        val nextText = nextToken?.text ?: return false
-        return nextText.any { it.isDigit() }
-    }
-
-    private fun isThousandSeparator(
-        prevText: String,
-        nextToken: Token?,
-    ): Boolean {
-        if (prevText.isEmpty() || nextToken?.type != TokenType.WORD) return false
-        if (!prevText.all { it.isDigit() }) return false
-        val nextText = nextToken.text
-        return nextText.length == 3 && nextText.all { it.isDigit() }
-    }
-
-    private fun isAbbreviationDot(
-        prevWordText: String,
-        nextToken: Token?,
-    ): Boolean {
-        val rawPrev = prevWordText.trim()
-        if (rawPrev.isEmpty()) return false
-
-        val normalized = rawPrev.trimEnd('.', ',', ';', ':').lowercase()
-        val nextWord = nextToken?.takeIf { it.type == TokenType.WORD }?.text
-        if (nextWord == null) return false
-
-        val nextLetters = nextWord.filter { it.isLetter() }
-        val nextFirst = nextLetters.firstOrNull()
-        val nextStartsLower = nextFirst?.isLowerCase() == true
-        val nextStartsUpper = nextFirst?.isUpperCase() == true
-        val isSentenceStarter = nextWord.lowercase() in SENTENCE_STARTERS
-        val nextIsInitial = nextLetters.length == 1 && nextLetters.all { it.isUpperCase() }
-
-        if (normalized in TITLE_ABBREVIATIONS) return true
-
-        if (normalized in KNOWN_ABBREVIATIONS) {
-            return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
-        }
-
-        val prevLetters = rawPrev.filter { it.isLetter() }
-        if (prevLetters.isEmpty()) return false
-        if (prevLetters.length == 1) {
-            return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
-        }
-        if (prevLetters.length <= 3 && prevLetters.all { it.isUpperCase() }) {
-            return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
-        }
-
-        return false
     }
 
     private const val ELLIPSIS_INLINE_COMMA_FACTOR = 1.25

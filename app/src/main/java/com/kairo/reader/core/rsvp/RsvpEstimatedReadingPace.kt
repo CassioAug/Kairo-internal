@@ -8,6 +8,7 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.effectiveBlinkMode
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
 import com.kairo.reader.core.model.wordFloorMsForReadability
+import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -215,23 +216,6 @@ internal fun shouldSkipBlinkFrame(
     return scaledMs <= BLINK_SKIP_MAX_MS
 }
 
-private fun isOpeningPunctuationChar(ch: Char): Boolean =
-    ch == '"' || ch in OPENING_PUNCTUATION
-
-private fun isQuoteOrBracket(ch: Char): Boolean =
-    ch == '"' ||
-        ch == '\u201C' ||
-        ch == '\u201D' ||
-        ch == '\u2018' ||
-        ch == '\u2019' ||
-        ch == '(' ||
-        ch == ')' ||
-        ch == '[' ||
-        ch == ']' ||
-        ch == '{' ||
-        ch == '}'
-
-private val OPENING_PUNCTUATION = setOf('(', '[', '{', '\u201C', '\u2018')
 private const val TEMPO_SCALE_MIN = 0.1
 private const val TEMPO_SCALE_MAX = 4.0
 private const val MIN_FRAME_DELAY_MS = 1L

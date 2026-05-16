@@ -1,0 +1,349 @@
+package com.kairo.reader.core.rsvp
+
+import com.kairo.reader.core.linguistics.ClauseDetector
+import com.kairo.reader.core.model.Token
+import com.kairo.reader.core.model.TokenType
+import com.kairo.reader.core.model.isMidSentencePunctuation
+import com.kairo.reader.core.model.isSentenceEndingPunctuation
+import com.kairo.reader.core.rsvp.timing.KNOWN_ABBREVIATIONS
+import com.kairo.reader.core.rsvp.timing.SENTENCE_STARTERS
+import com.kairo.reader.core.rsvp.timing.TITLE_ABBREVIATIONS
+import kotlin.math.max
+
+internal fun isClauseLeadPunctuation(
+    ch: Char,
+    nextToken: Token?,
+): Boolean {
+    if (ch != ',' &&
+        ch != ';' &&
+        ch != ':' &&
+        ch != '\u2014' &&
+        ch != '\u2013' &&
+        ch != '-'
+    ) {
+        return false
+    }
+    val nextWord = nextToken?.takeIf { it.type == TokenType.WORD } ?: return false
+    val nextLower = nextWord.text.lowercase()
+    return ClauseDetector.isClauseBoundary(nextLower) ||
+        ClauseDetector.isCoordinatingConjunction(nextLower)
+}
+
+
+internal fun isLikelySentenceContinuation(nextToken: Token?): Boolean {
+    val nextWord = nextToken?.takeIf { it.type == TokenType.WORD } ?: return false
+    val firstChar = nextWord.text.firstOrNull() ?: return false
+    return firstChar.isLowerCase()
+}
+
+
+internal fun isEmbeddedQuote(
+    ch: Char,
+    prevWord: Token?,
+    nextToken: Token?,
+): Boolean {
+    val isQuote =
+        ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019'
+    if (!isQuote) return false
+
+    val nextCh = nextToken?.text?.firstOrNull()
+    val nextIsPunct = nextToken?.type == TokenType.PUNCTUATION
+    val adjacentSentencePunct =
+        nextIsPunct &&
+            nextCh != null &&
+            (
+                isSentenceEndingPunctuation(nextCh) ||
+                    isMidSentencePunctuation(nextCh) ||
+                    nextCh == ')' ||
+                    nextCh == ']' ||
+                    nextCh == '}'
+                )
+
+    return adjacentSentencePunct || (prevWord != null && nextToken?.type == TokenType.WORD)
+}
+
+
+internal fun breakMarkerToken(type: TokenType): Token =
+    when (type) {
+        TokenType.PAGE_BREAK -> Token(text = " ", type = TokenType.PUNCTUATION)
+        TokenType.PARAGRAPH_BREAK -> Token(text = " ", type = TokenType.PUNCTUATION)
+        else -> Token(text = " ", type = TokenType.PUNCTUATION)
+    }
+
+
+internal fun isOpeningPunctuation(
+    token: Token,
+    state: ContextState,
+    nextToken: Token?,
+): Boolean {
+    if (isCurrencyPrefixPunctuation(token, nextToken)) return true
+    val ch = token.text.firstOrNull() ?: return false
+    return when (ch) {
+        '"' -> !state.straightQuoteOpen
+        else -> ch in OPENING_PUNCTUATION
+    }
+}
+
+
+internal fun shouldSkipPunctuationPause(
+    token: Token,
+    index: Int,
+    firstWordIndex: Int,
+    prevToken: Token?,
+    nextToken: Token?,
+): Boolean {
+    val ch = token.text.firstOrNull() ?: return true
+    if (index < firstWordIndex &&
+        (isOpeningPunctuationChar(ch) || isCurrencyPrefixPunctuation(token, nextToken))
+    ) {
+        return true
+    }
+
+    val prevIsPunct = prevToken?.type == TokenType.PUNCTUATION
+    val nextIsPunct = nextToken?.type == TokenType.PUNCTUATION
+    val prevCh = prevToken?.text?.firstOrNull()
+
+    if (isQuoteOrBracket(ch) && (prevIsPunct || nextIsPunct)) return true
+
+    val isSentenceEnd = isSentenceEndingPunctuation(ch) || ch == '.'
+    val prevIsSentenceEnd =
+        prevCh != null && (isSentenceEndingPunctuation(prevCh) || prevCh == '.')
+    return isSentenceEnd && prevIsSentenceEnd
+}
+
+
+internal fun isOpeningPunctuationChar(ch: Char): Boolean = ch == '"' || ch in OPENING_PUNCTUATION
+
+
+internal fun updateParentheticalDepthAfterPunctuation(
+    currentDepth: Int,
+    token: Token,
+): Int {
+    val ch = token.text.firstOrNull() ?: return currentDepth
+    return when (ch) {
+        '(', '[', '{' -> currentDepth + 1
+        ')', ']', '}' -> max(0, currentDepth - 1)
+        else -> currentDepth
+    }
+}
+
+
+internal fun isCurrencyPrefixPunctuation(
+    token: Token,
+    nextToken: Token?,
+): Boolean {
+    val ch = token.text.firstOrNull() ?: return false
+    if (ch !in CURRENCY_PREFIX_PUNCTUATION) return false
+    val nextWordText = nextToken?.takeIf { it.type == TokenType.WORD }?.text ?: return false
+    return CURRENCY_NUMERIC_WORD_REGEX.matches(nextWordText)
+}
+
+
+internal fun isQuoteOrBracket(ch: Char): Boolean = ch in QUOTE_OR_BRACKET_PUNCTUATION
+
+
+internal fun isQuoteChar(ch: Char): Boolean =
+    ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019'
+
+
+internal fun isHardBoundaryPunctuation(
+    token: Token,
+    prevWord: Token?,
+    nextToken: Token?,
+): Boolean =
+    boundaryBeforeForPunctuation(
+        token = token,
+        prevWord = prevWord,
+        nextToken = nextToken,
+    ) == BoundaryBefore.SENTENCE
+
+
+internal fun boundaryBeforeForPunctuation(
+    token: Token,
+    prevWord: Token?,
+    nextToken: Token?,
+): BoundaryBefore {
+    val ch = token.text.firstOrNull() ?: return BoundaryBefore.NONE
+    val prevText = prevWord?.text.orEmpty()
+    return when {
+        ch == '.' -> {
+            if (!isDecimalPoint(prevText, nextToken) && !isAbbreviationDot(prevText, nextToken)) {
+                BoundaryBefore.SENTENCE
+            } else {
+                BoundaryBefore.NONE
+            }
+        }
+        ch == '\u2026' -> BoundaryBefore.CLAUSE
+        ch == ';' -> BoundaryBefore.CLAUSE
+        ch == ':' || ch == '\u2014' || ch == '\u2013' || ch == '-' -> BoundaryBefore.CLAUSE
+        ch == ',' && isClauseLeadPunctuation(ch, nextToken) -> BoundaryBefore.CLAUSE
+        isSentenceEndingPunctuation(ch) -> BoundaryBefore.SENTENCE
+        else -> BoundaryBefore.NONE
+    }
+}
+
+
+internal fun isHardBoundary(
+    tokens: List<Token>,
+    nextToken: Token?,
+): Boolean {
+    if (tokens.any {
+            it.type == TokenType.PARAGRAPH_BREAK || it.type == TokenType.PAGE_BREAK
+        }
+    ) {
+        return true
+    }
+
+    for (i in tokens.indices) {
+        val token = tokens[i]
+        if (token.type != TokenType.PUNCTUATION) continue
+
+        val prevWord = tokens.subList(0, i).lastOrNull { it.type == TokenType.WORD }
+        val nextWord = tokens.subList(i + 1, tokens.size).firstOrNull {
+            it.type ==
+                TokenType.WORD
+        }
+        if (isRhythmBoundaryPunctuation(
+                token,
+                prevWord = prevWord,
+                nextToken =
+                nextWord ?: nextToken
+            )
+        ) {
+            return true
+        }
+    }
+
+    return false
+}
+
+
+internal fun findFirstWordCursor(
+    expandedTokens: List<ExpandedToken>,
+    startCursor: Int,
+): Int {
+    var cursor = startCursor.coerceAtLeast(0)
+    while (cursor < expandedTokens.size &&
+        expandedTokens[cursor].token.type != TokenType.WORD
+    ) {
+        cursor++
+    }
+    return cursor
+}
+
+
+internal fun boundaryBefore(
+    expandedTokens: List<ExpandedToken>,
+    wordCursor: Int,
+): BoundaryBefore {
+    if (wordCursor <= 0 || wordCursor >= expandedTokens.size) return BoundaryBefore.NONE
+    val nextToken = expandedTokens[wordCursor].token
+
+    var cursor = wordCursor - 1
+    while (cursor >= 0) {
+        val token = expandedTokens[cursor].token
+        when (token.type) {
+            TokenType.PAGE_BREAK -> return BoundaryBefore.PAGE
+            TokenType.PARAGRAPH_BREAK -> return BoundaryBefore.PARAGRAPH
+            TokenType.PUNCTUATION -> {
+                val ch = token.text.firstOrNull()
+                if (ch != null && ch in SKIPPABLE_BOUNDARY_PUNCTUATION) {
+                    cursor--
+                    continue
+                }
+                val prevWord = findPrevWord(expandedTokens, beforeIndex = cursor)
+                return boundaryBeforeForPunctuation(
+                    token = token,
+                    prevWord = prevWord,
+                    nextToken = nextToken,
+                )
+            }
+            TokenType.WORD -> return BoundaryBefore.NONE
+        }
+    }
+    return BoundaryBefore.NONE
+}
+
+
+internal fun findPrevWord(
+    expandedTokens: List<ExpandedToken>,
+    beforeIndex: Int,
+): Token? {
+    var cursor = beforeIndex - 1
+    while (cursor >= 0) {
+        val token = expandedTokens[cursor].token
+        if (token.type == TokenType.WORD) return token
+        cursor--
+    }
+    return null
+}
+
+
+internal fun isDecimalPoint(
+    prevText: String,
+    nextToken: Token?,
+): Boolean {
+    if (!prevText.any { it.isDigit() }) return false
+    val nextText = nextToken?.text ?: return false
+    return nextText.any { it.isDigit() }
+}
+
+
+internal fun isThousandSeparator(
+    prevText: String,
+    nextToken: Token?,
+): Boolean {
+    if (prevText.isEmpty() || nextToken?.type != TokenType.WORD) return false
+    if (!prevText.all { it.isDigit() }) return false
+    val nextText = nextToken.text
+    return nextText.length == 3 && nextText.all { it.isDigit() }
+}
+
+
+internal fun isAbbreviationDot(
+    prevWordText: String,
+    nextToken: Token?,
+): Boolean {
+    val rawPrev = prevWordText.trim()
+    if (rawPrev.isEmpty()) return false
+
+    val normalized = rawPrev.trimEnd('.', ',', ';', ':').lowercase()
+    val nextWord = nextToken?.takeIf { it.type == TokenType.WORD }?.text
+    if (nextWord == null) return false
+
+    val nextLetters = nextWord.filter { it.isLetter() }
+    val nextFirst = nextLetters.firstOrNull()
+    val nextStartsLower = nextFirst?.isLowerCase() == true
+    val nextStartsUpper = nextFirst?.isUpperCase() == true
+    val isSentenceStarter = nextWord.lowercase() in SENTENCE_STARTERS
+    val nextIsInitial = nextLetters.length == 1 && nextLetters.all { it.isUpperCase() }
+
+    if (normalized in TITLE_ABBREVIATIONS) return true
+
+    if (normalized in KNOWN_ABBREVIATIONS) {
+        return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
+    }
+
+    val prevLetters = rawPrev.filter { it.isLetter() }
+    if (prevLetters.isEmpty()) return false
+    if (prevLetters.length == 1) {
+        return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
+    }
+    if (prevLetters.length <= 3 && prevLetters.all { it.isUpperCase() }) {
+        return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
+    }
+
+    return false
+}
+
+
+internal fun isRhythmBoundaryPunctuation(
+    token: Token,
+    prevWord: Token?,
+    nextToken: Token?,
+): Boolean =
+    boundaryBeforeForPunctuation(
+        token = token,
+        prevWord = prevWord,
+        nextToken = nextToken,
+    ) != BoundaryBefore.NONE
