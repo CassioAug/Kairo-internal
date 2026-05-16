@@ -1,6 +1,7 @@
 package com.kairo.reader.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -58,6 +59,11 @@ internal fun RsvpRoute(
         remember(bookId, chapterIndex) {
             RsvpLaunchSnapshotStore.tokensFor(bookId, chapterIndex)
         }
+    DisposableEffect(bookId, chapterIndex) {
+        onDispose {
+            RsvpLaunchSnapshotStore.clear(bookId, chapterIndex)
+        }
+    }
     val tokensState =
         produceState(
             initialValue = launchSnapshotTokens,
@@ -70,6 +76,9 @@ internal fun RsvpRoute(
                 }.getOrElse { emptyList() }
             if (loadedTokens.isNotEmpty() || value.isEmpty()) {
                 value = loadedTokens
+            }
+            if (loadedTokens.isNotEmpty()) {
+                RsvpLaunchSnapshotStore.clear(bookId, chapterIndex)
             }
         }
     val tokens = tokensState.value
