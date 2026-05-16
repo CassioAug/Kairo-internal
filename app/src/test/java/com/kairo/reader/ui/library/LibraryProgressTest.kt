@@ -3,11 +3,47 @@ package com.kairo.reader.ui.library
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Chapter
+import com.kairo.reader.core.model.RsvpConfig
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LibraryProgressTest {
+    @Test
+    fun buildLibraryEstimatedWpmByBookId_reusesEstimatePerLanguage() {
+        val books =
+            listOf(
+                book(id = "first-english", wordCount = 600, languageTag = "en"),
+                book(id = "second-english", wordCount = 800, languageTag = "en"),
+                book(id = "french", wordCount = 500, languageTag = "fr"),
+            )
+        val estimatedLanguages = mutableListOf<String?>()
+
+        val result =
+            buildLibraryEstimatedWpmByBookId(
+                books = books,
+                config = RsvpConfig(),
+                fallbackEstimatedWpm = 300,
+            ) { _, languageTag ->
+                estimatedLanguages += languageTag
+                when (languageTag) {
+                    "en" -> 320
+                    "fr" -> 280
+                    else -> 300
+                }
+            }
+
+        assertEquals(
+            mapOf(
+                "first-english" to 320,
+                "second-english" to 320,
+                "french" to 280,
+            ),
+            result,
+        )
+        assertEquals(listOf("en", "fr"), estimatedLanguages)
+    }
+
     @Test
     fun buildLibraryProgress_usesEstimatedWpmForEachBook() =
         runTest {
@@ -35,11 +71,13 @@ class LibraryProgressTest {
     private fun book(
         id: String,
         wordCount: Int,
+        languageTag: String? = null,
     ): Book =
         Book(
             id = BookId(id),
             title = id,
             authors = emptyList(),
+            languageTag = languageTag,
             chapters =
                 listOf(
                     Chapter(

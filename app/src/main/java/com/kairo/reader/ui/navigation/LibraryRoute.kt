@@ -11,12 +11,11 @@ import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
-import com.kairo.reader.core.rsvp.RsvpConfigResolver
-import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.library.LibraryBookProgress
 import com.kairo.reader.ui.library.LibraryScreen
 import com.kairo.reader.ui.library.LibraryTab
+import com.kairo.reader.ui.library.buildLibraryEstimatedWpmByBookId
 import com.kairo.reader.ui.library.buildLibraryProgress
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import kotlinx.coroutines.launch
@@ -54,16 +53,11 @@ internal fun LibraryRoute(
     ) {
         value =
             withContext(dispatcherProvider.default) {
-                books.associate { book ->
-                    val resolvedRsvpConfig =
-                        RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
-                    book.id.value to
-                        RsvpEstimatedReadingPace.estimateWpm(
-                            config = resolvedRsvpConfig,
-                            fallbackEstimatedWpm = selectedWpm,
-                            languageTag = book.languageTag,
-                        )
-                }
+                buildLibraryEstimatedWpmByBookId(
+                    books = books,
+                    config = prefs.rsvpConfig,
+                    fallbackEstimatedWpm = selectedWpm,
+                )
             }
     }
     val bookProgress by produceState<Map<String, LibraryBookProgress>>(
