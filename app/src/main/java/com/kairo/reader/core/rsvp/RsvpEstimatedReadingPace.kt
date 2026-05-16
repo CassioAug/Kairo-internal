@@ -8,6 +8,10 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.effectiveBlinkMode
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
 import com.kairo.reader.core.model.wordFloorMsForReadability
+import com.kairo.reader.core.language.LanguageTagNormalizer
+import com.kairo.reader.core.rsvp.engine.frameTimingKey
+import com.kairo.reader.core.rsvp.text.isOpeningPunctuationChar
+import com.kairo.reader.core.rsvp.text.isQuoteOrBracket
 import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -18,22 +22,34 @@ object RsvpEstimatedReadingPace {
         config: RsvpConfig,
         sessionTempoMsPerWord: Long? = null,
         fallbackEstimatedWpm: Int = 0,
+        languageTag: String? = null,
     ): Int {
         val effectiveConfig =
             sessionTempoMsPerWord
                 ?.takeIf { it > 0L }
                 ?.let { tempoMsPerWord -> config.withLiveTempo(tempoMsPerWord) }
                 ?: config
+        val cacheKey =
+            EstimatedWpmCacheKey(
+                timingConfig = effectiveConfig.estimatedWpmTimingKey(),
+                languageTag = normalizedLanguageTag(languageTag),
+            )
+        cachedEstimate(cacheKey)?.let { return it }
 
-        return runCatching { RsvpPaceEstimator.estimateWpm(effectiveConfig) }
-            .getOrElse {
-                fallbackEstimatedWpm
-                    .takeIf { it > 0 }
-                    ?: RsvpEffectivePace.estimateWpm(
-                        config = config,
-                        sessionTempoMsPerWord = sessionTempoMsPerWord,
-                    )
-            }
+        val estimatedWpm =
+            runCatching { RsvpPaceEstimator.estimateWpm(effectiveConfig) }
+                .getOrNull()
+        if (estimatedWpm != null) {
+            cacheEstimate(cacheKey, estimatedWpm)
+            return estimatedWpm
+        }
+
+        return fallbackEstimatedWpm
+            .takeIf { it > 0 }
+            ?: RsvpEffectivePace.estimateWpm(
+                config = config,
+                sessionTempoMsPerWord = sessionTempoMsPerWord,
+            )
     }
 
     private fun RsvpConfig.withLiveTempo(tempoMsPerWord: Long): RsvpConfig =
@@ -69,6 +85,7 @@ object RsvpEstimatedReadingPace {
         baseTempoMsPerWord: Long,
         sessionTempoMsPerWord: Long?,
         fallbackEstimatedWpm: Int = 0,
+        languageTag: String? = null,
     ): Int {
         val effectiveTempoMsPerWord =
             sessionTempoMsPerWord
@@ -81,6 +98,7 @@ object RsvpEstimatedReadingPace {
                 ?: estimateWpm(
                     config = config,
                     sessionTempoMsPerWord = sessionTempoMsPerWord,
+                    languageTag = languageTag,
                 )
         }
 
@@ -115,12 +133,50 @@ object RsvpEstimatedReadingPace {
                 ?: estimateWpm(
                     config = config,
                     sessionTempoMsPerWord = sessionTempoMsPerWord,
+                    languageTag = languageTag,
                 )
         }
 
         return ((wordCount * 60_000.0) / totalMs.toDouble()).roundToInt().coerceAtLeast(1)
     }
+
+    private fun cachedEstimate(key: EstimatedWpmCacheKey): Int? =
+        synchronized(estimateCacheLock) {
+            estimatedWpmCache[key]
+        }
+
+    private fun cacheEstimate(
+        key: EstimatedWpmCacheKey,
+        estimatedWpm: Int,
+    ) {
+        synchronized(estimateCacheLock) {
+            estimatedWpmCache[key] = estimatedWpm
+        }
+    }
+
+    private fun RsvpConfig.estimatedWpmTimingKey(): RsvpConfig =
+        frameTimingKey().copy(
+            startDelayMs = 0L,
+            endDelayMs = 0L,
+            rampUpFrames = 0,
+            rampDownFrames = 0,
+        )
+
+    private fun normalizedLanguageTag(languageTag: String?): String? =
+        LanguageTagNormalizer.normalize(languageTag)?.lowercase()
 }
+
+private data class EstimatedWpmCacheKey(
+    val timingConfig: RsvpConfig,
+    val languageTag: String?,
+)
+
+private val estimateCacheLock = Any()
+private val estimatedWpmCache =
+    object : LinkedHashMap<EstimatedWpmCacheKey, Int>(ESTIMATED_WPM_CACHE_SIZE, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<EstimatedWpmCacheKey, Int>?): Boolean =
+            size > ESTIMATED_WPM_CACHE_SIZE
+    }
 
 private fun countPreviewWords(
     frame: RsvpFrame,
@@ -218,6 +274,7 @@ internal fun shouldSkipBlinkFrame(
 
 private const val TEMPO_SCALE_MIN = 0.1
 private const val TEMPO_SCALE_MAX = 4.0
+private const val ESTIMATED_WPM_CACHE_SIZE = 32
 private const val MIN_FRAME_DELAY_MS = 1L
 private const val BLINK_SKIP_TEMPO_MS = 200L
 private const val BLINK_SKIP_MAX_MS = 48L

@@ -343,17 +343,20 @@ private fun rememberReaderEstimatedWpm(
     baseConfig: com.kairo.reader.core.model.RsvpConfig,
     fallbackEstimatedWpm: Int,
     dispatcherProvider: com.kairo.reader.core.dispatchers.DispatcherProvider,
+    languageTag: String? = null,
 ): Int {
     val estimatedWpm by produceState(
         initialValue = fallbackEstimatedWpm,
         baseConfig,
         fallbackEstimatedWpm,
+        languageTag,
     ) {
         value =
             withContext(dispatcherProvider.default) {
                 RsvpEstimatedReadingPace.estimateWpm(
                     config = baseConfig,
                     fallbackEstimatedWpm = fallbackEstimatedWpm,
+                    languageTag = languageTag,
                 )
             }
     }
@@ -516,6 +519,7 @@ private fun KairoNavHost(
                         RsvpEstimatedReadingPace.estimateWpm(
                             config = resolvedRsvpConfig,
                             fallbackEstimatedWpm = selectedWpm,
+                            languageTag = book.languageTag,
                         )
                 }
             }
@@ -1103,6 +1107,7 @@ private fun KairoNavHost(
                     baseConfig = resolvedRsvpConfig,
                     fallbackEstimatedWpm = estimatedWpm,
                     dispatcherProvider = dispatcherProvider,
+                    languageTag = book.languageTag,
                 )
             LaunchedEffect(
                 uiState.chapterIndex,
@@ -1494,6 +1499,7 @@ private fun KairoNavHost(
                     baseConfig = resolvedRsvpConfig,
                     fallbackEstimatedWpm = estimatedWpm,
                     dispatcherProvider = dispatcherProvider,
+                    languageTag = book.languageTag,
                 )
             LaunchedEffect(
                 uiState.chapterIndex,
