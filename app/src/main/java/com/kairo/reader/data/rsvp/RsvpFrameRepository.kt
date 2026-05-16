@@ -5,7 +5,11 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 
-data class RsvpFrameSet(val frames: List<RsvpFrame>, val baseTempoMs: Long,)
+data class RsvpFrameSet(
+    val frames: List<RsvpFrame>,
+    val baseTempoMs: Long,
+    val frameIndexMap: RsvpFrameIndexMap = RsvpFrameIndexMap.from(frames),
+)
 
 interface RsvpFrameRepository {
     suspend fun getFrames(

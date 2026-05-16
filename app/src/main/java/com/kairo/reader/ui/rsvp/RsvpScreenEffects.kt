@@ -84,7 +84,13 @@ internal fun RsvpFrameAlignmentEffect(context: RsvpUiContext) {
 
     LaunchedEffect(frames, context.frameState.isLoading) {
         if (!shouldSyncPositionFromFrameState(context.frameState)) return@LaunchedEffect
-        runtime.frameIndex = alignFrameIndex(frames, runtime.currentTokenIndex, runtime.currentResumeCursor)
+        runtime.frameIndex =
+            alignFrameIndex(
+                frames = frames,
+                tokenIndex = runtime.currentTokenIndex,
+                resumeCursor = runtime.currentResumeCursor,
+                frameIndexMap = context.frameState.frameIndexMap,
+            )
     }
 }
 
@@ -111,7 +117,13 @@ internal fun RsvpSessionResetEffect(
         lastSessionKey = sessionKey
         runtime.currentTokenIndex = book.startIndex
         runtime.currentResumeCursor = book.startResumeCursor.takeIf { it >= 0 } ?: -1
-        runtime.frameIndex = alignFrameIndex(frames, book.startIndex, runtime.currentResumeCursor)
+        runtime.frameIndex =
+            alignFrameIndex(
+                frames = frames,
+                tokenIndex = book.startIndex,
+                resumeCursor = runtime.currentResumeCursor,
+                frameIndexMap = context.frameState.frameIndexMap,
+            )
         runtime.rampStartFrameIndex = runtime.frameIndex
         runtime.scheduledFrameIndex = -1
         runtime.nextFrameAtMs = 0L

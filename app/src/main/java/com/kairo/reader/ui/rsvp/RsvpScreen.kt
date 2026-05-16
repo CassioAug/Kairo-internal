@@ -20,6 +20,7 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
+import com.kairo.reader.data.rsvp.RsvpFrameIndexMap
 import com.kairo.reader.data.rsvp.RsvpFrameSet
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialTargetIds
@@ -423,10 +424,12 @@ private fun rememberFrameLoadState(
 
     val frames = frameSet?.frames.orEmpty()
     val baseTempoMs = frameSet?.baseTempoMs ?: profile.config.tempoMsPerWord
+    val frameIndexMap = frameSet?.frameIndexMap ?: RsvpFrameIndexMap.EMPTY
     return RsvpFrameLoadState(
         frames = frames,
         baseTempoMs = baseTempoMs,
         isLoading = isFramesLoading,
+        frameIndexMap = frameIndexMap,
     )
 }
 

@@ -1,0 +1,119 @@
+package com.kairo.reader.data.rsvp
+
+import com.kairo.reader.core.model.RsvpFrame
+import com.kairo.reader.core.model.TokenType
+
+class RsvpFrameIndexMap private constructor(
+    private val wordFrameByResumeCursor: Map<Int, Int>,
+    private val frameByResumeCursor: Map<Int, Int>,
+    private val wordFrameByTokenIndex: Map<Int, Int>,
+    private val frameByTokenIndex: Map<Int, Int>,
+    private val priorWordFramesByTokenIndex: SortedFrameIndex,
+    private val priorFramesByTokenIndex: SortedFrameIndex,
+) {
+    fun alignFrameIndex(
+        tokenIndex: Int,
+        resumeCursor: Int = -1,
+        frameCount: Int,
+    ): Int {
+        if (frameCount <= 0) return 0
+        if (resumeCursor >= 0) {
+            wordFrameByResumeCursor[resumeCursor]?.let { return it.coerceFrameIndex(frameCount) }
+            frameByResumeCursor[resumeCursor]?.let { return it.coerceFrameIndex(frameCount) }
+        }
+
+        wordFrameByTokenIndex[tokenIndex]?.let { return it.coerceFrameIndex(frameCount) }
+        frameByTokenIndex[tokenIndex]?.let { return it.coerceFrameIndex(frameCount) }
+
+        priorWordFramesByTokenIndex.frameIndexBefore(tokenIndex)?.let {
+            return it.coerceFrameIndex(frameCount)
+        }
+        priorFramesByTokenIndex.frameIndexBefore(tokenIndex)?.let {
+            return it.coerceFrameIndex(frameCount)
+        }
+        return 0
+    }
+
+    companion object {
+        val EMPTY: RsvpFrameIndexMap =
+            RsvpFrameIndexMap(
+                wordFrameByResumeCursor = emptyMap(),
+                frameByResumeCursor = emptyMap(),
+                wordFrameByTokenIndex = emptyMap(),
+                frameByTokenIndex = emptyMap(),
+                priorWordFramesByTokenIndex = SortedFrameIndex.EMPTY,
+                priorFramesByTokenIndex = SortedFrameIndex.EMPTY,
+            )
+
+        fun from(frames: List<RsvpFrame>): RsvpFrameIndexMap {
+            if (frames.isEmpty()) return EMPTY
+
+            val wordFrameByResumeCursor = mutableMapOf<Int, Int>()
+            val frameByResumeCursor = mutableMapOf<Int, Int>()
+            val wordFrameByTokenIndex = mutableMapOf<Int, Int>()
+            val frameByTokenIndex = mutableMapOf<Int, Int>()
+
+            frames.forEachIndexed { index, frame ->
+                val tokenIndex = frame.originalTokenIndex
+                val resumeCursor = frame.resumeCursor
+                val hasWord = frame.tokens.any { it.type == TokenType.WORD }
+
+                frameByTokenIndex[tokenIndex] = index
+                if (hasWord) {
+                    wordFrameByTokenIndex[tokenIndex] = index
+                }
+                if (resumeCursor >= 0) {
+                    frameByResumeCursor[resumeCursor] = index
+                    if (hasWord) {
+                        wordFrameByResumeCursor[resumeCursor] = index
+                    }
+                }
+            }
+
+            return RsvpFrameIndexMap(
+                wordFrameByResumeCursor = wordFrameByResumeCursor,
+                frameByResumeCursor = frameByResumeCursor,
+                wordFrameByTokenIndex = wordFrameByTokenIndex,
+                frameByTokenIndex = frameByTokenIndex,
+                priorWordFramesByTokenIndex = SortedFrameIndex.from(wordFrameByTokenIndex),
+                priorFramesByTokenIndex = SortedFrameIndex.from(frameByTokenIndex),
+            )
+        }
+    }
+
+    private fun Int.coerceFrameIndex(frameCount: Int): Int = coerceIn(0, frameCount - 1)
+}
+
+private class SortedFrameIndex private constructor(
+    private val tokenIndices: IntArray,
+    private val frameIndices: IntArray,
+) {
+    fun frameIndexBefore(tokenIndex: Int): Int? {
+        var low = 0
+        var high = tokenIndices.lastIndex
+        var resultIndex = -1
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            if (tokenIndices[mid] < tokenIndex) {
+                resultIndex = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return frameIndices.getOrNull(resultIndex)
+    }
+
+    companion object {
+        val EMPTY = SortedFrameIndex(IntArray(0), IntArray(0))
+
+        fun from(frameByTokenIndex: Map<Int, Int>): SortedFrameIndex {
+            if (frameByTokenIndex.isEmpty()) return EMPTY
+            val tokenIndices = frameByTokenIndex.keys.sorted().toIntArray()
+            val frameIndices = IntArray(tokenIndices.size) { index ->
+                frameByTokenIndex.getValue(tokenIndices[index])
+            }
+            return SortedFrameIndex(tokenIndices, frameIndices)
+        }
+    }
+}
