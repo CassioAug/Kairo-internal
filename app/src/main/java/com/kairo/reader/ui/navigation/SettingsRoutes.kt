@@ -1,5 +1,6 @@
 package com.kairo.reader.ui.navigation
 
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
@@ -12,14 +13,12 @@ import com.kairo.reader.ui.settings.ReaderSettingsScreen
 import com.kairo.reader.ui.settings.RsvpSettingsScreen
 import com.kairo.reader.ui.settings.SettingsHomeScreen
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 internal fun NavGraphBuilder.settingsRoutes(
     container: KairoApplication,
     navController: NavHostController,
     prefs: UserPreferences,
-    coroutineScope: CoroutineScope,
     tutorialState: StartingTutorialOverlayState?,
     onOpenStartingTutorial: () -> Unit,
     onTutorialNext: () -> Unit,
@@ -27,6 +26,7 @@ internal fun NavGraphBuilder.settingsRoutes(
     onTutorialSkip: () -> Unit,
 ) {
     composable(KairoRoutes.SETTINGS) {
+        val coroutineScope = rememberCoroutineScope()
         SettingsHomeScreen(
             onOpenLanguage = {
                 navController.navigate(KairoRoutes.SETTINGS_LANGUAGE)
@@ -58,6 +58,7 @@ internal fun NavGraphBuilder.settingsRoutes(
     }
 
     composable(KairoRoutes.SETTINGS_RSVP) {
+        val coroutineScope = rememberCoroutineScope()
         RsvpSettingsScreen(
             preferences = prefs,
             onSelectRsvpProfile = { profileId ->
@@ -125,6 +126,7 @@ internal fun NavGraphBuilder.settingsRoutes(
     }
 
     composable(KairoRoutes.SETTINGS_READER) {
+        val coroutineScope = rememberCoroutineScope()
         ReaderSettingsScreen(
             preferences = prefs,
             onFontSizeChange = { size ->
@@ -150,6 +152,7 @@ internal fun NavGraphBuilder.settingsRoutes(
     }
 
     composable(KairoRoutes.SETTINGS_FOCUS) {
+        val coroutineScope = rememberCoroutineScope()
         FocusSettingsScreen(
             preferences = prefs,
             onFocusModeEnabledChange = { enabled ->
