@@ -25,10 +25,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
-import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
-import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.nearestWordIndex
@@ -36,9 +34,6 @@ import com.kairo.reader.core.rsvp.RsvpConfigResolver
 import com.kairo.reader.ui.reader.ReaderScreen
 import com.kairo.reader.ui.reader.ReaderViewModel
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 internal fun ReaderRoute(
@@ -263,45 +258,30 @@ internal fun ReaderRoute(
 
     val focusEnabledInReader = prefs.focusModeEnabled && prefs.focusApplyInReader
     var lastExplicitFocusIndex by remember(bookId) { mutableIntStateOf(-1) }
-    fun buildCurrentReaderPosition(tokenIndex: Int = effectiveUiState.focusIndex): ReadingPosition? {
-        val chapterData = effectiveUiState.chapterData ?: return null
-        val tokens = chapterData.tokens
-        if (tokens.isEmpty()) return null
-        val safeIndex = tokens.nearestWordIndex(tokenIndex).coerceIn(0, tokens.lastIndex)
-        val wordIndex = resolveWordIndex(chapterData.wordCountByToken, safeIndex)
-        return ReadingPosition(
-            BookId(bookId),
-            effectiveUiState.chapterIndex,
-            safeIndex,
-            wordIndex,
+    val readerCallbacks =
+        buildReaderRouteCallbacks(
+            ReaderRouteCallbackDependencies(
+                container = container,
+                navController = navController,
+                prefs = prefs,
+                bookId = bookId,
+                bookIdValue = BookId(bookId),
+                dispatcherProvider = dispatcherProvider,
+                coroutineScope = coroutineScope,
+                lifecycleScope = lifecycleOwner.lifecycleScope,
+                resources = resources,
+                uiState = uiState,
+                effectiveUiState = effectiveUiState,
+                readerViewModel = readerViewModel,
+                readerPositionSaver = readerPositionSaver,
+                getLastExplicitFocusIndex = { lastExplicitFocusIndex },
+                setLastExplicitFocusIndex = { lastExplicitFocusIndex = it },
+                onShowUserMessage = onShowUserMessage,
+            )
         )
-    }
-
-    fun saveCurrentReaderPosition() {
-        buildCurrentReaderPosition()?.let(readerPositionSaver::saveImmediate)
-    }
-
-    fun navigateReaderToLibrary() {
-        val position =
-            lastExplicitFocusIndex
-                .takeIf { it >= 0 }
-                ?.let(::buildCurrentReaderPosition)
-                ?: buildCurrentReaderPosition()
-        lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-            if (position != null) {
-                readerPositionSaver.saveImmediateAndJoin(position)
-            }
-            withContext(Dispatchers.Main) {
-                navController.navigate(KairoRoutes.LIBRARY) {
-                    popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-                    launchSingleTop = true
-                }
-            }
-        }
-    }
 
     BackHandler(enabled = !tutorialActive) {
-        navigateReaderToLibrary()
+        readerCallbacks.onOpenLibrary()
     }
 
     ReaderScreen(
@@ -312,115 +292,19 @@ internal fun ReaderRoute(
         readerTheme = prefs.readerTheme,
         textBrightness = prefs.readerTextBrightness,
         estimatedWpm = readerEstimatedWpm,
-        onFontSizeChange = { size ->
-            coroutineScope.launch {
-                container.preferencesRepository.updateFontSize(size)
-            }
-        },
-        onThemeChange = { theme ->
-            coroutineScope.launch {
-                container.preferencesRepository.updateTheme(theme.name)
-            }
-        },
-        onTextBrightnessChange = { brightness ->
-            coroutineScope.launch {
-                container.preferencesRepository.updateReaderTextBrightness(brightness)
-            }
-        },
-        onInvertedScrollChange = { enabled ->
-            coroutineScope.launch {
-                container.preferencesRepository.updateInvertedScroll(enabled)
-            }
-        },
+        onFontSizeChange = readerCallbacks.onFontSizeChange,
+        onThemeChange = readerCallbacks.onThemeChange,
+        onTextBrightnessChange = readerCallbacks.onTextBrightnessChange,
+        onInvertedScrollChange = readerCallbacks.onInvertedScrollChange,
         focusModeEnabled = focusEnabledInReader,
-        onFocusModeEnabledChange = { enabled ->
-            coroutineScope.launch {
-                if (enabled) {
-                    if (!prefs.focusModeEnabled) {
-                        container.preferencesRepository.updateFocusModeEnabled(true)
-                    }
-                    container.preferencesRepository.updateFocusApplyInReader(true)
-                } else {
-                    container.preferencesRepository.updateFocusApplyInReader(false)
-                }
-            }
-        },
-        onAddBookmark = { chapterIndex, tokenIndex, previewText ->
-            coroutineScope.launch {
-                val id = "$bookId:$chapterIndex:$tokenIndex"
-                container.bookmarkRepository.add(
-                    Bookmark(
-                        id = id,
-                        bookId = BookId(bookId),
-                        chapterIndex = chapterIndex,
-                        tokenIndex = tokenIndex,
-                        previewText = previewText,
-                        createdAt = System.currentTimeMillis(),
-                    ),
-                )
-                onShowUserMessage(resources.getString(R.string.toast_bookmark_added))
-            }
-        },
-        onOpenBookmarks = {
-            saveCurrentReaderPosition()
-            navController.navigate(KairoRoutes.libraryBookmarks())
-        },
-        onOpenLibrary = ::navigateReaderToLibrary,
-        onFocusChange = { newFocusIndex ->
-            lastExplicitFocusIndex = newFocusIndex
-            readerViewModel.setFocusIndex(newFocusIndex)
-            val wordIndex = resolveWordIndex(uiState.chapterData?.wordCountByToken, newFocusIndex)
-            readerPositionSaver.saveDebounced(
-                ReadingPosition(
-                    BookId(bookId),
-                    uiState.chapterIndex,
-                    newFocusIndex,
-                    wordIndex,
-                ),
-            )
-        },
-        onStartRsvp = { start ->
-            RsvpLaunchSnapshotStore.put(
-                bookId = bookId,
-                chapterIndex = uiState.chapterIndex,
-                tokens = uiState.chapterData?.tokens.orEmpty(),
-            )
-            val wordIndex = resolveWordIndex(uiState.chapterData?.wordCountByToken, start)
-            lifecycleOwner.lifecycleScope.launch(dispatcherProvider.io) {
-                val existingPosition =
-                    container.readingPositionRepository.getPosition(BookId(bookId))
-                val resumeCursor =
-                    existingPosition
-                        ?.takeIf {
-                            it.chapterIndex == uiState.chapterIndex &&
-                                it.tokenIndex == start
-                        }?.rsvpResumeCursor ?: -1
-                readerPositionSaver.saveImmediateAndJoin(
-                    ReadingPosition(
-                        BookId(bookId),
-                        uiState.chapterIndex,
-                        start,
-                        wordIndex,
-                        rsvpResumeCursor = resumeCursor,
-                    ),
-                )
-                withContext(Dispatchers.Main) {
-                    navController.navigate(
-                        KairoRoutes.rsvp(
-                            bookId = bookId,
-                            chapterIndex = uiState.chapterIndex,
-                            tokenIndex = start,
-                        )
-                    )
-                }
-            }
-        },
-        onChapterChange = { newIndex, focusIndex ->
-            readerViewModel.loadChapter(newIndex, focusIndex)
-        },
-        onViewportMetricsChanged = { resolvedFontSizeSp, viewportHeightDp ->
-            readerViewModel.updatePaginationMetrics(resolvedFontSizeSp, viewportHeightDp)
-        },
+        onFocusModeEnabledChange = readerCallbacks.onFocusModeEnabledChange,
+        onAddBookmark = readerCallbacks.onAddBookmark,
+        onOpenBookmarks = readerCallbacks.onOpenBookmarks,
+        onOpenLibrary = readerCallbacks.onOpenLibrary,
+        onFocusChange = readerCallbacks.onFocusChange,
+        onStartRsvp = readerCallbacks.onStartRsvp,
+        onChapterChange = readerCallbacks.onChapterChange,
+        onViewportMetricsChanged = readerCallbacks.onViewportMetricsChanged,
         tutorialState = tutorialState,
         onTutorialNext = onTutorialNext,
         onTutorialPrevious = onTutorialPrevious,
