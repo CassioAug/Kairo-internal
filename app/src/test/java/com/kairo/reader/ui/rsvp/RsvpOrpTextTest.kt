@@ -127,4 +127,18 @@ class RsvpOrpTextTest {
         )
         assertEquals(0f, snapTranslationToRenderPixel(Float.NaN), 0f)
     }
+
+    @Test
+    fun phraseTranslationHonorsHorizontalBiasAnchor() {
+        assertEquals(
+            70f,
+            stableBiasedCenterTranslationX(
+                desiredCenterX = 90f,
+                measuredWidthPx = 40f,
+                minTranslationX = 0f,
+                maxTranslationX = 100f,
+            ),
+            0f,
+        )
+    }
 }

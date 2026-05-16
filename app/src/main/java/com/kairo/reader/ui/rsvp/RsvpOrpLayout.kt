@@ -560,13 +560,13 @@ private fun layoutLockedPivot(
     val pivotIndex = pivotRange.safePivotIndex.safeCoerceIn(pivotRange.start, pivotRange.end)
     val measuredWidthPx = measured.size.width.toFloat()
 
-    // Center the text in the available space so chunk words stay static
-    // regardless of which word is the ORP/highlight word.
+    // Keep phrase chunks stable without falling back to screen center. The phrase center is
+    // anchored to the user's chosen horizontal bias so positioning mode remains consistent.
     val minTranslationX = minOf(bounds.safeLeftPx, bounds.maxTranslationX)
     val maxTranslationX = maxOf(bounds.safeLeftPx, bounds.maxTranslationX)
     val translationX =
-        stableCenteredTranslationX(
-            maxWidthPx = bounds.maxWidthPx,
+        stableBiasedCenterTranslationX(
+            desiredCenterX = bounds.desiredPivotX,
             measuredWidthPx = measuredWidthPx,
             minTranslationX = minTranslationX,
             maxTranslationX = maxTranslationX,
@@ -682,8 +682,26 @@ internal fun stableCenteredTranslationX(
     measuredWidthPx: Float,
     minTranslationX: Float,
     maxTranslationX: Float,
+): Float =
+    stableBiasedCenterTranslationX(
+        desiredCenterX = maxWidthPx / BIAS_SCALE_FACTOR,
+        measuredWidthPx = measuredWidthPx,
+        minTranslationX = minTranslationX,
+        maxTranslationX = maxTranslationX,
+    )
+
+internal fun stableBiasedCenterTranslationX(
+    desiredCenterX: Float,
+    measuredWidthPx: Float,
+    minTranslationX: Float,
+    maxTranslationX: Float,
 ): Float {
-    val centeredTranslationX = (maxWidthPx - measuredWidthPx) / BIAS_SCALE_FACTOR
+    val centeredTranslationX =
+        if (desiredCenterX.isFinite() && measuredWidthPx.isFinite()) {
+            desiredCenterX - (measuredWidthPx / BIAS_SCALE_FACTOR)
+        } else {
+            ZERO_FLOAT
+        }
     val clampedTranslationX =
         centeredTranslationX.safeCoerceIn(minTranslationX, maxTranslationX)
     return snapTranslationToRenderPixel(clampedTranslationX)

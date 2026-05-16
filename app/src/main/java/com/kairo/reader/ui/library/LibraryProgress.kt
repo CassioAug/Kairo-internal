@@ -2,14 +2,44 @@ package com.kairo.reader.ui.library
 
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.countWords
 import com.kairo.reader.core.model.estimateMinutesForWords
+import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import kotlin.math.roundToInt
 
 data class LibraryBookProgress(
     val percentComplete: Int,
     val remainingMinutes: Int?,
 )
+
+internal fun buildLibraryEstimatedWpmByBookId(
+    books: List<Book>,
+    config: RsvpConfig,
+    fallbackEstimatedWpm: Int,
+    estimateWpm: (RsvpConfig, String?) -> Int = { resolvedConfig, languageTag ->
+        RsvpEstimatedReadingPace.estimateWpm(
+            config = resolvedConfig,
+            fallbackEstimatedWpm = fallbackEstimatedWpm,
+            languageTag = languageTag,
+        )
+    },
+): Map<String, Int> {
+    if (books.isEmpty()) return emptyMap()
+    val wpmByLanguage = mutableMapOf<String?, Int>()
+    return books.associate { book ->
+        val languageTag = book.languageTag
+        val estimatedWpm =
+            wpmByLanguage.getOrPut(languageTag) {
+                estimateWpm(
+                    RsvpConfigResolver.resolve(config, languageTag),
+                    languageTag,
+                )
+            }
+        book.id.value to estimatedWpm
+    }
+}
 
 suspend fun buildLibraryProgress(
     books: List<Book>,
