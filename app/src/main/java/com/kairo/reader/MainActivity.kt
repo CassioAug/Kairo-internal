@@ -3,7 +3,6 @@ package com.kairo.reader
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -21,16 +20,12 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.appcompat.app.AppCompatActivity
@@ -40,14 +35,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.ReaderTheme
-import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.core.rsvp.RsvpEffectivePace
 import com.kairo.reader.data.books.WebArticleUrl
-import com.kairo.reader.sample.SampleBooks
 import com.kairo.reader.ui.LocalDispatcherProvider
 import com.kairo.reader.ui.focus.FocusModeSideEffects
 import com.kairo.reader.ui.focus.SystemBarsStyleSideEffect
@@ -60,11 +52,7 @@ import com.kairo.reader.ui.navigation.RsvpRoute
 import com.kairo.reader.ui.navigation.settingsRoutes
 import com.kairo.reader.ui.theme.KairoSnackbarHost
 import com.kairo.reader.ui.theme.KairoTheme
-import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
-import com.kairo.reader.ui.tutorial.StartingTutorialRoute
-import com.kairo.reader.ui.tutorial.startingTutorialSteps
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
+import com.kairo.reader.ui.tutorial.rememberStartingTutorialCoordinator
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -187,41 +175,6 @@ private fun Intent.sharedArticleUrl(): String? =
         null
     }
 
-private data class StartingTutorialLaunchContext(
-    val bookId: String,
-    val chapterIndex: Int,
-    val tokenIndex: Int,
-)
-
-private fun resolveStartingTutorialLaunchContext(
-    books: List<Book>,
-    positions: List<ReadingPosition>,
-): StartingTutorialLaunchContext? {
-    val book =
-        books.firstOrNull { it.id.value == SampleBooks.STARTER_BOOK_ID }
-            ?: books.firstOrNull()
-            ?: return null
-    if (book.chapters.isEmpty()) {
-        return StartingTutorialLaunchContext(
-            bookId = book.id.value,
-            chapterIndex = 0,
-            tokenIndex = 0,
-        )
-    }
-    val savedPosition = positions.firstOrNull { it.bookId == book.id }
-    val fallbackChapterIndex = book.chapters.indexOfFirst { it.plainText.isNotBlank() }.let { index ->
-        if (index >= 0) index else 0
-    }
-    val chapterIndex =
-        savedPosition?.chapterIndex?.coerceIn(0, book.chapters.lastIndex) ?: fallbackChapterIndex
-    val tokenIndex = savedPosition?.tokenIndex?.coerceAtLeast(0) ?: 0
-    return StartingTutorialLaunchContext(
-        bookId = book.id.value,
-        chapterIndex = chapterIndex,
-        tokenIndex = tokenIndex,
-    )
-}
-
 @Suppress("CyclomaticComplexMethod", "FunctionNaming", "LongMethod")
 @Composable
 private fun KairoNavHost(
@@ -259,33 +212,6 @@ private fun KairoNavHost(
             onExternalArticleUrlConsumed = onExternalArticleUrlConsumed,
             onShowUserMessage = ::showUserMessage,
         )
-    var tutorialSteps by remember {
-        mutableStateOf(startingTutorialSteps(includeReaderAndRsvp = false))
-    }
-    var tutorialLaunchContext by remember { mutableStateOf<StartingTutorialLaunchContext?>(null) }
-    var tutorialStepIndex by rememberSaveable { mutableIntStateOf(0) }
-    var tutorialActive by rememberSaveable { mutableStateOf(false) }
-    var tutorialAutoStarted by rememberSaveable { mutableStateOf(false) }
-    val availableTutorialLaunchContext by produceState<StartingTutorialLaunchContext?>(
-        initialValue = null,
-        prefs.hasSeenStartingTutorial,
-        tutorialAutoStarted,
-    ) {
-        if (prefs.hasSeenStartingTutorial || tutorialAutoStarted) {
-            value = null
-            return@produceState
-        }
-        combine(
-            container.libraryRepository.observeLibrary(),
-            container.readingPositionRepository.observePositions(),
-        ) { books, positions ->
-            resolveStartingTutorialLaunchContext(books, positions)
-        }
-            .distinctUntilChanged()
-            .collect { context ->
-                value = context
-            }
-    }
 
     val selectedWpm by produceState(initialValue = 0, prefs.rsvpConfig) {
         value =
@@ -304,152 +230,16 @@ private fun KairoNavHost(
     }
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
-
-    fun resolveCurrentTutorialRoute(route: String?): StartingTutorialRoute? =
-        when (route) {
-            KairoRoutes.LIBRARY,
-            KairoRoutes.LIBRARY_WITH_TAB,
-            -> StartingTutorialRoute.LIBRARY
-            KairoRoutes.SETTINGS -> StartingTutorialRoute.SETTINGS
-            KairoRoutes.READER,
-            KairoRoutes.READER_WITH_POSITION,
-            ->
-                StartingTutorialRoute.READER
-            KairoRoutes.RSVP -> StartingTutorialRoute.RSVP
-            else -> null
-        }
-
-    fun navigateToTutorialRoute(route: StartingTutorialRoute) {
-        if (resolveCurrentTutorialRoute(currentRoute) == route) return
-        when (route) {
-            StartingTutorialRoute.LIBRARY -> {
-                navController.navigate(KairoRoutes.LIBRARY) {
-                    popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-                    launchSingleTop = true
-                }
-            }
-
-            StartingTutorialRoute.SETTINGS -> {
-                navController.navigate(KairoRoutes.SETTINGS) {
-                    launchSingleTop = true
-                }
-            }
-
-            StartingTutorialRoute.READER -> {
-                val context = tutorialLaunchContext ?: return
-                navController.navigate(
-                    KairoRoutes.reader(
-                        context.bookId,
-                        context.chapterIndex,
-                        context.tokenIndex,
-                    )
-                ) {
-                    launchSingleTop = true
-                }
-            }
-
-            StartingTutorialRoute.RSVP -> {
-                val context = tutorialLaunchContext ?: return
-                navController.navigate(
-                    KairoRoutes.rsvp(
-                        context.bookId,
-                        context.chapterIndex,
-                        context.tokenIndex,
-                    )
-                ) {
-                    launchSingleTop = true
-                }
-            }
-        }
-    }
-
-    fun markStartingTutorialSeenIfNeeded() {
-        if (prefs.hasSeenStartingTutorial) return
-        coroutineScope.launch {
-            container.preferencesRepository.updateHasSeenStartingTutorial(true)
-        }
-    }
-
-    fun startStartingTutorial() {
-        val sessionSteps =
-            startingTutorialSteps(includeReaderAndRsvp = availableTutorialLaunchContext != null)
-        tutorialLaunchContext = availableTutorialLaunchContext
-        tutorialSteps = sessionSteps
-        tutorialStepIndex = 0
-        tutorialActive = true
-        tutorialAutoStarted = true
-        navigateToTutorialRoute(sessionSteps.first().route)
-    }
-
-    fun dismissStartingTutorial(markAsSeen: Boolean = true) {
-        tutorialActive = false
-        if (markAsSeen) {
-            markStartingTutorialSeenIfNeeded()
-        }
-    }
-
-    fun finishStartingTutorial() {
-        dismissStartingTutorial(markAsSeen = true)
-        navigateToTutorialRoute(StartingTutorialRoute.LIBRARY)
-    }
-
-    fun moveStartingTutorial(stepDelta: Int) {
-        val nextIndex = tutorialStepIndex + stepDelta
-        if (nextIndex !in tutorialSteps.indices) {
-            finishStartingTutorial()
-            return
-        }
-        val previousRoute = tutorialSteps.getOrNull(tutorialStepIndex)?.route
-        tutorialStepIndex = nextIndex
-        val nextRoute = tutorialSteps[nextIndex].route
-        if (nextRoute != previousRoute) {
-            navigateToTutorialRoute(nextRoute)
-        }
-    }
-
-    val tutorialOverlayState =
-        if (tutorialActive) {
-            StartingTutorialOverlayState(
-                step = tutorialSteps[tutorialStepIndex],
-                index = tutorialStepIndex,
-                totalSteps = tutorialSteps.size,
-            )
-        } else {
-            null
-        }
-
-    val libraryTutorialState =
-        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.LIBRARY }
-    val settingsTutorialState =
-        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.SETTINGS }
-    val readerTutorialState =
-        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.READER }
-    val rsvpTutorialState =
-        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.RSVP }
-
-    BackHandler(enabled = tutorialActive) {
-        if (tutorialStepIndex == 0) {
-            dismissStartingTutorial()
-        } else {
-            moveStartingTutorial(-1)
-        }
-    }
-
-    LaunchedEffect(
-        prefs.hasSeenStartingTutorial,
-        externalImportUri,
-        externalArticleUrl,
-        importCoordinator.state.isImporting,
-    ) {
-        if (!prefs.hasSeenStartingTutorial &&
-            !tutorialAutoStarted &&
-            externalImportUri == null &&
-            externalArticleUrl == null &&
-            !importCoordinator.state.isImporting
-        ) {
-            startStartingTutorial()
-        }
-    }
+    val tutorialCoordinator =
+        rememberStartingTutorialCoordinator(
+            container = container,
+            navController = navController,
+            prefs = prefs,
+            currentRoute = currentRoute,
+            externalImportUri = externalImportUri,
+            externalArticleUrl = externalArticleUrl,
+            isImporting = importCoordinator.state.isImporting,
+        )
     FocusModeSideEffects(
         enabled = shouldApplyFocusMode(currentRoute, prefs),
         hideStatusBar = prefs.focusHideStatusBar,
@@ -467,10 +257,10 @@ private fun KairoNavHost(
                     importState = importCoordinator.state,
                     onImportFile = importCoordinator.importFile,
                     onImportUrl = importCoordinator.importUrl,
-                    tutorialState = libraryTutorialState,
-                    onTutorialNext = { moveStartingTutorial(1) },
-                    onTutorialPrevious = { moveStartingTutorial(-1) },
-                    onTutorialSkip = { dismissStartingTutorial() },
+                    tutorialState = tutorialCoordinator.libraryState,
+                    onTutorialNext = tutorialCoordinator.next,
+                    onTutorialPrevious = tutorialCoordinator.previous,
+                    onTutorialSkip = tutorialCoordinator.skip,
                 )
             }
 
@@ -496,10 +286,10 @@ private fun KairoNavHost(
                     initialTabRouteValue = tab,
                     onImportFile = importCoordinator.importFile,
                     onImportUrl = importCoordinator.importUrl,
-                    tutorialState = libraryTutorialState,
-                    onTutorialNext = { moveStartingTutorial(1) },
-                    onTutorialPrevious = { moveStartingTutorial(-1) },
-                    onTutorialSkip = { dismissStartingTutorial() },
+                    tutorialState = tutorialCoordinator.libraryState,
+                    onTutorialNext = tutorialCoordinator.next,
+                    onTutorialPrevious = tutorialCoordinator.previous,
+                    onTutorialSkip = tutorialCoordinator.skip,
                 )
             }
 
@@ -516,12 +306,12 @@ private fun KairoNavHost(
                     navController = navController,
                     prefs = prefs,
                     estimatedWpm = estimatedWpm,
-                    tutorialActive = tutorialActive,
-                    tutorialState = readerTutorialState,
+                    tutorialActive = tutorialCoordinator.active,
+                    tutorialState = tutorialCoordinator.readerState,
                     onShowUserMessage = { message -> showUserMessage(message) },
-                    onTutorialNext = { moveStartingTutorial(1) },
-                    onTutorialPrevious = { moveStartingTutorial(-1) },
-                    onTutorialSkip = { dismissStartingTutorial() },
+                    onTutorialNext = tutorialCoordinator.next,
+                    onTutorialPrevious = tutorialCoordinator.previous,
+                    onTutorialSkip = tutorialCoordinator.skip,
                 )
             }
 
@@ -540,16 +330,16 @@ private fun KairoNavHost(
                     navController = navController,
                     prefs = prefs,
                     estimatedWpm = estimatedWpm,
-                    tutorialActive = tutorialActive,
-                    tutorialState = readerTutorialState,
+                    tutorialActive = tutorialCoordinator.active,
+                    tutorialState = tutorialCoordinator.readerState,
                     initialChapterIndex =
                         backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0,
                     initialTokenIndex =
                         backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0,
                     onShowUserMessage = { message -> showUserMessage(message) },
-                    onTutorialNext = { moveStartingTutorial(1) },
-                    onTutorialPrevious = { moveStartingTutorial(-1) },
-                    onTutorialSkip = { dismissStartingTutorial() },
+                    onTutorialNext = tutorialCoordinator.next,
+                    onTutorialPrevious = tutorialCoordinator.previous,
+                    onTutorialSkip = tutorialCoordinator.skip,
                 )
             }
 
@@ -571,11 +361,11 @@ private fun KairoNavHost(
                     container = container,
                     navController = navController,
                     prefs = prefs,
-                    tutorialState = rsvpTutorialState,
+                    tutorialState = tutorialCoordinator.rsvpState,
                     onShowUserMessage = { message -> showUserMessage(message) },
-                    onTutorialNext = { moveStartingTutorial(1) },
-                    onTutorialPrevious = { moveStartingTutorial(-1) },
-                    onTutorialSkip = { dismissStartingTutorial() },
+                    onTutorialNext = tutorialCoordinator.next,
+                    onTutorialPrevious = tutorialCoordinator.previous,
+                    onTutorialSkip = tutorialCoordinator.skip,
                 )
             }
 
@@ -584,11 +374,11 @@ private fun KairoNavHost(
                 navController = navController,
                 prefs = prefs,
                 coroutineScope = coroutineScope,
-                tutorialState = settingsTutorialState,
-                onOpenStartingTutorial = ::startStartingTutorial,
-                onTutorialNext = { moveStartingTutorial(1) },
-                onTutorialPrevious = { moveStartingTutorial(-1) },
-                onTutorialSkip = { dismissStartingTutorial() },
+                tutorialState = tutorialCoordinator.settingsState,
+                onOpenStartingTutorial = tutorialCoordinator.start,
+                onTutorialNext = tutorialCoordinator.next,
+                onTutorialPrevious = tutorialCoordinator.previous,
+                onTutorialSkip = tutorialCoordinator.skip,
             )
         }
         KairoSnackbarHost(
