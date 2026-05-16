@@ -11,26 +11,18 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
-import com.kairo.reader.R
 import com.kairo.reader.core.model.BookId
-import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.buildWordCountByToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
 import com.kairo.reader.ui.rsvp.RsvpBookContext
-import com.kairo.reader.ui.rsvp.RsvpBookmarkCallbacks
 import com.kairo.reader.ui.rsvp.RsvpLayoutBias
-import com.kairo.reader.ui.rsvp.RsvpPlaybackCallbacks
-import com.kairo.reader.ui.rsvp.RsvpPreferenceCallbacks
 import com.kairo.reader.ui.rsvp.RsvpProfileContext
 import com.kairo.reader.ui.rsvp.RsvpScreen
-import com.kairo.reader.ui.rsvp.RsvpScreenCallbacks
 import com.kairo.reader.ui.rsvp.RsvpScreenDependencies
 import com.kairo.reader.ui.rsvp.RsvpScreenState
 import com.kairo.reader.ui.rsvp.RsvpTextStyle
-import com.kairo.reader.ui.rsvp.RsvpThemeCallbacks
-import com.kairo.reader.ui.rsvp.RsvpUiCallbacks
 import com.kairo.reader.ui.rsvp.RsvpUiPreferences
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import kotlinx.coroutines.launch
@@ -155,241 +147,24 @@ internal fun RsvpRoute(
                 ),
         )
     val rsvpCallbacks =
-        RsvpScreenCallbacks(
-            bookmarks =
-                RsvpBookmarkCallbacks(
-                    onAddBookmark = { tokenIndex, previewText ->
-                        coroutineScope.launch {
-                            val id = "$bookId:$chapterIndex:$tokenIndex"
-                            container.bookmarkRepository.add(
-                                Bookmark(
-                                    id = id,
-                                    bookId = bookIdValue,
-                                    chapterIndex = chapterIndex,
-                                    tokenIndex = tokenIndex,
-                                    previewText = previewText,
-                                    createdAt = System.currentTimeMillis(),
-                                ),
-                            )
-                            onShowUserMessage(resources.getString(R.string.toast_bookmark_added))
-                        }
-                    },
-                    onOpenBookmarks = {
-                        navController.navigate(KairoRoutes.libraryBookmarks()) {
-                            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-                        }
-                    },
-                ),
-            playback =
-                RsvpPlaybackCallbacks(
-                    onFinished = { resumePoint ->
-                        val returnTarget =
-                            resolveRsvpReturnTarget(
-                                resumePoint = resumePoint,
-                                currentChapterIndex = chapterIndex,
-                                chapterCount = routeData.chapterCount,
-                                currentChapterTokens = tokens,
-                            )
-                        val wordIndex =
-                            if (returnTarget.chapterIndex == chapterIndex) {
-                                resolveWordIndex(wordCountByToken, returnTarget.tokenIndex)
-                            } else {
-                                0
-                            }
-                        saveRsvpPosition(
-                            targetChapterIndex = returnTarget.chapterIndex,
-                            targetTokenIndex = returnTarget.tokenIndex,
-                            targetWordIndex = wordIndex,
-                            targetResumeCursor = returnTarget.resumeCursor,
-                        )
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(
-                                KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX,
-                                returnTarget.chapterIndex,
-                            )
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(
-                                KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX,
-                                returnTarget.tokenIndex,
-                            )
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(
-                                KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR,
-                                returnTarget.resumeCursor,
-                            )
-                        navController.popBackStack()
-                    },
-                    onPositionChanged = { resumePoint ->
-                        val safeIndex =
-                            if (tokens.isNotEmpty()) {
-                                resumePoint.tokenIndex.coerceIn(0, tokens.lastIndex)
-                            } else {
-                                0
-                            }
-                        backStackEntry.savedStateHandle[
-                            KairoSavedStateKeys.RSVP_CURRENT_TOKEN_INDEX
-                        ] =
-                            safeIndex
-                        backStackEntry.savedStateHandle[
-                            KairoSavedStateKeys.RSVP_CURRENT_RESUME_CURSOR
-                        ] =
-                            resumePoint.resumeCursor
-                        val wordIndex = resolveWordIndex(wordCountByToken, safeIndex)
-                        saveRsvpPosition(
-                            targetChapterIndex = chapterIndex,
-                            targetTokenIndex = safeIndex,
-                            targetWordIndex = wordIndex,
-                            targetResumeCursor = resumePoint.resumeCursor,
-                        )
-                    },
-                    onTempoChange = { tempoMsPerWord ->
-                        val baseTempoMs =
-                            RsvpConfigResolver.toBaseTempoMs(
-                                tempoMsPerWord,
-                                routeData.languageTag,
-                            )
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpTempoMsPerWord(baseTempoMs)
-                        }
-                    },
-                    onExit = { resumePoint ->
-                        val resumeIndex =
-                            if (tokens.isNotEmpty()) {
-                                resumePoint.tokenIndex.coerceIn(0, tokens.lastIndex)
-                            } else {
-                                resumePoint.tokenIndex.coerceAtLeast(0)
-                            }
-                        val wordIndex = resolveWordIndex(wordCountByToken, resumeIndex)
-                        saveRsvpPosition(
-                            targetChapterIndex = chapterIndex,
-                            targetTokenIndex = resumeIndex,
-                            targetWordIndex = wordIndex,
-                            targetResumeCursor = resumePoint.resumeCursor,
-                        )
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX, chapterIndex)
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX, resumeIndex)
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(
-                                KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR,
-                                resumePoint.resumeCursor,
-                            )
-                        navController.popBackStack()
-                    },
-                    onOpenLibrary = { resumePoint ->
-                        val resumeIndex =
-                            if (tokens.isNotEmpty()) {
-                                resumePoint.tokenIndex.coerceIn(0, tokens.lastIndex)
-                            } else {
-                                resumePoint.tokenIndex.coerceAtLeast(0)
-                            }
-                        val wordIndex = resolveWordIndex(wordCountByToken, resumeIndex)
-                        saveRsvpPosition(
-                            targetChapterIndex = chapterIndex,
-                            targetTokenIndex = resumeIndex,
-                            targetWordIndex = wordIndex,
-                            targetResumeCursor = resumePoint.resumeCursor,
-                        )
-                        navController.navigate(KairoRoutes.LIBRARY) {
-                            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-                            launchSingleTop = true
-                        }
-                    },
-                    onPlaybackStateChanged = { isPlaying ->
-                        backStackEntry.savedStateHandle[
-                            KairoSavedStateKeys.RSVP_PLAYBACK_IS_PLAYING
-                        ] =
-                            isPlaying
-                    },
-                ),
-            preferences =
-                RsvpPreferenceCallbacks(
-                    onExtremeSpeedUnlockedChange = { enabled ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateUnlockExtremeSpeed(enabled)
-                        }
-                    },
-                    onSelectProfile = { profileId ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.selectRsvpProfile(profileId)
-                        }
-                    },
-                    onSaveCustomProfile = { name, config ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.saveRsvpCustomProfile(name, config)
-                        }
-                    },
-                    onDeleteCustomProfile = { profileId ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.deleteRsvpCustomProfile(profileId)
-                        }
-                    },
-                    onRsvpConfigChange = { updated ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpConfig { updated }
-                        }
-                    },
-                ),
-            ui =
-                RsvpUiCallbacks(
-                    onFocusModeEnabledChange = { enabled ->
-                        coroutineScope.launch {
-                            if (enabled) {
-                                if (!prefs.focusModeEnabled) {
-                                    container.preferencesRepository.updateFocusModeEnabled(true)
-                                }
-                                container.preferencesRepository.updateFocusApplyInRsvp(true)
-                            } else {
-                                container.preferencesRepository.updateFocusApplyInRsvp(false)
-                            }
-                        }
-                    },
-                    onRsvpFontSizeChange = { size ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpFontSize(size)
-                        }
-                    },
-                    onRsvpTextBrightnessChange = { brightness ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpTextBrightness(brightness)
-                        }
-                    },
-                    onRsvpFontWeightChange = { weight ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpFontWeight(weight)
-                        }
-                    },
-                    onRsvpFontFamilyChange = { family ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpFontFamily(family)
-                        }
-                    },
-                ),
-            theme =
-                RsvpThemeCallbacks(
-                    onThemeChange = { theme ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateTheme(theme.name)
-                        }
-                    },
-                    onVerticalBiasChange = { bias ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpVerticalBias(bias)
-                        }
-                    },
-                    onHorizontalBiasChange = { bias ->
-                        coroutineScope.launch {
-                            container.preferencesRepository.updateRsvpHorizontalBias(bias)
-                        }
-                    },
-                ),
+        buildRsvpRouteCallbacks(
+            RsvpRouteCallbackDependencies(
+                container = container,
+                navController = navController,
+                backStackEntry = backStackEntry,
+                prefs = prefs,
+                bookId = bookId,
+                bookIdValue = bookIdValue,
+                chapterIndex = chapterIndex,
+                chapterCount = routeData.chapterCount,
+                tokens = tokens,
+                wordCountByToken = wordCountByToken,
+                languageTag = routeData.languageTag,
+                coroutineScope = coroutineScope,
+                resources = resources,
+                onShowUserMessage = onShowUserMessage,
+                saveRsvpPosition = ::saveRsvpPosition,
+            )
         )
     val rsvpDependencies =
         RsvpScreenDependencies(
