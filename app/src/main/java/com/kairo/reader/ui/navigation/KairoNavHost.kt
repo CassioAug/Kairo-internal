@@ -1,22 +1,10 @@
 package com.kairo.reader.ui.navigation
 
 import android.net.Uri
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,12 +15,8 @@ import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.rsvp.RsvpEffectivePace
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
-import com.kairo.reader.ui.focus.FocusModeSideEffects
-import com.kairo.reader.ui.focus.shouldApplyFocusMode
 import com.kairo.reader.ui.importing.rememberImportCoordinator
-import com.kairo.reader.ui.theme.KairoSnackbarHost
 import com.kairo.reader.ui.tutorial.rememberStartingTutorialCoordinator
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Suppress("CyclomaticComplexMethod", "FunctionNaming", "LongMethod")
@@ -47,20 +31,8 @@ internal fun KairoNavHost(
 ) {
     val navController = rememberNavController()
     val coroutineScope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
     val dispatcherProvider = container.dispatcherProvider
-    fun showUserMessage(
-        message: String,
-        duration: SnackbarDuration = SnackbarDuration.Short,
-    ) {
-        coroutineScope.launch {
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(
-                message = message,
-                duration = duration,
-            )
-        }
-    }
+    val messageController = rememberKairoUserMessageController()
 
     val importCoordinator =
         rememberImportCoordinator(
@@ -70,7 +42,9 @@ internal fun KairoNavHost(
             externalArticleUrl = externalArticleUrl,
             onExternalImportUriConsumed = onExternalImportUriConsumed,
             onExternalArticleUrlConsumed = onExternalArticleUrlConsumed,
-            onShowUserMessage = ::showUserMessage,
+            onShowUserMessage = { message, duration ->
+                messageController.show(message, duration)
+            },
         )
 
     val selectedWpm by produceState(initialValue = 0, prefs.rsvpConfig) {
@@ -100,13 +74,11 @@ internal fun KairoNavHost(
             externalArticleUrl = externalArticleUrl,
             isImporting = importCoordinator.state.isImporting,
         )
-    FocusModeSideEffects(
-        enabled = shouldApplyFocusMode(currentRoute, prefs),
-        hideStatusBar = prefs.focusHideStatusBar,
-        pauseNotifications = prefs.focusPauseNotifications,
-    )
-
-    Box(modifier = Modifier.fillMaxSize()) {
+    KairoNavChrome(
+        prefs = prefs,
+        currentRoute = currentRoute,
+        messageController = messageController,
+    ) {
         NavHost(navController = navController, startDestination = KairoRoutes.LIBRARY) {
             composable(KairoRoutes.LIBRARY) {
                 LibraryRoute(
@@ -168,7 +140,7 @@ internal fun KairoNavHost(
                     estimatedWpm = estimatedWpm,
                     tutorialActive = tutorialCoordinator.active,
                     tutorialState = tutorialCoordinator.readerState,
-                    onShowUserMessage = { message -> showUserMessage(message) },
+                    onShowUserMessage = { message -> messageController.show(message) },
                     onTutorialNext = tutorialCoordinator.next,
                     onTutorialPrevious = tutorialCoordinator.previous,
                     onTutorialSkip = tutorialCoordinator.skip,
@@ -196,7 +168,7 @@ internal fun KairoNavHost(
                         backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0,
                     initialTokenIndex =
                         backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0,
-                    onShowUserMessage = { message -> showUserMessage(message) },
+                    onShowUserMessage = { message -> messageController.show(message) },
                     onTutorialNext = tutorialCoordinator.next,
                     onTutorialPrevious = tutorialCoordinator.previous,
                     onTutorialSkip = tutorialCoordinator.skip,
@@ -222,7 +194,7 @@ internal fun KairoNavHost(
                     navController = navController,
                     prefs = prefs,
                     tutorialState = tutorialCoordinator.rsvpState,
-                    onShowUserMessage = { message -> showUserMessage(message) },
+                    onShowUserMessage = { message -> messageController.show(message) },
                     onTutorialNext = tutorialCoordinator.next,
                     onTutorialPrevious = tutorialCoordinator.previous,
                     onTutorialSkip = tutorialCoordinator.skip,
@@ -241,16 +213,5 @@ internal fun KairoNavHost(
                 onTutorialSkip = tutorialCoordinator.skip,
             )
         }
-        KairoSnackbarHost(
-            hostState = snackbarHostState,
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
-                        )
-                    ),
-        )
     }
 }
