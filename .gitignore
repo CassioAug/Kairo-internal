@@ -23,6 +23,10 @@ local.properties
 
 AGENTS.md
 
+# Local/generated docs
+/docs/main-activity-modularisation-checklist.md
+/docs/performance-hindrances.md
+
 # Android
 *.apk
 *.aab
