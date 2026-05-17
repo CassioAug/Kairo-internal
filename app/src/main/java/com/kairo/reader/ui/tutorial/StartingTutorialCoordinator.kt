@@ -54,6 +54,7 @@ internal fun rememberStartingTutorialCoordinator(
     var tutorialStepIndex by rememberSaveable { mutableIntStateOf(0) }
     var tutorialActive by rememberSaveable { mutableStateOf(false) }
     var tutorialAutoStarted by rememberSaveable { mutableStateOf(false) }
+    val safeTutorialStepIndex = clampTutorialStepIndex(tutorialStepIndex, tutorialSteps)
     val availableTutorialLaunchContext by produceState<StartingTutorialLaunchContext?>(
         initialValue = null,
         prefs.hasSeenStartingTutorial,
@@ -73,6 +74,12 @@ internal fun rememberStartingTutorialCoordinator(
             .collect { context ->
                 value = context
             }
+    }
+
+    LaunchedEffect(tutorialSteps.size, tutorialStepIndex) {
+        if (safeTutorialStepIndex != null && safeTutorialStepIndex != tutorialStepIndex) {
+            tutorialStepIndex = safeTutorialStepIndex
+        }
     }
 
     fun resolveCurrentTutorialRoute(route: String?): StartingTutorialRoute? =
@@ -178,10 +185,10 @@ internal fun rememberStartingTutorialCoordinator(
     }
 
     val tutorialOverlayState =
-        if (tutorialActive) {
+        if (tutorialActive && safeTutorialStepIndex != null) {
             StartingTutorialOverlayState(
-                step = tutorialSteps[tutorialStepIndex],
-                index = tutorialStepIndex,
+                step = tutorialSteps[safeTutorialStepIndex],
+                index = safeTutorialStepIndex,
                 totalSteps = tutorialSteps.size,
             )
         } else {
@@ -228,6 +235,16 @@ internal fun rememberStartingTutorialCoordinator(
         skip = { dismissStartingTutorial() },
     )
 }
+
+internal fun clampTutorialStepIndex(
+    index: Int,
+    steps: List<StartingTutorialStep>,
+): Int? =
+    if (steps.isEmpty()) {
+        null
+    } else {
+        index.coerceIn(0, steps.lastIndex)
+    }
 
 private data class StartingTutorialLaunchContext(
     val bookId: String,
