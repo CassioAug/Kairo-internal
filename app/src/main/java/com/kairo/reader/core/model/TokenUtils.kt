@@ -16,32 +16,7 @@ import kotlin.math.max
  * This implementation uses word frequency to fine-tune the pivot position.
  */
 fun calculateOrpIndex(word: String): Int {
-    val length = word.length
-    if (length <= 2) return 0
-
-    // Get word frequency (common words can have later pivot)
-    val frequency = WordAnalyzer.getFrequencyScore(word)
-
-    // Base ORP position (traditional algorithm)
-    val baseOrp =
-        when {
-            length <= 5 -> 1
-            length <= 9 -> 2
-            length <= 13 -> 3
-            else -> 4
-        }
-
-    // Adjust based on frequency:
-    // - Very common words (freq > 0.8): pivot can be 1 position later
-    // - Rare words (freq < 0.3): keep base or go 1 earlier for longer words
-    val adjustment =
-        when {
-            frequency > 0.8 && length > 5 -> 1 // Common words: slightly later pivot
-            frequency < 0.3 && length > 8 -> -1 // Rare long words: earlier pivot
-            else -> 0
-        }
-
-    return (baseOrp + adjustment).coerceIn(0, length - 1)
+    return WordAnalyzer.analyze(word).orpIndex
 }
 
 /**
@@ -246,13 +221,14 @@ fun splitHyphenatedToken(token: Token): List<Token> {
         val isLast = index == parts.lastIndex
         // Attach hyphen to each part except the last
         val text = if (isLast) part else "$part-"
+        val analysis = WordAnalyzer.analyze(part)
 
         token.copy(
             text = text,
-            orpIndex = calculateOrpIndex(part), // Calculate ORP for the word part (without hyphen)
-            syllableCount = WordAnalyzer.countSyllables(part),
-            frequencyScore = WordAnalyzer.getFrequencyScore(part),
-            complexityMultiplier = WordAnalyzer.getComplexityMultiplier(part),
+            orpIndex = analysis.orpIndex,
+            syllableCount = analysis.syllableCount,
+            frequencyScore = analysis.frequencyScore,
+            complexityMultiplier = analysis.complexityMultiplier,
             isClauseBoundary = if (isLast) token.isClauseBoundary else false,
             isDialogue = token.isDialogue,
             pauseAfterMs = if (isLast) token.pauseAfterMs else 0L,
