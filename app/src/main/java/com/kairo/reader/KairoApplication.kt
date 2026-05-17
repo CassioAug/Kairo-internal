@@ -93,6 +93,7 @@ class KairoApplication : Application() {
                 parsers,
                 WebArticleExtractor(dispatcherProvider),
                 applicationContext,
+                dispatcherProvider,
             )
         tokenRepository = TokenRepositoryImpl(bookRepository, dispatcherProvider)
         readingPositionRepository = ReadingPositionRepositoryImpl(database.readingPositionDao())

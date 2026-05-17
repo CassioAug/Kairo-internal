@@ -18,5 +18,12 @@ interface BookParser {
         bookId: BookId,
     ): Book
 
+    suspend fun parse(
+        context: Context,
+        uri: Uri,
+        bookId: BookId,
+        sourceDisplayName: String?,
+    ): Book = parse(context, uri, bookId)
+
     fun supports(extension: String): Boolean
 }

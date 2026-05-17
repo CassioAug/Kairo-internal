@@ -1,8 +1,11 @@
 package com.kairo.reader.data.books
 
+import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.OpenableColumns
+import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.language.BookLanguageResolver
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
@@ -15,7 +18,8 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -24,6 +28,7 @@ class BookRepositoryImpl(
     private val parsers: List<BookParser>,
     private val webArticleExtractor: WebArticleExtractor,
     private val appContext: android.content.Context,
+    private val dispatcherProvider: DispatcherProvider,
 ) : BookRepository {
     // Mutex to prevent concurrent import operations which can crash the app
     private val importMutex = Mutex()
@@ -35,21 +40,32 @@ class BookRepositoryImpl(
                 parsers.firstOrNull { it.supports(extension) }
                     ?: throw IllegalArgumentException("No parser found for .$extension files")
 
-            val sourceFingerprint = resolveSourceFingerprint(uri, extension)
-            sourceFingerprint
-                ?.let { fingerprint -> bookDao.getBookByImportFingerprint(fingerprint) }
-                ?.let { existing ->
-                    return@withLock BookImportResult(
-                        book = existing.toDomain(bookDao.getChapters(existing.id)),
-                        alreadyImported = true,
-                    )
-                }
+            val importSource = prepareImportSource(uri, extension)
+            try {
+                val sourceFingerprint = importSource.sourceFingerprint
+                sourceFingerprint
+                    ?.let { fingerprint -> bookDao.getBookByImportFingerprint(fingerprint) }
+                    ?.let { existing ->
+                        return@withLock BookImportResult(
+                            book = existing.toDomain(bookDao.getChapters(existing.id)),
+                            alreadyImported = true,
+                        )
+                    }
 
-            val bookId =
-                sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
-                    ?: BookId(UUID.randomUUID().toString())
-            val parsedBook = parser.parse(appContext, uri, bookId)
-            return@withLock persistImportedBook(parsedBook, sourceFingerprint)
+                val bookId =
+                    sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
+                        ?: BookId(UUID.randomUUID().toString())
+                val parsedBook =
+                    parser.parse(
+                        context = appContext,
+                        uri = importSource.parseUri,
+                        bookId = bookId,
+                        sourceDisplayName = importSource.sourceDisplayName,
+                    )
+                return@withLock persistImportedBook(parsedBook, sourceFingerprint)
+            } finally {
+                importSource.deleteTempFile()
+            }
         }
 
     override suspend fun importUrl(rawUrl: String): BookImportResult =
@@ -68,6 +84,69 @@ class BookRepositoryImpl(
             return@withLock persistImportedBook(parsedBook, sourceFingerprint)
         }
 
+    private fun prepareImportSource(
+        uri: Uri,
+        extension: String,
+    ): PreparedImportSource {
+        val sourceDisplayName = resolveDisplayName(uri)
+        if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
+            stageImportSource(uri, extension, sourceDisplayName)?.let { return it }
+        }
+
+        return PreparedImportSource(
+            parseUri = uri,
+            sourceFingerprint = resolveSourceFingerprint(uri, extension),
+            sourceDisplayName = sourceDisplayName,
+            tempFile = null,
+        )
+    }
+
+    private fun stageImportSource(
+        uri: Uri,
+        extension: String,
+        sourceDisplayName: String?,
+    ): PreparedImportSource? {
+        val importDir = File(appContext.cacheDir, IMPORT_CACHE_DIR_NAME)
+        if (!importDir.exists() && !importDir.mkdirs()) {
+            return null
+        }
+
+        var tempFile: File? = null
+        return runCatching {
+            pruneStaleImportCache(importDir)
+
+            val stagedFile =
+                File.createTempFile(
+                    IMPORT_CACHE_FILE_PREFIX,
+                    ".${sanitizeImportExtension(extension)}",
+                    importDir,
+                )
+            tempFile = stagedFile
+
+            val sourceInput = appContext.contentResolver.openInputStream(uri)
+            if (sourceInput == null) {
+                stagedFile.delete()
+                null
+            } else {
+                val sourceFingerprint =
+                    sourceInput.use { input ->
+                        stagedFile.outputStream().use { output ->
+                            ImportFingerprint.sourceFingerprint(extension, input, output)
+                        }
+                    }
+                PreparedImportSource(
+                    parseUri = Uri.fromFile(stagedFile),
+                    sourceFingerprint = sourceFingerprint,
+                    sourceDisplayName = sourceDisplayName,
+                    tempFile = stagedFile,
+                )
+            }
+        }.getOrElse {
+            tempFile?.delete()
+            null
+        }
+    }
+
     private fun resolveSourceFingerprint(
         uri: Uri,
         extension: String,
@@ -78,6 +157,21 @@ class BookRepositoryImpl(
             }
         }.getOrNull()
 
+    private fun resolveDisplayName(uri: Uri): String? =
+        runCatching {
+            appContext.contentResolver
+                .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && nameIndex >= 0) {
+                        cursor.getString(nameIndex)
+                    } else {
+                        null
+                    }
+                }
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+
     private suspend fun findExistingDuplicate(
         parsedBook: Book,
         sourceFingerprint: String?,
@@ -85,7 +179,7 @@ class BookRepositoryImpl(
         val candidates = bookDao.getBooksByTitleForImportDedupe(parsedBook.title)
         if (candidates.isEmpty()) return null
 
-        val parsedFingerprint = ImportFingerprint.contentFingerprint(parsedBook)
+        var parsedFingerprint: String? = null
         candidates.forEach { candidate ->
             if (candidate.id == parsedBook.id.value) return@forEach
             if (candidate.authors != parsedBook.authors) return@forEach
@@ -94,7 +188,11 @@ class BookRepositoryImpl(
             if (candidateChapters.size != parsedBook.chapters.size) return@forEach
 
             val candidateBook = candidate.toDomain(candidateChapters)
-            if (ImportFingerprint.contentFingerprint(candidateBook) == parsedFingerprint) {
+            val contentFingerprint =
+                parsedFingerprint ?: ImportFingerprint.contentFingerprint(parsedBook).also {
+                    parsedFingerprint = it
+                }
+            if (ImportFingerprint.contentFingerprint(candidateBook) == contentFingerprint) {
                 sourceFingerprint?.let { fingerprint ->
                     runCatching {
                         bookDao.setImportFingerprintIfEmpty(candidate.id, fingerprint)
@@ -159,19 +257,7 @@ class BookRepositoryImpl(
 
     private fun resolveExtension(uri: Uri): String {
         // Try to get extension from the display name (most reliable for file pickers)
-        val displayName =
-            runCatching {
-                appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIndex = cursor.getColumnIndex(
-                        android.provider.OpenableColumns.DISPLAY_NAME
-                    )
-                    if (cursor.moveToFirst() && nameIndex >= 0) {
-                        cursor.getString(nameIndex)
-                    } else {
-                        null
-                    }
-                }
-            }.getOrNull()
+        val displayName = resolveDisplayName(uri)
 
         val extFromDisplay =
             displayName
@@ -235,12 +321,13 @@ class BookRepositoryImpl(
         bookDao.getBookLanguageTag(bookId.value)
 
     override fun observeBooks(): Flow<List<Book>> =
-        bookDao.getBooks().map { entities ->
+        bookDao.getBooks().combine(bookDao.getChapterSummaries()) { entities, chapters ->
+            val chaptersByBookId = chapters.groupBy { it.bookId }
             entities.map { bookEntity ->
-                val chapters = bookDao.getChapters(bookEntity.id)
+                val chapters = chaptersByBookId[bookEntity.id].orEmpty()
                 bookEntity.toDomain(chapters)
             }
-        }
+        }.flowOn(dispatcherProvider.default)
 
     private fun optimizeCoverForDb(coverImage: ByteArray?): ByteArray? {
         if (coverImage == null || coverImage.isEmpty()) return coverImage
@@ -310,11 +397,47 @@ class BookRepositoryImpl(
 
     private companion object {
         private const val DEFAULT_EXTENSION = "epub"
+        private const val IMPORT_CACHE_DIR_NAME = "book_imports"
+        private const val IMPORT_CACHE_FILE_PREFIX = "kairo-import-"
+        private const val IMPORT_CACHE_MAX_AGE_MS = 24L * 60L * 60L * 1000L
+        private const val MAX_IMPORT_EXTENSION_LENGTH = 16
         private const val MAX_COVER_DB_BYTES = 256 * 1024
         private const val COVER_MAX_DIM_PX = 1080
         private const val INITIAL_COVER_JPEG_QUALITY = 90
         private const val JPEG_QUALITY_STEP = 10
         private const val MIN_COVER_JPEG_QUALITY = 60
         private const val MAX_WORD_COUNT_CHARS = 120_000
+    }
+
+    private data class PreparedImportSource(
+        val parseUri: Uri,
+        val sourceFingerprint: String?,
+        val sourceDisplayName: String?,
+        val tempFile: File?,
+    ) {
+        fun deleteTempFile() {
+            tempFile?.delete()
+        }
+    }
+
+    private fun sanitizeImportExtension(extension: String): String =
+        extension
+            .lowercase()
+            .filter { it.isLetterOrDigit() }
+            .take(MAX_IMPORT_EXTENSION_LENGTH)
+            .takeIf { it.isNotBlank() }
+            ?: DEFAULT_EXTENSION
+
+    private fun pruneStaleImportCache(directory: File) {
+        val cutoff = System.currentTimeMillis() - IMPORT_CACHE_MAX_AGE_MS
+        directory.listFiles()?.forEach { file ->
+            if (
+                file.isFile &&
+                file.name.startsWith(IMPORT_CACHE_FILE_PREFIX) &&
+                file.lastModified() < cutoff
+            ) {
+                file.delete()
+            }
+        }
     }
 }
