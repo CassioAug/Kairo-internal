@@ -7,6 +7,7 @@ import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.rsvp.RsvpEngine
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
+import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
@@ -26,11 +27,17 @@ class RsvpFrameRepositoryImpl(
     private val engine: RsvpEngine,
     dispatcherProvider: DispatcherProvider,
 ) : RsvpFrameRepository {
+    private enum class CacheMode {
+        SEGMENT_BASE,
+        EXACT_PLAYBACK,
+    }
+
     private data class CacheKey(
         val bookId: String,
         val chapterIndex: Int,
         val timingConfig: RsvpConfig,
         val startIndex: Int,
+        val mode: CacheMode,
     )
 
     private val cache =
@@ -58,11 +65,36 @@ class RsvpFrameRepositoryImpl(
         startIndex: Int,
     ): RsvpFrameSet {
         val safeStartIndex = startIndex.coerceAtLeast(0)
-        val key = CacheKey(bookId.value, chapterIndex, config.frameTimingKey(), safeStartIndex)
-        val cached = mutex.withLock { cache[key] }
-        if (cached != null) return cached
+        val segmentStartIndex = safeStartIndex.segmentStartIndex()
+        val baseConfig = config.withoutSessionRamps()
+        val baseKey =
+            CacheKey(
+                bookId.value,
+                chapterIndex,
+                baseConfig.frameTimingKey(),
+                segmentStartIndex,
+                CacheMode.SEGMENT_BASE,
+            )
+        val baseFrameSet =
+            ensureFramesAsync(
+                key = baseKey,
+                bookId = bookId,
+                chapterIndex = chapterIndex,
+                config = baseConfig,
+                startIndex = segmentStartIndex,
+            ).await()
+        val playbackFrameSet = baseFrameSet.asPlaybackFrameSet(safeStartIndex, config)
+        if (!playbackFrameSet.startsBefore(safeStartIndex)) return playbackFrameSet
 
-        return ensureFramesAsync(key, bookId, chapterIndex, config, safeStartIndex).await()
+        val exactKey =
+            CacheKey(
+                bookId.value,
+                chapterIndex,
+                config.frameTimingKey(),
+                safeStartIndex,
+                CacheMode.EXACT_PLAYBACK,
+            )
+        return ensureFramesAsync(exactKey, bookId, chapterIndex, config, safeStartIndex).await()
     }
 
     override fun prefetchFrames(
@@ -72,12 +104,21 @@ class RsvpFrameRepositoryImpl(
         startIndex: Int,
     ) {
         val safeStartIndex = startIndex.coerceAtLeast(0)
-        val key = CacheKey(bookId.value, chapterIndex, config.frameTimingKey(), safeStartIndex)
+        val segmentStartIndex = safeStartIndex.segmentStartIndex()
+        val baseConfig = config.withoutSessionRamps()
+        val key =
+            CacheKey(
+                bookId.value,
+                chapterIndex,
+                baseConfig.frameTimingKey(),
+                segmentStartIndex,
+                CacheMode.SEGMENT_BASE,
+            )
         scope.launch {
             val cached = mutex.withLock { cache.containsKey(key) }
             if (cached) return@launch
             runCatching {
-                ensureFramesAsync(key, bookId, chapterIndex, config, safeStartIndex)
+                ensureFramesAsync(key, bookId, chapterIndex, baseConfig, segmentStartIndex)
             }
         }
     }
@@ -146,6 +187,38 @@ class RsvpFrameRepositoryImpl(
         }
     }
 
+    private fun RsvpFrameSet.asPlaybackFrameSet(
+        startIndex: Int,
+        config: RsvpConfig,
+    ): RsvpFrameSet {
+        if (frames.isEmpty()) {
+            return RsvpFrameSet(frames = emptyList(), baseTempoMs = config.tempoMsPerWord)
+        }
+
+        val frameIndex =
+            frameIndexMap.alignFrameIndex(
+                tokenIndex = startIndex,
+                frameCount = frames.size,
+            )
+        val playbackFrames = frames.subList(frameIndex, frames.size).toMutableList()
+        RsvpSessionTimingPolicy.applyInitialSessionRamps(playbackFrames, config)
+        return RsvpFrameSet(frames = playbackFrames, baseTempoMs = config.tempoMsPerWord)
+    }
+
+    private fun RsvpFrameSet.startsBefore(startIndex: Int): Boolean =
+        startIndex > 0 && frames.firstOrNull()?.originalTokenIndex?.let { it < startIndex } == true
+
+    private fun RsvpConfig.withoutSessionRamps(): RsvpConfig =
+        copy(
+            startDelayMs = 0L,
+            endDelayMs = 0L,
+            rampUpFrames = 0,
+            rampDownFrames = 0,
+        )
+
+    private fun Int.segmentStartIndex(): Int =
+        (this / FRAME_CACHE_SEGMENT_TOKENS) * FRAME_CACHE_SEGMENT_TOKENS
+
     private fun RsvpFrame.asPreviewFrame(
         originalIndexOffset: Int,
         tokenCount: Int,
@@ -169,6 +242,7 @@ class RsvpFrameRepositoryImpl(
     private companion object {
         private const val CACHE_INITIAL_CAPACITY = 12
         private const val CACHE_LOAD_FACTOR = 0.75f
-        private const val MAX_CACHED_FRAME_SETS = 6
+        private const val FRAME_CACHE_SEGMENT_TOKENS = 512
+        private const val MAX_CACHED_FRAME_SETS = 8
     }
 }
