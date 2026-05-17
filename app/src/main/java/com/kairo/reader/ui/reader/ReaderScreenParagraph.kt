@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -64,9 +65,22 @@ internal fun ParagraphText(
                 textDecoration = TextDecoration.Underline,
             )
         }
+    val localFocusIndex =
+        remember(paragraph.startIndex, paragraph.tokens.size, focusIndex) {
+            (focusIndex - paragraph.startIndex)
+                .takeIf { localIndex -> localIndex in paragraph.tokens.indices }
+                ?: NO_PARAGRAPH_FOCUS
+        }
 
     val annotated =
-        remember(paragraph.tokens, paragraph.startIndex, focusIndex, primary, tertiary, paragraphIndent) {
+        remember(
+            paragraph.tokens,
+            paragraph.startIndex,
+            localFocusIndex,
+            focusStyle,
+            linkStyle,
+            paragraphIndent,
+        ) {
             buildAnnotatedString {
                 paragraph.tokens.forEachIndexed { localIndex, token ->
                     if (token.type == TokenType.PARAGRAPH_BREAK ||
@@ -104,13 +118,18 @@ internal fun ParagraphText(
                         addStyle(linkStyle, start, end)
                     }
 
-                    if (globalIndex == focusIndex) addStyle(focusStyle, start, end)
+                    if (localIndex == localFocusIndex) addStyle(focusStyle, start, end)
                 }
                 addStyle(paragraphIndent, start = 0, end = length)
             }
         }
 
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val currentAnnotated by rememberUpdatedState(annotated)
+    val currentFocusIndex by rememberUpdatedState(focusIndex)
+    val currentOnFocusChange by rememberUpdatedState(onFocusChange)
+    val currentOnStartRsvp by rememberUpdatedState(onStartRsvp)
+    val currentOnChapterSelected by rememberUpdatedState(onChapterSelected)
 
     Text(
         text = annotated,
@@ -118,35 +137,37 @@ internal fun ParagraphText(
         modifier =
         Modifier
             .fillMaxWidth()
-            .pointerInput(annotated, focusIndex, onChapterSelected) {
+            .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { position ->
                         val layout = layoutResult ?: return@detectTapGestures
+                        val annotations = currentAnnotated
                         val offset = layout.getOffsetForPosition(position).coerceIn(
                             0,
                             (
-                                annotated.length -
+                                annotations.length -
                                     1
                                 ).coerceAtLeast(0)
                         )
 
                         // First check for chapter link tap
-                        val linkHit = annotated.getStringAnnotations(
+                        val linkHit = annotations.getStringAnnotations(
                             "chapterLink",
                             offset,
                             offset
                         ).firstOrNull()
-                        if (linkHit != null && onChapterSelected != null) {
+                        val chapterSelected = currentOnChapterSelected
+                        if (linkHit != null && chapterSelected != null) {
                             val chapterIndex = linkHit.item.toIntOrNull()
                             if (chapterIndex != null) {
-                                onChapterSelected(chapterIndex)
+                                chapterSelected(chapterIndex)
                                 return@detectTapGestures
                             }
                         }
 
                         // Otherwise handle normal token tap
                         val hit =
-                            annotated.getStringAnnotations(
+                            annotations.getStringAnnotations(
                                 "tokenIndex",
                                 offset,
                                 offset
@@ -154,35 +175,38 @@ internal fun ParagraphText(
                                 ?: return@detectTapGestures
                         val tokenIndex = hit.item.toIntOrNull() ?: return@detectTapGestures
                         if (tokenIndex ==
-                            focusIndex
+                            currentFocusIndex
                         ) {
-                            onStartRsvp(tokenIndex)
+                            currentOnStartRsvp(tokenIndex)
                         } else {
-                            onFocusChange(tokenIndex)
+                            currentOnFocusChange(tokenIndex)
                         }
                     },
                     onLongPress = { position ->
                         val layout = layoutResult ?: return@detectTapGestures
+                        val annotations = currentAnnotated
                         val offset = layout.getOffsetForPosition(position).coerceIn(
                             0,
                             (
-                                annotated.length -
+                                annotations.length -
                                     1
                                 ).coerceAtLeast(0)
                         )
                         val hit =
-                            annotated.getStringAnnotations(
+                            annotations.getStringAnnotations(
                                 "tokenIndex",
                                 offset,
                                 offset
                             ).firstOrNull()
                                 ?: return@detectTapGestures
                         val tokenIndex = hit.item.toIntOrNull() ?: return@detectTapGestures
-                        if (tokenIndex != focusIndex) onFocusChange(tokenIndex)
-                        onStartRsvp(tokenIndex)
+                        if (tokenIndex != currentFocusIndex) currentOnFocusChange(tokenIndex)
+                        currentOnStartRsvp(tokenIndex)
                     },
                 )
             },
         onTextLayout = { layoutResult = it },
     )
 }
+
+private const val NO_PARAGRAPH_FOCUS = -1

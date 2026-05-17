@@ -316,7 +316,7 @@ internal fun ReaderContent(
                     is ReaderParagraphBlock -> {
                         ParagraphText(
                             paragraph = block.paragraph,
-                            focusIndex = focusIndex,
+                            focusIndex = block.paragraph.focusIndexOrNone(focusIndex),
                             fontSizeSp = fontSizeSp,
                             textBrightness = textBrightness,
                             onFocusChange = onSafeFocusChange,
@@ -460,6 +460,13 @@ internal enum class ReaderSwipeDirection {
     Previous,
     Next,
 }
+
+private fun Paragraph.focusIndexOrNone(focusIndex: Int): Int {
+    val endIndex = startIndex + tokens.size - 1
+    return if (focusIndex in startIndex..endIndex) focusIndex else NO_PARAGRAPH_FOCUS_INDEX
+}
+
+private const val NO_PARAGRAPH_FOCUS_INDEX = -1
 
 @Composable
 private fun ReaderLoadingState(
