@@ -493,7 +493,8 @@ private fun buildAppearanceFingerprint(
         layoutBias.horizontalBias,
     ).joinToString("|")
 
-internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig = config.frameTimingKey()
+internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig =
+    config.frameTimingKey().copy(tempoMsPerWord = 0L)
 
 internal fun resolveFrameLoadStartIndex(
     bookStartIndex: Int,

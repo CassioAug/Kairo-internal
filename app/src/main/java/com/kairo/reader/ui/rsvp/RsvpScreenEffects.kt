@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -15,6 +16,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.rsvp.frameFloorMs
 import com.kairo.reader.core.rsvp.shouldSkipBlinkFrame
 import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
@@ -26,9 +28,10 @@ internal fun RsvpPositionSaveEffect(context: RsvpUiContext) {
     val runtime = context.runtime
     val frames = context.frameState.frames
     val book = context.state.book
+    val positionSyncGate = remember { RsvpPositionSyncGate() }
 
-    LaunchedEffect(runtime.frameIndex, context.frameState.isLoading) {
-        if (!shouldSyncPositionFromFrameState(context.frameState)) return@LaunchedEffect
+    LaunchedEffect(runtime.frameIndex, context.frameState.isLoading, frames) {
+        if (!positionSyncGate.shouldSync(context.frameState)) return@LaunchedEffect
         val currentIndex = resolveCurrentTokenIndex(frames, runtime.frameIndex, book.startIndex)
         val currentResumeCursor =
             resolveCurrentResumeCursor(
@@ -97,6 +100,19 @@ internal fun RsvpFrameAlignmentEffect(context: RsvpUiContext) {
 internal fun shouldSyncPositionFromFrameState(frameState: RsvpFrameLoadState): Boolean =
     frameState.frames.isNotEmpty() && !frameState.isLoading
 
+internal class RsvpPositionSyncGate {
+    private var lastReadyFrames: List<RsvpFrame>? = null
+
+    fun shouldSync(frameState: RsvpFrameLoadState): Boolean {
+        if (!shouldSyncPositionFromFrameState(frameState)) return false
+        if (lastReadyFrames !== frameState.frames) {
+            lastReadyFrames = frameState.frames
+            return false
+        }
+        return true
+    }
+}
+
 @Composable
 internal fun RsvpSessionResetEffect(
     context: RsvpUiContext,
@@ -158,17 +174,20 @@ internal fun RsvpPlaybackLoopEffect(
 ) {
     val runtime = context.runtime
     val frames = context.frameState.frames
-    val tempoScale = context.timing.tempoScale
-    val config = context.state.profile.config
+    val latestTempoScale by rememberUpdatedState(context.timing.tempoScale)
+    val latestBaseTempoMs by rememberUpdatedState(context.frameState.baseTempoMs)
+    val latestConfig by rememberUpdatedState(context.state.profile.config)
 
-    LaunchedEffect(enabled, runtime.isPlaying, runtime.frameIndex, runtime.completed, frames, tempoScale) {
+    LaunchedEffect(enabled, runtime.isPlaying, runtime.frameIndex, runtime.completed, frames) {
         if (!enabled) return@LaunchedEffect
         if (!runtime.isPlaying || runtime.completed) return@LaunchedEffect
         if (runtime.frameIndex >= frames.size) return@LaunchedEffect
         val frame = frames[runtime.frameIndex]
+        val tempoScale = latestTempoScale
+        val config = latestConfig
         val effectiveTempoMs =
             effectivePlaybackTempoMs(
-                baseTempoMs = context.frameState.baseTempoMs,
+                baseTempoMs = latestBaseTempoMs,
                 tempoScale = tempoScale,
             )
         if (shouldSkipBlinkFrame(frame, config, effectiveTempoMs, tempoScale)) {
