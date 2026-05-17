@@ -3,6 +3,7 @@ package com.kairo.reader.data.books
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.Locale
 
@@ -13,6 +14,15 @@ internal object ImportFingerprint {
     ): String {
         val normalizedExtension = extension.lowercase(Locale.ROOT)
         return "source:$normalizedExtension:${input.sha256Hex()}"
+    }
+
+    fun sourceFingerprint(
+        extension: String,
+        input: InputStream,
+        copyTo: OutputStream,
+    ): String {
+        val normalizedExtension = extension.lowercase(Locale.ROOT)
+        return "source:$normalizedExtension:${input.sha256Hex(copyTo)}"
     }
 
     fun webUrlFingerprint(normalizedUrl: String): String =
@@ -50,7 +60,7 @@ internal object ImportFingerprint {
             .replace('\r', '\n')
             .trim()
 
-    private fun InputStream.sha256Hex(): String {
+    private fun InputStream.sha256Hex(copyTo: OutputStream? = null): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val buffer = ByteArray(BUFFER_SIZE)
         while (true) {
@@ -58,6 +68,7 @@ internal object ImportFingerprint {
             if (read == -1) break
             if (read > 0) {
                 digest.update(buffer, 0, read)
+                copyTo?.write(buffer, 0, read)
             }
         }
         return digest.hexDigest()

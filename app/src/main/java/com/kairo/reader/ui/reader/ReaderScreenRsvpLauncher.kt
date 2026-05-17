@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +52,12 @@ internal fun ReaderRsvpLauncher(
     val coroutineScope = rememberCoroutineScope()
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
     val progressPercent = (progressFraction * 100f).toInt().coerceIn(0, 100)
+    val currentTokens by rememberUpdatedState(tokens)
+    val currentFocusIndex by rememberUpdatedState(focusIndex)
+    val currentInvertedScroll by rememberUpdatedState(invertedScroll)
+    val currentFocusListIndex by rememberUpdatedState(focusListIndex)
+    val currentOnFocusChange by rememberUpdatedState(onFocusChange)
+    val currentOnStartRsvp by rememberUpdatedState(onStartRsvp)
 
     Surface(
         shape = RoundedCornerShape(28.dp),
@@ -63,44 +70,54 @@ internal fun ReaderRsvpLauncher(
                 .clip(RoundedCornerShape(28.dp))
                 .combinedClickable(
                     onClick = {
-                        if (tokens.isNotEmpty()) {
-                            val safeIndex = tokens.nearestWordIndex(focusIndex)
-                            onStartRsvp(safeIndex)
+                        val latestTokens = currentTokens
+                        if (latestTokens.isNotEmpty()) {
+                            val safeIndex = latestTokens.nearestWordIndex(currentFocusIndex)
+                            currentOnStartRsvp(safeIndex)
                         }
                     },
                     onLongClick = {
                         coroutineScope.launch {
-                            listState.animateScrollToItem(focusListIndex)
+                            listState.animateScrollToItem(currentFocusListIndex)
                         }
                     },
                 )
-                .pointerInput(tokens, focusIndex, invertedScroll) {
+                .pointerInput(Unit) {
                     val thresholdPx = 22f
                     var gestureFocusIndex = 0
                     detectVerticalDragGestures(
                         onDragStart = {
+                            val latestTokens = currentTokens
                             dragAccumulator = 0f
                             gestureFocusIndex =
-                                if (tokens.isNotEmpty()) {
-                                    tokens.nearestWordIndex(focusIndex).coerceIn(0, tokens.lastIndex)
+                                if (latestTokens.isNotEmpty()) {
+                                    latestTokens.nearestWordIndex(currentFocusIndex).coerceIn(
+                                        0,
+                                        latestTokens.lastIndex,
+                                    )
                                 } else {
                                     0
                                 }
                         },
                         onDragEnd = { dragAccumulator = 0f },
                         onVerticalDrag = { _, dragAmount ->
-                            if (tokens.isEmpty()) return@detectVerticalDragGestures
+                            val latestTokens = currentTokens
+                            if (latestTokens.isEmpty()) return@detectVerticalDragGestures
                             dragAccumulator += dragAmount
                             val steps = (dragAccumulator / thresholdPx).toInt()
                             if (steps == 0) return@detectVerticalDragGestures
                             val rawDirection = -steps
-                            val effectiveDirection = if (invertedScroll) -rawDirection else rawDirection
+                            val effectiveDirection =
+                                if (currentInvertedScroll) -rawDirection else rawDirection
                             val next =
-                                tokens.nearestWordIndex(
-                                    (gestureFocusIndex + effectiveDirection).coerceIn(0, tokens.lastIndex),
+                                latestTokens.nearestWordIndex(
+                                    (gestureFocusIndex + effectiveDirection).coerceIn(
+                                        0,
+                                        latestTokens.lastIndex,
+                                    ),
                                 )
                             gestureFocusIndex = next
-                            onFocusChange(next)
+                            currentOnFocusChange(next)
                             dragAccumulator -= steps * thresholdPx
                         },
                     )

@@ -14,14 +14,14 @@ import org.junit.Test
 
 class RsvpPlaybackStateTest {
     @Test
-    fun frameLoadConfigKeyTracksTempoAndFrameAffectingChanges() {
+    fun frameLoadConfigKeyIgnoresTempoAndTracksFrameAffectingChanges() {
         val baseConfig = RsvpConfig(tempoMsPerWord = 120L, baseWpm = 500, commaPauseMs = 95L)
 
         assertEquals(
             frameLoadConfigKey(baseConfig),
             frameLoadConfigKey(baseConfig.copy(baseWpm = 333)),
         )
-        assertNotEquals(
+        assertEquals(
             frameLoadConfigKey(baseConfig),
             frameLoadConfigKey(baseConfig.copy(tempoMsPerWord = 180L)),
         )
@@ -291,6 +291,28 @@ class RsvpPlaybackStateTest {
     }
 
     @Test
+    fun positionSyncGateSkipsFirstReadyFrameSetBeforeSyncingPosition() {
+        val gate = RsvpPositionSyncGate()
+        val initialFrames = frameListAt(12)
+        val reloadedFrames = frameListAt(12)
+
+        assertFalse(gate.shouldSync(loadedFrameState(initialFrames)))
+        assertTrue(gate.shouldSync(loadedFrameState(initialFrames)))
+        assertFalse(gate.shouldSync(loadedFrameState(reloadedFrames)))
+        assertTrue(gate.shouldSync(loadedFrameState(reloadedFrames)))
+    }
+
+    @Test
+    fun positionSyncGateDoesNotArmFromLoadingPreviewFrames() {
+        val gate = RsvpPositionSyncGate()
+        val frames = frameListAt(7)
+
+        assertFalse(gate.shouldSync(loadedFrameState(frames, isLoading = true)))
+        assertFalse(gate.shouldSync(loadedFrameState(frames)))
+        assertTrue(gate.shouldSync(loadedFrameState(frames)))
+    }
+
+    @Test
     fun sessionKeyDoesNotChangeWhenResumeCursorArrivesLater() {
         val base =
             RsvpBookContext(
@@ -551,4 +573,23 @@ class RsvpPlaybackStateTest {
             timing = RsvpTimingInfo(minTempoMs = 1L, maxTempoMs = 1000L, tempoScale = 1.0),
         )
     }
+
+    private fun frameListAt(originalTokenIndex: Int): List<RsvpFrame> =
+        listOf(
+            RsvpFrame(
+                tokens = listOf(Token(text = "w$originalTokenIndex", type = TokenType.WORD)),
+                durationMs = 120L,
+                originalTokenIndex = originalTokenIndex,
+            )
+        )
+
+    private fun loadedFrameState(
+        frames: List<RsvpFrame>,
+        isLoading: Boolean = false,
+    ): RsvpFrameLoadState =
+        RsvpFrameLoadState(
+            frames = frames,
+            baseTempoMs = 120L,
+            isLoading = isLoading,
+        )
 }

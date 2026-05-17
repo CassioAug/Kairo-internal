@@ -1,10 +1,8 @@
 package com.kairo.reader.core.tokenization.cjk
 
-import com.kairo.reader.core.linguistics.ClauseDetector
 import com.kairo.reader.core.linguistics.WordAnalyzer
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
-import com.kairo.reader.core.model.calculateOrpIndex
 
 internal object CjkTokenFactory {
     fun word(
@@ -12,19 +10,16 @@ internal object CjkTokenFactory {
         isLatin: Boolean,
     ): Token =
         if (isLatin) {
-            val syllables = WordAnalyzer.countSyllables(text)
-            val frequency = WordAnalyzer.getFrequencyScore(text)
-            val complexity = WordAnalyzer.getComplexityMultiplier(text)
-            val isClause = ClauseDetector.isClauseBoundary(text)
+            val analysis = WordAnalyzer.analyze(text)
 
             Token(
                 text = text,
                 type = TokenType.WORD,
-                orpIndex = calculateOrpIndex(text),
-                syllableCount = syllables,
-                frequencyScore = frequency,
-                complexityMultiplier = complexity,
-                isClauseBoundary = isClause,
+                orpIndex = analysis.orpIndex,
+                syllableCount = analysis.syllableCount,
+                frequencyScore = analysis.frequencyScore,
+                complexityMultiplier = analysis.complexityMultiplier,
+                isClauseBoundary = analysis.isClauseBoundary,
             )
         } else {
             Token(

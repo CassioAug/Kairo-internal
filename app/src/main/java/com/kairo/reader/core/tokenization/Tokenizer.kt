@@ -2,14 +2,12 @@
 
 package com.kairo.reader.core.tokenization
 
-import com.kairo.reader.core.linguistics.ClauseDetector
 import com.kairo.reader.core.linguistics.DialogueAnalyzer
 import com.kairo.reader.core.linguistics.WordAnalyzer
 import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.ChapterLink
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
-import com.kairo.reader.core.model.calculateOrpIndex
 import com.kairo.reader.core.model.normalizeWhitespace
 import com.kairo.reader.core.model.withoutInlinePhysicalPageBreaks
 
@@ -257,20 +255,17 @@ class Tokenizer {
                 }
                 else -> {
                     // This is a word (possibly with contractions like "don't" or hyphenation)
-                    val syllables = WordAnalyzer.countSyllables(part)
-                    val frequency = WordAnalyzer.getFrequencyScore(part)
-                    val complexity = WordAnalyzer.getComplexityMultiplier(part)
-                    val isClause = ClauseDetector.isClauseBoundary(part)
+                    val analysis = WordAnalyzer.analyze(part)
 
                     tokens +=
                         Token(
                             text = part,
                             type = TokenType.WORD,
-                            orpIndex = calculateOrpIndex(part),
-                            syllableCount = syllables,
-                            frequencyScore = frequency,
-                            complexityMultiplier = complexity,
-                            isClauseBoundary = isClause,
+                            orpIndex = analysis.orpIndex,
+                            syllableCount = analysis.syllableCount,
+                            frequencyScore = analysis.frequencyScore,
+                            complexityMultiplier = analysis.complexityMultiplier,
+                            isClauseBoundary = analysis.isClauseBoundary,
                             isDialogue = inDialogue,
                         )
                 }

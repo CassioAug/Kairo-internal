@@ -76,6 +76,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         private const val MAX_NOISE_TITLE_LENGTH = 32
         private const val MAX_NAV_FILTER_REMOVAL_RATIO = 0.60
         private const val MIN_SUBSTANTIAL_CHAPTER_WORDS = 80
+        private const val MAX_EXACT_WORD_COUNT_CHARS = 120_000
+        private const val NAVIGATION_TITLE_SCAN_CHARS = 400
+        private const val NAVIGATION_WORD_SCAN_LIMIT = 601
         private val FILE_LABEL_WITH_NUMBER_REGEX =
             Regex("(?i)^(part|chapter|section|book)(0*)(\\d{1,6})$")
         private val GENERIC_FILE_LABEL_REGEX =
@@ -144,6 +147,13 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         context: Context,
         uri: Uri,
         bookId: BookId,
+    ): Book = parse(context, uri, bookId, sourceDisplayName = null)
+
+    override suspend fun parse(
+        context: Context,
+        uri: Uri,
+        bookId: BookId,
+        sourceDisplayName: String?,
     ): Book =
         withContext(dispatcherProvider.io) {
             val zipTextEntries = mutableMapOf<String, ByteArray>() // key = lowercased path
@@ -443,7 +453,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
             Book(
                 id = bookId,
-                title = resolveBookTitle(context, uri, opfData.title),
+                title = resolveBookTitle(context, uri, opfData.title, sourceDisplayName),
                 authors = opfData.authors,
                 languageTag = opfData.languageTag,
                 coverImage = coverImage,
@@ -583,6 +593,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         context: Context,
         uri: Uri,
         opfTitle: String?,
+        sourceDisplayName: String?,
     ): String {
         val normalizedOpfTitle = opfTitle?.trim()?.takeIf { it.isNotBlank() }
         if (normalizedOpfTitle != null) return normalizedOpfTitle
@@ -601,7 +612,9 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     }
             }.getOrNull()
 
-        val fallback = displayName?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }
+        val fallback =
+            sourceDisplayName?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }
+                ?: displayName?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }
         return fallback
             ?: uri.lastPathSegment?.substringBeforeLast('.')?.trim()
             ?: "Unknown Book"
@@ -747,6 +760,12 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     } else {
                         extractPlainText(cleanedHtml)
                     }
+                val wordCount =
+                    if (plainText.length <= MAX_EXACT_WORD_COUNT_CHARS) {
+                        countWords(plainText)
+                    } else {
+                        0
+                    }
 
                 if (plainText.isBlank() && imagePaths.isEmpty()) {
                     return@mapNotNull null
@@ -761,6 +780,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                         htmlContent = cleanedHtml,
                         plainText = plainText,
                         imagePaths = imagePaths,
+                        wordCount = wordCount,
                     ),
                 )
             }
@@ -780,11 +800,18 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         if (parsed.size <= 1) {
             return NavigationFilterResult(chapters = parsed, filteredCount = 0, suppressed = false)
         }
-        val flagged = parsed.filter(::isLikelyNavigationChapter)
+        val classified = parsed.map { it to isLikelyNavigationChapter(it) }
+        val flagged =
+            classified.mapNotNull { (chapter, isNavigation) ->
+                if (isNavigation) chapter else null
+            }
         if (flagged.isEmpty()) {
             return NavigationFilterResult(chapters = parsed, filteredCount = 0, suppressed = false)
         }
-        val nonNavigation = parsed.filterNot(::isLikelyNavigationChapter)
+        val nonNavigation =
+            classified.mapNotNull { (chapter, isNavigation) ->
+                if (isNavigation) null else chapter
+            }
         val removalRatio = flagged.size.toDouble() / parsed.size.toDouble()
         val hasRetainedSubstantial = nonNavigation.any(::isSubstantialChapter)
         val hasRemovedSubstantial = flagged.any(::isSubstantialChapter)
@@ -807,19 +834,21 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         val plainText = parsed.chapter.plainText
         val title = parsed.chapter.title.orEmpty()
         val anchorCount = countAnchorTags(html)
-        val lowerHtml = html.lowercase(Locale.ROOT)
         val lowerPath = parsed.pathLower.lowercase(Locale.ROOT)
         val lowerTitle = title.lowercase(Locale.ROOT)
-        val lowerPlain = plainText.lowercase(Locale.ROOT)
+        val lowerPlainPreview =
+            plainText
+                .take(NAVIGATION_TITLE_SCAN_CHARS)
+                .lowercase(Locale.ROOT)
 
-        if (lowerHtml.contains("<nav")) return true
+        if (html.indexOf("<nav", ignoreCase = true) >= 0) return true
 
         val looksLikeTocTitle =
             TOC_TITLE_PATTERNS.any { pattern ->
-                pattern.containsMatchIn(lowerTitle) || pattern.containsMatchIn(lowerPlain.take(400))
+                pattern.containsMatchIn(lowerTitle) || pattern.containsMatchIn(lowerPlainPreview)
             }
         val fileLooksLikeNav = isLikelyNavigationHtmlPath(lowerPath)
-        val estimatedWords = estimateWordCount(plainText)
+        val estimatedWords = estimateWordCount(parsed.chapter, NAVIGATION_WORD_SCAN_LIMIT)
         val anchorDensity =
             if (estimatedWords > 0) {
                 anchorCount.toDouble() / estimatedWords.toDouble()
@@ -840,12 +869,51 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     }
 
     private fun isSubstantialChapter(parsed: ParsedChapter): Boolean {
-        return estimateWordCount(parsed.chapter.plainText) >= MIN_SUBSTANTIAL_CHAPTER_WORDS
+        return estimateWordCount(
+            parsed.chapter,
+            MIN_SUBSTANTIAL_CHAPTER_WORDS,
+        ) >= MIN_SUBSTANTIAL_CHAPTER_WORDS
     }
 
-    private fun estimateWordCount(text: String): Int {
-        return countWords(text)
+    private fun estimateWordCount(
+        chapter: Chapter,
+        limit: Int,
+    ): Int {
+        if (chapter.wordCount > 0) return chapter.wordCount.coerceAtMost(limit)
+        return countWordsUpTo(chapter.plainText, limit)
     }
+
+    private fun countWordsUpTo(
+        text: String,
+        limit: Int,
+    ): Int {
+        if (limit <= 0 || text.isEmpty()) return 0
+        var count = 0
+        var inWord = false
+        var index = 0
+        while (index < text.length && count < limit) {
+            val codePoint = Character.codePointAt(text, index)
+            val charCount = Character.charCount(codePoint)
+            when {
+                Character.isLetterOrDigit(codePoint) -> {
+                    if (!inWord) count += 1
+                    inWord = true
+                }
+                isWordApostrophe(codePoint) && inWord -> {
+                    val nextIndex = index + charCount
+                    inWord =
+                        nextIndex < text.length &&
+                        Character.isLetterOrDigit(Character.codePointAt(text, nextIndex))
+                }
+                else -> inWord = false
+            }
+            index += charCount
+        }
+        return count
+    }
+
+    private fun isWordApostrophe(codePoint: Int): Boolean =
+        codePoint == '\''.code || codePoint == '\u2019'.code
 
     private fun logParseDiagnostics(
         bookId: BookId,

@@ -24,9 +24,18 @@ class MobiBookParser(
         context: Context,
         uri: Uri,
         bookId: BookId,
+    ): Book = parse(context, uri, bookId, sourceDisplayName = null)
+
+    override suspend fun parse(
+        context: Context,
+        uri: Uri,
+        bookId: BookId,
+        sourceDisplayName: String?,
     ): Book =
         withContext(dispatcherProvider.io) {
-            val fileName = uri.lastPathSegment ?: "book.mobi"
+            val fileName = sourceDisplayName?.takeIf { it.isNotBlank() }
+                ?: uri.lastPathSegment
+                ?: "book.mobi"
 
             val fileSize = resolveFileSize(context, uri)
             require(fileSize < 0 || !isFileTooLarge(fileSize)) {

@@ -2,23 +2,278 @@
 
 package com.kairo.reader.core.linguistics
 
+data class WordAnalysis(
+    val syllableCount: Int,
+    val frequencyScore: Double,
+    val complexityMultiplier: Double,
+    val orpIndex: Int,
+    val isClauseBoundary: Boolean,
+)
+
 /**
  * Advanced word analysis utilities for cutting-edge RSVP timing.
  * Provides syllable counting, word frequency scoring, and complexity analysis.
  */
 object WordAnalyzer {
+    private val analysisCache =
+        object : LinkedHashMap<String, WordAnalysis>(
+            ANALYSIS_CACHE_INITIAL_CAPACITY,
+            ANALYSIS_CACHE_LOAD_FACTOR,
+            true,
+        ) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<String, WordAnalysis>?
+            ): Boolean = size > MAX_ANALYSIS_CACHE_ENTRIES
+        }
+    private val analysisCacheLock = Any()
+    private val vowels = setOf('a', 'e', 'i', 'o', 'u', 'y')
+    private val singleSyllableSuffixes = listOf("tion", "sion", "cian", "tious", "cious")
+
+    // Top 100 most common English words (score: 1.0)
+    private val veryCommonWords =
+        setOf(
+            "the",
+            "be",
+            "to",
+            "of",
+            "and",
+            "a",
+            "in",
+            "that",
+            "have",
+            "i",
+            "it",
+            "for",
+            "not",
+            "on",
+            "with",
+            "he",
+            "as",
+            "you",
+            "do",
+            "at",
+            "this",
+            "but",
+            "his",
+            "by",
+            "from",
+            "they",
+            "we",
+            "say",
+            "her",
+            "she",
+            "or",
+            "an",
+            "will",
+            "my",
+            "one",
+            "all",
+            "would",
+            "there",
+            "their",
+            "what",
+            "so",
+            "up",
+            "out",
+            "if",
+            "about",
+            "who",
+            "get",
+            "which",
+            "go",
+            "me",
+            "when",
+            "make",
+            "can",
+            "like",
+            "time",
+            "no",
+            "just",
+            "him",
+            "know",
+            "take",
+            "people",
+            "into",
+            "year",
+            "your",
+            "good",
+            "some",
+            "could",
+            "them",
+            "see",
+            "other",
+            "than",
+            "then",
+            "now",
+            "look",
+            "only",
+            "come",
+            "its",
+            "over",
+            "think",
+            "also",
+            "back",
+            "after",
+            "use",
+            "two",
+            "how",
+            "our",
+            "work",
+            "first",
+            "well",
+            "way",
+            "even",
+            "new",
+            "want",
+            "because",
+            "any",
+            "these",
+            "give",
+            "day",
+            "most",
+            "us",
+        )
+
+    // Common words (score: 0.85)
+    private val commonWords =
+        setOf(
+            "been",
+            "has",
+            "more",
+            "was",
+            "were",
+            "being",
+            "had",
+            "did",
+            "does",
+            "should",
+            "much",
+            "before",
+            "where",
+            "must",
+            "through",
+            "too",
+            "very",
+            "still",
+            "those",
+            "such",
+            "here",
+            "why",
+            "came",
+            "each",
+            "may",
+            "same",
+            "both",
+            "find",
+            "long",
+            "down",
+            "made",
+            "said",
+            "while",
+            "own",
+            "part",
+            "under",
+            "might",
+            "great",
+            "never",
+            "world",
+            "hand",
+            "high",
+            "every",
+            "last",
+            "place",
+            "went",
+            "right",
+            "old",
+            "again",
+            "found",
+            "around",
+            "three",
+            "small",
+            "between",
+            "always",
+            "next",
+            "few",
+            "house",
+            "put",
+            "thought",
+            "eyes",
+            "many",
+            "head",
+            "away",
+            "once",
+            "upon",
+            "home",
+        )
+
+    // Moderately common words (score: 0.7)
+    private val moderateWords =
+        setOf(
+            "something",
+            "nothing",
+            "another",
+            "without",
+            "though",
+            "against",
+            "enough",
+            "almost",
+            "perhaps",
+            "during",
+            "however",
+            "morning",
+            "together",
+            "behind",
+            "across",
+            "anything",
+            "everyone",
+            "everything",
+            "sometimes",
+            "suddenly",
+            "already",
+            "himself",
+            "herself",
+            "themselves",
+            "became",
+            "woman",
+            "children",
+            "called",
+            "really",
+            "young",
+            "asked",
+            "father",
+            "mother",
+            "going",
+            "looking",
+            "night",
+            "money",
+            "water",
+        )
+
+    fun analyze(word: String): WordAnalysis {
+        synchronized(analysisCacheLock) {
+            analysisCache[word]?.let { return it }
+        }
+
+        val analysis = computeAnalysis(word)
+        synchronized(analysisCacheLock) {
+            analysisCache[word] = analysis
+        }
+        return analysis
+    }
+
     /**
      * Estimates syllable count using linguistic rules.
      * Based on vowel groupings with adjustments for silent e, dipthongs, etc.
      */
+    fun countSyllables(word: String): Int = analyze(word).syllableCount
+
     @Suppress("CyclomaticComplexMethod")
-    fun countSyllables(word: String): Int {
+    private fun computeSyllables(word: String): Int {
         if (word.isEmpty()) return 0
         val lower = word.lowercase().trim()
 
         var count = 0
         var prevWasVowel = false
-        val vowels = setOf('a', 'e', 'i', 'o', 'u', 'y')
 
         for (i in lower.indices) {
             val char = lower[i]
@@ -49,7 +304,6 @@ object WordAnalyzer {
         }
 
         // Adjust for common suffixes that are single syllables
-        val singleSyllableSuffixes = listOf("tion", "sion", "cian", "tious", "cious")
         for (suffix in singleSyllableSuffixes) {
             if (lower.endsWith(suffix)) {
                 // These are typically 1 syllable, already counted correctly
@@ -66,229 +320,11 @@ object WordAnalyzer {
      * Score from 0.0 (very rare) to 1.0 (extremely common).
      * Common words need less display time; rare words need more.
      */
+    fun getFrequencyScore(word: String): Double = analyze(word).frequencyScore
+
     @Suppress("CyclomaticComplexMethod")
-    fun getFrequencyScore(word: String): Double {
+    private fun computeFrequencyScore(word: String): Double {
         val lower = word.lowercase()
-
-        // Top 100 most common English words (score: 1.0)
-        val veryCommon =
-            setOf(
-                "the",
-                "be",
-                "to",
-                "of",
-                "and",
-                "a",
-                "in",
-                "that",
-                "have",
-                "i",
-                "it",
-                "for",
-                "not",
-                "on",
-                "with",
-                "he",
-                "as",
-                "you",
-                "do",
-                "at",
-                "this",
-                "but",
-                "his",
-                "by",
-                "from",
-                "they",
-                "we",
-                "say",
-                "her",
-                "she",
-                "or",
-                "an",
-                "will",
-                "my",
-                "one",
-                "all",
-                "would",
-                "there",
-                "their",
-                "what",
-                "so",
-                "up",
-                "out",
-                "if",
-                "about",
-                "who",
-                "get",
-                "which",
-                "go",
-                "me",
-                "when",
-                "make",
-                "can",
-                "like",
-                "time",
-                "no",
-                "just",
-                "him",
-                "know",
-                "take",
-                "people",
-                "into",
-                "year",
-                "your",
-                "good",
-                "some",
-                "could",
-                "them",
-                "see",
-                "other",
-                "than",
-                "then",
-                "now",
-                "look",
-                "only",
-                "come",
-                "its",
-                "over",
-                "think",
-                "also",
-                "back",
-                "after",
-                "use",
-                "two",
-                "how",
-                "our",
-                "work",
-                "first",
-                "well",
-                "way",
-                "even",
-                "new",
-                "want",
-                "because",
-                "any",
-                "these",
-                "give",
-                "day",
-                "most",
-                "us",
-            )
-
-        // Common words (score: 0.85)
-        val common =
-            setOf(
-                "been",
-                "has",
-                "more",
-                "was",
-                "were",
-                "being",
-                "had",
-                "did",
-                "does",
-                "should",
-                "much",
-                "before",
-                "where",
-                "must",
-                "through",
-                "too",
-                "very",
-                "still",
-                "those",
-                "such",
-                "here",
-                "why",
-                "came",
-                "each",
-                "may",
-                "same",
-                "both",
-                "find",
-                "long",
-                "down",
-                "made",
-                "said",
-                "while",
-                "own",
-                "part",
-                "under",
-                "might",
-                "great",
-                "never",
-                "world",
-                "hand",
-                "high",
-                "every",
-                "last",
-                "place",
-                "went",
-                "right",
-                "old",
-                "again",
-                "found",
-                "around",
-                "three",
-                "small",
-                "between",
-                "always",
-                "next",
-                "few",
-                "house",
-                "put",
-                "thought",
-                "eyes",
-                "many",
-                "head",
-                "away",
-                "once",
-                "upon",
-                "home",
-            )
-
-        // Moderately common words (score: 0.7)
-        val moderate =
-            setOf(
-                "something",
-                "nothing",
-                "another",
-                "without",
-                "though",
-                "against",
-                "enough",
-                "almost",
-                "perhaps",
-                "during",
-                "however",
-                "morning",
-                "together",
-                "behind",
-                "across",
-                "anything",
-                "everyone",
-                "everything",
-                "sometimes",
-                "suddenly",
-                "already",
-                "himself",
-                "herself",
-                "themselves",
-                "became",
-                "woman",
-                "children",
-                "called",
-                "really",
-                "young",
-                "asked",
-                "father",
-                "mother",
-                "going",
-                "looking",
-                "night",
-                "money",
-                "water",
-            )
 
         // Heuristic for unknown words based on word length and structure
         val lengthPenalty =
@@ -315,9 +351,9 @@ object WordAnalyzer {
 
         val score =
             when (lower) {
-                in veryCommon -> 1.0
-                in common -> 0.85
-                in moderate -> 0.7
+                in veryCommonWords -> 1.0
+                in commonWords -> 0.85
+                in moderateWords -> 0.7
                 else -> (lengthPenalty + patternBonus).coerceIn(0.1, 0.6)
             }
 
@@ -374,9 +410,26 @@ object WordAnalyzer {
      * Higher score = more complex = needs more display time.
      * Returns multiplier (1.0 = normal, >1.0 = slower, <1.0 = faster)
      */
-    fun getComplexityMultiplier(word: String): Double {
-        val syllables = countSyllables(word)
-        val frequency = getFrequencyScore(word)
+    fun getComplexityMultiplier(word: String): Double = analyze(word).complexityMultiplier
+
+    private fun computeAnalysis(word: String): WordAnalysis {
+        val syllables = computeSyllables(word)
+        val frequency = computeFrequencyScore(word)
+        val complexity = computeComplexityMultiplier(word, syllables, frequency)
+        return WordAnalysis(
+            syllableCount = syllables,
+            frequencyScore = frequency,
+            complexityMultiplier = complexity,
+            orpIndex = computeOrpIndex(word, frequency),
+            isClauseBoundary = ClauseDetector.isClauseBoundary(word),
+        )
+    }
+
+    private fun computeComplexityMultiplier(
+        word: String,
+        syllables: Int,
+        frequency: Double,
+    ): Double {
         val length = word.length
 
         // Base multiplier from syllables (each syllable adds ~10% time)
@@ -394,6 +447,34 @@ object WordAnalyzer {
         // Clamp to reasonable range
         return combined.coerceIn(0.8, 1.6)
     }
+
+    private fun computeOrpIndex(
+        word: String,
+        frequency: Double,
+    ): Int {
+        val length = word.length
+        if (length <= 2) return 0
+
+        val baseOrp =
+            when {
+                length <= 5 -> 1
+                length <= 9 -> 2
+                length <= 13 -> 3
+                else -> 4
+            }
+        val adjustment =
+            when {
+                frequency > 0.8 && length > 5 -> 1
+                frequency < 0.3 && length > 8 -> -1
+                else -> 0
+            }
+
+        return (baseOrp + adjustment).coerceIn(0, length - 1)
+    }
+
+    private const val ANALYSIS_CACHE_INITIAL_CAPACITY = 256
+    private const val ANALYSIS_CACHE_LOAD_FACTOR = 0.75f
+    private const val MAX_ANALYSIS_CACHE_ENTRIES = 4096
 }
 
 /**

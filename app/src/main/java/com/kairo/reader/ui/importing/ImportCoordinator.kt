@@ -35,6 +35,12 @@ import org.jsoup.HttpStatusException
 
 private const val IMPORT_COMPLETE_HOLD_MS = 200L
 private const val URL_IMPORT_COMPLETE_HOLD_MS = 40L
+private const val IMPORT_PROGRESS_UPDATE_MS = 120L
+private const val IMPORT_PROGRESS_FAST_CAP = 0.92f
+private const val IMPORT_PROGRESS_SLOW_CAP = 0.985f
+private const val IMPORT_PROGRESS_FAST_STEP = 0.08f
+private const val IMPORT_PROGRESS_SLOW_STEP = 0.012f
+private const val IMPORT_PROGRESS_MIN_SLOW_INCREMENT = 0.001f
 
 internal data class ImportCoordinator(
     val state: ImportUiState,
@@ -232,9 +238,18 @@ private fun Throwable.rootCause(): Throwable {
 private suspend fun driveImportProgress(onUpdate: (Float) -> Unit) {
     var progress = 0f
     onUpdate(progress)
-    while (currentCoroutineContext().isActive && progress < 0.92f) {
-        delay(120)
-        progress = (progress + (1f - progress) * 0.08f).coerceAtMost(0.92f)
+    while (currentCoroutineContext().isActive && progress < IMPORT_PROGRESS_SLOW_CAP) {
+        delay(IMPORT_PROGRESS_UPDATE_MS)
+        progress =
+            if (progress < IMPORT_PROGRESS_FAST_CAP) {
+                (progress + (1f - progress) * IMPORT_PROGRESS_FAST_STEP)
+                    .coerceAtMost(IMPORT_PROGRESS_FAST_CAP)
+            } else {
+                val nextIncrement =
+                    ((IMPORT_PROGRESS_SLOW_CAP - progress) * IMPORT_PROGRESS_SLOW_STEP)
+                        .coerceAtLeast(IMPORT_PROGRESS_MIN_SLOW_INCREMENT)
+                (progress + nextIncrement).coerceAtMost(IMPORT_PROGRESS_SLOW_CAP)
+            }
         onUpdate(progress)
     }
 }

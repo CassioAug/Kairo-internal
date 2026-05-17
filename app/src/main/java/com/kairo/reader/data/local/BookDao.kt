@@ -34,11 +34,18 @@ interface BookDao {
                books.isCompleted AS isCompleted,
                books.importFingerprint AS importFingerprint
         FROM books
-        LEFT JOIN chapters ON chapters.bookId = books.id
-        GROUP BY books.id
         """,
     )
     fun getBooks(): Flow<List<BookEntity>>
+
+    @Query(
+        """
+        SELECT bookId, `index`, title, '' AS htmlContent, '' AS plainText, imagePaths, wordCount
+        FROM chapters
+        ORDER BY bookId, `index`
+        """,
+    )
+    fun getChapterSummaries(): Flow<List<ChapterEntity>>
 
     @Query(
         """
