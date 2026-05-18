@@ -33,12 +33,13 @@ internal data class ReaderRenderState(
 internal fun rememberReaderRenderState(
     chapterIndex: Int,
     focusIndex: Int,
+    pageIndexOverride: Int?,
     coverImage: ByteArray?,
     chapterData: ChapterData?,
 ): ReaderRenderState {
     val blocks = chapterData?.blocks.orEmpty()
     val tokens = chapterData?.tokens.orEmpty()
-    val pages = chapterData?.pages.orEmpty()
+    val textPages = chapterData?.pages.orEmpty()
     val wordCountByToken = chapterData?.wordCountByToken
     val totalChapterWords = chapterData?.totalWords ?: 0
     val firstWordIndex = chapterData?.firstWordIndex ?: -1
@@ -52,23 +53,6 @@ internal fun rememberReaderRenderState(
             } else {
                 tokens.nearestWordIndex(focusIndex).coerceIn(0, tokens.lastIndex)
             }
-        }
-    val isPagedChapter = pages.isNotEmpty()
-    val resolvedPageIndex =
-        remember(pages, safeFocusIndex) {
-            if (pages.isEmpty()) {
-                -1
-            } else {
-                val index =
-                    pages.indexOfFirst { page ->
-                        safeFocusIndex in page.startTokenIndex..page.endTokenIndex
-                    }
-                if (index >= 0) index else 0
-            }
-        }
-    val currentPage =
-        remember(pages, resolvedPageIndex) {
-            if (resolvedPageIndex >= 0) pages.getOrNull(resolvedPageIndex) else null
         }
 
     val fullScreenTitlePageImagePath =
@@ -136,6 +120,35 @@ internal fun rememberReaderRenderState(
                 }
             }
         }
+    val pages =
+        remember(textPages, visibleBlocks, tokens) {
+            buildVisualChapterPages(
+                textPages = textPages,
+                blocks = visibleBlocks,
+                tokens = tokens,
+            )
+        }
+    val isPagedChapter = pages.isNotEmpty()
+    val resolvedPageIndex =
+        remember(pages, safeFocusIndex, pageIndexOverride) {
+            if (pages.isEmpty()) {
+                -1
+            } else {
+                val explicitPageIndex = pageIndexOverride?.coerceIn(0, pages.lastIndex)
+                explicitPageIndex ?: run {
+                    val index =
+                        pages.indexOfFirst { page ->
+                            page.kind == ChapterPageKind.TEXT &&
+                                safeFocusIndex in page.startTokenIndex..page.endTokenIndex
+                        }
+                    if (index >= 0) index else 0
+                }
+            }
+        }
+    val currentPage =
+        remember(pages, resolvedPageIndex) {
+            if (resolvedPageIndex >= 0) pages.getOrNull(resolvedPageIndex) else null
+        }
     val displayBlocks =
         remember(visibleBlocks, currentPage) {
             if (currentPage == null) {
@@ -143,8 +156,7 @@ internal fun rememberReaderRenderState(
             } else {
                 sliceBlocksForPage(
                     blocks = visibleBlocks,
-                    pageStart = currentPage.startTokenIndex,
-                    pageEnd = currentPage.endTokenIndex,
+                    page = currentPage,
                 )
             }
         }

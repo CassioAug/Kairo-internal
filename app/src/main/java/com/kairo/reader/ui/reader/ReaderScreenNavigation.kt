@@ -13,7 +13,7 @@ internal fun buildReaderNavigationState(
     resolvedPageIndex: Int,
     chapterIndex: Int,
     lastChapterIndex: Int,
-    onFocusChange: (Int) -> Unit,
+    onPageChange: (ChapterPage) -> Unit,
     onChapterChange: (Int, Int?) -> Unit,
 ): ReaderNavigationState {
     val canGoPrevPage =
@@ -31,18 +31,18 @@ internal fun buildReaderNavigationState(
     val onPrevPage = {
         if (pages.isNotEmpty()) {
             if (resolvedPageIndex > 0) {
-                onFocusChange(pages[resolvedPageIndex - 1].startTokenIndex)
+                onPageChange(pages[resolvedPageIndex - 1])
             } else if (chapterIndex > 0) {
                 onChapterChange(chapterIndex - 1, Int.MAX_VALUE)
             }
         } else if (chapterIndex > 0) {
-            onChapterChange(chapterIndex - 1, 0)
+            onChapterChange(chapterIndex - 1, Int.MAX_VALUE)
         }
     }
     val onNextPage = {
         if (pages.isNotEmpty()) {
             if (resolvedPageIndex < pages.lastIndex) {
-                onFocusChange(pages[resolvedPageIndex + 1].startTokenIndex)
+                onPageChange(pages[resolvedPageIndex + 1])
             } else if (chapterIndex < lastChapterIndex) {
                 onChapterChange(chapterIndex + 1, 0)
             }

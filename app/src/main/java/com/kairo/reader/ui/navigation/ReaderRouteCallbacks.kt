@@ -28,6 +28,7 @@ internal data class ReaderRouteCallbacks(
     val onOpenBookmarks: () -> Unit,
     val onOpenLibrary: () -> Unit,
     val onFocusChange: (Int) -> Unit,
+    val onPageChange: (pageIndex: Int, focusTokenIndex: Int) -> Unit,
     val onStartRsvp: (Int) -> Unit,
     val onChapterChange: (Int, Int?) -> Unit,
     val onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
@@ -126,6 +127,30 @@ internal fun buildReaderRouteCallbacks(
                     dependencies.bookIdValue,
                     dependencies.uiState.chapterIndex,
                     newFocusIndex,
+                    wordIndex,
+                ),
+            )
+        },
+        onPageChange = { pageIndex, focusTokenIndex ->
+            val tokens = dependencies.uiState.chapterData?.tokens.orEmpty()
+            val safeIndex =
+                if (tokens.isEmpty()) {
+                    focusTokenIndex.coerceAtLeast(0)
+                } else {
+                    tokens.nearestWordIndex(focusTokenIndex).coerceIn(0, tokens.lastIndex)
+                }
+            dependencies.setLastExplicitFocusIndex(safeIndex)
+            dependencies.readerViewModel.setPageIndex(pageIndex, safeIndex)
+            val wordIndex =
+                resolveWordIndex(
+                    dependencies.uiState.chapterData?.wordCountByToken,
+                    safeIndex,
+                )
+            dependencies.readerPositionSaver.saveDebounced(
+                ReadingPosition(
+                    dependencies.bookIdValue,
+                    dependencies.uiState.chapterIndex,
+                    safeIndex,
                     wordIndex,
                 ),
             )
