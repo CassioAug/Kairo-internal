@@ -109,6 +109,35 @@ class ReaderPaginationTest {
     }
 
     @Test
+    fun buildVisualChapterPages_splitsTextPageThatCrossesImageBlock() {
+        val tokens = words("one", "two", "three", "four")
+        val textPages =
+            listOf(
+                ChapterPage(index = 0, startTokenIndex = 0, endTokenIndex = 3, wordCount = 4),
+            )
+        val imageBlock = ReaderImageBlock(imagePath = "images/full-page.jpg", index = 0)
+        val firstParagraph =
+            ReaderParagraphBlock(Paragraph(tokens = tokens.subList(0, 2), startIndex = 0))
+        val secondParagraph =
+            ReaderParagraphBlock(Paragraph(tokens = tokens.subList(2, 4), startIndex = 2))
+        val blocks = listOf(firstParagraph, imageBlock, secondParagraph)
+
+        val pages = buildVisualChapterPages(textPages, blocks, tokens)
+
+        assertEquals(3, pages.size)
+        assertEquals(ChapterPageKind.TEXT, pages[0].kind)
+        assertEquals(0, pages[0].startTokenIndex)
+        assertEquals(1, pages[0].endTokenIndex)
+        assertEquals(ChapterPageKind.IMAGE, pages[1].kind)
+        assertEquals(ChapterPageKind.TEXT, pages[2].kind)
+        assertEquals(2, pages[2].startTokenIndex)
+        assertEquals(3, pages[2].endTokenIndex)
+        assertEquals(listOf(firstParagraph), sliceBlocksForPage(blocks, pages[0]))
+        assertEquals(listOf(imageBlock), sliceBlocksForPage(blocks, pages[1]))
+        assertEquals(listOf(secondParagraph), sliceBlocksForPage(blocks, pages[2]))
+    }
+
+    @Test
     fun buildVisualChapterPages_createsPageForImageOnlyChapter() {
         val imageBlock = ReaderImageBlock(imagePath = "images/plate.jpg", index = 0)
 
@@ -122,6 +151,21 @@ class ReaderPaginationTest {
         assertEquals(ChapterPageKind.IMAGE, pages[0].kind)
         assertEquals(0, pages[0].focusTokenIndex)
         assertEquals(listOf(imageBlock), sliceBlocksForPage(listOf(imageBlock), pages[0]))
+    }
+
+    @Test
+    fun buildVisualChapterPages_createsBlankPageForPageBreakOnlyChapter() {
+        val tokens = listOf(Token(text = "\u000C", type = TokenType.PAGE_BREAK))
+
+        val pages = buildVisualChapterPages(
+            textPages = emptyList(),
+            blocks = emptyList(),
+            tokens = tokens,
+        )
+
+        assertEquals(1, pages.size)
+        assertEquals(ChapterPageKind.BLANK, pages[0].kind)
+        assertEquals(emptyList<ReaderBlock>(), sliceBlocksForPage(emptyList(), pages[0]))
     }
 
     private fun words(vararg texts: String): List<Token> =

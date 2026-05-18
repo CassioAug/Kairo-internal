@@ -70,6 +70,7 @@ internal fun ReaderContent(
     fullScreenTitlePageImagePath: String?,
     headerCarouselImages: List<String>,
     showHeaderCarousel: Boolean,
+    isBlankPage: Boolean,
     displayBlocks: List<ReaderBlock>,
     listState: LazyListState,
     listStateKey: String,
@@ -99,6 +100,7 @@ internal fun ReaderContent(
     }
 
     if (displayBlocks.isEmpty() &&
+        !isBlankPage &&
         !isCoverChapter &&
         fullScreenTitlePageImagePath == null &&
         headerCarouselImages.isEmpty()

@@ -326,6 +326,7 @@ fun ReaderScreen(
                     fullScreenTitlePageImagePath = renderState.fullScreenTitlePageImagePath,
                     headerCarouselImages = renderState.headerCarouselImages,
                     showHeaderCarousel = renderState.showHeaderCarousel,
+                    isBlankPage = renderState.currentPage?.kind == ChapterPageKind.BLANK,
                     displayBlocks = renderState.displayBlocks,
                     listState = listStateHolder.listState,
                     listStateKey = renderState.listStateKey,

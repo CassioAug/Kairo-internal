@@ -8,32 +8,79 @@ internal fun buildVisualChapterPages(
     blocks: List<ReaderBlock>,
     tokens: List<Token>,
 ): List<ChapterPage> {
-    if (textPages.isEmpty() && blocks.none { it is ReaderImageBlock }) return emptyList()
-
-    val visualPages = mutableListOf<ChapterPage>()
-    val addedTextPageIndexes = mutableSetOf<Int>()
-
-    fun appendTextPage(page: ChapterPage) {
-        if (!addedTextPageIndexes.add(page.index)) return
-        visualPages += page.copy(
-            index = visualPages.size,
-            kind = ChapterPageKind.TEXT,
-            imagePath = null,
-            imageIndex = null,
-            focusTokenIndex = page.startTokenIndex,
-        )
+    if (textPages.isEmpty() && blocks.none { it is ReaderImageBlock }) {
+        return if (tokens.any { it.type == TokenType.PAGE_BREAK }) {
+            listOf(
+                ChapterPage(
+                    index = 0,
+                    startTokenIndex = 0,
+                    endTokenIndex = 0,
+                    wordCount = 0,
+                    kind = ChapterPageKind.BLANK,
+                    focusTokenIndex = 0,
+                ),
+            )
+        } else {
+            emptyList()
+        }
     }
 
-    fun appendTextPagesForRange(
+    val visualPages = mutableListOf<ChapterPage>()
+    var pendingTextStart: Int? = null
+    var pendingTextEnd: Int? = null
+
+    fun appendTextPage(
+        page: ChapterPage,
         startTokenIndex: Int,
         endTokenIndex: Int,
     ) {
+        val wordCount =
+            tokens
+                .subList(startTokenIndex, endTokenIndex + 1)
+                .count { it.type == TokenType.WORD }
+        if (wordCount <= 0) return
+        val focusTokenIndex =
+            (startTokenIndex..endTokenIndex)
+                .firstOrNull { index -> tokens.getOrNull(index)?.type == TokenType.WORD }
+                ?: startTokenIndex
+        visualPages += page.copy(
+            index = visualPages.size,
+            startTokenIndex = startTokenIndex,
+            endTokenIndex = endTokenIndex,
+            wordCount = wordCount,
+            kind = ChapterPageKind.TEXT,
+            imagePath = null,
+            imageIndex = null,
+            focusTokenIndex = focusTokenIndex,
+        )
+    }
+
+    fun appendTextPagesForPendingRange() {
+        val startTokenIndex = pendingTextStart ?: return
+        val endTokenIndex = pendingTextEnd ?: startTokenIndex
+        pendingTextStart = null
+        pendingTextEnd = null
+
         textPages
             .filter { page ->
-                page.index !in addedTextPageIndexes &&
-                    page.endTokenIndex >= startTokenIndex &&
+                page.endTokenIndex >= startTokenIndex &&
                     page.startTokenIndex <= endTokenIndex
-            }.forEach(::appendTextPage)
+            }.forEach { page ->
+                val clippedStart = page.startTokenIndex.coerceAtLeast(startTokenIndex)
+                val clippedEnd = page.endTokenIndex.coerceAtMost(endTokenIndex)
+                if (clippedStart <= clippedEnd) {
+                    appendTextPage(page, clippedStart, clippedEnd)
+                }
+            }
+    }
+
+    fun queueTextRange(
+        startTokenIndex: Int,
+        endTokenIndex: Int,
+    ) {
+        if (endTokenIndex < startTokenIndex) return
+        pendingTextStart = pendingTextStart?.coerceAtMost(startTokenIndex) ?: startTokenIndex
+        pendingTextEnd = pendingTextEnd?.coerceAtLeast(endTokenIndex) ?: endTokenIndex
     }
 
     blocks.forEach { block ->
@@ -41,15 +88,14 @@ internal fun buildVisualChapterPages(
             is ReaderParagraphBlock -> {
                 val paragraph = block.paragraph
                 val endTokenIndex = paragraph.startIndex + paragraph.tokens.size - 1
-                appendTextPagesForRange(paragraph.startIndex, endTokenIndex)
+                queueTextRange(paragraph.startIndex, endTokenIndex)
             }
             is ReaderImageBlock -> {
+                appendTextPagesForPendingRange()
                 val anchorTokenIndex =
                     imagePageAnchorTokenIndex(
                         tokens = tokens,
                         visualPages = visualPages,
-                        textPages = textPages,
-                        addedTextPageIndexes = addedTextPageIndexes,
                     )
                 visualPages += ChapterPage(
                     index = visualPages.size,
@@ -65,7 +111,7 @@ internal fun buildVisualChapterPages(
         }
     }
 
-    textPages.forEach(::appendTextPage)
+    appendTextPagesForPendingRange()
     return visualPages
 }
 
@@ -146,16 +192,12 @@ private fun sliceImageBlocksForPage(
 private fun imagePageAnchorTokenIndex(
     tokens: List<Token>,
     visualPages: List<ChapterPage>,
-    textPages: List<ChapterPage>,
-    addedTextPageIndexes: Set<Int>,
 ): Int {
     if (tokens.isEmpty()) return 0
     val previousTextPage = visualPages.lastOrNull { it.kind == ChapterPageKind.TEXT }
-    val nextTextPage = textPages.firstOrNull { it.index !in addedTextPageIndexes }
     val firstWordIndex = tokens.indexOfFirst { it.type == TokenType.WORD }.takeIf { it >= 0 }
     val anchor =
         previousTextPage?.endTokenIndex
-            ?: nextTextPage?.startTokenIndex
             ?: firstWordIndex
             ?: 0
     return anchor.coerceIn(0, tokens.lastIndex)
