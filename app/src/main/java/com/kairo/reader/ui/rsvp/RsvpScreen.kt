@@ -14,10 +14,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
+import com.kairo.reader.core.model.RsvpReadabilityMode
 import com.kairo.reader.core.model.TokenType
+import com.kairo.reader.core.model.effectiveBlinkMode
 import com.kairo.reader.core.model.nearestWordIndex
+import com.kairo.reader.core.model.readabilityMode
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
 import com.kairo.reader.data.rsvp.RsvpFrameIndexMap
@@ -513,7 +517,15 @@ private fun buildAppearanceFingerprint(
     ).joinToString("|")
 
 internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig =
-    config.frameTimingKey().copy(tempoMsPerWord = 0L)
+    config.frameTimingKey().copy(tempoMsPerWord = blinkFrameLoadTempoKey(config))
+
+private fun blinkFrameLoadTempoKey(config: RsvpConfig): Long =
+    when {
+        config.effectiveBlinkMode() == BlinkMode.OFF -> 0L
+        config.readabilityMode() == RsvpReadabilityMode.STANDARD -> 0L
+        config.readabilityMode() == RsvpReadabilityMode.HIGH_SPEED -> 1L
+        else -> 2L
+    }
 
 internal fun resolveFrameLoadStartIndex(
     bookStartIndex: Int,
