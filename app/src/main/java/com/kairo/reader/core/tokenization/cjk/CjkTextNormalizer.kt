@@ -25,13 +25,15 @@ internal object CjkTextNormalizer {
     fun shouldStripPageNumbers(html: String): Boolean =
         PageNumberHeuristics.shouldStripStandalonePageNumbers(html)
 
-    fun stripStandalonePageNumbers(text: String): String =
-        text.lineSequence()
-            .filterNot { line ->
-                val trimmed = line.trim()
-                trimmed.isNotEmpty() && isPageNumberText(trimmed)
-            }
-            .joinToString("\n")
+    fun stripStandalonePageNumbers(
+        text: String,
+        html: String,
+    ): String =
+        PageNumberHeuristics.stripStandalonePageNumbers(
+            text = text,
+            allowSingleRomanNumeral = true,
+            allowSingleExplicitCandidate = PageNumberHeuristics.hasExplicitPageNumberMarkup(html),
+        )
 
     private fun normalizeEpubSymbols(input: String): String {
         var text = input
@@ -55,14 +57,6 @@ internal object CjkTextNormalizer {
         text = text.replace(Regex("(\\d)\\s*%"), "$1%")
 
         return text
-    }
-
-    private fun isPageNumberText(text: String): Boolean {
-        val trimmed = text.trim()
-        if (trimmed.isEmpty()) return false
-        if (trimmed.all { it.isDigit() }) return true
-        val romanNumeralPattern = Regex("^[ivxlcdm]+$", RegexOption.IGNORE_CASE)
-        return romanNumeralPattern.matches(trimmed)
     }
 
     private const val FORM_FEED = "\u000C"

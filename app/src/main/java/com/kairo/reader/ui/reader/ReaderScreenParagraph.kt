@@ -12,6 +12,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -21,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.sp
+import com.kairo.reader.R
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.shouldInsertSpaceBeforeToken
 import com.kairo.reader.ui.theme.MerriweatherFontFamily
@@ -130,6 +136,7 @@ internal fun ParagraphText(
     val currentOnFocusChange by rememberUpdatedState(onFocusChange)
     val currentOnStartRsvp by rememberUpdatedState(onStartRsvp)
     val currentOnChapterSelected by rememberUpdatedState(onChapterSelected)
+    val startRsvpActionLabel = stringResource(R.string.reader_start_rsvp_action)
 
     Text(
         text = annotated,
@@ -137,6 +144,13 @@ internal fun ParagraphText(
         modifier =
         Modifier
             .fillMaxWidth()
+            .semantics {
+                role = Role.Button
+                onClick(label = startRsvpActionLabel) {
+                    currentOnStartRsvp(currentFocusIndex)
+                    true
+                }
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { position ->

@@ -13,6 +13,8 @@ internal data class RsvpFrameLoadState(
     val frames: List<RsvpFrame>,
     val baseTempoMs: Long,
     val isLoading: Boolean,
+    val isComplete: Boolean = true,
+    val loadFailed: Boolean = false,
     val frameIndexMap: RsvpFrameIndexMap = RsvpFrameIndexMap.from(frames),
 )
 

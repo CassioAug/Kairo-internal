@@ -320,6 +320,7 @@ fun ReaderScreen(
                     chapterIndex = chapterIndex,
                     coverImage = coverImage,
                     isLoading = uiState.isLoading,
+                    loadErrorMessage = uiState.chapterLoadError,
                     isCoverChapter = renderState.isCoverChapter,
                     isPagedChapter = renderState.isPagedChapter,
                     resolvedPageIndex = renderState.resolvedPageIndex,

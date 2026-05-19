@@ -70,21 +70,20 @@ class TokenRepositoryImpl(private val bookRepository: BookRepository, private va
     ) {
         val key = buildCacheKey(bookId, nextIndex, languageTag)
         prefetchScope.launch {
-            val cached = mutex.withLock { cache.containsKey(key) }
-            if (cached) return@launch
-
-            val chapter =
-                runCatching {
+            runCatching {
+                val cached = mutex.withLock { cache.containsKey(key) }
+                if (cached) return@runCatching
+                val chapter =
                     withContext(dispatcherProvider.io) {
                         bookRepository.getChapter(bookId, nextIndex)
                     }
-                }.getOrNull() ?: return@launch
-            val tokens =
-                withContext(tokenizationDispatcher) {
-                    TokenizerRegistry.resolve(languageTag).tokenize(chapter)
-                }
-            updateChapterWordCount(bookId, nextIndex, tokens)
-            mutex.withLock { cache[key] = tokens }
+                val tokens =
+                    withContext(tokenizationDispatcher) {
+                        TokenizerRegistry.resolve(languageTag).tokenize(chapter)
+                    }
+                updateChapterWordCount(bookId, nextIndex, tokens)
+                mutex.withLock { cache[key] = tokens }
+            }
         }
     }
 

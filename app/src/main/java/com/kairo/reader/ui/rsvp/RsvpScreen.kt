@@ -14,10 +14,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
+import com.kairo.reader.core.model.RsvpReadabilityMode
 import com.kairo.reader.core.model.TokenType
+import com.kairo.reader.core.model.effectiveBlinkMode
 import com.kairo.reader.core.model.nearestWordIndex
+import com.kairo.reader.core.model.readabilityMode
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
 import com.kairo.reader.data.rsvp.RsvpFrameIndexMap
@@ -127,6 +131,7 @@ fun RsvpScreen(
     }
 
     RsvpBackHandler(context, enabled = !isTutorialMode)
+    RsvpFrameLoadFailureEffect(context)
     RsvpPlaybackEffects(
         context = context,
         sessionKey = sessionKey,
@@ -334,10 +339,11 @@ private fun rememberFrameLoadState(
     val loadConfigKey = remember(profile.config) { frameLoadConfigKey(profile.config) }
     val instantFrameTokenCount = book.tokens.size
     val latestPreviewStartIndex by rememberUpdatedState(previewStartIndex)
-    var frameSet by remember(
+    var frameSetState by remember(
         book.bookId,
         book.chapterIndex,
         book.startIndex,
+        loadConfigKey,
         instantFrameTokenCount,
     ) {
         mutableStateOf(
@@ -347,11 +353,14 @@ private fun rememberFrameLoadState(
                     startResumeCursor = previewResumeCursor,
                 ),
                 profile.config,
-            ),
+            )?.let { frameSet -> LoadedRsvpFrameSet(frameSet = frameSet, isComplete = false) },
         )
     }
     var isFramesLoading by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
         mutableStateOf(true)
+    }
+    var frameLoadFailed by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
+        mutableStateOf(false)
     }
     var loadAttempt by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
         mutableIntStateOf(0)
@@ -371,7 +380,10 @@ private fun rememberFrameLoadState(
                 previewStartIndex = latestPreviewStartIndex,
                 tokenCount = instantFrameTokenCount,
             )
-        val hadFrames = frameSet?.frames?.isNotEmpty() == true
+        val hadFrames = frameSetState?.frameSet?.frames?.isNotEmpty() == true
+        val hadCompleteFrames =
+            frameSetState?.isComplete == true &&
+                frameSetState?.frameSet?.frames?.isNotEmpty() == true
         if (!hadFrames) isFramesLoading = true
         if (!hadFrames && book.tokens.isNotEmpty()) {
             val preview =
@@ -387,7 +399,7 @@ private fun rememberFrameLoadState(
                     }
                 }.getOrNull()
             if (preview?.frames?.isNotEmpty() == true) {
-                frameSet = preview
+                frameSetState = LoadedRsvpFrameSet(frameSet = preview, isComplete = false)
             }
         }
 
@@ -411,27 +423,38 @@ private fun rememberFrameLoadState(
                 loadAttempt += 1
                 return@LaunchedEffect
             }
-            if (!hadFrames) {
-                frameSet = null
+            if (!hadCompleteFrames && !hadFrames) {
+                frameSetState = null
             }
+            frameLoadFailed = true
             isFramesLoading = false
             return@LaunchedEffect
         }
 
-        frameSet = computed
+        frameSetState = LoadedRsvpFrameSet(frameSet = computed, isComplete = true)
+        frameLoadFailed = false
         isFramesLoading = false
     }
 
-    val frames = frameSet?.frames.orEmpty()
-    val baseTempoMs = frameSet?.baseTempoMs ?: profile.config.tempoMsPerWord
-    val frameIndexMap = frameSet?.frameIndexMap ?: RsvpFrameIndexMap.EMPTY
+    val activeFrameSet = frameSetState?.frameSet
+    val frames = activeFrameSet?.frames.orEmpty()
+    val baseTempoMs = activeFrameSet?.baseTempoMs ?: profile.config.tempoMsPerWord
+    val isComplete = frameSetState?.isComplete == true && !frameLoadFailed
+    val frameIndexMap = activeFrameSet?.frameIndexMap ?: RsvpFrameIndexMap.EMPTY
     return RsvpFrameLoadState(
         frames = frames,
         baseTempoMs = baseTempoMs,
         isLoading = isFramesLoading,
+        isComplete = isComplete,
+        loadFailed = frameLoadFailed,
         frameIndexMap = frameIndexMap,
     )
 }
+
+private data class LoadedRsvpFrameSet(
+    val frameSet: RsvpFrameSet,
+    val isComplete: Boolean,
+)
 
 private fun buildInstantFrameSet(
     book: RsvpBookContext,
@@ -494,7 +517,15 @@ private fun buildAppearanceFingerprint(
     ).joinToString("|")
 
 internal fun frameLoadConfigKey(config: RsvpConfig): RsvpConfig =
-    config.frameTimingKey().copy(tempoMsPerWord = 0L)
+    config.frameTimingKey().copy(tempoMsPerWord = blinkFrameLoadTempoKey(config))
+
+private fun blinkFrameLoadTempoKey(config: RsvpConfig): Long =
+    when {
+        config.effectiveBlinkMode() == BlinkMode.OFF -> 0L
+        config.readabilityMode() == RsvpReadabilityMode.STANDARD -> 0L
+        config.readabilityMode() == RsvpReadabilityMode.HIGH_SPEED -> 1L
+        else -> 2L
+    }
 
 internal fun resolveFrameLoadStartIndex(
     bookStartIndex: Int,

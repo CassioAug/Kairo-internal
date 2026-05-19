@@ -424,7 +424,7 @@ fun LibraryScreen(
                         onDeleteBookmarksForBook(book.id.value)
                         pendingClearBookmarkBook = null
                     },
-                ) { Text(stringResource(R.string.action_delete)) }
+                ) { Text(stringResource(R.string.library_bookmark_clear_book_confirm)) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingClearBookmarkBook = null }) {

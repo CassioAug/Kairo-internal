@@ -34,6 +34,7 @@ interface BookDao {
                books.isCompleted AS isCompleted,
                books.importFingerprint AS importFingerprint
         FROM books
+        ORDER BY lower(books.title), books.id
         """,
     )
     fun getBooks(): Flow<List<BookEntity>>

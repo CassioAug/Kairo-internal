@@ -10,6 +10,7 @@
     <string name="action_previous">Previous</string>
     <string name="action_save">Save</string>
     <string name="action_skip">Skip</string>
+    <string name="action_return_to_library">Return to library</string>
 
     <string name="format_chars">%1$d chars</string>
     <string name="format_estimated_wpm">~%1$d WPM</string>
@@ -73,6 +74,7 @@
     <string name="library_completed_status">Completed</string>
     <string name="library_bookmark_progress">Chapter %1$d / %2$d • %3$d%%</string>
     <string name="library_bookmark_clear_book">Clear</string>
+    <string name="library_bookmark_clear_book_confirm">Clear bookmarks</string>
     <string name="library_bookmark_clear_book_title">Remove bookmarks for this book?</string>
     <string name="library_bookmark_clear_book_message">This will remove every saved bookmark for "%1$s". Your book and reading progress will stay in place.</string>
     <string name="library_delete_title">Delete book?</string>
@@ -112,6 +114,10 @@
     <string name="reader_eta_prefix">ETA: %1$s</string>
     <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
     <string name="reader_empty_chapter">No content in this chapter</string>
+    <string name="reader_chapter_load_failed">This chapter could not be loaded: %1$s</string>
+    <string name="reader_missing_book_title">Book not found</string>
+    <string name="reader_missing_book_body">This book may have been deleted or is no longer available.</string>
+    <string name="reader_start_rsvp_action">Start RSVP from focus word</string>
     <string name="reader_image_hold_to_view">Hold to view</string>
     <string name="reader_image_not_found">Image not found</string>
     <string name="reader_image_viewer_hint">Pinch to zoom. Drag to pan. Double tap to reset.</string>
@@ -326,6 +332,8 @@
     <string name="info_contribute_title">Want to contribute?</string>
     <string name="info_contribute_subtitle">Open the Kairo GitHub repository</string>
     <string name="settings_reset_defaults">Reset to defaults</string>
+    <string name="settings_reset_confirm_title">Reset all settings?</string>
+    <string name="settings_reset_confirm_message">This will restore RSVP, reader, focus, profile, and tutorial preferences to their defaults.</string>
     <string name="settings_advanced_title">Advanced settings</string>
     <string name="settings_advanced_subtitle">All tuning controls, grouped by section.</string>
 

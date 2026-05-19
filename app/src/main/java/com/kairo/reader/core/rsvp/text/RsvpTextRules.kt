@@ -181,7 +181,7 @@ internal fun boundaryBeforeForPunctuation(
                 BoundaryBefore.NONE
             }
         }
-        ch == '\u2026' -> BoundaryBefore.CLAUSE
+        ch == '\u2026' -> BoundaryBefore.SENTENCE
         ch == ';' -> BoundaryBefore.CLAUSE
         ch == ':' || ch == '\u2014' || ch == '\u2013' || ch == '-' -> BoundaryBefore.CLAUSE
         ch == ',' && isClauseLeadPunctuation(ch, nextToken) -> BoundaryBefore.CLAUSE
@@ -291,10 +291,14 @@ internal fun isDecimalPoint(
     prevText: String,
     nextToken: Token?,
 ): Boolean {
-    if (!prevText.any { it.isDigit() }) return false
+    if (prevText.isEmpty() || !prevText.all { it.isDigit() }) return false
+    if (nextToken?.type != TokenType.WORD) return false
     val nextText = nextToken?.text ?: return false
-    return nextText.any { it.isDigit() }
+    if (nextText.isEmpty() || !nextText.all { it.isDigit() }) return false
+    return nextText.length <= MAX_SEPARATED_DECIMAL_FRACTION_DIGITS
 }
+
+private const val MAX_SEPARATED_DECIMAL_FRACTION_DIGITS = 3
 
 
 internal fun isThousandSeparator(

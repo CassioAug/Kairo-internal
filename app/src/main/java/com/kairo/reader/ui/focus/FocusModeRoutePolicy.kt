@@ -12,6 +12,9 @@ internal fun shouldApplyFocusMode(
             KairoRoutes.SETTINGS,
             KairoRoutes.SETTINGS_LANGUAGE,
             KairoRoutes.SETTINGS_INFO,
+            KairoRoutes.SETTINGS_RSVP,
+            KairoRoutes.SETTINGS_READER,
+            KairoRoutes.SETTINGS_FOCUS,
             -> true
             KairoRoutes.READER,
             KairoRoutes.READER_WITH_POSITION,

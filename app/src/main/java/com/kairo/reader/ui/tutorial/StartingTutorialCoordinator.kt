@@ -208,12 +208,14 @@ internal fun rememberStartingTutorialCoordinator(
         externalImportUri,
         externalArticleUrl,
         isImporting,
+        availableTutorialLaunchContext,
     ) {
         if (!prefs.hasSeenStartingTutorial &&
             !tutorialAutoStarted &&
             externalImportUri == null &&
             externalArticleUrl == null &&
-            !isImporting
+            !isImporting &&
+            availableTutorialLaunchContext != null
         ) {
             startStartingTutorial()
         }
