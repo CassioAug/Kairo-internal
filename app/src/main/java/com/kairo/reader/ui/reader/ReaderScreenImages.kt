@@ -164,6 +164,7 @@ internal fun FullScreenImageViewer(
 ) {
     val context = LocalContext.current
     val file = remember(imagePath) { resolveImageFile(context, imagePath) }
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
     var scale by remember(imagePath) { mutableFloatStateOf(1f) }
     var offset by remember(imagePath) { mutableStateOf(Offset.Zero) }
     var imageViewportSize by remember(imagePath) { mutableStateOf(IntSize.Zero) }
@@ -247,6 +248,7 @@ internal fun FullScreenImageViewer(
                     .onSizeChanged { imageViewportSize = it }
                     .pointerInput(imagePath) {
                         detectTapGestures(
+                            onTap = { currentOnDismiss() },
                             onDoubleTap = { tapOffset ->
                                 toggleDoubleTapZoom(tapOffset)
                             },
