@@ -297,12 +297,7 @@ class Tokenizer {
         PageNumberHeuristics.shouldStripStandalonePageNumbers(html)
 
     private fun stripStandalonePageNumbers(text: String): String {
-        return text.lineSequence()
-            .filterNot { line ->
-                val trimmed = line.trim()
-                trimmed.isNotEmpty() && isPageNumberText(trimmed)
-            }
-            .joinToString("\n")
+        return PageNumberHeuristics.stripStandalonePageNumbers(text)
     }
 
     private fun structuralPauseMs(

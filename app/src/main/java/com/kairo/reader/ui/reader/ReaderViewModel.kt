@@ -929,56 +929,83 @@ private fun extractHtmlBlockMarkers(
         )
 
     rawBlocks.forEach { block ->
-        val imageMarkers = mutableListOf<HtmlBlockMarker.Image>()
-        val imageMatches = mutableListOf<Pair<Int, String>>()
+        val imageMatches = mutableListOf<HtmlImageMatch>()
         imgRegex.findAll(block).forEach { match ->
-            imageMatches.add(match.range.first to match.groupValues[1])
+            imageMatches.add(
+                HtmlImageMatch(
+                    start = match.range.first,
+                    endInclusive = match.range.last,
+                    src = match.groupValues[1],
+                )
+            )
         }
         svgRegex.findAll(block).forEach { match ->
-            imageMatches.add(match.range.first to match.groupValues[1])
+            imageMatches.add(
+                HtmlImageMatch(
+                    start = match.range.first,
+                    endInclusive = match.range.last,
+                    src = match.groupValues[1],
+                )
+            )
         }
-        imageMatches.sortedBy { it.first }.forEach { (_, src) ->
-            val resolved = resolveInlineImagePath(src, imagePaths, fallbackIndex)
-            if (resolved != null) {
-                imageMarkers += HtmlBlockMarker.Image(resolved.first)
-                fallbackIndex = resolved.second
+        var cursor = 0
+        var paragraphAdded = false
+
+        fun addParagraphIfText(fragment: String) {
+            if (!paragraphAdded && decodeHtmlText(fragment).isNotBlank()) {
+                markers += HtmlBlockMarker.Paragraph
+                paragraphAdded = true
             }
         }
 
-        val text =
-            block
-                .replace(Regex("<[^>]+>"), "")
-                .replace("&nbsp;", " ")
-                .replace("&amp;", "&")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&quot;", "\"")
-                .replace("&apos;", "'")
-                .replace("&#39;", "'")
-                .replace(Regex("&#(\\d+);")) { match ->
-                    match.groupValues[1]
-                        .toIntOrNull()
-                        ?.toChar()
-                        ?.toString()
-                        .orEmpty()
-                }.replace(Regex("&#x([0-9a-fA-F]+);")) { match ->
-                    match.groupValues[1]
-                        .toIntOrNull(HEX_RADIX)
-                        ?.toChar()
-                        ?.toString()
-                        .orEmpty()
-                }.replace(Regex("[ \\t]+"), " ")
-                .trim()
-
-        if (text.isNotBlank()) {
-            markers += HtmlBlockMarker.Paragraph
+        imageMatches.sortedBy { it.start }.forEach { imageMatch ->
+            if (imageMatch.start >= cursor) {
+                addParagraphIfText(block.substring(cursor, imageMatch.start))
+            }
+            val src = imageMatch.src
+            val resolved = resolveInlineImagePath(src, imagePaths, fallbackIndex)
+            if (resolved != null) {
+                markers += HtmlBlockMarker.Image(resolved.first)
+                fallbackIndex = resolved.second
+            }
+            cursor = (imageMatch.endInclusive + 1).coerceAtLeast(cursor)
         }
-
-        markers.addAll(imageMarkers)
+        addParagraphIfText(block.substring(cursor))
     }
 
     return markers
 }
+
+private data class HtmlImageMatch(
+    val start: Int,
+    val endInclusive: Int,
+    val src: String,
+)
+
+private fun decodeHtmlText(fragment: String): String =
+    fragment
+        .replace(Regex("<[^>]+>"), "")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&#39;", "'")
+        .replace(Regex("&#(\\d+);")) { match ->
+            match.groupValues[1]
+                .toIntOrNull()
+                ?.toChar()
+                ?.toString()
+                .orEmpty()
+        }.replace(Regex("&#x([0-9a-fA-F]+);")) { match ->
+            match.groupValues[1]
+                .toIntOrNull(HEX_RADIX)
+                ?.toChar()
+                ?.toString()
+                .orEmpty()
+        }.replace(Regex("[ \\t]+"), " ")
+        .trim()
 
 private fun resolveInlineImagePath(
     rawSrc: String,
