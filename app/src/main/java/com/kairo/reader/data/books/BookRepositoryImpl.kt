@@ -36,12 +36,13 @@ class BookRepositoryImpl(
     override suspend fun importBook(uri: Uri): BookImportResult =
         importMutex.withLock {
             val extensionCandidates = resolveExtensionCandidates(uri)
+            val supportedExtensionList = extensionCandidates.joinToString { extension -> ".$extension" }
             val parserMatch =
                 extensionCandidates.firstNotNullOfOrNull { extension ->
                     parsers.firstOrNull { parser -> parser.supports(extension) }
                         ?.let { parser -> parser to extension }
                 } ?: throw IllegalArgumentException(
-                    "No parser found for ${extensionCandidates.joinToString { extension -> ".$extension" }} files"
+                    "No parser found for $supportedExtensionList files"
                 )
             val (parser, extension) = parserMatch
 
