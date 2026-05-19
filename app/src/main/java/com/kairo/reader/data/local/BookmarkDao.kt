@@ -40,7 +40,10 @@ interface BookmarkDao {
             books.title AS book_title,
             books.authors AS book_authors,
             books.languageTag AS book_languageTag,
-            books.coverImage AS book_coverImage,
+            CASE
+                WHEN books.coverImage IS NOT NULL AND length(books.coverImage) <= 1900000 THEN books.coverImage
+                ELSE NULL
+            END AS book_coverImage,
             books.isCompleted AS book_isCompleted,
             books.importFingerprint AS book_importFingerprint,
             (SELECT COUNT(*) FROM chapters WHERE chapters.bookId = books.id) AS chapterCount

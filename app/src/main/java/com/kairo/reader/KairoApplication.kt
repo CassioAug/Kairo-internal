@@ -102,6 +102,7 @@ class KairoApplication : Application() {
         libraryRepository =
             LibraryRepositoryImpl(
                 bookRepository,
+                database,
                 database.bookDao(),
                 database.readingPositionDao(),
                 database.bookmarkDao(),

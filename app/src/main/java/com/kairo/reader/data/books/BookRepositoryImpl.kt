@@ -35,10 +35,15 @@ class BookRepositoryImpl(
 
     override suspend fun importBook(uri: Uri): BookImportResult =
         importMutex.withLock {
-            val extension = resolveExtension(uri)
-            val parser =
-                parsers.firstOrNull { it.supports(extension) }
-                    ?: throw IllegalArgumentException("No parser found for .$extension files")
+            val extensionCandidates = resolveExtensionCandidates(uri)
+            val parserMatch =
+                extensionCandidates.firstNotNullOfOrNull { extension ->
+                    parsers.firstOrNull { parser -> parser.supports(extension) }
+                        ?.let { parser -> parser to extension }
+                } ?: throw IllegalArgumentException(
+                    "No parser found for ${extensionCandidates.joinToString { extension -> ".$extension" }} files"
+                )
+            val (parser, extension) = parserMatch
 
             val importSource = prepareImportSource(uri, extension)
             try {
@@ -55,14 +60,19 @@ class BookRepositoryImpl(
                 val bookId =
                     sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
                         ?: BookId(UUID.randomUUID().toString())
-                val parsedBook =
-                    parser.parse(
-                        context = appContext,
-                        uri = importSource.parseUri,
-                        bookId = bookId,
-                        sourceDisplayName = importSource.sourceDisplayName,
-                    )
-                return@withLock persistImportedBook(parsedBook, sourceFingerprint)
+                try {
+                    val parsedBook =
+                        parser.parse(
+                            context = appContext,
+                            uri = importSource.parseUri,
+                            bookId = bookId,
+                            sourceDisplayName = importSource.sourceDisplayName,
+                        )
+                    return@withLock persistImportedBook(parsedBook, sourceFingerprint)
+                } catch (error: Throwable) {
+                    deleteBookAssets(bookId.value)
+                    throw error
+                }
             } finally {
                 importSource.deleteTempFile()
             }
@@ -208,6 +218,7 @@ class BookRepositoryImpl(
         parsedBook: Book,
         sourceFingerprint: String?,
     ): BookImportResult {
+        requireReadableImportContent(parsedBook)
         val resolvedLanguageTag = BookLanguageResolver.resolve(parsedBook)
         val book =
             parsedBook.copy(
@@ -255,8 +266,7 @@ class BookRepositoryImpl(
         }
     }
 
-    private fun resolveExtension(uri: Uri): String {
-        // Try to get extension from the display name (most reliable for file pickers)
+    private fun resolveExtensionCandidates(uri: Uri): List<String> {
         val displayName = resolveDisplayName(uri)
 
         val extFromDisplay =
@@ -285,12 +295,39 @@ class BookRepositoryImpl(
                 ?.lowercase()
                 .orEmpty()
 
-        return when {
-            extFromDisplay.isNotEmpty() -> extFromDisplay
-            extFromMime.isNotEmpty() -> extFromMime
-            pathExt.isNotEmpty() -> pathExt
-            else -> DEFAULT_EXTENSION
+        return listOf(extFromDisplay, extFromMime, pathExt, DEFAULT_EXTENSION)
+            .map { it.trim().lowercase() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
+    private fun requireReadableImportContent(book: Book) {
+        require(book.chapters.any { chapter -> hasReadableImportText(chapter.plainText) }) {
+            "No readable content found in this import"
         }
+    }
+
+    private fun hasReadableImportText(text: String): Boolean {
+        val normalized = text.trim()
+        if (normalized in UNREADABLE_IMPORT_PLACEHOLDERS) return false
+
+        var words = 0
+        var inWord = false
+        var index = 0
+        while (index < normalized.length) {
+            val codePoint = Character.codePointAt(normalized, index)
+            if (Character.isLetterOrDigit(codePoint)) {
+                if (!inWord) {
+                    words += 1
+                    if (words >= MIN_READABLE_IMPORT_WORDS) return true
+                }
+                inWord = true
+            } else {
+                inWord = false
+            }
+            index += Character.charCount(codePoint)
+        }
+        return false
     }
 
     override suspend fun getBook(bookId: BookId): Book {
@@ -407,6 +444,12 @@ class BookRepositoryImpl(
         private const val JPEG_QUALITY_STEP = 10
         private const val MIN_COVER_JPEG_QUALITY = 60
         private const val MAX_WORD_COUNT_CHARS = 120_000
+        private const val MIN_READABLE_IMPORT_WORDS = 5
+        private val UNREADABLE_IMPORT_PLACEHOLDERS =
+            setOf(
+                "No readable content found.",
+                "No readable content found in this EPUB.",
+            )
     }
 
     private data class PreparedImportSource(

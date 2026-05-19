@@ -2,12 +2,14 @@ package com.kairo.reader.data.library
 
 import android.content.Context
 import android.net.Uri
+import androidx.room.withTransaction
 import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.data.books.BookImportResult
 import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.local.BookDao
 import com.kairo.reader.data.local.BookmarkDao
+import com.kairo.reader.data.local.KairoDatabase
 import com.kairo.reader.data.local.ReadingPositionDao
 import java.io.File
 import kotlinx.coroutines.flow.Flow
@@ -15,6 +17,7 @@ import kotlinx.coroutines.withContext
 
 class LibraryRepositoryImpl(
     private val bookRepository: BookRepository,
+    private val database: KairoDatabase,
     private val bookDao: BookDao,
     private val positionDao: ReadingPositionDao,
     private val bookmarkDao: BookmarkDao,
@@ -42,10 +45,12 @@ class LibraryRepositoryImpl(
 
     override suspend fun delete(bookId: String) {
         withContext(dispatcherProvider.io) {
-            bookDao.deleteChaptersForBook(bookId)
-            bookDao.deleteBook(bookId)
-            positionDao.deleteForBook(bookId)
-            bookmarkDao.deleteForBook(bookId)
+            database.withTransaction {
+                positionDao.deleteForBook(bookId)
+                bookmarkDao.deleteForBook(bookId)
+                bookDao.deleteChaptersForBook(bookId)
+                bookDao.deleteBook(bookId)
+            }
             deleteBookAssets(bookId)
         }
     }
