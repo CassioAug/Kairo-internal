@@ -40,12 +40,6 @@ internal object PageNumberHeuristics {
             .joinToString("\n")
     }
 
-    fun isPageNumberText(
-        text: String,
-        allowSingleRomanNumeral: Boolean = false,
-    ): Boolean =
-        pageNumberValue(text.trim(), allowSingleRomanNumeral) != null
-
     private fun hasSequentialPageNumberEvidence(candidates: List<PageNumberCandidate>): Boolean {
         if (candidates.size < MIN_SEQUENTIAL_PAGE_NUMBER_COUNT) return false
         return candidates
@@ -109,7 +103,7 @@ internal object PageNumberHeuristics {
 
     private val PAGE_NUMBER_MARKUP_REGEX =
         Regex(
-            """\b(?:class|id)\s*=\s*['"][^'"]*\b(?:pagenum|page(?:[\s_-]?(?:num|number|no))|pgnum|folio|pagebreak)\b[^'"]*['"]""",
+            """\b(?:class|id)\s*=\s*['"][^'"]*\b(?:pagenum|page[\s_-]?(?:num|number|no)|pgnum|folio|pagebreak)\b[^'"]*['"]""",
             RegexOption.IGNORE_CASE,
         )
 
