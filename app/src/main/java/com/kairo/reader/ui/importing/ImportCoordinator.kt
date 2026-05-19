@@ -7,13 +7,13 @@ import android.provider.OpenableColumns
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.R
@@ -24,13 +24,16 @@ import com.kairo.reader.ui.navigation.KairoRoutes
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.jsoup.HttpStatusException
 
 private const val IMPORT_COMPLETE_HOLD_MS = 200L
@@ -58,28 +61,107 @@ internal fun rememberImportCoordinator(
     onExternalArticleUrlConsumed: (String) -> Unit,
     onShowUserMessage: (String, SnackbarDuration) -> Unit,
 ): ImportCoordinator {
-    val context = LocalContext.current
-    val resources = LocalResources.current
-    val coroutineScope = rememberCoroutineScope()
-    val dispatcherProvider = container.dispatcherProvider
-    var importState by remember { mutableStateOf(ImportUiState()) }
-    var importProgressJob by remember { mutableStateOf<Job?>(null) }
+    val importViewModel: ImportCoordinatorViewModel =
+        viewModel(factory = ImportCoordinatorViewModel.factory(container))
+    val importState by importViewModel.state.collectAsState()
+    val latestShowUserMessage by rememberUpdatedState(onShowUserMessage)
 
-    fun showUserMessage(
-        message: String,
-        duration: SnackbarDuration = SnackbarDuration.Short,
-    ) {
-        onShowUserMessage(message, duration)
+    LaunchedEffect(importViewModel, navController) {
+        importViewModel.events.collect { event ->
+            when (event) {
+                is ImportCoordinatorEvent.OpenReader ->
+                    navController.navigate(KairoRoutes.reader(event.bookId)) {
+                        launchSingleTop = true
+                    }
+
+                is ImportCoordinatorEvent.UserMessage ->
+                    latestShowUserMessage(event.message, event.duration)
+            }
+        }
     }
 
-    fun handleImport(
+    LaunchedEffect(externalImportUri, importState.isImporting) {
+        val uri = externalImportUri ?: return@LaunchedEffect
+        if (importState.isImporting) return@LaunchedEffect
+        val accepted = importViewModel.importFile(uri)
+        if (!accepted) return@LaunchedEffect
+        navController.navigate(KairoRoutes.LIBRARY) {
+            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
+            launchSingleTop = true
+        }
+        onExternalImportUriConsumed(uri)
+    }
+
+    LaunchedEffect(externalArticleUrl, importState.isImporting) {
+        val url = externalArticleUrl ?: return@LaunchedEffect
+        if (importState.isImporting) return@LaunchedEffect
+        val accepted = importViewModel.importUrl(url, openReaderOnSuccess = true)
+        if (!accepted) return@LaunchedEffect
+        navController.navigate(KairoRoutes.LIBRARY) {
+            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
+            launchSingleTop = true
+        }
+        onExternalArticleUrlConsumed(url)
+    }
+
+    return ImportCoordinator(
+        state = importState,
+        importFile = { uri -> importViewModel.importFile(uri) },
+        importUrl = { url -> importViewModel.importUrl(url, openReaderOnSuccess = true) },
+    )
+}
+
+internal sealed interface ImportCoordinatorEvent {
+    data class UserMessage(
+        val message: String,
+        val duration: SnackbarDuration,
+    ) : ImportCoordinatorEvent
+
+    data class OpenReader(val bookId: String) : ImportCoordinatorEvent
+}
+
+internal class ImportCoordinatorViewModel(
+    private val container: KairoApplication,
+) : ViewModel() {
+    private val _state = MutableStateFlow(ImportUiState())
+    val state: StateFlow<ImportUiState> = _state.asStateFlow()
+
+    private val _events = Channel<ImportCoordinatorEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
+
+    private val context = container.applicationContext
+    private val resources: Resources = container.resources
+    private var importProgressJob: Job? = null
+
+    fun importFile(uri: Uri): Boolean =
+        handleImport(resolveImportFileName(context, uri)) {
+            container.libraryRepository.import(uri)
+        }
+
+    fun importUrl(
+        rawUrl: String,
+        openReaderOnSuccess: Boolean,
+    ): Boolean =
+        handleImport(
+            displayName = resolveImportUrlName(rawUrl),
+            completionHoldMs = URL_IMPORT_COMPLETE_HOLD_MS,
+            onImported = { importResult ->
+                if (openReaderOnSuccess) {
+                    emitEvent(ImportCoordinatorEvent.OpenReader(importResult.book.id.value))
+                }
+            },
+        ) {
+            container.libraryRepository.importUrl(rawUrl)
+        }
+
+    private fun handleImport(
         displayName: String?,
         completionHoldMs: Long = IMPORT_COMPLETE_HOLD_MS,
         onImported: (BookImportResult) -> Unit = {},
         importBook: suspend () -> BookImportResult,
-    ) {
-        if (importState.isImporting) return
-        importState =
+    ): Boolean {
+        if (_state.value.isImporting) return false
+        _state.value =
             ImportUiState(
                 isImporting = true,
                 progress = 0f,
@@ -87,101 +169,78 @@ internal fun rememberImportCoordinator(
             )
         importProgressJob?.cancel()
         importProgressJob =
-            coroutineScope.launch {
+            viewModelScope.launch {
                 driveImportProgress { progress ->
-                    importState = importState.copy(progress = progress)
+                    _state.value = _state.value.copy(progress = progress)
                 }
             }
-        coroutineScope.launch(dispatcherProvider.io) {
+        viewModelScope.launch(container.dispatcherProvider.io) {
             val result = runCatching { importBook() }
-            withContext(Dispatchers.Main) {
-                importProgressJob?.cancel()
-                if (result.isSuccess) {
-                    importState = importState.copy(progress = 1f)
-                    if (completionHoldMs > 0L) {
-                        delay(completionHoldMs)
-                    }
+            importProgressJob?.cancel()
+            if (result.isSuccess) {
+                _state.value = _state.value.copy(progress = 1f)
+                if (completionHoldMs > 0L) {
+                    delay(completionHoldMs)
                 }
-                importState = ImportUiState()
-                result.onSuccess { importResult ->
-                    val book = importResult.book
-                    if (importResult.alreadyImported) {
-                        showUserMessage(
+            }
+            _state.value = ImportUiState()
+            result.onSuccess { importResult ->
+                val book = importResult.book
+                if (importResult.alreadyImported) {
+                    emitEvent(
+                        ImportCoordinatorEvent.UserMessage(
                             resources.getString(
                                 R.string.toast_import_duplicate_detail,
                                 book.title,
                             ),
-                            duration = SnackbarDuration.Long,
+                            SnackbarDuration.Long,
                         )
-                        onImported(importResult)
-                        return@onSuccess
-                    }
-                    val chapterCount = book.chapters.size
-                    val message =
+                    )
+                    onImported(importResult)
+                    return@onSuccess
+                }
+                val chapterCount = book.chapters.size
+                emitEvent(
+                    ImportCoordinatorEvent.UserMessage(
                         resources.getQuantityString(
                             R.plurals.toast_imported_with_chapter_count,
                             chapterCount,
                             book.title,
                             chapterCount,
-                        )
-                    showUserMessage(message)
-                    onImported(importResult)
-                }
-                result.onFailure { error ->
-                    val message = resolveImportFailureMessage(resources, error)
-                    showUserMessage(message, duration = SnackbarDuration.Long)
-                }
+                        ),
+                        SnackbarDuration.Short,
+                    )
+                )
+                onImported(importResult)
+            }
+            result.onFailure { error ->
+                emitEvent(
+                    ImportCoordinatorEvent.UserMessage(
+                        resolveImportFailureMessage(resources, error),
+                        SnackbarDuration.Long,
+                    )
+                )
             }
         }
+        return true
     }
 
-    fun handleImportFile(uri: Uri) {
-        handleImport(resolveImportFileName(context, uri)) {
-            container.libraryRepository.import(uri)
-        }
+    private fun emitEvent(event: ImportCoordinatorEvent) {
+        _events.trySend(event)
     }
 
-    fun handleImportUrl(rawUrl: String) {
-        handleImport(
-            displayName = resolveImportUrlName(rawUrl),
-            completionHoldMs = URL_IMPORT_COMPLETE_HOLD_MS,
-            onImported = { importResult ->
-                navController.navigate(KairoRoutes.reader(importResult.book.id.value)) {
-                    launchSingleTop = true
+    companion object {
+        fun factory(container: KairoApplication): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(ImportCoordinatorViewModel::class.java)) {
+                        return ImportCoordinatorViewModel(container) as T
+                    }
+                    throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
                 }
-            },
-        ) {
-            container.libraryRepository.importUrl(rawUrl)
-        }
+            }
     }
-
-    LaunchedEffect(externalImportUri, importState.isImporting) {
-        val uri = externalImportUri ?: return@LaunchedEffect
-        if (importState.isImporting) return@LaunchedEffect
-        onExternalImportUriConsumed(uri)
-        navController.navigate(KairoRoutes.LIBRARY) {
-            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-            launchSingleTop = true
-        }
-        handleImportFile(uri)
-    }
-
-    LaunchedEffect(externalArticleUrl, importState.isImporting) {
-        val url = externalArticleUrl ?: return@LaunchedEffect
-        if (importState.isImporting) return@LaunchedEffect
-        onExternalArticleUrlConsumed(url)
-        navController.navigate(KairoRoutes.LIBRARY) {
-            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-            launchSingleTop = true
-        }
-        handleImportUrl(url)
-    }
-
-    return ImportCoordinator(
-        state = importState,
-        importFile = ::handleImportFile,
-        importUrl = ::handleImportUrl,
-    )
 }
 
 private fun resolveImportFileName(
