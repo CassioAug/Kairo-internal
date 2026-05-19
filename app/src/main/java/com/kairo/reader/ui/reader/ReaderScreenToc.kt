@@ -19,6 +19,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -76,6 +80,7 @@ internal fun ChapterListOverlay(
                 ChapterListSheet(
                     book = book,
                     currentChapterIndex = currentChapterIndex,
+                    onDismiss = onDismiss,
                     onChapterSelected = onChapterSelected,
                 )
             }
@@ -91,6 +96,7 @@ internal fun ChapterListOverlay(
 internal fun ChapterListSheet(
     book: Book,
     currentChapterIndex: Int,
+    onDismiss: () -> Unit,
     onChapterSelected: (Int) -> Unit,
 ) {
     Column(
@@ -98,12 +104,26 @@ internal fun ChapterListSheet(
         Modifier
             .fillMaxSize(),
     ) {
-        Text(
-            text = stringResource(R.string.reader_toc_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        )
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.reader_toc_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.content_desc_close),
+                )
+            }
+        }
 
         HorizontalDivider()
 

@@ -93,7 +93,7 @@ The reader, tokenizer, persistence layer, and RSVP engine all work toward the sa
 
 To build and run Kairo locally you will need:
 
-- Android Studio with Android SDK 34 installed
+- Android Studio with Android SDK 36 installed
 - JDK 17
 - An Android emulator or device running Android 7.0 (API 24) or newer
 - Internet access the first time Gradle dependencies are resolved

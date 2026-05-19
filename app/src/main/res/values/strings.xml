@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="app_name">Kairo</string>
 
     <string name="action_back">Back</string>
@@ -74,6 +74,7 @@
     <string name="library_completed_status">Completed</string>
     <string name="library_bookmark_progress">Chapter %1$d / %2$d • %3$d%%</string>
     <string name="library_bookmark_clear_book">Clear</string>
+    <string name="library_bookmark_clear_book_confirm">Clear bookmarks</string>
     <string name="library_bookmark_clear_book_title">Remove bookmarks for this book?</string>
     <string name="library_bookmark_clear_book_message">This will remove every saved bookmark for "%1$s". Your book and reading progress will stay in place.</string>
     <string name="library_delete_title">Delete book?</string>
@@ -331,6 +332,8 @@
     <string name="info_contribute_title">Want to contribute?</string>
     <string name="info_contribute_subtitle">Open the Kairo GitHub repository</string>
     <string name="settings_reset_defaults">Reset to defaults</string>
+    <string name="settings_reset_confirm_title">Reset all settings?</string>
+    <string name="settings_reset_confirm_message">This will restore RSVP, reader, focus, profile, and tutorial preferences to their defaults.</string>
     <string name="settings_advanced_title">Advanced settings</string>
     <string name="settings_advanced_subtitle">All tuning controls, grouped by section.</string>
 

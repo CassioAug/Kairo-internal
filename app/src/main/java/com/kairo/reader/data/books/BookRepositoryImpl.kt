@@ -332,7 +332,7 @@ class BookRepositoryImpl(
 
     override suspend fun getBook(bookId: BookId): Book {
         val bookEntity = requireNotNull(bookDao.getBook(bookId.value)) { "Book not found" }
-        val chapters = bookDao.getChapters(bookId.value)
+        val chapters = bookDao.getChaptersWithContent(bookId.value)
         return bookEntity.toDomain(chapters)
     }
 

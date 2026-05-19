@@ -19,13 +19,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +60,7 @@ fun SettingsHomeScreen(
     val context = LocalContext.current
     val languageLabel = resolveLanguageLabel(context, getAppLanguageTag())
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
+    var showResetConfirmation by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -143,7 +149,10 @@ fun SettingsHomeScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { showResetConfirmation = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text(stringResource(R.string.settings_reset_defaults))
             }
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
@@ -157,6 +166,28 @@ fun SettingsHomeScreen(
                 onNext = onTutorialNext,
                 onPrevious = onTutorialPrevious,
                 onSkip = onTutorialSkip,
+            )
+        }
+        if (showResetConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showResetConfirmation = false },
+                title = { Text(stringResource(R.string.settings_reset_confirm_title)) },
+                text = { Text(stringResource(R.string.settings_reset_confirm_message)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showResetConfirmation = false
+                            onReset()
+                        },
+                    ) {
+                        Text(stringResource(R.string.settings_reset_defaults))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetConfirmation = false }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
             )
         }
     }
