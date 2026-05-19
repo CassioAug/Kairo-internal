@@ -20,8 +20,8 @@ internal object WebArticleUrl {
             runCatching { URI(candidate) }
                 .getOrElse { throw IllegalArgumentException("Enter a valid web link.") }
         val scheme = uri.scheme?.lowercase(Locale.ROOT)
-        require(scheme == "http" || scheme == "https") {
-            "Only http and https links are supported."
+        require(scheme == "https") {
+            "Only https links are supported."
         }
         val host =
             uri.host
@@ -41,7 +41,7 @@ internal object WebArticleUrl {
             .mapNotNull { url ->
                 val uri = runCatching { URI(url) }.getOrNull() ?: return@mapNotNull null
                 val scheme = uri.scheme?.lowercase(Locale.ROOT)
-                if (scheme == "http" || scheme == "https") {
+                if (scheme == "https") {
                     ScoredUrl(url = url, score = uri.shareScore())
                 } else {
                     null
