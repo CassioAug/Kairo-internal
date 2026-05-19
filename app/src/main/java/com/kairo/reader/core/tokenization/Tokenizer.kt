@@ -18,7 +18,10 @@ class Tokenizer {
     fun tokenize(chapter: Chapter): List<Token> {
         val cleanedText =
             if (shouldStripPageNumbers(chapter.htmlContent)) {
-                stripStandalonePageNumbers(chapter.plainText)
+                stripStandalonePageNumbers(
+                    text = chapter.plainText,
+                    html = chapter.htmlContent,
+                )
             } else {
                 chapter.plainText
             }
@@ -296,8 +299,14 @@ class Tokenizer {
     private fun shouldStripPageNumbers(html: String): Boolean =
         PageNumberHeuristics.shouldStripStandalonePageNumbers(html)
 
-    private fun stripStandalonePageNumbers(text: String): String {
-        return PageNumberHeuristics.stripStandalonePageNumbers(text)
+    private fun stripStandalonePageNumbers(
+        text: String,
+        html: String,
+    ): String {
+        return PageNumberHeuristics.stripStandalonePageNumbers(
+            text = text,
+            allowSingleExplicitCandidate = PageNumberHeuristics.hasExplicitPageNumberMarkup(html),
+        )
     }
 
     private fun structuralPauseMs(

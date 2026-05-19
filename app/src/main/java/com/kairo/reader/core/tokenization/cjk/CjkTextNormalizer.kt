@@ -25,10 +25,14 @@ internal object CjkTextNormalizer {
     fun shouldStripPageNumbers(html: String): Boolean =
         PageNumberHeuristics.shouldStripStandalonePageNumbers(html)
 
-    fun stripStandalonePageNumbers(text: String): String =
+    fun stripStandalonePageNumbers(
+        text: String,
+        html: String,
+    ): String =
         PageNumberHeuristics.stripStandalonePageNumbers(
             text = text,
             allowSingleRomanNumeral = true,
+            allowSingleExplicitCandidate = PageNumberHeuristics.hasExplicitPageNumberMarkup(html),
         )
 
     private fun normalizeEpubSymbols(input: String): String {

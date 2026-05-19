@@ -13,7 +13,10 @@ class CjkTokenizer(
     override fun tokenize(chapter: Chapter): List<Token> {
         val cleanedText =
             if (CjkTextNormalizer.shouldStripPageNumbers(chapter.htmlContent)) {
-                CjkTextNormalizer.stripStandalonePageNumbers(chapter.plainText)
+                CjkTextNormalizer.stripStandalonePageNumbers(
+                    text = chapter.plainText,
+                    html = chapter.htmlContent,
+                )
             } else {
                 chapter.plainText
             }

@@ -8,9 +8,17 @@ internal object PageNumberHeuristics {
             PAGE_NUMBER_ARIA_REGEX.containsMatchIn(html)
     }
 
+    fun hasExplicitPageNumberMarkup(html: String): Boolean =
+        html.isNotBlank() &&
+            (
+                PAGE_NUMBER_MARKUP_REGEX.containsMatchIn(html) ||
+                    PAGE_NUMBER_ARIA_REGEX.containsMatchIn(html)
+            )
+
     fun stripStandalonePageNumbers(
         text: String,
         allowSingleRomanNumeral: Boolean = false,
+        allowSingleExplicitCandidate: Boolean = false,
     ): String {
         val lines = text.lines()
         val candidates =
@@ -22,7 +30,10 @@ internal object PageNumberHeuristics {
                     ) ?: return@mapIndexedNotNull null
                 PageNumberCandidate(index, value)
             }
-        if (!hasSequentialPageNumberEvidence(candidates)) return text
+        val shouldStrip =
+            hasSequentialPageNumberEvidence(candidates) ||
+                (allowSingleExplicitCandidate && candidates.size == 1)
+        if (!shouldStrip) return text
         val candidateIndexes = candidates.mapTo(mutableSetOf()) { it.index }
         return lines
             .filterIndexed { index, _ -> index !in candidateIndexes }

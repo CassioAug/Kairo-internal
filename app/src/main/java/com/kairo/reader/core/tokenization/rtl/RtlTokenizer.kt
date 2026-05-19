@@ -13,7 +13,10 @@ class RtlTokenizer(
     override fun tokenize(chapter: Chapter): List<Token> {
         val cleanedText =
             if (RtlTextNormalizer.shouldStripPageNumbers(chapter.htmlContent)) {
-                RtlTextNormalizer.stripStandalonePageNumbers(chapter.plainText)
+                RtlTextNormalizer.stripStandalonePageNumbers(
+                    text = chapter.plainText,
+                    html = chapter.htmlContent,
+                )
             } else {
                 chapter.plainText
             }
