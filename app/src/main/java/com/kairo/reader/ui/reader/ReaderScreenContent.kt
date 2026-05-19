@@ -3,7 +3,6 @@ package com.kairo.reader.ui.reader
 import android.os.SystemClock
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -283,21 +282,30 @@ internal fun ReaderContent(
                                 .height(viewportHeight)
                                 .clip(RoundedCornerShape(14.dp)),
                         ) {
-                            AsyncImage(
-                                model = file,
-                                contentDescription =
-                                stringResource(
-                                    R.string.content_desc_title_page_of_title,
-                                    book.title,
-                                ),
-                                modifier =
-                                Modifier
-                                    .fillMaxSize()
-                                    .clickable {
-                                        onOpenFullScreenImage(fullScreenTitlePageImagePath)
-                                    },
-                                contentScale = ContentScale.Fit,
-                            )
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AsyncImage(
+                                    model = file,
+                                    contentDescription =
+                                    stringResource(
+                                        R.string.content_desc_title_page_of_title,
+                                        book.title,
+                                    ),
+                                    modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .openReaderImageOnLongPress(
+                                            imagePath = fullScreenTitlePageImagePath,
+                                            onOpen = onOpenFullScreenImage,
+                                        ),
+                                    contentScale = ContentScale.Fit,
+                                )
+                                ReaderImageOpenHint(
+                                    modifier =
+                                    Modifier
+                                        .align(Alignment.TopCenter)
+                                        .padding(12.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -306,7 +314,7 @@ internal fun ReaderContent(
                 item(key = "chapter_images_$chapterIndex") {
                     ChapterImages(
                         imagePaths = headerCarouselImages,
-                        onImageClick = onOpenFullScreenImage,
+                        onImageOpen = onOpenFullScreenImage,
                     )
                 }
             }

@@ -2,8 +2,8 @@ package com.kairo.reader.ui.reader
 
 import android.content.Context
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,19 +22,33 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
@@ -45,7 +59,7 @@ import java.io.File
 @Composable
 internal fun ChapterImages(
     imagePaths: List<String>,
-    onImageClick: (String) -> Unit,
+    onImageOpen: (String) -> Unit,
 ) {
     val context = LocalContext.current
     LazyRow(
@@ -63,15 +77,26 @@ internal fun ChapterImages(
                         .size(width = 220.dp, height = 160.dp)
                         .clip(RoundedCornerShape(12.dp)),
                 ) {
-                    AsyncImage(
-                        model = file,
-                        contentDescription = null,
-                        modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .clickable { onImageClick(relativePath) },
-                        contentScale = ContentScale.Crop,
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AsyncImage(
+                            model = file,
+                            contentDescription = null,
+                            modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .openReaderImageOnLongPress(
+                                    imagePath = relativePath,
+                                    onOpen = onImageOpen,
+                                ),
+                            contentScale = ContentScale.Crop,
+                        )
+                        ReaderImageOpenHint(
+                            modifier =
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(8.dp),
+                        )
+                    }
                 }
             }
         }
@@ -94,32 +119,40 @@ internal fun InlineImageBlock(
         modifier =
         Modifier
             .fillMaxWidth()
-            .clickable { onOpen(imagePath) },
+            .openReaderImageOnLongPress(imagePath = imagePath, onOpen = onOpen),
     ) {
-        SubcomposeAsyncImage(
-            model = file,
-            contentDescription = stringResource(R.string.content_desc_illustration),
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            val size = painter.intrinsicSize
-            val hasValidSize =
-                size != Size.Unspecified &&
-                    size.width.isFinite() &&
-                    size.height.isFinite() &&
-                    size.width > 0f &&
-                    size.height > 0f
-            val contentModifier =
-                if (hasValidSize) {
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(size.width / size.height)
-                } else {
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 180.dp, max = 420.dp)
-                }
-            SubcomposeAsyncImageContent(modifier = contentModifier)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            SubcomposeAsyncImage(
+                model = file,
+                contentDescription = stringResource(R.string.content_desc_illustration),
+                contentScale = ContentScale.FillWidth,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                val size = painter.intrinsicSize
+                val hasValidSize =
+                    size != Size.Unspecified &&
+                        size.width.isFinite() &&
+                        size.height.isFinite() &&
+                        size.width > 0f &&
+                        size.height > 0f
+                val contentModifier =
+                    if (hasValidSize) {
+                        Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(size.width / size.height)
+                    } else {
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 180.dp, max = 420.dp)
+                    }
+                SubcomposeAsyncImageContent(modifier = contentModifier)
+            }
+            ReaderImageOpenHint(
+                modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(12.dp),
+            )
         }
     }
 }
@@ -131,6 +164,68 @@ internal fun FullScreenImageViewer(
 ) {
     val context = LocalContext.current
     val file = remember(imagePath) { resolveImageFile(context, imagePath) }
+    var scale by remember(imagePath) { mutableFloatStateOf(1f) }
+    var offset by remember(imagePath) { mutableStateOf(Offset.Zero) }
+    var imageViewportSize by remember(imagePath) { mutableStateOf(IntSize.Zero) }
+
+    fun clampedOffset(
+        value: Offset,
+        scaleValue: Float,
+    ): Offset {
+        if (scaleValue <= MIN_IMAGE_VIEWER_SCALE || imageViewportSize == IntSize.Zero) {
+            return Offset.Zero
+        }
+        val minX = -(imageViewportSize.width * (scaleValue - 1f)).coerceAtLeast(0f)
+        val minY = -(imageViewportSize.height * (scaleValue - 1f)).coerceAtLeast(0f)
+        return Offset(
+            x = value.x.coerceIn(minX, 0f),
+            y = value.y.coerceIn(minY, 0f),
+        )
+    }
+
+    fun offsetZoomedToward(
+        focusPoint: Offset,
+        nextScale: Float,
+    ): Offset {
+        val scaleFactor = nextScale / scale
+        return clampedOffset(
+            value = offset * scaleFactor + focusPoint * (1f - scaleFactor),
+            scaleValue = nextScale,
+        )
+    }
+
+    fun updateZoomFromGesture(
+        focusPoint: Offset,
+        panChange: Offset,
+        zoomChange: Float,
+    ) {
+        val nextScale =
+            (scale * zoomChange)
+                .coerceIn(MIN_IMAGE_VIEWER_SCALE, MAX_IMAGE_VIEWER_SCALE)
+        offset =
+            if (nextScale <= MIN_IMAGE_VIEWER_SCALE) {
+                Offset.Zero
+            } else {
+                clampedOffset(offsetZoomedToward(focusPoint, nextScale) + panChange, nextScale)
+            }
+        scale = nextScale
+    }
+
+    fun toggleDoubleTapZoom(tapOffset: Offset) {
+        val nextScale =
+            if (scale > MIN_IMAGE_VIEWER_SCALE) {
+                MIN_IMAGE_VIEWER_SCALE
+            } else {
+                DOUBLE_TAP_IMAGE_VIEWER_SCALE
+            }
+        offset =
+            if (nextScale <= MIN_IMAGE_VIEWER_SCALE) {
+                Offset.Zero
+            } else {
+                offsetZoomedToward(tapOffset, nextScale)
+            }
+        scale = nextScale
+    }
 
     Box(
         modifier =
@@ -138,9 +233,7 @@ internal fun FullScreenImageViewer(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.96f))
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .pointerInput(imagePath) {
-                detectTapGestures(onTap = { onDismiss() })
-            },
+            .clipToBounds(),
     ) {
         if (file.exists()) {
             SubcomposeAsyncImage(
@@ -150,13 +243,53 @@ internal fun FullScreenImageViewer(
                 modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(24.dp),
+                    .padding(24.dp)
+                    .onSizeChanged { imageViewportSize = it }
+                    .pointerInput(imagePath) {
+                        detectTapGestures(
+                            onDoubleTap = { tapOffset ->
+                                toggleDoubleTapZoom(tapOffset)
+                            },
+                        )
+                    }
+                    .pointerInput(imagePath) {
+                        detectTransformGestures { centroid, panChange, zoomChange, _ ->
+                            updateZoomFromGesture(
+                                focusPoint = centroid,
+                                panChange = panChange,
+                                zoomChange = zoomChange,
+                            )
+                        }
+                    }
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    },
             )
         } else {
             Text(
                 text = stringResource(R.string.reader_image_not_found),
                 color = Color.White,
                 modifier = Modifier.align(Alignment.Center),
+            )
+        }
+
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = Color.Black.copy(alpha = 0.58f),
+            contentColor = Color.White,
+            modifier =
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.reader_image_viewer_hint),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             )
         }
 
@@ -173,6 +306,39 @@ internal fun FullScreenImageViewer(
     }
 }
 
+@Composable
+internal fun ReaderImageOpenHint(modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Color.Black.copy(alpha = 0.56f),
+        contentColor = Color.White,
+        modifier = modifier,
+    ) {
+        Text(
+            text = stringResource(R.string.reader_image_hold_to_view),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+        )
+    }
+}
+
+@Composable
+internal fun Modifier.openReaderImageOnLongPress(
+    imagePath: String,
+    onOpen: (String) -> Unit,
+): Modifier {
+    val currentOnOpen by rememberUpdatedState(onOpen)
+    val hapticFeedback = LocalHapticFeedback.current
+    return pointerInput(imagePath) {
+        detectTapGestures(
+            onLongPress = {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                currentOnOpen(imagePath)
+            },
+        )
+    }
+}
+
 internal fun resolveImageFile(
     context: Context,
     imagePath: String,
@@ -182,3 +348,7 @@ internal fun resolveImageFile(
     } else {
         File(context.filesDir, imagePath)
     }
+
+private const val MIN_IMAGE_VIEWER_SCALE = 1f
+private const val MAX_IMAGE_VIEWER_SCALE = 5f
+private const val DOUBLE_TAP_IMAGE_VIEWER_SCALE = 2.4f

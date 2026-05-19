@@ -112,7 +112,9 @@
     <string name="reader_eta_prefix">ETA: %1$s</string>
     <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
     <string name="reader_empty_chapter">No content in this chapter</string>
+    <string name="reader_image_hold_to_view">Hold to view</string>
     <string name="reader_image_not_found">Image not found</string>
+    <string name="reader_image_viewer_hint">Pinch to zoom. Drag to pan. Double tap to reset.</string>
 
     <string name="focus_mode_title">Focus mode</string>
     <string name="focus_enable_title">Enable focus mode</string>
