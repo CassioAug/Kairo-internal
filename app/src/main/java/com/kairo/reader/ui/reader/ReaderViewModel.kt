@@ -16,6 +16,7 @@ import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.model.shouldKeepPhysicalPageBreak
 import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.token.TokenRepository
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -73,6 +74,7 @@ class ReaderViewModel(
 
     // Thread-safe book reference for cross-coroutine access
     private val currentBook = AtomicReference<Book?>(null)
+    private val chapterLoadSequence = AtomicInteger(0)
 
     // Pending focus index to apply after chapter loads (thread-safe for cross-coroutine access)
     private val pendingFocusIndex = AtomicReference<Int?>(null)
@@ -88,6 +90,7 @@ class ReaderViewModel(
         initialFocusIndex: Int = 0,
     ) {
         currentBook.set(book)
+        chapterLoadSequence.incrementAndGet()
         synchronized(chapterCacheLock) { chapterCache.clear() } // Clear cache when loading new book
         pendingFocusIndex.set(if (initialFocusIndex > 0) initialFocusIndex else null)
         pendingPageIndex.set(null)
@@ -156,6 +159,8 @@ class ReaderViewModel(
         val book = currentBook.get() ?: return
 
         if (chapterIndex !in book.chapters.indices) return
+        val requestId = chapterLoadSequence.incrementAndGet()
+        val requestedBookId = book.id
 
         if (initialFocusIndex != null) {
             pendingFocusIndex.set(initialFocusIndex)
@@ -179,6 +184,7 @@ class ReaderViewModel(
                     isLoading = false,
                     chapterIndex = chapterIndex,
                     chapterData = cached,
+                    chapterLoadError = null,
                     focusIndex = focusIdx,
                     pageIndexOverride = pageIdx,
                 )
@@ -192,32 +198,32 @@ class ReaderViewModel(
                     isLoading = true,
                     chapterIndex = chapterIndex,
                     chapterData = null, // Clear old data while loading
+                    chapterLoadError = null,
                 )
             }
 
             viewModelScope.launch {
-                val chapter =
+                val processed =
                     runCatching {
-                        withContext(dispatcherProvider.io) {
-                            bookRepository.getChapter(book.id, chapterIndex)
-                        }
-                    }.getOrNull()
-
-                val tokens =
-                    if (chapter != null) {
-                        runCatching {
-                            tokenRepository.getTokens(book.id, chapterIndex, chapter)
-                        }.getOrNull()
-                    } else {
-                        null
-                    }
-
-                val result =
-                    if (chapter != null && tokens != null) {
+                        val chapter =
+                            withContext(dispatcherProvider.io) {
+                                bookRepository.getChapter(book.id, chapterIndex)
+                            }
+                        val tokens = tokenRepository.getTokens(book.id, chapterIndex, chapter)
                         processChapter(chapter, tokens)
-                    } else {
-                        null
                     }
+                val result = processed.getOrNull()
+                val errorMessage =
+                    processed.exceptionOrNull()?.message
+                        ?.takeIf { it.isNotBlank() }
+                        ?: if (processed.isFailure) DEFAULT_CHAPTER_LOAD_ERROR else null
+
+                if (
+                    chapterLoadSequence.get() != requestId ||
+                    currentBook.get()?.id != requestedBookId
+                ) {
+                    return@launch
+                }
 
                 // Cache the result
                 result?.let {
@@ -240,6 +246,7 @@ class ReaderViewModel(
                     it.copy(
                         isLoading = false,
                         chapterData = result,
+                        chapterLoadError = errorMessage,
                         focusIndex = focusIdx,
                         pageIndexOverride = pageIdx,
                     )
@@ -404,6 +411,7 @@ class ReaderViewModel(
         private const val CHAPTER_CACHE_INITIAL_CAPACITY = 5
         private const val CHAPTER_CACHE_LOAD_FACTOR = 0.75f
         private const val MAX_CACHED_CHAPTERS = 5
+        private const val DEFAULT_CHAPTER_LOAD_ERROR = "Chapter could not be loaded."
 
         fun factory(
             bookRepository: BookRepository,
@@ -436,6 +444,7 @@ data class ReaderUiState(
     val focusIndex: Int = 0,
     val pageIndexOverride: Int? = null,
     val chapterData: ChapterData? = null,
+    val chapterLoadError: String? = null,
     val bookWordCounts: List<Int> = emptyList(),
     val bookTotalWords: Int = 0,
 )

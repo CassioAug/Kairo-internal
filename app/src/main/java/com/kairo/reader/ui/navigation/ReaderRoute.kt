@@ -1,9 +1,15 @@
 package com.kairo.reader.ui.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -18,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -25,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
+import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.ReadingPosition
@@ -66,19 +75,38 @@ internal fun ReaderRoute(
         }
 
     val bookState =
-        produceState<Book?>(
-            initialValue = null,
+        produceState<ReaderBookLoadState>(
+            initialValue = ReaderBookLoadState.Loading,
             bookId,
         ) {
-            value = runCatching { container.bookRepository.getBook(BookId(bookId)) }.getOrNull()
+            value =
+                runCatching { container.bookRepository.getBook(BookId(bookId)) }
+                    .fold(
+                        onSuccess = { book -> ReaderBookLoadState.Loaded(book) },
+                        onFailure = { ReaderBookLoadState.Missing },
+                    )
         }
-    val book = bookState.value
-    if (book == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+    val book =
+        when (val state = bookState.value) {
+            is ReaderBookLoadState.Loaded -> state.book
+            ReaderBookLoadState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+                return
+            }
+            ReaderBookLoadState.Missing -> {
+                ReaderMissingBookState(
+                    onOpenLibrary = {
+                        navController.navigate(KairoRoutes.LIBRARY) {
+                            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+                return
+            }
         }
-        return
-    }
 
     val readerViewModel: ReaderViewModel =
         viewModel(
@@ -138,35 +166,37 @@ internal fun ReaderRoute(
             uiState
         }
 
-    LaunchedEffect(rsvpResultChapterIndex, safeRsvpResultIndex, rsvpResultResumeCursor) {
+    LaunchedEffect(
+        rsvpResultChapterIndex,
+        safeRsvpResultIndex,
+        rsvpResultResumeCursor,
+        uiState.chapterIndex,
+        uiState.chapterData,
+    ) {
         if (rsvpResultChapterIndex >= 0 && safeRsvpResultIndex >= 0) {
             if (rsvpResultChapterIndex != uiState.chapterIndex) {
                 readerViewModel.loadChapter(rsvpResultChapterIndex, safeRsvpResultIndex)
-            } else if (safeRsvpResultIndex != uiState.focusIndex) {
-                readerViewModel.applyFocusIndex(safeRsvpResultIndex)
+                return@LaunchedEffect
             }
-            val wordIndex =
-                if (rsvpResultChapterIndex == uiState.chapterIndex) {
-                    resolveWordIndex(
-                        uiState.chapterData?.wordCountByToken,
-                        safeRsvpResultIndex,
-                    )
+            val chapterData = uiState.chapterData ?: return@LaunchedEffect
+            val safeTargetIndex =
+                if (chapterData.tokens.isNotEmpty()) {
+                    chapterData.tokens.nearestWordIndex(safeRsvpResultIndex)
+                        .coerceIn(0, chapterData.tokens.lastIndex)
                 } else {
-                    0
+                    safeRsvpResultIndex
                 }
-            val resumeCursor =
-                if (rsvpResultChapterIndex == uiState.chapterIndex) {
-                    rsvpResultResumeCursor
-                } else {
-                    -1
-                }
+            if (safeTargetIndex != uiState.focusIndex) {
+                readerViewModel.applyFocusIndex(safeTargetIndex)
+            }
+            val wordIndex = resolveWordIndex(chapterData.wordCountByToken, safeTargetIndex)
             readerPositionSaver.saveImmediate(
                 ReadingPosition(
                     BookId(bookId),
                     rsvpResultChapterIndex,
-                    safeRsvpResultIndex,
+                    safeTargetIndex,
                     wordIndex,
-                    rsvpResumeCursor = resumeCursor,
+                    rsvpResumeCursor = rsvpResultResumeCursor,
                 ),
             )
             backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX] = -1
@@ -311,4 +341,40 @@ internal fun ReaderRoute(
         onTutorialPrevious = onTutorialPrevious,
         onTutorialSkip = onTutorialSkip,
     )
+}
+
+private sealed interface ReaderBookLoadState {
+    data object Loading : ReaderBookLoadState
+    data class Loaded(val book: Book) : ReaderBookLoadState
+    data object Missing : ReaderBookLoadState
+}
+
+@Composable
+private fun ReaderMissingBookState(onOpenLibrary: () -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.reader_missing_book_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.reader_missing_book_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(onClick = onOpenLibrary) {
+                Text(text = stringResource(R.string.action_return_to_library))
+            }
+        }
+    }
 }

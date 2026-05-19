@@ -63,6 +63,7 @@ internal fun ReaderContent(
     chapterIndex: Int,
     coverImage: ByteArray?,
     isLoading: Boolean,
+    loadErrorMessage: String?,
     isCoverChapter: Boolean,
     isPagedChapter: Boolean,
     resolvedPageIndex: Int,
@@ -95,6 +96,11 @@ internal fun ReaderContent(
             coverImage = coverImage,
             isCoverChapter = isCoverChapter,
         )
+        return
+    }
+
+    if (loadErrorMessage != null) {
+        ReaderErrorState(modifier = modifier, message = loadErrorMessage)
         return
     }
 
@@ -542,6 +548,25 @@ private fun ReaderEmptyState(
             text = stringResource(R.string.reader_empty_chapter),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ReaderErrorState(
+    modifier: Modifier,
+    message: String,
+) {
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.reader_chapter_load_failed, message),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.error,
         )
     }
 }

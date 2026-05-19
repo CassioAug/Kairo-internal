@@ -10,6 +10,7 @@
     <string name="action_previous">Previous</string>
     <string name="action_save">Save</string>
     <string name="action_skip">Skip</string>
+    <string name="action_return_to_library">Return to library</string>
 
     <string name="format_chars">%1$d chars</string>
     <string name="format_estimated_wpm">~%1$d WPM</string>
@@ -112,6 +113,9 @@
     <string name="reader_eta_prefix">ETA: %1$s</string>
     <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
     <string name="reader_empty_chapter">No content in this chapter</string>
+    <string name="reader_chapter_load_failed">This chapter could not be loaded: %1$s</string>
+    <string name="reader_missing_book_title">Book not found</string>
+    <string name="reader_missing_book_body">This book may have been deleted or is no longer available.</string>
     <string name="reader_image_hold_to_view">Hold to view</string>
     <string name="reader_image_not_found">Image not found</string>
     <string name="reader_image_viewer_hint">Pinch to zoom. Drag to pan. Double tap to reset.</string>
