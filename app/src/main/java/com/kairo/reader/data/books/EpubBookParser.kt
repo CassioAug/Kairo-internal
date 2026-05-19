@@ -79,6 +79,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         private const val MAX_EXACT_WORD_COUNT_CHARS = 120_000
         private const val NAVIGATION_TITLE_SCAN_CHARS = 400
         private const val NAVIGATION_WORD_SCAN_LIMIT = 601
+        private const val PAGE_BREAK_MARKER = "\u000C"
         private val FILE_LABEL_WITH_NUMBER_REGEX =
             Regex("(?i)^(part|chapter|section|book)(0*)(\\d{1,6})$")
         private val GENERIC_FILE_LABEL_REGEX =
@@ -767,7 +768,10 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                         0
                     }
 
-                if (plainText.isBlank() && imagePaths.isEmpty()) {
+                if (plainText.isBlank() &&
+                    !plainText.contains(PAGE_BREAK_MARKER) &&
+                    imagePaths.isEmpty()
+                ) {
                     return@mapNotNull null
                 }
 
@@ -1190,7 +1194,16 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             // Clean up whitespace
             .replace(HORIZONTAL_WHITESPACE_REGEX, " ")
             .replace(MULTIPLE_NEWLINES_REGEX, "\n\n")
-            .trim()
+            .let(::trimPlainTextPreservingPageBreak)
+
+    private fun trimPlainTextPreservingPageBreak(text: String): String {
+        val trimmed = text.trim()
+        return if (trimmed.isEmpty() && text.contains(PAGE_BREAK_MARKER)) {
+            PAGE_BREAK_MARKER
+        } else {
+            trimmed
+        }
+    }
 
     /**
      * Extracts chapter title from HTML content.

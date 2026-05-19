@@ -40,6 +40,15 @@ class MobiBookParserTest {
     }
 
     @Test
+    fun extractPlainTextKeepsPageBreakOnlyDocument() {
+        val html = "<mbp:pagebreak/>"
+
+        val text = contentProcessor.extractPlainText(html)
+
+        assertEquals("\u000C", text)
+    }
+
+    @Test
     fun cleanMobiHtmlPreservesRawFormFeedPageBreaks() {
         val cleaned: String = contentProcessor.callPrivate("cleanMobiHtml", "Start\u000CEnd")
 

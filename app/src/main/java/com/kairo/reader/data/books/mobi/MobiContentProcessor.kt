@@ -96,8 +96,9 @@ internal class MobiContentProcessor {
         return splitLargeChapters(rewritten, fallbackTitle)
     }
 
-    fun extractPlainText(html: String): String =
-        normalizePageBreakElements(html)
+    fun extractPlainText(html: String): String {
+        val normalized = normalizePageBreakElements(html)
+        return normalized
             .replace(Regex("<script[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), "")
             .replace(Regex("<style[^>]*>[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), "")
             .replace(Regex("<(p|div|br|h[1-6]|li|tr)[^>]*>", RegexOption.IGNORE_CASE), "\n")
@@ -106,7 +107,8 @@ internal class MobiContentProcessor {
             .let(MobiHtmlUtils::decodeHtmlEntities)
             .replace(Regex("[ \\t]+"), " ")
             .replace(Regex("\\n\\s*\\n+"), "\n\n")
-            .trim()
+            .let(::trimPlainTextPreservingPageBreak)
+    }
 
     fun extractImagePathsFromHtml(html: String): List<String> {
         if (!html.contains("<img", ignoreCase = true)) return emptyList()
@@ -226,7 +228,7 @@ internal class MobiContentProcessor {
                             htmlContent = "<p>${content.replace("\n", "</p><p>")}</p>",
                             plainText = content,
                         )
-                    }.filter { it.plainText.isNotBlank() }
+                    }.filter { it.plainText.hasReaderContent() }
             } else {
                 val paragraphs = text.split(Regex("\n\\s*\n")).filter(String::isNotBlank)
                 val chunks = mutableListOf<List<String>>()
@@ -340,7 +342,7 @@ internal class MobiContentProcessor {
                         title = title,
                     )
                 val plain = extractPlainText(cleaned)
-                if (plain.isBlank()) return@forEachIndexed
+                if (!plain.hasReaderContent()) return@forEachIndexed
                 slices.add(
                     MobiChapterSlice(
                         start = start,
@@ -357,7 +359,7 @@ internal class MobiContentProcessor {
 
         val cleaned = stripNoiseTitleBlocks(html)
         val plain = extractPlainText(cleaned)
-        if (plain.isBlank()) return emptyList()
+        if (!plain.hasReaderContent()) return emptyList()
         return listOf(
             MobiChapterSlice(
                 start = 0,
@@ -393,7 +395,7 @@ internal class MobiContentProcessor {
         if (tocEnd > 0) {
             val tocHtml = html.substring(0, tocEnd).trim()
             val tocPlain = extractPlainText(tocHtml)
-            if (tocPlain.isNotBlank()) {
+            if (tocPlain.hasReaderContent()) {
                 slices.add(
                     MobiChapterSlice(
                         start = 0,
@@ -415,7 +417,7 @@ internal class MobiContentProcessor {
                     html = stripNoiseTitleBlocks(segment),
                     title = entry.title,
                 )
-            if (extractPlainText(cleaned).isBlank()) return@forEachIndexed
+            if (!extractPlainText(cleaned).hasReaderContent()) return@forEachIndexed
             slices.add(
                 MobiChapterSlice(
                     start = start,
@@ -735,6 +737,18 @@ internal class MobiContentProcessor {
         MobiHtmlUtils.decodeHtmlEntities(htmlFragment.replace(Regex("<[^>]+>"), " "))
             .replace(Regex("\\s+"), " ")
             .trim()
+
+    private fun trimPlainTextPreservingPageBreak(text: String): String {
+        val trimmed = text.trim()
+        return if (trimmed.isEmpty() && text.contains(pageBreakMarker)) {
+            pageBreakMarker
+        } else {
+            trimmed
+        }
+    }
+
+    private fun String.hasReaderContent(): Boolean =
+        isNotBlank() || contains(pageBreakMarker)
 
     private fun normalizeTitleForComparison(text: String): String =
         visibleText(text)

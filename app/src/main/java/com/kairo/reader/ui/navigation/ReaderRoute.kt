@@ -302,6 +302,7 @@ internal fun ReaderRoute(
         onOpenBookmarks = readerCallbacks.onOpenBookmarks,
         onOpenLibrary = readerCallbacks.onOpenLibrary,
         onFocusChange = readerCallbacks.onFocusChange,
+        onPageChange = readerCallbacks.onPageChange,
         onStartRsvp = readerCallbacks.onStartRsvp,
         onChapterChange = readerCallbacks.onChapterChange,
         onViewportMetricsChanged = readerCallbacks.onViewportMetricsChanged,

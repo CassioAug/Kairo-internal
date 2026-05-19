@@ -76,6 +76,7 @@ class ReaderViewModel(
 
     // Pending focus index to apply after chapter loads (thread-safe for cross-coroutine access)
     private val pendingFocusIndex = AtomicReference<Int?>(null)
+    private val pendingPageIndex = AtomicReference<Int?>(null)
     private val wordsPerPageTarget = AtomicReference(DEFAULT_WORDS_PER_PAGE)
 
     /**
@@ -89,6 +90,7 @@ class ReaderViewModel(
         currentBook.set(book)
         synchronized(chapterCacheLock) { chapterCache.clear() } // Clear cache when loading new book
         pendingFocusIndex.set(if (initialFocusIndex > 0) initialFocusIndex else null)
+        pendingPageIndex.set(null)
         _uiState.update { it.copy(bookWordCounts = emptyList(), bookTotalWords = 0) }
         loadBookWordCounts(book)
         loadChapter(initialChapterIndex)
@@ -149,6 +151,7 @@ class ReaderViewModel(
     fun loadChapter(
         chapterIndex: Int,
         initialFocusIndex: Int? = null,
+        initialPageIndex: Int? = null,
     ) {
         val book = currentBook.get() ?: return
 
@@ -157,11 +160,16 @@ class ReaderViewModel(
         if (initialFocusIndex != null) {
             pendingFocusIndex.set(initialFocusIndex)
         }
+        when {
+            initialPageIndex != null -> pendingPageIndex.set(initialPageIndex)
+            initialFocusIndex == Int.MAX_VALUE -> pendingPageIndex.set(Int.MAX_VALUE)
+        }
 
         // Check cache first - instant load if available
         val cached = synchronized(chapterCacheLock) { chapterCache[chapterIndex] }
         if (cached != null) {
             // Use pending focus if set, otherwise use first word
+            val pageIdx = pendingPageIndex.getAndSet(null)
             val focusIdx =
                 pendingFocusIndex.getAndSet(null)?.let { cached.tokens.nearestWordIndex(it) }
                     ?: cached.firstWordIndex.coerceAtLeast(0)
@@ -172,6 +180,7 @@ class ReaderViewModel(
                     chapterIndex = chapterIndex,
                     chapterData = cached,
                     focusIndex = focusIdx,
+                    pageIndexOverride = pageIdx,
                 )
             }
             // Preload adjacent chapters in background
@@ -222,14 +231,17 @@ class ReaderViewModel(
                             ?: result.firstWordIndex.coerceAtLeast(0)
                     } else {
                         pendingFocusIndex.set(null)
+                        pendingPageIndex.set(null)
                         0
                     }
+                val pageIdx = if (result != null) pendingPageIndex.getAndSet(null) else null
 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         chapterData = result,
                         focusIndex = focusIdx,
+                        pageIndexOverride = pageIdx,
                     )
                 }
 
@@ -313,15 +325,33 @@ class ReaderViewModel(
     }
 
     fun setFocusIndex(index: Int) {
-        _uiState.update { it.copy(focusIndex = index) }
+        _uiState.update { it.copy(focusIndex = index, pageIndexOverride = null) }
     }
 
     fun applyFocusIndex(index: Int) {
         val uiState = _uiState.value
         if (uiState.isLoading || uiState.chapterData == null) {
             pendingFocusIndex.set(index)
+            pendingPageIndex.set(null)
         }
-        _uiState.update { it.copy(focusIndex = index) }
+        _uiState.update { it.copy(focusIndex = index, pageIndexOverride = null) }
+    }
+
+    fun setPageIndex(
+        pageIndex: Int,
+        focusIndex: Int,
+    ) {
+        val uiState = _uiState.value
+        if (uiState.isLoading || uiState.chapterData == null) {
+            pendingFocusIndex.set(focusIndex)
+            pendingPageIndex.set(pageIndex)
+        }
+        _uiState.update {
+            it.copy(
+                focusIndex = focusIndex,
+                pageIndexOverride = pageIndex,
+            )
+        }
     }
 
     fun updatePaginationMetrics(
@@ -404,6 +434,7 @@ data class ReaderUiState(
     val isLoading: Boolean = false,
     val chapterIndex: Int = 0,
     val focusIndex: Int = 0,
+    val pageIndexOverride: Int? = null,
     val chapterData: ChapterData? = null,
     val bookWordCounts: List<Int> = emptyList(),
     val bookTotalWords: Int = 0,
@@ -426,11 +457,17 @@ data class ChapterData(
  */
 data class Paragraph(val tokens: List<Token>, val startIndex: Int,)
 
+enum class ChapterPageKind { TEXT, IMAGE, BLANK }
+
 data class ChapterPage(
     val index: Int,
     val startTokenIndex: Int,
     val endTokenIndex: Int,
     val wordCount: Int,
+    val kind: ChapterPageKind = ChapterPageKind.TEXT,
+    val imagePath: String? = null,
+    val imageIndex: Int? = null,
+    val focusTokenIndex: Int = startTokenIndex,
 )
 
 sealed interface ReaderBlock {

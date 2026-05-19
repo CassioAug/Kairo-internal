@@ -99,6 +99,7 @@ fun ReaderScreen(
     onOpenBookmarks: () -> Unit,
     onOpenLibrary: () -> Unit,
     onFocusChange: (Int) -> Unit,
+    onPageChange: (pageIndex: Int, focusTokenIndex: Int) -> Unit,
     onStartRsvp: (Int) -> Unit,
     onChapterChange: (Int, Int?) -> Unit,
     onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
@@ -116,6 +117,7 @@ fun ReaderScreen(
         rememberReaderRenderState(
             chapterIndex = chapterIndex,
             focusIndex = focusIndex,
+            pageIndexOverride = uiState.pageIndexOverride,
             coverImage = coverImage,
             chapterData = uiState.chapterData,
         )
@@ -213,14 +215,19 @@ fun ReaderScreen(
             resolvedPageIndex = renderState.resolvedPageIndex,
             chapterIndex = chapterIndex,
             lastChapterIndex = book.chapters.lastIndex,
-            onFocusChange = onFocusChange,
+            onPageChange = { page -> onPageChange(page.index, page.focusTokenIndex) },
             onChapterChange = onChapterChange,
         )
     val bottomInsetPadding = WindowInsets.safeDrawing.only(
         WindowInsetsSides.Bottom
     ).asPaddingValues()
     val bottomInset = bottomInsetPadding.calculateBottomPadding()
-    val showRsvpLauncher = isRsvpEnabled && !showReaderMenu && !showChapterList.value
+    val showRsvpLauncher =
+        isRsvpEnabled &&
+            renderState.currentPage?.kind != ChapterPageKind.IMAGE &&
+            renderState.currentPage?.kind != ChapterPageKind.BLANK &&
+            !showReaderMenu &&
+            !showChapterList.value
     val overlayBottomPadding =
         if (showRsvpLauncher) {
             if (compactLandscape) {
@@ -319,6 +326,7 @@ fun ReaderScreen(
                     fullScreenTitlePageImagePath = renderState.fullScreenTitlePageImagePath,
                     headerCarouselImages = renderState.headerCarouselImages,
                     showHeaderCarousel = renderState.showHeaderCarousel,
+                    isBlankPage = renderState.currentPage?.kind == ChapterPageKind.BLANK,
                     displayBlocks = renderState.displayBlocks,
                     listState = listStateHolder.listState,
                     listStateKey = renderState.listStateKey,

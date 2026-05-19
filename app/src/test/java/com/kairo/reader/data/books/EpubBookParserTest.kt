@@ -50,6 +50,15 @@ class EpubBookParserTest {
     }
 
     @Test
+    fun extractPlainTextKeepsPageBreakOnlyDocument() {
+        val html = "<span epub:type=\"pagebreak\" id=\"page_10\" title=\"10\"/>"
+
+        val text: String = parser.callPrivate("extractPlainText", html)
+
+        assertEquals("\u000C", text)
+    }
+
+    @Test
     fun extractPlainTextSkipsHeadTitleMetadata() {
         val html =
             """
