@@ -61,7 +61,9 @@ internal object PageNumberHeuristics {
     private fun romanNumeralValue(text: String): Int? {
         var total = 0
         var previous = 0
-        text.uppercase().asReversed().forEach { char ->
+        val upper = text.uppercase()
+        for (index in upper.indices.reversed()) {
+            val char = upper[index]
             val value =
                 when (char) {
                     'I' -> 1
