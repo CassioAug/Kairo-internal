@@ -98,7 +98,20 @@ internal fun RsvpFrameAlignmentEffect(context: RsvpUiContext) {
 }
 
 internal fun shouldSyncPositionFromFrameState(frameState: RsvpFrameLoadState): Boolean =
-    frameState.frames.isNotEmpty() && !frameState.isLoading
+    frameState.frames.isNotEmpty() && !frameState.isLoading && frameState.isComplete
+
+@Composable
+internal fun RsvpFrameLoadFailureEffect(context: RsvpUiContext) {
+    val runtime = context.runtime
+
+    LaunchedEffect(context.frameState.loadFailed) {
+        if (!context.frameState.loadFailed) return@LaunchedEffect
+        runtime.isPlaying = false
+        runtime.scheduledFrameIndex = -1
+        runtime.nextFrameAtMs = 0L
+        runtime.showControls = true
+    }
+}
 
 internal class RsvpPositionSyncGate {
     private var lastReadyFrames: List<RsvpFrame>? = null
@@ -271,7 +284,8 @@ internal fun RsvpPlaybackLoopEffect(
 internal fun shouldCompleteAtLoadedFrameBoundary(context: RsvpUiContext): Boolean =
     context.frameState.frames.isNotEmpty() &&
         context.runtime.frameIndex >= context.frameState.frames.lastIndex &&
-        !context.frameState.isLoading
+        !context.frameState.isLoading &&
+        context.frameState.isComplete
 
 internal fun effectivePlaybackTempoMs(
     baseTempoMs: Long,

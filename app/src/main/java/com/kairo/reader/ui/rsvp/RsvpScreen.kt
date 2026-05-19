@@ -127,6 +127,7 @@ fun RsvpScreen(
     }
 
     RsvpBackHandler(context, enabled = !isTutorialMode)
+    RsvpFrameLoadFailureEffect(context)
     RsvpPlaybackEffects(
         context = context,
         sessionKey = sessionKey,
@@ -334,10 +335,11 @@ private fun rememberFrameLoadState(
     val loadConfigKey = remember(profile.config) { frameLoadConfigKey(profile.config) }
     val instantFrameTokenCount = book.tokens.size
     val latestPreviewStartIndex by rememberUpdatedState(previewStartIndex)
-    var frameSet by remember(
+    var frameSetState by remember(
         book.bookId,
         book.chapterIndex,
         book.startIndex,
+        loadConfigKey,
         instantFrameTokenCount,
     ) {
         mutableStateOf(
@@ -347,11 +349,14 @@ private fun rememberFrameLoadState(
                     startResumeCursor = previewResumeCursor,
                 ),
                 profile.config,
-            ),
+            )?.let { frameSet -> LoadedRsvpFrameSet(frameSet = frameSet, isComplete = false) },
         )
     }
     var isFramesLoading by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
         mutableStateOf(true)
+    }
+    var frameLoadFailed by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
+        mutableStateOf(false)
     }
     var loadAttempt by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
         mutableIntStateOf(0)
@@ -371,7 +376,10 @@ private fun rememberFrameLoadState(
                 previewStartIndex = latestPreviewStartIndex,
                 tokenCount = instantFrameTokenCount,
             )
-        val hadFrames = frameSet?.frames?.isNotEmpty() == true
+        val hadFrames = frameSetState?.frameSet?.frames?.isNotEmpty() == true
+        val hadCompleteFrames =
+            frameSetState?.isComplete == true &&
+                frameSetState?.frameSet?.frames?.isNotEmpty() == true
         if (!hadFrames) isFramesLoading = true
         if (!hadFrames && book.tokens.isNotEmpty()) {
             val preview =
@@ -387,7 +395,7 @@ private fun rememberFrameLoadState(
                     }
                 }.getOrNull()
             if (preview?.frames?.isNotEmpty() == true) {
-                frameSet = preview
+                frameSetState = LoadedRsvpFrameSet(frameSet = preview, isComplete = false)
             }
         }
 
@@ -411,27 +419,38 @@ private fun rememberFrameLoadState(
                 loadAttempt += 1
                 return@LaunchedEffect
             }
-            if (!hadFrames) {
-                frameSet = null
+            if (!hadCompleteFrames && !hadFrames) {
+                frameSetState = null
             }
+            frameLoadFailed = true
             isFramesLoading = false
             return@LaunchedEffect
         }
 
-        frameSet = computed
+        frameSetState = LoadedRsvpFrameSet(frameSet = computed, isComplete = true)
+        frameLoadFailed = false
         isFramesLoading = false
     }
 
-    val frames = frameSet?.frames.orEmpty()
-    val baseTempoMs = frameSet?.baseTempoMs ?: profile.config.tempoMsPerWord
-    val frameIndexMap = frameSet?.frameIndexMap ?: RsvpFrameIndexMap.EMPTY
+    val activeFrameSet = frameSetState?.frameSet
+    val frames = activeFrameSet?.frames.orEmpty()
+    val baseTempoMs = activeFrameSet?.baseTempoMs ?: profile.config.tempoMsPerWord
+    val isComplete = frameSetState?.isComplete == true && !frameLoadFailed
+    val frameIndexMap = activeFrameSet?.frameIndexMap ?: RsvpFrameIndexMap.EMPTY
     return RsvpFrameLoadState(
         frames = frames,
         baseTempoMs = baseTempoMs,
         isLoading = isFramesLoading,
+        isComplete = isComplete,
+        loadFailed = frameLoadFailed,
         frameIndexMap = frameIndexMap,
     )
 }
+
+private data class LoadedRsvpFrameSet(
+    val frameSet: RsvpFrameSet,
+    val isComplete: Boolean,
+)
 
 private fun buildInstantFrameSet(
     book: RsvpBookContext,
