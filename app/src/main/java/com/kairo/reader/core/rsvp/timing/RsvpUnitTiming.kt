@@ -7,7 +7,10 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.rsvp.analysis.contextShapingMultiplier
 import com.kairo.reader.core.rsvp.analysis.emphasisMultiplier
 import com.kairo.reader.core.rsvp.analysis.frameDifficulty
+import com.kairo.reader.core.rsvp.analysis.givennessGlideMultiplier
+import com.kairo.reader.core.rsvp.analysis.isEmDashChar
 import com.kairo.reader.core.rsvp.analysis.multiWordPenalty
+import com.kairo.reader.core.rsvp.analysis.phraseBoundaryShapeMultiplier
 import com.kairo.reader.core.rsvp.analysis.phraseContourMultiplier
 import com.kairo.reader.core.rsvp.analysis.prosodyMultiplier
 import com.kairo.reader.core.rsvp.analysis.speakerTagMultiplier
@@ -18,11 +21,15 @@ import com.kairo.reader.core.rsvp.engine.CLAUSE_LEAD_HOLD_FRACTION
 import com.kairo.reader.core.rsvp.engine.ContextSnapshot
 import com.kairo.reader.core.rsvp.engine.DEFAULT_CLAUSE_PAUSE_FACTOR
 import com.kairo.reader.core.rsvp.engine.DIALOGUE_ENTRY_BOOST
+import com.kairo.reader.core.rsvp.engine.EM_DASH_ASIDE_CONTOUR_FACTOR
+import com.kairo.reader.core.rsvp.engine.EM_DASH_ASIDE_PAUSE_FACTOR
+import com.kairo.reader.core.rsvp.engine.EM_DASH_INTERRUPTION_PAUSE_FACTOR
 import com.kairo.reader.core.rsvp.engine.FlowState
 import com.kairo.reader.core.rsvp.engine.MIN_FRAME_MS
 import com.kairo.reader.core.rsvp.engine.PAGE_BREAK_RETENTION_BOOST
 import com.kairo.reader.core.rsvp.engine.PARAGRAPH_BREAK_RETENTION_BOOST
 import com.kairo.reader.core.rsvp.engine.PhraseContour
+import com.kairo.reader.core.rsvp.engine.ProseState
 import com.kairo.reader.core.rsvp.engine.QUOTE_TRANSITION_HOLD_FRACTION
 import com.kairo.reader.core.rsvp.engine.RhythmState
 import com.kairo.reader.core.rsvp.engine.SENTENCE_START_HOLD_FRACTION
@@ -48,6 +55,9 @@ internal fun computeUnitDurationMs(
     anticipatoryLanding: Double = 1.0,
     emDashAside: Boolean = false,
     phraseContour: PhraseContour = PhraseContour.NONE,
+    prose: ProseState? = null,
+    pairedEmDashInUnit: Boolean = false,
+    afterPairedEmDash: Boolean = false,
 ): Long {
     val msPerWord = config.tempoMsPerWord.toDouble()
     val pauseScale = pauseScale(msPerWord, config)
@@ -112,6 +122,26 @@ internal fun computeUnitDurationMs(
             (DEFAULT_CLAUSE_PAUSE_FACTOR - 1.0)
         ).coerceIn(0.0, 2.0)
     val dialogueEntryBoost = 1.0 + (DIALOGUE_ENTRY_BOOST * speedStrength)
+    // Phrase-arc shaping at grammatical boundaries: single-word, punctuation-free frames only,
+    // mirroring the breath in transitionHoldMs (punctuation frames are shaped by the contour
+    // machinery instead).
+    val phraseShapeMultiplier =
+        if (config.useProsodyPacing &&
+            words.size == 1 &&
+            firstWord != null &&
+            frameTokens.none { it.type == TokenType.PUNCTUATION }
+        ) {
+            phraseBoundaryShapeMultiplier(
+                word = firstWord,
+                prevWord = prevWord,
+                nextWord = nextWord,
+                boundaryBefore = boundaryForBoost,
+                speedStrength = speedStrength,
+                prosodyStrength = prosodyStrength,
+            )
+        } else {
+            1.0
+        }
     val speakerTagMultiplier =
         speakerTagMultiplier(
             wordsInFrame = words,
@@ -199,6 +229,8 @@ internal fun computeUnitDurationMs(
                         frameTokens = frameTokens,
                         nextToken = nextToken,
                         speedStrength = speedStrength,
+                        emDashContourScale =
+                            if (pairedEmDashInUnit) EM_DASH_ASIDE_CONTOUR_FACTOR else 1.0,
                     )
 
                 val emphasisMultiplier =
@@ -235,6 +267,13 @@ internal fun computeUnitDurationMs(
                         speedStrength = speedStrength,
                     )
 
+                val givennessMultiplier =
+                    if (config.useAdaptiveTiming && prose != null) {
+                        givennessGlideMultiplier(token, prose, speedStrength)
+                    } else {
+                        1.0
+                    }
+
                 val wordMs =
                     wordDurationMs(token, msPerWord, config) *
                         contextWordMultiplier *
@@ -247,8 +286,11 @@ internal fun computeUnitDurationMs(
                         speakerTagMultiplier *
                         focalSuppression *
                         anticipatoryLanding *
-                        phraseContourMultiplier
+                        phraseContourMultiplier *
+                        phraseShapeMultiplier *
+                        givennessMultiplier
                 duration += max(wordMs, wordFloorMs(token, config).toDouble())
+                prose?.onWordShown()
                 if (token.pauseAfterMs > 0L) {
                     duration += token.pauseAfterMs * pauseScale
                 }
@@ -296,7 +338,11 @@ internal fun computeUnitDurationMs(
                         SENTENCE_START_HOLD_FRACTION
             }
             BoundaryBefore.CLAUSE -> {
-                totalDuration += clauseStartHoldMs(config = config, pauseScale = clausePauseScale)
+                val clauseHold = clauseStartHoldMs(config = config, pauseScale = clausePauseScale)
+                // Resuming the main clause after a closing aside dash is a pick-up, not a fresh
+                // clause start — keep it light so the aside reads as one dip.
+                totalDuration +=
+                    if (afterPairedEmDash) clauseHold * EM_DASH_ASIDE_PAUSE_FACTOR else clauseHold
             }
             BoundaryBefore.PARAGRAPH, BoundaryBefore.PAGE, BoundaryBefore.NONE -> Unit
         }
@@ -353,16 +399,46 @@ internal fun computeUnitDurationMs(
                 TokenType.WORD
         }
 
-        totalDuration +=
+        var pauseMs =
             punctuationPauseMs(
                 token = token,
-                prevWord = prevWordInFrame ?: prevToken,
+                prevWord = prevWordInFrame ?: prevWord,
                 nextToken = nextWordInFrame ?: nextToken,
                 msPerWord = msPerWord,
                 config = config,
                 insideAside = punctuationInsideAside,
                 insideDialogue = punctuationInsideDialogue,
             )
+
+        if (punctuationChar != null && isEmDashChar(punctuationChar)) {
+            val tokenAfterDash = nextTokenInFrame ?: nextToken
+            val isInterruption =
+                tokenAfterDash == null ||
+                    tokenAfterDash.type == TokenType.PARAGRAPH_BREAK ||
+                    tokenAfterDash.type == TokenType.PAGE_BREAK ||
+                    (
+                        tokenAfterDash.type == TokenType.PUNCTUATION &&
+                            tokenAfterDash.text.firstOrNull()?.let(::isQuoteChar) == true
+                        )
+            when {
+                isInterruption -> pauseMs *= EM_DASH_INTERRUPTION_PAUSE_FACTOR
+                pairedEmDashInUnit -> pauseMs *= EM_DASH_ASIDE_PAUSE_FACTOR
+            }
+        }
+
+        val pauseTier =
+            RsvpPunctuationTimingPolicy.resolveTier(
+                token = token,
+                prevWord = prevWordInFrame ?: prevWord,
+                nextToken = nextWordInFrame ?: nextToken,
+            )
+        if (pauseTier == RsvpPunctuationTier.SENTENCE_END && prose != null) {
+            if (config.useAdaptiveTiming) {
+                pauseMs *= sentenceWrapUpFactor(prose.wordsInSentence)
+            }
+            prose.onSentenceEnd()
+        }
+        totalDuration += pauseMs
 
         punctuationParentheticalDepth =
             updateParentheticalDepthAfterPunctuation(punctuationParentheticalDepth, token)

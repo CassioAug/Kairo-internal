@@ -21,6 +21,8 @@ internal data class RsvpTokenAnalysis(
     val focalWordIndices: Set<Int>,
     val landingWordIndices: Set<Int>,
     val emDashAsideIndices: Set<Int>,
+    /** Expanded indices of em/en-dash tokens that open or close a paired aside within a sentence. */
+    val pairedEmDashIndices: Set<Int>,
     val phraseContours: Map<Int, PhraseContour>,
 ) {
     companion object {
@@ -29,6 +31,7 @@ internal data class RsvpTokenAnalysis(
                 focalWordIndices = emptySet(),
                 landingWordIndices = emptySet(),
                 emDashAsideIndices = emptySet(),
+                pairedEmDashIndices = emptySet(),
                 phraseContours = emptyMap(),
             )
     }
@@ -43,6 +46,7 @@ internal fun analyzeExpandedTokens(
     val focal = HashSet<Int>()
     val landings = HashSet<Int>()
     val asides = HashSet<Int>()
+    val pairedDashes = HashSet<Int>()
     val contours = HashMap<Int, PhraseContour>()
     val breathGroup = ArrayList<ExpandedToken>()
     var previousWord: Token? = null
@@ -111,13 +115,15 @@ internal fun analyzeExpandedTokens(
                 emDashAsideCloseIndex = -1
             }
             TokenType.PUNCTUATION -> {
-                if (config.useParentheticalAside &&
-                    emDashAsideCloseIndex < index &&
-                    isEmDashChar(token.text.firstOrNull())
-                ) {
+                // Pair detection runs unconditionally: even with the aside word-compression off,
+                // the timing model needs to know paired dashes so they read as one light dip
+                // instead of two full clause stops.
+                if (emDashAsideCloseIndex < index && isEmDashChar(token.text.firstOrNull())) {
                     val closeIndex = findEmDashAsideClose(expanded, index + 1)
                     if (closeIndex > index) {
                         emDashAsideCloseIndex = closeIndex
+                        pairedDashes += index
+                        pairedDashes += closeIndex
                     }
                 }
                 val tier =
@@ -145,6 +151,7 @@ internal fun analyzeExpandedTokens(
         focalWordIndices = if (config.useFocalStress) focal else emptySet(),
         landingWordIndices = if (config.useAnticipatoryLanding) landings else emptySet(),
         emDashAsideIndices = if (config.useParentheticalAside) asides else emptySet(),
+        pairedEmDashIndices = pairedDashes,
         phraseContours = contours,
     )
 }

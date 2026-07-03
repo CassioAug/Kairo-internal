@@ -104,7 +104,7 @@ class Tokenizer {
         if (!html.contains("kairo://chapter/", ignoreCase = true)) return
 
         val anchorOpenRegex = Regex(
-            "<a\\b[^>]*href\\s*=\\s*['\"]kairo://chapter/(\\d+)['\"][^>]*>",
+            "<a\\b[^>]*href\\s*=\\s*['\"]kairo://chapter/(\\d+)(?:#[^'\"]*)?['\"][^>]*>",
             RegexOption.IGNORE_CASE,
         )
         val matchable =

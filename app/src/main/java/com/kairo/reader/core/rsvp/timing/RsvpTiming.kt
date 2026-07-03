@@ -15,6 +15,8 @@ import com.kairo.reader.core.rsvp.engine.CLAUSE_CONTOUR_PAUSE_RETAINED
 import com.kairo.reader.core.rsvp.engine.CLAUSE_LEAD_BOOST_MS
 import com.kairo.reader.core.rsvp.engine.CLAUSE_START_HOLD_FRACTION
 import com.kairo.reader.core.rsvp.engine.CLAUSE_START_MIN_HOLD_MS
+import com.kairo.reader.core.rsvp.engine.DYNAMISM_EASE_PIVOT
+import com.kairo.reader.core.rsvp.engine.DYNAMISM_MAX_SPEEDUP
 import com.kairo.reader.core.rsvp.engine.EMBEDDED_QUOTE_FACTOR
 import com.kairo.reader.core.rsvp.engine.LANDING_HOLD_SPEED_BOOST
 import com.kairo.reader.core.rsvp.engine.MAX_LANDING_HOLD_MS
@@ -28,6 +30,10 @@ import com.kairo.reader.core.rsvp.engine.QUOTE_TRANSITION_HOLD_FRACTION
 import com.kairo.reader.core.rsvp.engine.SENTENCE_CONTOUR_PAUSE_RETAINED
 import com.kairo.reader.core.rsvp.engine.SENTENCE_END_BREAK_BOOST_MS
 import com.kairo.reader.core.rsvp.engine.SENTENCE_START_MIN_HOLD_MS
+import com.kairo.reader.core.rsvp.engine.SENTENCE_WRAP_UP_LONG_WORDS
+import com.kairo.reader.core.rsvp.engine.SENTENCE_WRAP_UP_MAX_FACTOR
+import com.kairo.reader.core.rsvp.engine.SENTENCE_WRAP_UP_MIN_FACTOR
+import com.kairo.reader.core.rsvp.engine.SENTENCE_WRAP_UP_SHORT_WORDS
 import com.kairo.reader.core.rsvp.text.isClauseLeadPunctuation
 import com.kairo.reader.core.rsvp.text.isDecimalPoint
 import com.kairo.reader.core.rsvp.text.isEmbeddedQuote
@@ -118,6 +124,18 @@ internal fun wordDurationMs(
     val syllableExtra = max(0, syllables - 1) * config.syllableExtraMs
 
     var duration = (msPerWord * lengthCurve * complexityComponent) + rarityExtra + syllableExtra
+
+    // Dynamism: let easy, predictable words glide below the baseline tempo so the cadence rises
+    // and falls with difficulty rather than only ever adding time. Hard words are untouched (they
+    // already earned length/rarity time). Mid-word continuations (hyphen/subword) are left alone,
+    // and the unit-level word floor downstream keeps every frame readable.
+    if (!word.isSubwordChunk && !text.endsWith("-")) {
+        val ease = word.frequencyScore.coerceIn(0.0, 1.0)
+        if (ease > DYNAMISM_EASE_PIVOT) {
+            val t = (ease - DYNAMISM_EASE_PIVOT) / (1.0 - DYNAMISM_EASE_PIVOT)
+            duration *= 1.0 - (DYNAMISM_MAX_SPEEDUP * t)
+        }
+    }
 
     if (letters >= config.longWordChars) {
         duration = max(duration, config.longWordMinMs.toDouble())
@@ -352,6 +370,20 @@ internal fun startBoostMultiplier(
         }
 
     return 1.0 + (maxExtra * strength)
+}
+
+
+/**
+ * Sentence wrap-up: scales the sentence-end pause by how many words the sentence held.
+ * Short sentences turn over briskly; long sentences earn a fuller integration stop.
+ */
+internal fun sentenceWrapUpFactor(wordsInSentence: Int): Double {
+    val t =
+        ((wordsInSentence - SENTENCE_WRAP_UP_SHORT_WORDS) /
+            (SENTENCE_WRAP_UP_LONG_WORDS - SENTENCE_WRAP_UP_SHORT_WORDS))
+            .coerceIn(0.0, 1.0)
+    return SENTENCE_WRAP_UP_MIN_FACTOR +
+        ((SENTENCE_WRAP_UP_MAX_FACTOR - SENTENCE_WRAP_UP_MIN_FACTOR) * t)
 }
 
 

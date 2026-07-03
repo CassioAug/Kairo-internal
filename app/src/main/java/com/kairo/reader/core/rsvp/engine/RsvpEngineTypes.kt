@@ -74,6 +74,54 @@ internal class ContextState {
 internal data class ContextSnapshot(val parentheticalDepth: Int, val inDialogue: Boolean,)
 
 
+/**
+ * Sequential prose memory carried across frames during generation.
+ *
+ * Tracks how deep into the current sentence the reader is (for sentence wrap-up pauses) and
+ * which content words have been shown recently (for given/new pacing). Frames are generated in
+ * reading order, so this state is deterministic for a given token stream.
+ */
+internal class ProseState {
+    var wordsInSentence: Int = 0
+        private set
+
+    private val seenWords =
+        object : LinkedHashMap<String, Boolean>(
+            GIVENNESS_INITIAL_CAPACITY,
+            0.75f,
+            true,
+        ) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<String, Boolean>?
+            ): Boolean = size > GIVENNESS_MAX_ENTRIES
+        }
+
+    fun onWordShown() {
+        wordsInSentence++
+    }
+
+    fun onSentenceEnd() {
+        wordsInSentence = 0
+    }
+
+    fun onParagraphBreak() {
+        wordsInSentence = 0
+    }
+
+    fun onPageBreak() {
+        wordsInSentence = 0
+        seenWords.clear()
+    }
+
+    /** Whether [key] was shown recently; refreshes its recency when found. */
+    fun isGiven(key: String): Boolean = seenWords[key] != null
+
+    fun record(key: String) {
+        seenWords[key] = true
+    }
+}
+
+
 internal class RhythmState {
     private var ema: Double? = null
     private val smoothingAlpha: Double
