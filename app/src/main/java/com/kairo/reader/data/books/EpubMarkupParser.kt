@@ -66,11 +66,13 @@ internal class EpubMarkupParser(
         stack: ArrayDeque<EpubMarkupElementNode>,
         targetTag: String,
     ) {
-        while (stack.isNotEmpty()) {
-            val node = stack.removeAt(stack.lastIndex)
-            if (node.name == targetTag) {
-                return
-            }
+        // A stray end tag with no matching open element must be ignored; popping the whole
+        // stack would re-parent the rest of the chapter to the document root (leaking <head>
+        // content into plain text and losing paragraph structure).
+        val matchIndex = stack.indexOfLast { it.name == targetTag }
+        if (matchIndex == -1) return
+        while (stack.size > matchIndex) {
+            stack.removeAt(stack.lastIndex)
         }
     }
 }
