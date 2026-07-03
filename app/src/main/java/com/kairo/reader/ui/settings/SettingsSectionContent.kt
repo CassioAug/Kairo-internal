@@ -78,8 +78,13 @@ import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.MAX_TEMPO_MS_PER_WORD
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
+import com.kairo.reader.ui.rsvp.MAX_FONT_SIZE_SP
+import com.kairo.reader.ui.rsvp.MIN_FONT_SIZE_SP
 import com.kairo.reader.ui.rsvp.rsvpSpeedBandLabelRes
 import kotlin.math.roundToInt
+
+private const val READER_FONT_SIZE_MIN_SP = 14f
+private const val READER_FONT_SIZE_MAX_SP = 32f
 
 @Composable
 fun ReaderSettingsContent(
@@ -92,12 +97,14 @@ fun ReaderSettingsContent(
     onTextBrightnessChange: (Float) -> Unit,
     onInvertedScrollChange: (Boolean) -> Unit,
 ) {
-    SettingsSliderRow(
+    val context = LocalContext.current
+
+    DeferredSliderRow(
         title = stringResource(R.string.reader_font_size_title),
-        valueLabel = stringResource(R.string.format_sp, fontSizeSp.toInt()),
-        value = fontSizeSp,
-        onValueChange = { onFontSizeChange(it.coerceIn(14f, 32f)) },
-        valueRange = 14f..32f,
+        valueLabel = { context.getString(R.string.format_sp, it.toInt()) },
+        rawValue = fontSizeSp,
+        onCommit = { onFontSizeChange(it.coerceIn(READER_FONT_SIZE_MIN_SP, READER_FONT_SIZE_MAX_SP)) },
+        valueRange = READER_FONT_SIZE_MIN_SP..READER_FONT_SIZE_MAX_SP,
     )
 
     ThemeSelector(selected = readerTheme, onThemeChange = onThemeChange)
@@ -678,8 +685,8 @@ fun RsvpSettingsContent(
             title = stringResource(R.string.reader_font_size_title),
             valueLabel = { context.getString(R.string.format_sp, it.toInt()) },
             rawValue = rsvpFontSizeSp,
-            onCommit = { onRsvpFontSizeChange(it.coerceIn(28f, 64f)) },
-            valueRange = 28f..64f,
+            onCommit = { onRsvpFontSizeChange(it.coerceIn(MIN_FONT_SIZE_SP, MAX_FONT_SIZE_SP)) },
+            valueRange = MIN_FONT_SIZE_SP..MAX_FONT_SIZE_SP,
         )
 
         DeferredSliderRow(
