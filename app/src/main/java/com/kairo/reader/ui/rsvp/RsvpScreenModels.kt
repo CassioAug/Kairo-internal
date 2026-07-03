@@ -34,6 +34,8 @@ data class RsvpUiPreferences(
     val extremeSpeedUnlocked: Boolean,
     val readerTheme: ReaderTheme,
     val focusModeEnabled: Boolean,
+    val positioningGridEnabled: Boolean = true,
+    val positioningGridSnap: Float = DEFAULT_POSITIONING_GRID_SNAP,
 )
 
 data class RsvpTextStyle(
@@ -85,6 +87,8 @@ data class RsvpUiCallbacks(
     val onRsvpTextBrightnessChange: (Float) -> Unit,
     val onRsvpFontWeightChange: (RsvpFontWeight) -> Unit,
     val onRsvpFontFamilyChange: (RsvpFontFamily) -> Unit,
+    val onPositioningGridEnabledChange: (Boolean) -> Unit = {},
+    val onPositioningGridSnapChange: (Float) -> Unit = {},
 )
 
 data class RsvpThemeCallbacks(

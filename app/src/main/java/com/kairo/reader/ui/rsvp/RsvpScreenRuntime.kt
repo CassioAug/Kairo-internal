@@ -83,6 +83,11 @@ internal class RsvpRuntimeState(
     var isPositioningMode by mutableStateOf(false)
     var dragStartBias by mutableFloatStateOf(ZERO_FLOAT)
     var dragStartHorizontalBias by mutableFloatStateOf(ZERO_FLOAT)
+
+    // Grid line the position is currently snapped to per axis (POSITIONING_GRID_LINE_NONE when
+    // free). Only read/written inside gesture callbacks, so plain vars are fine.
+    var positioningSnapLineV: Int = POSITIONING_GRID_LINE_NONE
+    var positioningSnapLineH: Int = POSITIONING_GRID_LINE_NONE
     var wasPlayingBeforePositioning by mutableStateOf(true)
     var wasPlayingBeforeScrub by mutableStateOf(true)
     var lastPositionSaveMs by mutableLongStateOf(0L)

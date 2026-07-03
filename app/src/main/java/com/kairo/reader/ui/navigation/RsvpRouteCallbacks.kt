@@ -271,6 +271,17 @@ private fun buildRsvpUiCallbacks(
                 dependencies.container.preferencesRepository.updateRsvpFontFamily(family)
             }
         },
+        onPositioningGridEnabledChange = { enabled ->
+            dependencies.coroutineScope.launch {
+                dependencies.container.preferencesRepository
+                    .updateRsvpPositioningGridEnabled(enabled)
+            }
+        },
+        onPositioningGridSnapChange = { snap ->
+            dependencies.coroutineScope.launch {
+                dependencies.container.preferencesRepository.updateRsvpPositioningGridSnap(snap)
+            }
+        },
     )
 
 private fun buildRsvpThemeCallbacks(

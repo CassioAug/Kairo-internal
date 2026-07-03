@@ -158,6 +158,13 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             rsvpVerticalBias = prefs.readOrDefault(keys.rsvpVerticalBias, defaults.rsvpVerticalBias),
             rsvpHorizontalBias =
                 prefs.readOrDefault(keys.rsvpHorizontalBias, defaults.rsvpHorizontalBias),
+            rsvpPositioningGridEnabled =
+                prefs.readOrDefault(
+                    keys.rsvpPositioningGridEnabled,
+                    defaults.rsvpPositioningGridEnabled,
+                ),
+            rsvpPositioningGridSnap =
+                prefs.readOrDefault(keys.rsvpPositioningGridSnap, defaults.rsvpPositioningGridSnap),
             unlockExtremeSpeed = unlockExtremeSpeed,
         )
     }
@@ -342,6 +349,16 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     override suspend fun updateRsvpHorizontalBias(bias: Float) {
         context.dataStore.edit { prefs ->
             prefs[keys.rsvpHorizontalBias] = bias.coerceIn(-0.7f, 0.7f)
+        }
+    }
+
+    override suspend fun updateRsvpPositioningGridEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[keys.rsvpPositioningGridEnabled] = enabled }
+    }
+
+    override suspend fun updateRsvpPositioningGridSnap(snap: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[keys.rsvpPositioningGridSnap] = snap.coerceIn(0f, 1f)
         }
     }
 
@@ -1380,6 +1397,8 @@ private object PrefKeys {
     val rsvpFontFamily = stringPreferencesKey("rsvp_font_family")
     val rsvpVerticalBias = floatPreferencesKey("rsvp_vertical_bias")
     val rsvpHorizontalBias = floatPreferencesKey("rsvp_horizontal_bias")
+    val rsvpPositioningGridEnabled = booleanPreferencesKey("rsvp_positioning_grid_enabled")
+    val rsvpPositioningGridSnap = floatPreferencesKey("rsvp_positioning_grid_snap")
     val unlockExtremeSpeed = booleanPreferencesKey("unlock_extreme_speed")
     val focusModeEnabled = booleanPreferencesKey("focus_mode_enabled")
     val focusHideStatusBar = booleanPreferencesKey("focus_hide_status_bar")

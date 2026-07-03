@@ -777,6 +777,14 @@ data class UserPreferences(
      * Default is centered so words stay balanced unless adjusted.
      */
     val rsvpHorizontalBias: Float = DEFAULT_RSVP_HORIZONTAL_BIAS,
+    /**
+     * Positioning-mode adjustment grid: when enabled, dragging the word in positioning mode
+     * snaps toward evenly spaced alignment lines; disabled = free-form adjustment.
+     * Snap strength 0f..1f controls how close to a line the drag must be before it snaps
+     * (1f quantizes fully to the grid).
+     */
+    val rsvpPositioningGridEnabled: Boolean = true,
+    val rsvpPositioningGridSnap: Float = DEFAULT_RSVP_POSITIONING_GRID_SNAP,
     val unlockExtremeSpeed: Boolean = false,
     // Focus mode
     val focusModeEnabled: Boolean = false,
@@ -807,3 +815,4 @@ enum class RsvpFontWeight { LIGHT, NORMAL, MEDIUM }
 
 private const val DEFAULT_RSVP_VERTICAL_BIAS = -0.15f
 private const val DEFAULT_RSVP_HORIZONTAL_BIAS = 0f
+private const val DEFAULT_RSVP_POSITIONING_GRID_SNAP = 0.5f

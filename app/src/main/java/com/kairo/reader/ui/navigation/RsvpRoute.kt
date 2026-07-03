@@ -132,6 +132,8 @@ internal fun RsvpRoute(
                     extremeSpeedUnlocked = prefs.unlockExtremeSpeed,
                     readerTheme = prefs.readerTheme,
                     focusModeEnabled = focusEnabledInRsvp,
+                    positioningGridEnabled = prefs.rsvpPositioningGridEnabled,
+                    positioningGridSnap = prefs.rsvpPositioningGridSnap,
                 ),
             textStyle =
                 RsvpTextStyle(

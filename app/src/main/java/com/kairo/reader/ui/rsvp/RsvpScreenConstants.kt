@@ -28,6 +28,13 @@ const val SWEEP_SWIPE_THRESHOLD_PX = 30f
 const val SWEEP_FRAME_STEP = 1
 const val POSITIONING_BIAS_PER_PX = 0.0015f
 
+// Positioning-mode adjustment grid: alignment lines every POSITIONING_GRID_SPACING_BIAS on both
+// axes. The snap-strength preference (0..1) scales the capture radius around each line up to
+// half the spacing — at 1.0 the position quantizes fully to the grid, at 0 it is free-form.
+const val POSITIONING_GRID_SPACING_BIAS = 0.1f
+const val DEFAULT_POSITIONING_GRID_SNAP = 0.5f
+const val POSITIONING_GRID_LINE_NONE = Int.MIN_VALUE
+
 const val LOADING_TEXT_ALPHA = 0.6f
 const val PROGRESS_PRIMARY_ALPHA = 0.7f
 const val PROGRESS_TRACK_ALPHA = 0.18f
@@ -44,6 +51,8 @@ const val CONTROLS_PILL_BACKGROUND_ALPHA = 0.34f
 const val CONTROLS_PILL_LABEL_ALPHA = 0.48f
 const val CONTROLS_PILL_VALUE_ALPHA = 0.78f
 const val POSITIONING_LINE_ALPHA = 0.10f
+const val POSITIONING_GRID_LINE_ALPHA = 0.07f
+const val POSITIONING_GRID_CENTER_LINE_ALPHA = 0.16f
 const val PROGRESS_TEXT_ALPHA = 0.6f
 const val RESUME_TEXT_ALPHA = 0.4f
 const val PAUSE_PREVIEW_TEXT_ALPHA = 0.74f
@@ -79,13 +88,14 @@ const val VERTICAL_BIAS_MAX = 0.7f
 const val HORIZONTAL_BIAS_MIN = -0.6f
 const val HORIZONTAL_BIAS_MAX = 0.6f
 
-const val MIN_FONT_SIZE_SP = 28f
+const val MIN_FONT_SIZE_SP = 16f
 const val MAX_FONT_SIZE_SP = 80f
 
 const val CONTROLS_HIDE_DELAY_MS = 3000L
 const val TEMPO_INDICATOR_HIDE_DELAY_MS = 1500L
 const val FONT_SIZE_INDICATOR_HIDE_DELAY_MS = 1500L
 
+const val PERCENT_SCALE = 100f
 const val MS_PER_MINUTE = 60_000.0
 const val MIN_WORD_COUNT = 1
 const val MIN_TOTAL_MS = 1L
@@ -109,6 +119,8 @@ const val ORP_TEXT_LINE_HEIGHT_MULTIPLIER = 1.18f
 const val MIN_ORP_WIDTH_PX = 1f
 const val ORP_MIN_AUTO_FIT_SCALE = 0.72f
 const val ORP_ELLIPSIS = '\u2026'
+const val ORP_DISPLAY_CACHE_SIZE = 96
+const val ORP_DISPLAY_CACHE_LOAD_FACTOR = 0.75f
 
 const val ZERO_FLOAT = 0f
 const val ONE_FLOAT = 1f
@@ -125,6 +137,12 @@ val TOP_BAR_BUTTON_SIZE = 40.dp
 val TOP_BAR_ICON_SIZE = 22.dp
 val TEMPO_INDICATOR_TOP_PADDING = 60.dp
 val FONT_SIZE_INDICATOR_TOP_PADDING = 112.dp
+val SCRUB_INDICATOR_TOP_PADDING = 52.dp
+
+// Word-aware indicator placement: estimated pill height plus the gap kept between an indicator
+// pill and the focus-word band when the pill has to flip below it.
+val INDICATOR_APPROX_HEIGHT = 40.dp
+val INDICATOR_WORD_CLEARANCE = 16.dp
 val INDICATOR_CORNER_RADIUS = 8.dp
 val INDICATOR_PADDING_HORIZONTAL = 16.dp
 val INDICATOR_PADDING_VERTICAL = 8.dp
