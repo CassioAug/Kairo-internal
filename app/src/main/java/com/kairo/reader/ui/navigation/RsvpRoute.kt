@@ -42,6 +42,10 @@ internal fun RsvpRoute(
     val bookId = backStackEntry.arguments?.getString(KairoRoutes.ARG_BOOK_ID) ?: return
     val chapterIndex = backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0
     val startIndex = backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0
+    val launchTempoMsPerWord =
+        backStackEntry.arguments
+            ?.getLong(KairoRoutes.ARG_TEMPO_MS)
+            ?.takeIf { it > 0L }
     val coroutineScope = rememberCoroutineScope()
     val dispatcherProvider = container.dispatcherProvider
     val resources = LocalResources.current
@@ -126,6 +130,7 @@ internal fun RsvpRoute(
                     selectedProfileId = prefs.rsvpSelectedProfileId,
                     customProfiles = prefs.rsvpCustomProfiles,
                 ),
+            launchTempoMsPerWord = launchTempoMsPerWord,
             initialIsPlaying = playbackIsPlaying,
             uiPrefs =
                 RsvpUiPreferences(

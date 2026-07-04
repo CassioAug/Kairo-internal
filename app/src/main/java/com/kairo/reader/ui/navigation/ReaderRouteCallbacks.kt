@@ -50,6 +50,8 @@ internal class ReaderRouteCallbackDependencies(
     val readerPositionSaver: ReaderPositionSaver,
     val getLastExplicitFocusIndex: () -> Int,
     val setLastExplicitFocusIndex: (Int) -> Unit,
+    val getPendingRsvpLaunchTempoMsPerWord: () -> Long,
+    val clearPendingRsvpLaunchTempoMsPerWord: () -> Unit,
     val onShowUserMessage: (String) -> Unit,
 )
 
@@ -215,6 +217,9 @@ private fun ReaderRouteCallbackDependencies.startRsvp(start: Int) {
         tokens = uiState.chapterData?.tokens.orEmpty(),
     )
     val wordIndex = resolveWordIndex(uiState.chapterData?.wordCountByToken, start)
+    val launchTempoMsPerWord =
+        getPendingRsvpLaunchTempoMsPerWord()
+            .takeIf { it > 0L }
     lifecycleScope.launch(dispatcherProvider.io) {
         val existingPosition = container.readingPositionRepository.getPosition(bookIdValue)
         val resumeCursor =
@@ -238,8 +243,10 @@ private fun ReaderRouteCallbackDependencies.startRsvp(start: Int) {
                     bookId = bookId,
                     chapterIndex = uiState.chapterIndex,
                     tokenIndex = start,
+                    tempoMsPerWord = launchTempoMsPerWord,
                 )
             )
+            clearPendingRsvpLaunchTempoMsPerWord()
         }
     }
 }

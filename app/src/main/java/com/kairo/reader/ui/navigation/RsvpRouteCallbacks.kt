@@ -106,6 +106,7 @@ private fun buildRsvpPlaybackCallbacks(
                 wordIndex,
                 returnTarget.resumeCursor,
             )
+            dependencies.persistLiveTempo(resumePoint.tempoMsPerWord)
             dependencies.navController.previousBackStackEntry
                 ?.savedStateHandle
                 ?.set(
@@ -123,6 +124,12 @@ private fun buildRsvpPlaybackCallbacks(
                 ?.set(
                     KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR,
                     returnTarget.resumeCursor,
+                )
+            dependencies.navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.set(
+                    KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS,
+                    resumePoint.tempoMsPerWord,
                 )
             dependencies.navController.popBackStack()
         },
@@ -168,6 +175,7 @@ private fun buildRsvpPlaybackCallbacks(
                 wordIndex,
                 resumePoint.resumeCursor,
             )
+            dependencies.persistLiveTempo(resumePoint.tempoMsPerWord)
             dependencies.navController.previousBackStackEntry
                 ?.savedStateHandle
                 ?.set(KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX, dependencies.chapterIndex)
@@ -179,6 +187,12 @@ private fun buildRsvpPlaybackCallbacks(
                 ?.set(
                     KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR,
                     resumePoint.resumeCursor,
+                )
+            dependencies.navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.set(
+                    KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS,
+                    resumePoint.tempoMsPerWord,
                 )
             dependencies.navController.popBackStack()
         },
@@ -203,6 +217,18 @@ private fun buildRsvpPlaybackCallbacks(
                 isPlaying
         },
     )
+
+private fun RsvpRouteCallbackDependencies.persistLiveTempo(tempoMsPerWord: Long) {
+    if (tempoMsPerWord <= 0L) return
+    val baseTempoMs =
+        RsvpConfigResolver.toBaseTempoMs(
+            tempoMsPerWord,
+            languageTag,
+        )
+    coroutineScope.launch {
+        container.preferencesRepository.updateRsvpTempoMsPerWord(baseTempoMs)
+    }
+}
 
 private fun buildRsvpPreferenceCallbacks(
     dependencies: RsvpRouteCallbackDependencies,
