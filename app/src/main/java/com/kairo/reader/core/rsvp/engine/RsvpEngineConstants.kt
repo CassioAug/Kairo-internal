@@ -1,6 +1,14 @@
 package com.kairo.reader.core.rsvp.engine
 
 internal const val MIN_FRAME_MS = 40L
+
+// Cadence dynamism: words easier than this ease pivot are allowed to glide *below* the baseline
+// tempo (down to the readability floor), so the rhythm rises and falls with difficulty instead of
+// only ever adding time on top of a flat baseline. Hard words keep the length/rarity time they
+// earned. Kept gentle on purpose: an inner-monologue voice flows easy words lightly and evenly
+// within a phrase rather than "zipping" them, so the glide is a soft lean, not a sprint.
+internal const val DYNAMISM_EASE_PIVOT = 0.68
+internal const val DYNAMISM_MAX_SPEEDUP = 0.13
 internal const val MAX_MIN_PAUSE_SCALE = 0.97
 internal const val BASE_MS_PER_WORD_AT_300 = 200.0
 internal const val DEFAULT_CLAUSE_PAUSE_FACTOR = 1.25
@@ -16,7 +24,47 @@ internal const val EASY_PAIR_THRESHOLD = 0.72
 internal const val TRANSITION_HOLD_BASE_MS = 4.0
 internal const val TRANSITION_HOLD_EXTRA_MS = 6.0
 internal const val COHERENCE_HOLD_MS = 5.0
-internal const val PHRASE_BREAK_HOLD_MS = 8.0
+// Breath between intonation units. Applied before a grammatical phrase/clause boundary that has
+// no punctuation (e.g. before "who", "which", "because", "when", a joining "and"/"but"). This is
+// the pause an inner voice takes between thoughts — it groups words into phrases and gives the
+// reader a beat to integrate each one, which is where comprehension lives. PHRASE_BREATH_BASE
+// keeps a share of the breath present even at moderate reading speeds (the old hold scaled to
+// ~nothing except at very high WPM, so phrasing was never actually felt).
+internal const val PHRASE_BREAK_HOLD_MS = 30.0
+internal const val PHRASE_BREATH_BASE = 0.5
+// Phrase-arc shaping at the same grammatical (punctuation-free) boundaries the breath fires on.
+// Speech prosody lengthens the final word of an intonation unit (pre-boundary lengthening) and
+// articulates the word that opens the next one — without the onset lift, the function-word glide
+// compresses clause-starters like "because"/"which" exactly where the new thought begins. Both
+// lifts use the PHRASE_BREATH_BASE blend so the arc is felt at moderate speed too.
+internal const val PHRASE_PRE_BOUNDARY_LIFT = 0.07
+internal const val PHRASE_ONSET_LIFT = 0.05
+
+// Given/new pacing: an inner voice glides over words already active in working memory. Content
+// words repeat constantly in prose (names especially); the first mention earns its rarity/emphasis
+// time, later mentions read lighter. Tracked in a small LRU of recently shown content words,
+// cleared at page breaks (scene changes re-introduce). The glide also roughly cancels the
+// proper-noun emphasis boost on re-mentions.
+internal const val GIVENNESS_GLIDE = 0.08
+internal const val GIVENNESS_MIN_CHARS = 5
+internal const val GIVENNESS_MAX_ENTRIES = 160
+internal const val GIVENNESS_INITIAL_CAPACITY = 64
+
+// Em-dash role shaping. A dash is not one thing: paired dashes wrap an aside and should read as
+// a light dip in register (parenthesis-like), not two full clause stops in a row; a dash that is
+// cut off by a closing quote / paragraph end is an interruption and should clip, not linger; a
+// lone mid-sentence dash is a dramatic beat and keeps the full dashPauseMs treatment.
+internal const val EM_DASH_ASIDE_PAUSE_FACTOR = 0.55
+internal const val EM_DASH_ASIDE_CONTOUR_FACTOR = 0.5
+internal const val EM_DASH_INTERRUPTION_PAUSE_FACTOR = 0.45
+
+// Sentence wrap-up: integration time at a sentence end scales with how much sentence the reader
+// is holding. Short sentences turn over briskly (factor < 1); long sentences earn a fuller stop
+// (factor > 1). Applied to the sentence-end punctuation pause only.
+internal const val SENTENCE_WRAP_UP_SHORT_WORDS = 6.0
+internal const val SENTENCE_WRAP_UP_LONG_WORDS = 22.0
+internal const val SENTENCE_WRAP_UP_MIN_FACTOR = 0.90
+internal const val SENTENCE_WRAP_UP_MAX_FACTOR = 1.18
 internal const val FUNCTION_BRIDGE_HOLD_MS = 2.0
 internal const val CLAUSE_START_HOLD_FRACTION = 0.18
 internal const val SENTENCE_START_HOLD_FRACTION = 0.24

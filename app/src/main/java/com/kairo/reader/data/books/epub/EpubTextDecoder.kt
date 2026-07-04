@@ -46,18 +46,8 @@ internal object EpubTextDecoder {
         ) {
             return Charsets.UTF_8
         }
-        if (bytes.size >= 2 &&
-            bytes[0] == 0xFE.toByte() &&
-            bytes[1] == 0xFF.toByte()
-        ) {
-            return Charsets.UTF_16BE
-        }
-        if (bytes.size >= 2 &&
-            bytes[0] == 0xFF.toByte() &&
-            bytes[1] == 0xFE.toByte()
-        ) {
-            return Charsets.UTF_16LE
-        }
+        // UTF-32 BOMs must be checked before UTF-16: FF FE 00 00 starts with the
+        // UTF-16LE BOM (FF FE) and would otherwise be misdetected.
         if (bytes.size >= 4 &&
             bytes[0] == 0x00.toByte() &&
             bytes[1] == 0x00.toByte() &&
@@ -73,6 +63,18 @@ internal object EpubTextDecoder {
             bytes[3] == 0x00.toByte()
         ) {
             return Charset.forName("UTF-32LE")
+        }
+        if (bytes.size >= 2 &&
+            bytes[0] == 0xFE.toByte() &&
+            bytes[1] == 0xFF.toByte()
+        ) {
+            return Charsets.UTF_16BE
+        }
+        if (bytes.size >= 2 &&
+            bytes[0] == 0xFF.toByte() &&
+            bytes[1] == 0xFE.toByte()
+        ) {
+            return Charsets.UTF_16LE
         }
         return null
     }

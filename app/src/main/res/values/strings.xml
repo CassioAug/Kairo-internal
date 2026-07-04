@@ -164,6 +164,11 @@
     <string name="rsvp_positioning_mode_title">Positioning mode</string>
     <string name="rsvp_positioning_mode_subtitle">Swipe to adjust text position.</string>
     <string name="rsvp_positioning_hint">Positioning mode - swipe to move\nTap here to finish</string>
+    <string name="rsvp_positioning_grid_title">Adjustment grid</string>
+    <string name="rsvp_positioning_grid_subtitle">Snap the word to alignment lines while positioning. Off = free-form.</string>
+    <string name="rsvp_positioning_grid_snap_title">Snap strength</string>
+    <string name="rsvp_positioning_grid_snap_subtitle">How strongly the position pulls toward grid lines.</string>
+    <string name="rsvp_positioning_grid_snap_value">%1$d%%</string>
     <string name="rsvp_text_size_title">Text size</string>
     <string name="rsvp_text_brightness_subtitle">Dims the RSVP word display without changing the theme.</string>
     <string name="rsvp_orp_guide_title">ORP guide lines</string>

@@ -10,6 +10,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
 internal fun Modifier.rsvpGestureModifier(
@@ -32,6 +33,9 @@ internal fun Modifier.rsvpGestureModifier(
                 detectDragGestures(
                     onDragStart = { handleDragStart(context) },
                     onDragEnd = { handleDragEnd(context) },
+                    // A cancelled drag must release scrub/tempo state like a normal end,
+                    // otherwise playback stays paused with isScrubbing stuck on.
+                    onDragCancel = { handleDragEnd(context) },
                     onDrag = { change, dragAmount ->
                         handleDrag(context, dragAmount)
                         change.consume()
@@ -46,7 +50,10 @@ internal fun Modifier.rsvpGestureModifier(
         indication = null,
         onClick = { handleTap(context) },
         onLongClick = {
-            if (!runtime.showControls && !runtime.showQuickSettings) {
+            // Long-press exits both while playing and while paused (controls visible) — pausing
+            // sets showControls, so gating on it made the exit gesture dead exactly when paused.
+            // Positioning mode keeps its own tap-to-confirm flow.
+            if (!runtime.showQuickSettings && !runtime.isPositioningMode) {
                 exitAndSavePosition(context)
             }
         },
@@ -143,6 +150,9 @@ private fun handleDragStart(context: RsvpUiContext) {
     runtime.dragStartHorizontalBias = runtime.currentHorizontalBias
     runtime.wasPlayingBeforeScrub = runtime.isPlaying
     runtime.isScrubbing = false
+    val snapRadius = positioningSnapRadius(context.state.uiPrefs)
+    runtime.positioningSnapLineV = snappedGridLineIndex(runtime.currentVerticalBias, snapRadius)
+    runtime.positioningSnapLineH = snappedGridLineIndex(runtime.currentHorizontalBias, snapRadius)
 }
 
 private fun handleDrag(
@@ -151,18 +161,7 @@ private fun handleDrag(
 ) {
     val runtime = context.runtime
     if (runtime.isPositioningMode) {
-        val biasPerPx = POSITIONING_BIAS_PER_PX
-        runtime.currentVerticalBias =
-            (runtime.currentVerticalBias + dragAmount.y * biasPerPx).coerceIn(
-                VERTICAL_BIAS_MIN,
-                VERTICAL_BIAS_MAX,
-            )
-        runtime.currentHorizontalBias =
-            (runtime.currentHorizontalBias + dragAmount.x * biasPerPx).coerceIn(
-                HORIZONTAL_BIAS_MIN,
-                HORIZONTAL_BIAS_MAX,
-            )
-        runtime.isAdjustingPosition = true
+        handlePositioningDrag(context, dragAmount)
         return
     }
 
@@ -191,6 +190,78 @@ private fun handleDrag(
     }
 }
 
+/**
+ * Positioning-mode drag: the position is derived from the drag-start bias plus the raw
+ * accumulated drag (not the possibly-snapped current bias), so grid snapping never traps the
+ * gesture — the finger keeps authority and the position releases from a line as soon as the
+ * raw drag moves outside the snap radius.
+ */
+private fun handlePositioningDrag(
+    context: RsvpUiContext,
+    dragAmount: Offset,
+) {
+    val runtime = context.runtime
+    runtime.dragAccumulator += dragAmount.y
+    runtime.dragAccumulatorX += dragAmount.x
+
+    val rawVertical =
+        (runtime.dragStartBias + (runtime.dragAccumulator * POSITIONING_BIAS_PER_PX))
+            .coerceIn(VERTICAL_BIAS_MIN, VERTICAL_BIAS_MAX)
+    val rawHorizontal =
+        (runtime.dragStartHorizontalBias + (runtime.dragAccumulatorX * POSITIONING_BIAS_PER_PX))
+            .coerceIn(HORIZONTAL_BIAS_MIN, HORIZONTAL_BIAS_MAX)
+
+    val snapRadius = positioningSnapRadius(context.state.uiPrefs)
+    val lineV = snappedGridLineIndex(rawVertical, snapRadius)
+    val lineH = snappedGridLineIndex(rawHorizontal, snapRadius)
+    val landedOnNewLine =
+        (lineV != POSITIONING_GRID_LINE_NONE && lineV != runtime.positioningSnapLineV) ||
+            (lineH != POSITIONING_GRID_LINE_NONE && lineH != runtime.positioningSnapLineH)
+    if (landedOnNewLine) {
+        context.haptics.onFrameStep()
+    }
+    runtime.positioningSnapLineV = lineV
+    runtime.positioningSnapLineH = lineH
+
+    runtime.currentVerticalBias = snapBiasToGrid(rawVertical, snapRadius)
+    runtime.currentHorizontalBias = snapBiasToGrid(rawHorizontal, snapRadius)
+    runtime.isAdjustingPosition = true
+}
+
+/** Capture radius (in bias units) around each grid line; 0 disables snapping entirely. */
+internal fun positioningSnapRadius(uiPrefs: RsvpUiPreferences): Float =
+    if (uiPrefs.positioningGridEnabled) {
+        uiPrefs.positioningGridSnap.coerceIn(0f, 1f) * (POSITIONING_GRID_SPACING_BIAS / 2f)
+    } else {
+        0f
+    }
+
+/** Index of the grid line [bias] is captured by, or [POSITIONING_GRID_LINE_NONE]. */
+internal fun snappedGridLineIndex(
+    bias: Float,
+    snapRadius: Float,
+): Int {
+    if (snapRadius <= 0f) return POSITIONING_GRID_LINE_NONE
+    val index = (bias / POSITIONING_GRID_SPACING_BIAS).roundToInt()
+    return if (abs(bias - (index * POSITIONING_GRID_SPACING_BIAS)) <= snapRadius) {
+        index
+    } else {
+        POSITIONING_GRID_LINE_NONE
+    }
+}
+
+internal fun snapBiasToGrid(
+    bias: Float,
+    snapRadius: Float,
+): Float {
+    val index = snappedGridLineIndex(bias, snapRadius)
+    return if (index == POSITIONING_GRID_LINE_NONE) {
+        bias
+    } else {
+        index * POSITIONING_GRID_SPACING_BIAS
+    }
+}
+
 private fun handleDragEnd(context: RsvpUiContext) {
     val runtime = context.runtime
     if (runtime.isPositioningMode) {
@@ -211,7 +282,8 @@ private fun handleDragEnd(context: RsvpUiContext) {
         RsvpDragAxis.VERTICAL -> {
             if (runtime.currentTempoMsPerWord != runtime.dragStartTempoMsPerWord) {
                 context.callbacks.playback.onTempoChange(runtime.currentTempoMsPerWord)
-                runtime.showTempoIndicator = false
+                // Leave the indicator visible so the final speed can be read; the auto-hide
+                // timer fades it out shortly after the last adjustment.
             }
         }
         RsvpDragAxis.NONE -> Unit

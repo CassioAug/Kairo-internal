@@ -16,6 +16,7 @@ import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.model.shouldKeepPhysicalPageBreak
 import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.token.TokenRepository
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
@@ -487,7 +488,17 @@ data class ReaderParagraphBlock(val paragraph: Paragraph,) : ReaderBlock {
     override val key: String = "paragraph_${paragraph.startIndex}"
 }
 
-data class ReaderImageBlock(val imagePath: String, val index: Int,) : ReaderBlock {
+data class ReaderImageSize(
+    val widthPx: Float? = null,
+    val heightPx: Float? = null,
+)
+
+data class ReaderImageBlock(
+    val imagePath: String,
+    val index: Int,
+    val anchorTokenIndex: Int? = null,
+    val imageSize: ReaderImageSize? = null,
+) : ReaderBlock {
     override val key: String = "image_${index}_$imagePath"
 }
 
@@ -843,7 +854,10 @@ private fun rePageChapterData(
 private sealed interface HtmlBlockMarker {
     data object Paragraph : HtmlBlockMarker
 
-    data class Image(val path: String,) : HtmlBlockMarker
+    data class Image(
+        val path: String,
+        val size: ReaderImageSize?,
+    ) : HtmlBlockMarker
 }
 
 private fun buildReaderBlocks(
@@ -873,7 +887,19 @@ private fun buildReaderBlocks(
                     paragraphIndex += 1
                 }
                 is HtmlBlockMarker.Image -> {
-                    blocks.add(ReaderImageBlock(marker.path, imageIndex))
+                    blocks.add(
+                        ReaderImageBlock(
+                            imagePath = marker.path,
+                            index = imageIndex,
+                            anchorTokenIndex =
+                                resolveImageAnchorTokenIndex(
+                                    paragraphs = paragraphs,
+                                    nextParagraphIndex = paragraphIndex,
+                                    blocks = blocks,
+                                ),
+                            imageSize = marker.size,
+                        ),
+                    )
                     imageIndex += 1
                 }
             }
@@ -886,6 +912,28 @@ private fun buildReaderBlocks(
     }
 
     return blocks
+}
+
+private fun resolveImageAnchorTokenIndex(
+    paragraphs: List<Paragraph>,
+    nextParagraphIndex: Int,
+    blocks: List<ReaderBlock>,
+): Int? {
+    paragraphs.getOrNull(nextParagraphIndex)?.let { return it.startIndex }
+
+    val previousParagraphAnchor =
+        blocks
+            .asReversed()
+            .firstNotNullOfOrNull { block ->
+                val paragraph =
+                    (block as? ReaderParagraphBlock)?.paragraph
+                        ?: return@firstNotNullOfOrNull null
+                paragraph.startIndex + paragraph.tokens.lastIndex
+            }
+
+    return previousParagraphAnchor ?: paragraphs.lastOrNull()?.let { paragraph ->
+        paragraph.startIndex + paragraph.tokens.lastIndex
+    }
 }
 
 private fun extractHtmlBlockMarkers(
@@ -936,6 +984,7 @@ private fun extractHtmlBlockMarkers(
                     start = match.range.first,
                     endInclusive = match.range.last,
                     src = match.groupValues[1],
+                    size = extractImageSize(match.value),
                 )
             )
         }
@@ -945,6 +994,7 @@ private fun extractHtmlBlockMarkers(
                     start = match.range.first,
                     endInclusive = match.range.last,
                     src = match.groupValues[1],
+                    size = extractImageSize(match.value),
                 )
             )
         }
@@ -965,7 +1015,10 @@ private fun extractHtmlBlockMarkers(
             val src = imageMatch.src
             val resolved = resolveInlineImagePath(src, imagePaths, fallbackIndex)
             if (resolved != null) {
-                markers += HtmlBlockMarker.Image(resolved.first)
+                markers += HtmlBlockMarker.Image(
+                    path = resolved.first,
+                    size = imageMatch.size,
+                )
                 fallbackIndex = resolved.second
             }
             cursor = (imageMatch.endInclusive + 1).coerceAtLeast(cursor)
@@ -980,7 +1033,71 @@ private data class HtmlImageMatch(
     val start: Int,
     val endInclusive: Int,
     val src: String,
+    val size: ReaderImageSize?,
 )
+
+private fun extractImageSize(tag: String): ReaderImageSize? {
+    val width = extractImageLength(tag, "width")
+    val height = extractImageLength(tag, "height")
+    if (width == null && height == null) return null
+    return ReaderImageSize(widthPx = width, heightPx = height)
+}
+
+private fun extractImageLength(
+    tag: String,
+    property: String,
+): Float? =
+    extractImageAttributeLength(tag, property)
+        ?: extractImageStyleLength(tag, property)
+
+private fun extractImageAttributeLength(
+    tag: String,
+    attributeName: String,
+): Float? {
+    val regex =
+        Regex(
+            "\\b$attributeName\\s*=\\s*(['\"]?)([^'\"\\s>]+)\\1",
+            RegexOption.IGNORE_CASE,
+        )
+    return regex.find(tag)?.groupValues?.getOrNull(2)?.let(::parseCssPixelLength)
+}
+
+private fun extractImageStyleLength(
+    tag: String,
+    property: String,
+): Float? {
+    val style =
+        Regex(
+            "\\bstyle\\s*=\\s*(['\"])(.*?)\\1",
+            RegexOption.IGNORE_CASE,
+        ).find(tag)?.groupValues?.getOrNull(2) ?: return null
+    val regex =
+        Regex(
+            "(?:^|;)\\s*$property\\s*:\\s*([^;]+)",
+            RegexOption.IGNORE_CASE,
+        )
+    return regex.find(style)?.groupValues?.getOrNull(1)?.let(::parseCssPixelLength)
+}
+
+private fun parseCssPixelLength(value: String): Float? {
+    val normalized = value.trim().lowercase(Locale.ROOT)
+    if (normalized.isBlank() ||
+        normalized == "auto" ||
+        normalized.endsWith("%")
+    ) {
+        return null
+    }
+
+    val numeric =
+        when {
+            normalized.endsWith("px") -> normalized.dropLast(2)
+            normalized.all { it.isDigit() || it == '.' } -> normalized
+            else -> return null
+        }
+    return numeric
+        .toFloatOrNull()
+        ?.takeIf { it > 0f && it.isFinite() }
+}
 
 private fun decodeHtmlText(fragment: String): String =
     fragment

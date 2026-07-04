@@ -5,6 +5,7 @@ package com.kairo.reader.ui.rsvp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
@@ -43,6 +45,7 @@ import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialTargetIds
 import com.kairo.reader.ui.tutorial.startingTutorialTarget
+import kotlin.math.roundToInt
 
 @Composable
 internal fun RsvpPlaybackSurface(
@@ -93,13 +96,14 @@ internal fun RsvpPlaybackSurface(
             displayedSpeed,
         )
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
+    val tutorialTargetsEnabled = tutorialState != null
 
     Box(
         modifier =
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .startingTutorialTarget(StartingTutorialTargetIds.RSVP_SURFACE) {
+            .rsvpTutorialTarget(tutorialTargetsEnabled, StartingTutorialTargetIds.RSVP_SURFACE) {
                 targetId,
                 bounds,
                 ->
@@ -108,20 +112,27 @@ internal fun RsvpPlaybackSurface(
             .rsvpGestureModifier(context, interactionSource),
         contentAlignment = Alignment.Center,
     ) {
+        RsvpPositioningGrid(context, bottomChromeInset)
         RsvpFocusWord(context, currentFrame, typography, colors, bottomChromeInset)
         RsvpPositionGuide(context, bottomChromeInset)
         RsvpProgressBar(context)
         RsvpTopBar(
             context = context,
             settingsModifier =
-                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_TOP_SETTINGS) {
+                Modifier.rsvpTutorialTarget(
+                    tutorialTargetsEnabled,
+                    StartingTutorialTargetIds.RSVP_TOP_SETTINGS,
+                ) {
                     targetId,
                     bounds,
                     ->
                     tutorialTargets[targetId] = bounds
                 },
             closeModifier =
-                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_EXIT) {
+                Modifier.rsvpTutorialTarget(
+                    tutorialTargetsEnabled,
+                    StartingTutorialTargetIds.RSVP_EXIT,
+                ) {
                     targetId,
                     bounds,
                     ->
@@ -136,14 +147,20 @@ internal fun RsvpPlaybackSurface(
             context = context,
             speedPercent = displayedSpeed,
             panelModifier =
-                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_QUICK_SETTINGS) {
+                Modifier.rsvpTutorialTarget(
+                    tutorialTargetsEnabled,
+                    StartingTutorialTargetIds.RSVP_QUICK_SETTINGS,
+                ) {
                     targetId,
                     bounds,
                     ->
                     tutorialTargets[targetId] = bounds
                 },
             settingsRowModifier =
-                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_SETTINGS_ROW) {
+                Modifier.rsvpTutorialTarget(
+                    tutorialTargetsEnabled,
+                    StartingTutorialTargetIds.RSVP_SETTINGS_ROW,
+                ) {
                     targetId,
                     bounds,
                     ->
@@ -154,7 +171,10 @@ internal fun RsvpPlaybackSurface(
             context = context,
             speedIndicatorText = speedIndicatorText,
             controlsModifier =
-                Modifier.startingTutorialTarget(StartingTutorialTargetIds.RSVP_PLAYBACK_CONTROLS) {
+                Modifier.rsvpTutorialTarget(
+                    tutorialTargetsEnabled,
+                    StartingTutorialTargetIds.RSVP_PLAYBACK_CONTROLS,
+                ) {
                     targetId,
                     bounds,
                     ->
@@ -172,6 +192,17 @@ internal fun RsvpPlaybackSurface(
         }
     }
 }
+
+private fun Modifier.rsvpTutorialTarget(
+    enabled: Boolean,
+    targetId: String,
+    onBoundsChanged: (String, Rect) -> Unit,
+): Modifier =
+    if (enabled) {
+        startingTutorialTarget(targetId, onBoundsChanged)
+    } else {
+        this
+    }
 
 @Composable
 internal fun rememberRsvpDisplayedSpeed(
@@ -274,6 +305,66 @@ internal fun shouldShowOrpVisualAnchor(
     phraseChunkingEnabled: Boolean,
     visualAnchorEnabled: Boolean,
 ): Boolean = visualAnchorEnabled && !phraseChunkingEnabled
+
+/**
+ * Adjustment grid shown in positioning mode: faint alignment lines at every grid bias on both
+ * axes (center lines emphasized), matching the snap targets in the drag handler. Drawn in the
+ * same padded space the word and ORP pivot are positioned in, so lines land exactly where the
+ * word snaps.
+ */
+@Composable
+private fun RsvpPositioningGrid(
+    context: RsvpUiContext,
+    bottomChromeInset: Dp,
+) {
+    val visible =
+        context.runtime.isPositioningMode && context.state.uiPrefs.positioningGridEnabled
+    val lineColor =
+        MaterialTheme.colorScheme.onBackground.copy(alpha = POSITIONING_GRID_LINE_ALPHA)
+    val centerColor =
+        MaterialTheme.colorScheme.primary.copy(alpha = POSITIONING_GRID_CENTER_LINE_ALPHA)
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Canvas(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(bottom = bottomChromeInset)
+                    .padding(horizontal = ORP_HORIZONTAL_PADDING),
+        ) {
+            val strokeWidth = POSITION_GUIDE_HEIGHT.toPx()
+            val verticalLineCount =
+                (VERTICAL_BIAS_MAX / POSITIONING_GRID_SPACING_BIAS).roundToInt()
+            for (index in -verticalLineCount..verticalLineCount) {
+                val bias = index * POSITIONING_GRID_SPACING_BIAS
+                val y = size.height * ((ONE_FLOAT + bias) / BIAS_SCALE_FACTOR)
+                drawLine(
+                    color = if (index == 0) centerColor else lineColor,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = strokeWidth,
+                )
+            }
+            val horizontalLineCount =
+                (HORIZONTAL_BIAS_MAX / POSITIONING_GRID_SPACING_BIAS).roundToInt()
+            for (index in -horizontalLineCount..horizontalLineCount) {
+                val bias = index * POSITIONING_GRID_SPACING_BIAS
+                val x = size.width * ((ONE_FLOAT + bias) / BIAS_SCALE_FACTOR)
+                drawLine(
+                    color = if (index == 0) centerColor else lineColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
+                    strokeWidth = strokeWidth,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun RsvpPositionGuide(

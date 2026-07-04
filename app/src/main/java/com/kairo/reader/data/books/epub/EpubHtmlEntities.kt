@@ -179,7 +179,9 @@ internal object EpubHtmlEntities {
                 }
             return codePoint?.let(::toCodePointString)
         }
-        return namedEntities[entity.lowercase(Locale.ROOT)]
+        // Exact match first: entity names are case-sensitive ("Auml" vs "auml",
+        // "Dagger" vs "dagger"). Fall back to lowercase for sloppy markup.
+        return namedEntities[entity] ?: namedEntities[entity.lowercase(Locale.ROOT)]
     }
 
     private fun toCodePointString(codePoint: Int): String? {

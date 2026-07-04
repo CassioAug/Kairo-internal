@@ -35,9 +35,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kairo.reader.R
 import kotlin.math.roundToInt
 
@@ -169,19 +172,62 @@ private fun RsvpTopIconButton(
     }
 }
 
+/**
+ * Top padding for a top-centered indicator pill: the default position, unless the pill would
+ * overlap the focus-word band (short landscape viewports, word positioned high), in which case
+ * the pill moves just below the word instead — visible feedback without covering the fixation
+ * point.
+ */
+@Composable
+private fun wordAwareIndicatorTopPadding(
+    context: RsvpUiContext,
+    defaultTopPadding: Dp,
+    flippedStackOffset: Dp = 0.dp,
+): Dp {
+    val runtime = context.runtime
+    val configuration = LocalConfiguration.current
+    val fontSizeSp = runtime.currentFontSizeSp.coerceIn(MIN_FONT_SIZE_SP, MAX_FONT_SIZE_SP)
+    val verticalBias = runtime.currentVerticalBias.coerceIn(VERTICAL_BIAS_MIN, VERTICAL_BIAS_MAX)
+    val textHeight =
+        with(LocalDensity.current) {
+            (fontSizeSp * ORP_COLLISION_TEXT_HEIGHT_MULTIPLIER).sp.toDp()
+        }
+    val wordBandHalfHeight =
+        ((ORP_LINE_HEIGHT * 2) + (ORP_POINTER_HEIGHT * 2) + (ORP_TEXT_SPACER * 2) + textHeight) / 2
+    val wordCenterY =
+        configuration.screenHeightDp.dp * ((ONE_FLOAT + verticalBias) / BIAS_SCALE_FACTOR)
+    return resolveIndicatorTopPadding(
+        defaultTopPadding = defaultTopPadding,
+        flippedStackOffset = flippedStackOffset,
+        wordBandTop = wordCenterY - wordBandHalfHeight,
+        wordBandBottom = wordCenterY + wordBandHalfHeight,
+    )
+}
+
+internal fun resolveIndicatorTopPadding(
+    defaultTopPadding: Dp,
+    flippedStackOffset: Dp,
+    wordBandTop: Dp,
+    wordBandBottom: Dp,
+): Dp {
+    val defaultBottom = defaultTopPadding + INDICATOR_APPROX_HEIGHT + INDICATOR_WORD_CLEARANCE
+    return if (wordBandTop < defaultBottom) {
+        wordBandBottom + INDICATOR_WORD_CLEARANCE + flippedStackOffset
+    } else {
+        defaultTopPadding
+    }
+}
+
 @Composable
 internal fun BoxScope.RsvpTempoIndicator(
     context: RsvpUiContext,
     indicatorText: String,
 ) {
     val runtime = context.runtime
-    val configuration = LocalConfiguration.current
-    val compactLandscape =
-        configuration.screenWidthDp > configuration.screenHeightDp &&
-            configuration.screenHeightDp <= 480
+    val topPadding = wordAwareIndicatorTopPadding(context, TEMPO_INDICATOR_TOP_PADDING)
 
     AnimatedVisibility(
-        visible = runtime.showTempoIndicator && !compactLandscape,
+        visible = runtime.showTempoIndicator,
         enter = fadeIn(),
         exit = fadeOut(),
         modifier = Modifier.align(Alignment.TopCenter),
@@ -189,7 +235,7 @@ internal fun BoxScope.RsvpTempoIndicator(
         Box(
             modifier =
             Modifier
-                .padding(top = TEMPO_INDICATOR_TOP_PADDING)
+                .padding(top = topPadding)
                 .background(
                     MaterialTheme.colorScheme.primaryContainer.copy(
                         alpha = INDICATOR_BACKGROUND_ALPHA,
@@ -212,6 +258,13 @@ internal fun BoxScope.RsvpTempoIndicator(
 @Composable
 internal fun BoxScope.RsvpFontSizeIndicator(context: RsvpUiContext) {
     val runtime = context.runtime
+    val topPadding =
+        wordAwareIndicatorTopPadding(
+            context = context,
+            defaultTopPadding = FONT_SIZE_INDICATOR_TOP_PADDING,
+            // Stays below a flipped tempo pill, preserving the same stagger as the defaults.
+            flippedStackOffset = FONT_SIZE_INDICATOR_TOP_PADDING - TEMPO_INDICATOR_TOP_PADDING,
+        )
 
     AnimatedVisibility(
         visible = runtime.showFontSizeIndicator,
@@ -222,7 +275,7 @@ internal fun BoxScope.RsvpFontSizeIndicator(context: RsvpUiContext) {
         Box(
             modifier =
             Modifier
-                .padding(top = FONT_SIZE_INDICATOR_TOP_PADDING)
+                .padding(top = topPadding)
                 .background(
                     MaterialTheme.colorScheme.surfaceVariant.copy(
                         alpha = INDICATOR_BACKGROUND_ALPHA,
@@ -285,17 +338,12 @@ internal fun BoxScope.RsvpPositioningIndicator(context: RsvpUiContext) {
 internal fun BoxScope.RsvpScrubTargetIndicator(context: RsvpUiContext) {
     val runtime = context.runtime
     val frames = context.frameState.frames
-    val configuration = LocalConfiguration.current
-    val compactLandscape =
-        configuration.screenWidthDp > configuration.screenHeightDp &&
-            configuration.screenHeightDp <= 480
-    if (compactLandscape) return
-
     val frameCount = frames.size.coerceAtLeast(1)
     val progressPercent =
         (((runtime.frameIndex + 1).toFloat() / frameCount.toFloat()) * 100f)
             .roundToInt()
             .coerceIn(0, 100)
+    val topPadding = wordAwareIndicatorTopPadding(context, SCRUB_INDICATOR_TOP_PADDING)
 
     AnimatedVisibility(
         visible = runtime.isScrubbing,
@@ -307,7 +355,7 @@ internal fun BoxScope.RsvpScrubTargetIndicator(context: RsvpUiContext) {
             modifier =
                 Modifier
                     .statusBarsPadding()
-                    .padding(top = 52.dp)
+                    .padding(top = topPadding)
                     .background(
                         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = INDICATOR_BACKGROUND_ALPHA),
                         RoundedCornerShape(INDICATOR_CORNER_RADIUS),

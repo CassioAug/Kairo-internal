@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +45,7 @@ import com.kairo.reader.ui.settings.SettingsNavRow
 import com.kairo.reader.ui.settings.SettingsSliderRow
 import com.kairo.reader.ui.settings.SettingsSwitchRow
 import com.kairo.reader.ui.settings.ThemeSelector
+import kotlin.math.roundToInt
 
 @Composable
 internal fun BoxScope.RsvpQuickSettingsPanel(
@@ -223,6 +225,39 @@ private fun RsvpQuickSettingsPositioningToggle(context: RsvpUiContext) {
             }
         },
     )
+    RsvpQuickSettingsPositioningGrid(context)
+}
+
+@Composable
+private fun RsvpQuickSettingsPositioningGrid(context: RsvpUiContext) {
+    val uiPrefs = context.state.uiPrefs
+
+    SettingsSwitchRow(
+        title = stringResource(R.string.rsvp_positioning_grid_title),
+        subtitle = stringResource(R.string.rsvp_positioning_grid_subtitle),
+        checked = uiPrefs.positioningGridEnabled,
+        onCheckedChange = context.callbacks.ui.onPositioningGridEnabledChange,
+    )
+    if (uiPrefs.positioningGridEnabled) {
+        var snapStrength by remember(uiPrefs.positioningGridSnap) {
+            mutableFloatStateOf(uiPrefs.positioningGridSnap)
+        }
+        SettingsSliderRow(
+            title = stringResource(R.string.rsvp_positioning_grid_snap_title),
+            subtitle = stringResource(R.string.rsvp_positioning_grid_snap_subtitle),
+            valueLabel =
+                stringResource(
+                    R.string.rsvp_positioning_grid_snap_value,
+                    (snapStrength * PERCENT_SCALE).roundToInt(),
+                ),
+            value = snapStrength,
+            onValueChange = { snapStrength = it.coerceIn(0f, 1f) },
+            onValueChangeFinished = {
+                context.callbacks.ui.onPositioningGridSnapChange(snapStrength)
+            },
+            valueRange = 0f..1f,
+        )
+    }
 }
 
 @Composable

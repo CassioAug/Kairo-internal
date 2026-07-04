@@ -20,6 +20,8 @@ import com.kairo.reader.core.rsvp.engine.FUNCTION_BRIDGE_WORDS
 import com.kairo.reader.core.rsvp.engine.FUNCTION_WORDS
 import com.kairo.reader.core.rsvp.engine.FUNCTION_WORD_GLIDE_LIGHT
 import com.kairo.reader.core.rsvp.engine.FUNCTION_WORD_GLIDE_STRONG
+import com.kairo.reader.core.rsvp.engine.GIVENNESS_GLIDE
+import com.kairo.reader.core.rsvp.engine.GIVENNESS_MIN_CHARS
 import com.kairo.reader.core.rsvp.engine.GLUE_WORDS
 import com.kairo.reader.core.rsvp.engine.MAX_BOUNDARY_TAIL_LIFT
 import com.kairo.reader.core.rsvp.engine.MAX_EMPHASIS_MULTIPLIER
@@ -28,9 +30,13 @@ import com.kairo.reader.core.rsvp.engine.MIN_BOUNDARY_TAIL_LIFT_STRENGTH
 import com.kairo.reader.core.rsvp.engine.MIN_PROSODY_MULTIPLIER
 import com.kairo.reader.core.rsvp.engine.NUMBER_EMPHASIS_BOOST
 import com.kairo.reader.core.rsvp.engine.PHRASE_BREAK_HOLD_MS
+import com.kairo.reader.core.rsvp.engine.PHRASE_BREATH_BASE
+import com.kairo.reader.core.rsvp.engine.PHRASE_ONSET_LIFT
+import com.kairo.reader.core.rsvp.engine.PHRASE_PRE_BOUNDARY_LIFT
 import com.kairo.reader.core.rsvp.engine.PRONOUN_BRIDGE_MAX_CHARS
 import com.kairo.reader.core.rsvp.engine.PRONOUN_BRIDGE_WORDS
 import com.kairo.reader.core.rsvp.engine.PROPER_NOUN_BOOST
+import com.kairo.reader.core.rsvp.engine.ProseState
 import com.kairo.reader.core.rsvp.engine.SEMANTIC_ANCHOR_BOOST
 import com.kairo.reader.core.rsvp.engine.SEMANTIC_ANCHOR_WORDS
 import com.kairo.reader.core.rsvp.engine.TIGHT_PAIR_HINTS
@@ -266,9 +272,11 @@ internal fun transitionHoldMs(
         return COHERENCE_HOLD_MS * speedStrength
     }
 
-    // Add a small hold before phrase breaks for natural reading rhythm
+    // Breath before a grammatical phrase boundary (clause-starter / joining conjunction) that
+    // carries no punctuation. Kept present even at moderate speed via PHRASE_BREATH_BASE so the
+    // phrasing of the inner voice is actually felt, not just a sliver at very high WPM.
     if (isPhraseBreakBefore(firstLower, nextLower, nextWord)) {
-        return PHRASE_BREAK_HOLD_MS * speedStrength
+        return PHRASE_BREAK_HOLD_MS * (PHRASE_BREATH_BASE + ((1.0 - PHRASE_BREATH_BASE) * speedStrength))
     }
 
     return 0.0
@@ -303,6 +311,88 @@ internal fun isCoherencePair(
     }
     return false
 }
+
+
+/**
+ * Phrase-arc shaping for a single-word frame at a grammatical (punctuation-free) phrase boundary.
+ *
+ * Uses the same [isPhraseBreakBefore] detector as the breath in [transitionHoldMs], so the arc and
+ * the breath always fire together: the word closing an intonation unit stretches slightly
+ * (pre-boundary lengthening) and the clause-starter opening the next one gets a small onset lift
+ * instead of being swallowed by the function-word glide. Punctuation-adjacent words are excluded —
+ * the punctuation contour machinery already shapes those.
+ */
+internal fun phraseBoundaryShapeMultiplier(
+    word: Token,
+    prevWord: Token?,
+    nextWord: Token?,
+    boundaryBefore: BoundaryBefore,
+    speedStrength: Double,
+    prosodyStrength: Double,
+): Double {
+    if (prosodyStrength <= 0.0 || word.isSubwordChunk) return 1.0
+    val wordLower = word.text.lowercase()
+    if (wordLower.isEmpty()) return 1.0
+
+    val presence = PHRASE_BREATH_BASE + ((1.0 - PHRASE_BREATH_BASE) * speedStrength)
+    var multiplier = 1.0
+
+    if (nextWord != null && isPhraseBreakBefore(wordLower, nextWord.text.lowercase(), nextWord)) {
+        multiplier *= 1.0 + (PHRASE_PRE_BOUNDARY_LIFT * presence * prosodyStrength)
+    }
+    if (prevWord != null &&
+        boundaryBefore == BoundaryBefore.NONE &&
+        isPhraseBreakBefore(prevWord.text.lowercase(), wordLower, word)
+    ) {
+        multiplier *= 1.0 + (PHRASE_ONSET_LIFT * presence * prosodyStrength)
+    }
+    return multiplier
+}
+
+
+/**
+ * Given/new glide: words shown recently read lighter on re-mention.
+ *
+ * Only substantial non-function words are tracked, so the within-phrase evenness of glue words is
+ * untouched. Mutates [prose] (records this word as seen) — call exactly once per displayed word.
+ */
+internal fun givennessGlideMultiplier(
+    token: Token,
+    prose: ProseState,
+    speedStrength: Double,
+): Double {
+    val key = givennessKey(token) ?: return 1.0
+
+    val given = prose.isGiven(key)
+    prose.record(key)
+    if (!given) return 1.0
+
+    val presence = PHRASE_BREATH_BASE + ((1.0 - PHRASE_BREATH_BASE) * speedStrength)
+    return 1.0 - (GIVENNESS_GLIDE * presence)
+}
+
+
+internal fun recordGivennessWord(
+    token: Token,
+    prose: ProseState,
+) {
+    val key = givennessKey(token) ?: return
+    prose.record(key)
+}
+
+
+private fun givennessKey(token: Token): String? {
+    if (token.isSubwordChunk) return null
+    val key = givennessKey(token.text)
+    return key.takeIf { it.length >= GIVENNESS_MIN_CHARS && !isFunctionWord(it) }
+}
+
+
+private fun givennessKey(text: String): String =
+    normalizeWord(text)
+        .removeSuffix("'s")
+        .removeSuffix("’s")
+        .filter { it.isLetter() }
 
 
 internal fun isPhraseBreakBefore(
@@ -390,6 +480,9 @@ internal fun isPhraseChunkCandidate(
     val nextLower = next.text.lowercase()
     val pairKey = "$prevLower $nextLower"
 
+    // Never chunk across subword splits or a mid-word hyphen continuation.
+    if (prev.isSubwordChunk || next.isSubwordChunk) return false
+    if (prev.text.endsWith("-")) return false
     if (prev.isClauseBoundary || next.isClauseBoundary) return false
     if (ClauseDetector.isCoordinatingConjunction(prevLower)) return false
     if (pairKey in TIGHT_PAIR_HINTS) return true
@@ -431,6 +524,7 @@ internal fun terminalWordMultiplier(
     frameTokens: List<Token>,
     nextToken: Token?,
     speedStrength: Double,
+    emDashContourScale: Double = 1.0,
 ): Double {
     val punctIndex =
         (wordIndex + 1 until frameTokens.size).firstOrNull {
@@ -461,8 +555,10 @@ internal fun terminalWordMultiplier(
         )
     if (contourStrength <= 0.0) return 1.0
 
+    // A paired aside dash is a dip, not a stop: damp the pre-boundary stretch with it.
+    val dashScale = if (isEmDashChar(ch)) emDashContourScale else 1.0
     val effectiveStrength = max(speedStrength, MIN_BOUNDARY_TAIL_LIFT_STRENGTH)
-    val extra = MAX_BOUNDARY_TAIL_LIFT * contourStrength
+    val extra = MAX_BOUNDARY_TAIL_LIFT * contourStrength * dashScale
 
     return 1.0 + (extra * effectiveStrength)
 }

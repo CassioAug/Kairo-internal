@@ -212,8 +212,11 @@ fun splitHyphenatedToken(token: Token): List<Token> {
             token.text[0] == '-' &&
             token.text[1].isDigit()
 
+    // Leading/trailing/double hyphens ("well-", "-ish", "well--done") would produce empty parts,
+    // which become blank word frames. Keep those tokens whole.
     val parts = token.text.split('-')
-    val canSplit = shouldSplit && !startsWithNumericDash && parts.size > 1
+    val canSplit =
+        shouldSplit && !startsWithNumericDash && parts.size > 1 && parts.none { it.isEmpty() }
 
     if (!canSplit) return listOf(token)
 
@@ -296,8 +299,10 @@ private fun splitLongWordToken(
 
         token.copy(
             text = text,
-            // Block phrase chunking across subword splits.
-            isClauseBoundary = true,
+            // Phrase chunking across subword splits is blocked via isSubwordChunk in
+            // isPhraseChunkCandidate; isClauseBoundary must stay truthful because the timing
+            // model reads it (clause holds would otherwise fire on every chunk of a long word).
+            isClauseBoundary = if (isLast) token.isClauseBoundary else false,
             isDialogue = token.isDialogue,
             pauseAfterMs = if (isLast) token.pauseAfterMs else extraPause,
             isSubwordChunk = true,

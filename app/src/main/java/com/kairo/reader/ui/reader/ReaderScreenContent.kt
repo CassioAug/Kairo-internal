@@ -343,6 +343,7 @@ internal fun ReaderContent(
                     is ReaderImageBlock -> {
                         InlineImageBlock(
                             imagePath = block.imagePath,
+                            imageSize = block.imageSize,
                             onOpen = onOpenFullScreenImage,
                         )
                     }

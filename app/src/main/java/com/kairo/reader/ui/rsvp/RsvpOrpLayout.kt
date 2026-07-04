@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import java.util.LinkedHashMap
 import kotlin.math.roundToInt
 
 @Composable
@@ -36,6 +37,7 @@ internal fun OrpAlignedTextLayout(
     val density = LocalDensity.current
     val effectiveBias = layout.horizontalBias.safeCoerceIn(HORIZONTAL_BIAS_MIN, HORIZONTAL_BIAS_MAX)
     val textMeasurer = rememberTextMeasurer()
+    val displayCache = remember(textMeasurer) { OrpDisplayCache() }
     val baseStyle = MaterialTheme.typography.displayMedium
     val textStyle =
         remember(typography, baseStyle) {
@@ -64,15 +66,27 @@ internal fun OrpAlignedTextLayout(
                 layout.preferWindowing,
                 layout.pivotHighlightVisible,
             ) {
-                resolveOrpDisplay(
-                    content = content,
-                    textStyle = textStyle,
-                    colors = colors,
-                    textMeasurer = textMeasurer,
-                    maxWidthPx = maxWidthPx,
-                    preferWindowing = layout.preferWindowing,
-                    pivotHighlightVisible = layout.pivotHighlightVisible,
-                )
+                displayCache.getOrPut(
+                    key =
+                        OrpDisplayCacheKey(
+                            content = content,
+                            textStyle = textStyle,
+                            colors = colors,
+                            maxWidthPx = maxWidthPx.roundToInt(),
+                            preferWindowing = layout.preferWindowing,
+                            pivotHighlightVisible = layout.pivotHighlightVisible,
+                        ),
+                ) {
+                    resolveOrpDisplay(
+                        content = content,
+                        textStyle = textStyle,
+                        colors = colors,
+                        textMeasurer = textMeasurer,
+                        maxWidthPx = maxWidthPx,
+                        preferWindowing = layout.preferWindowing,
+                        pivotHighlightVisible = layout.pivotHighlightVisible,
+                    )
+                }
             }
         val measuredWidthPx = display.measured.size.width.toFloat()
         val baseEdgePx = with(density) { ORP_BASE_EDGE.toPx() }
@@ -113,19 +127,17 @@ internal fun OrpAlignedTextLayout(
                     pivotRange,
                 )
             }
-        val animatedTranslationX =
-            animateFloatAsState(
-                targetValue = layoutResult.translationX,
-                animationSpec =
-                spring(
-                    dampingRatio = 1f,
-                    stiffness = 1800f,
-                ),
-                label = "orpTranslationX",
-            )
         val translationX =
             if (layout.smoothTranslation) {
-                animatedTranslationX.value
+                animateFloatAsState(
+                    targetValue = layoutResult.translationX,
+                    animationSpec =
+                    spring(
+                        dampingRatio = 1f,
+                        stiffness = 1800f,
+                    ),
+                    label = "orpTranslationX",
+                ).value
             } else {
                 layoutResult.translationX
             }
@@ -160,6 +172,37 @@ private data class OrpDisplay(
     val textStyle: TextStyle,
     val measured: TextLayoutResult,
 )
+
+private data class OrpDisplayCacheKey(
+    val content: OrpTextContent,
+    val textStyle: TextStyle,
+    val colors: OrpColors,
+    val maxWidthPx: Int,
+    val preferWindowing: Boolean,
+    val pivotHighlightVisible: Boolean,
+)
+
+private class OrpDisplayCache {
+    private val entries =
+        object : LinkedHashMap<OrpDisplayCacheKey, OrpDisplay>(
+            ORP_DISPLAY_CACHE_SIZE,
+            ORP_DISPLAY_CACHE_LOAD_FACTOR,
+            true,
+        ) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<OrpDisplayCacheKey, OrpDisplay>?,
+            ): Boolean = size > ORP_DISPLAY_CACHE_SIZE
+        }
+
+    fun getOrPut(
+        key: OrpDisplayCacheKey,
+        createDisplay: () -> OrpDisplay,
+    ): OrpDisplay =
+        entries[key]
+            ?: createDisplay().also { display ->
+                entries[key] = display
+            }
+}
 
 private fun resolveOrpDisplay(
     content: OrpTextContent,
@@ -262,6 +305,7 @@ private fun buildWindowedContent(
             fullText = fullText,
             focusStart = focusStart,
             focusEndExclusive = focusEndExclusive,
+            focusPivot = content.pivotPosition,
             textMeasurer = textMeasurer,
             textStyle = textStyle,
             maxWidthPx = maxWidthPx,
@@ -331,13 +375,15 @@ private fun resolveWindowRange(
     fullText: String,
     focusStart: Int,
     focusEndExclusive: Int,
+    focusPivot: Int,
     textMeasurer: TextMeasurer,
     textStyle: TextStyle,
     maxWidthPx: Float,
 ): WindowRange {
     val length = fullText.length
-    var start = focusStart.safeCoerceIn(0, length - 1)
-    var end = focusEndExclusive.safeCoerceIn(start + 1, length)
+    val safeFocusStart = focusStart.safeCoerceIn(0, length - 1)
+    val safeFocusEnd = focusEndExclusive.safeCoerceIn(safeFocusStart + 1, length)
+    val safeFocusPivot = focusPivot.safeCoerceIn(safeFocusStart, safeFocusEnd - 1)
 
     fun fits(candidateStart: Int, candidateEnd: Int): Boolean {
         val candidate =
@@ -355,39 +401,97 @@ private fun resolveWindowRange(
         return measured.size.width.toFloat() <= maxWidthPx
     }
 
-    while (start < end && !fits(start, end)) {
-        if (end - start <= 1) break
-        val leftSpace = focusStart - start
-        val rightSpace = end - focusEndExclusive
-        if (rightSpace >= leftSpace && end - 1 > start) {
-            end -= 1
-        } else if (start + 1 < end) {
-            start += 1
-        } else {
-            break
-        }
+    if (!fits(safeFocusStart, safeFocusEnd)) {
+        return resolveOversizedFocusRange(
+            focusStart = safeFocusStart,
+            focusEndExclusive = safeFocusEnd,
+            focusPivot = safeFocusPivot,
+            fits = { candidateStart, candidateEnd -> fits(candidateStart, candidateEnd) },
+        )
     }
 
-    var canLeft = start > 0
-    var canRight = end < length
-    while (canLeft || canRight) {
-        var expanded = false
-        if (canLeft && start > 0 && fits(start - 1, end)) {
-            start -= 1
-            expanded = true
-        } else {
-            canLeft = false
+    val maxSymmetricRadius = maxOf(safeFocusStart, length - safeFocusEnd)
+    val symmetricRadius =
+        maxFittingValue(0, maxSymmetricRadius) { radius ->
+            fits(
+                (safeFocusStart - radius).coerceAtLeast(0),
+                (safeFocusEnd + radius).coerceAtMost(length),
+            )
         }
-        if (canRight && end < length && fits(start, end + 1)) {
-            end += 1
-            expanded = true
-        } else {
-            canRight = false
+    var start = (safeFocusStart - symmetricRadius).coerceAtLeast(0)
+    var end = (safeFocusEnd + symmetricRadius).coerceAtMost(length)
+
+    val leftExpansion =
+        maxFittingValue(0, start) { extraChars ->
+            fits(start - extraChars, end)
         }
-        if (!expanded) break
-    }
+    start -= leftExpansion
+
+    val rightExpansion =
+        maxFittingValue(0, length - end) { extraChars ->
+            fits(start, end + extraChars)
+        }
+    end += rightExpansion
 
     return WindowRange(start = start, endExclusive = end)
+}
+
+private fun resolveOversizedFocusRange(
+    focusStart: Int,
+    focusEndExclusive: Int,
+    focusPivot: Int,
+    fits: (Int, Int) -> Boolean,
+): WindowRange {
+    val focusLength = (focusEndExclusive - focusStart).coerceAtLeast(1)
+    val bestSpan =
+        maxFittingValue(1, focusLength) { span ->
+            val range =
+                windowRangeAroundPivot(
+                    focusStart = focusStart,
+                    focusEndExclusive = focusEndExclusive,
+                    focusPivot = focusPivot,
+                    span = span,
+                )
+            fits(range.start, range.endExclusive)
+        }
+    return windowRangeAroundPivot(
+        focusStart = focusStart,
+        focusEndExclusive = focusEndExclusive,
+        focusPivot = focusPivot,
+        span = bestSpan,
+    )
+}
+
+private fun windowRangeAroundPivot(
+    focusStart: Int,
+    focusEndExclusive: Int,
+    focusPivot: Int,
+    span: Int,
+): WindowRange {
+    val safeSpan = span.coerceIn(1, focusEndExclusive - focusStart)
+    val maxStart = focusEndExclusive - safeSpan
+    val start = (focusPivot - (safeSpan / 2)).coerceIn(focusStart, maxStart)
+    return WindowRange(start = start, endExclusive = start + safeSpan)
+}
+
+private fun maxFittingValue(
+    minimum: Int,
+    maximum: Int,
+    fits: (Int) -> Boolean,
+): Int {
+    var low = minimum
+    var high = maximum
+    var best = minimum
+    while (low <= high) {
+        val mid = (low + high) ushr 1
+        if (fits(mid)) {
+            best = mid
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+    return best
 }
 
 private fun buildWindowText(

@@ -7,6 +7,8 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.splitTokenForRsvp
 import com.kairo.reader.core.rsvp.analysis.RsvpTokenAnalysis
 import com.kairo.reader.core.rsvp.analysis.analyzeExpandedTokens
+import com.kairo.reader.core.rsvp.analysis.nextTokenAfter
+import com.kairo.reader.core.rsvp.analysis.recordGivennessWord
 import com.kairo.reader.core.rsvp.analysis.shouldKeepFullFocalDuration
 import com.kairo.reader.core.rsvp.engine.BoundaryBefore
 import com.kairo.reader.core.rsvp.engine.ContextState
@@ -23,7 +25,9 @@ import com.kairo.reader.core.rsvp.engine.OPENING_PUNCTUATION
 import com.kairo.reader.core.rsvp.engine.PAGE_BREAK_RETENTION_BOOST
 import com.kairo.reader.core.rsvp.engine.PARAGRAPH_BREAK_RETENTION_BOOST
 import com.kairo.reader.core.rsvp.engine.PhraseContour
+import com.kairo.reader.core.rsvp.engine.ProseState
 import com.kairo.reader.core.rsvp.engine.RhythmState
+import com.kairo.reader.core.rsvp.engine.SKIPPABLE_BOUNDARY_PUNCTUATION
 import com.kairo.reader.core.rsvp.engine.applyBlinkSeparation
 import com.kairo.reader.core.rsvp.engine.applySessionRamps
 import com.kairo.reader.core.rsvp.engine.buildUnit
@@ -39,6 +43,8 @@ import com.kairo.reader.core.rsvp.timing.computeUnitDurationMs
 import com.kairo.reader.core.rsvp.timing.pageBreakBasePauseMs
 import com.kairo.reader.core.rsvp.timing.paragraphBreakBasePauseMs
 import com.kairo.reader.core.rsvp.timing.pauseScale
+import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTier
+import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
 import kotlin.math.max
 
 interface RsvpEngine {
@@ -81,6 +87,7 @@ private data class RsvpGenerationContext(
     val state: ContextState,
     val rhythm: RhythmState,
     val flow: FlowState,
+    val prose: ProseState,
 )
 
 private fun generateFramesWithNormalizedConfig(
@@ -103,6 +110,7 @@ private fun generateFramesWithNormalizedConfig(
             state = ContextState(),
             rhythm = createRhythmState(config),
             flow = createFlowState(),
+            prose = createProseState(expanded, cursor, config),
         )
 
     var nextCursor = cursor
@@ -194,6 +202,50 @@ private fun createFlowState(): FlowState =
         strength = FLOW_STRENGTH,
     )
 
+private fun createProseState(
+    expanded: List<ExpandedToken>,
+    playbackCursor: Int,
+    config: RsvpConfig,
+): ProseState {
+    val prose = ProseState()
+    var previousWord: Token? = null
+    val endExclusive = playbackCursor.coerceIn(0, expanded.size)
+
+    for (index in 0 until endExclusive) {
+        val token = expanded[index].token
+        when (token.type) {
+            TokenType.WORD -> {
+                prose.onWordShown()
+                if (config.useAdaptiveTiming) {
+                    recordGivennessWord(token, prose)
+                }
+                previousWord = token
+            }
+            TokenType.PUNCTUATION -> {
+                val tier =
+                    RsvpPunctuationTimingPolicy.resolveTier(
+                        token = token,
+                        prevWord = previousWord,
+                        nextToken = nextTokenAfter(expanded, index),
+                    )
+                if (tier == RsvpPunctuationTier.SENTENCE_END) {
+                    prose.onSentenceEnd()
+                }
+            }
+            TokenType.PARAGRAPH_BREAK -> {
+                prose.onParagraphBreak()
+                previousWord = null
+            }
+            TokenType.PAGE_BREAK -> {
+                prose.onPageBreak()
+                previousWord = null
+            }
+        }
+    }
+
+    return prose
+}
+
 private fun RsvpGenerationContext.appendNextFrame(cursor: Int): Int? {
     val cursorToken = expanded[cursor].token
     return if (cursorToken.isBreakToken()) {
@@ -218,6 +270,11 @@ private fun RsvpGenerationContext.appendBreakFrame(cursor: Int): Int? {
         )
     rhythm.reset()
     flow.reset()
+    if (cursorToken.type == TokenType.PAGE_BREAK) {
+        prose.onPageBreak()
+    } else {
+        prose.onParagraphBreak()
+    }
     return cursor + 1
 }
 
@@ -288,6 +345,10 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
             anticipatoryLanding = anticipatoryLanding(wordCursor),
             emDashAside = config.useParentheticalAside && wordCursor in analysis.emDashAsideIndices,
             phraseContour = analysis.phraseContours[wordCursor] ?: PhraseContour.NONE,
+            prose = prose,
+            pairedEmDashInUnit =
+                (frameStartCursor until nextCursor).any { it in analysis.pairedEmDashIndices },
+            afterPairedEmDash = followsPairedEmDash(wordCursor),
         )
 
     frames +=
@@ -300,6 +361,23 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
         )
 
     return consumeContextPunctuation(nextCursor)
+}
+
+/**
+ * Whether the boundary punctuation directly before this word is the closing (or opening) dash of
+ * a paired aside — mirrors the back-scan in [boundaryBefore], skipping quotes/brackets.
+ */
+private fun RsvpGenerationContext.followsPairedEmDash(wordCursor: Int): Boolean {
+    var cursor = wordCursor - 1
+    while (cursor >= 0) {
+        val token = expanded[cursor].token
+        if (token.type != TokenType.PUNCTUATION) return false
+        if (cursor in analysis.pairedEmDashIndices) return true
+        val ch = token.text.firstOrNull() ?: return false
+        if (ch !in SKIPPABLE_BOUNDARY_PUNCTUATION) return false
+        cursor--
+    }
+    return false
 }
 
 private fun RsvpGenerationContext.focalSuppression(wordCursor: Int): Double {

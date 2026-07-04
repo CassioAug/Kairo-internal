@@ -81,14 +81,19 @@ class ReaderPaginationTest {
     }
 
     @Test
-    fun buildVisualChapterPages_insertsInlineImageAsNavigablePage() {
+    fun buildVisualChapterPages_keepsInlineImageOnAnchoredTextPage() {
         val tokens = words("one", "two", "three", "four")
         val textPages =
             listOf(
                 ChapterPage(index = 0, startTokenIndex = 0, endTokenIndex = 1, wordCount = 2),
                 ChapterPage(index = 1, startTokenIndex = 2, endTokenIndex = 3, wordCount = 2),
             )
-        val imageBlock = ReaderImageBlock(imagePath = "images/full-page.jpg", index = 0)
+        val imageBlock =
+            ReaderImageBlock(
+                imagePath = "images/full-page.jpg",
+                index = 0,
+                anchorTokenIndex = 2,
+            )
         val blocks =
             listOf(
                 ReaderParagraphBlock(Paragraph(tokens = tokens.subList(0, 2), startIndex = 0)),
@@ -98,24 +103,29 @@ class ReaderPaginationTest {
 
         val pages = buildVisualChapterPages(textPages, blocks, tokens)
 
-        assertEquals(3, pages.size)
+        assertEquals(2, pages.size)
         assertEquals(ChapterPageKind.TEXT, pages[0].kind)
-        assertEquals(ChapterPageKind.IMAGE, pages[1].kind)
-        assertEquals(ChapterPageKind.TEXT, pages[2].kind)
-        assertEquals("images/full-page.jpg", pages[1].imagePath)
-        assertEquals(1, pages[1].focusTokenIndex)
-        assertEquals(listOf(imageBlock), sliceBlocksForPage(blocks, pages[1]))
+        assertEquals(ChapterPageKind.TEXT, pages[1].kind)
         assertTrue(sliceBlocksForPage(blocks, pages[0]).none { it is ReaderImageBlock })
+        assertEquals(
+            listOf(imageBlock, blocks[2]),
+            sliceBlocksForPage(blocks, pages[1]),
+        )
     }
 
     @Test
-    fun buildVisualChapterPages_splitsTextPageThatCrossesImageBlock() {
+    fun buildVisualChapterPages_preservesImageOrderWhenTextPageCrossesImageBlock() {
         val tokens = words("one", "two", "three", "four")
         val textPages =
             listOf(
                 ChapterPage(index = 0, startTokenIndex = 0, endTokenIndex = 3, wordCount = 4),
             )
-        val imageBlock = ReaderImageBlock(imagePath = "images/full-page.jpg", index = 0)
+        val imageBlock =
+            ReaderImageBlock(
+                imagePath = "images/full-page.jpg",
+                index = 0,
+                anchorTokenIndex = 2,
+            )
         val firstParagraph =
             ReaderParagraphBlock(Paragraph(tokens = tokens.subList(0, 2), startIndex = 0))
         val secondParagraph =
@@ -124,17 +134,14 @@ class ReaderPaginationTest {
 
         val pages = buildVisualChapterPages(textPages, blocks, tokens)
 
-        assertEquals(3, pages.size)
+        assertEquals(1, pages.size)
         assertEquals(ChapterPageKind.TEXT, pages[0].kind)
         assertEquals(0, pages[0].startTokenIndex)
-        assertEquals(1, pages[0].endTokenIndex)
-        assertEquals(ChapterPageKind.IMAGE, pages[1].kind)
-        assertEquals(ChapterPageKind.TEXT, pages[2].kind)
-        assertEquals(2, pages[2].startTokenIndex)
-        assertEquals(3, pages[2].endTokenIndex)
-        assertEquals(listOf(firstParagraph), sliceBlocksForPage(blocks, pages[0]))
-        assertEquals(listOf(imageBlock), sliceBlocksForPage(blocks, pages[1]))
-        assertEquals(listOf(secondParagraph), sliceBlocksForPage(blocks, pages[2]))
+        assertEquals(3, pages[0].endTokenIndex)
+        assertEquals(
+            listOf(firstParagraph, imageBlock, secondParagraph),
+            sliceBlocksForPage(blocks, pages[0]),
+        )
     }
 
     @Test
@@ -151,6 +158,25 @@ class ReaderPaginationTest {
         assertEquals(ChapterPageKind.IMAGE, pages[0].kind)
         assertEquals(0, pages[0].focusTokenIndex)
         assertEquals(listOf(imageBlock), sliceBlocksForPage(listOf(imageBlock), pages[0]))
+    }
+
+    @Test
+    fun buildVisualChapterPages_createsOnePagePerImageForImageOnlyChapter() {
+        val firstImage = ReaderImageBlock(imagePath = "images/plate-1.jpg", index = 0)
+        val secondImage = ReaderImageBlock(imagePath = "images/plate-2.jpg", index = 1)
+        val blocks = listOf(firstImage, secondImage)
+
+        val pages = buildVisualChapterPages(
+            textPages = emptyList(),
+            blocks = blocks,
+            tokens = emptyList(),
+        )
+
+        assertEquals(2, pages.size)
+        assertEquals(ChapterPageKind.IMAGE, pages[0].kind)
+        assertEquals(ChapterPageKind.IMAGE, pages[1].kind)
+        assertEquals(listOf(firstImage), sliceBlocksForPage(blocks, pages[0]))
+        assertEquals(listOf(secondImage), sliceBlocksForPage(blocks, pages[1]))
     }
 
     @Test

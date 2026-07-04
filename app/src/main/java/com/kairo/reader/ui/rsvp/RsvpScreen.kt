@@ -548,7 +548,16 @@ private fun RsvpBackHandler(
     context: RsvpUiContext,
     enabled: Boolean,
 ) {
-    BackHandler(enabled = enabled) { exitAndSavePosition(context) }
+    val runtime = context.runtime
+    BackHandler(enabled = enabled) {
+        // Back dismisses the topmost overlay before exiting the screen, mirroring the
+        // tap-to-dismiss behavior of each overlay.
+        when {
+            runtime.showQuickSettings -> runtime.showQuickSettings = false
+            runtime.isPositioningMode -> finishPositioning(context, resumeIfWasPlaying = true)
+            else -> exitAndSavePosition(context)
+        }
+    }
 }
 
 @Composable

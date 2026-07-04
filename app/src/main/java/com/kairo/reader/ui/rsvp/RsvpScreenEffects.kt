@@ -30,17 +30,14 @@ internal fun RsvpPositionSaveEffect(context: RsvpUiContext) {
     val book = context.state.book
     val positionSyncGate = remember { RsvpPositionSyncGate() }
 
-    LaunchedEffect(runtime.frameIndex, context.frameState.isLoading, frames) {
+    LaunchedEffect(
+        runtime.frameIndex,
+        context.frameState.isLoading,
+        context.frameState.isComplete,
+        frames,
+    ) {
+        syncRuntimePositionFromVisibleFrame(runtime, frames, book)
         if (!positionSyncGate.shouldSync(context.frameState)) return@LaunchedEffect
-        val currentIndex = resolveCurrentTokenIndex(frames, runtime.frameIndex, book.startIndex)
-        val currentResumeCursor =
-            resolveCurrentResumeCursor(
-                frames = frames,
-                frameIndex = runtime.frameIndex,
-                fallbackCursor = book.startResumeCursor.takeIf { it >= 0 } ?: -1,
-            )
-        runtime.currentTokenIndex = currentIndex
-        runtime.currentResumeCursor = currentResumeCursor
         val now = SystemClock.elapsedRealtime()
         val shouldSave =
             now - runtime.lastPositionSaveMs >= POSITION_SAVE_INTERVAL_MS ||
@@ -84,21 +81,77 @@ internal fun RsvpLifecyclePositionSaveEffect(context: RsvpUiContext) {
 internal fun RsvpFrameAlignmentEffect(context: RsvpUiContext) {
     val runtime = context.runtime
     val frames = context.frameState.frames
+    val book = context.state.book
 
-    LaunchedEffect(frames, context.frameState.isLoading) {
+    LaunchedEffect(frames, context.frameState.isLoading, context.frameState.isComplete) {
         if (!shouldSyncPositionFromFrameState(context.frameState)) return@LaunchedEffect
+        val visibleFrameIndex = runtime.frameIndex.coerceIn(0, frames.lastIndex)
+        val visibleTokenIndex =
+            resolveCurrentTokenIndex(
+                frames = frames,
+                frameIndex = visibleFrameIndex,
+                fallbackIndex = runtime.currentTokenIndex,
+            )
+        val visibleResumeCursor =
+            resolveCurrentResumeCursor(
+                frames = frames,
+                frameIndex = visibleFrameIndex,
+                fallbackCursor = runtime.currentResumeCursor,
+            )
+        val launchResumeCursor = book.startResumeCursor.takeIf { it >= 0 } ?: -1
+        val positionLooksStale =
+            runtime.frameIndex > 0 &&
+                runtime.currentTokenIndex == book.startIndex &&
+                runtime.currentResumeCursor == launchResumeCursor
+        val targetTokenIndex =
+            if (positionLooksStale) {
+                visibleTokenIndex
+            } else {
+                runtime.currentTokenIndex
+            }
+        val targetResumeCursor =
+            if (positionLooksStale) {
+                visibleResumeCursor
+            } else {
+                runtime.currentResumeCursor
+            }
         runtime.frameIndex =
             alignFrameIndex(
                 frames = frames,
-                tokenIndex = runtime.currentTokenIndex,
-                resumeCursor = runtime.currentResumeCursor,
+                tokenIndex = targetTokenIndex,
+                resumeCursor = targetResumeCursor,
                 frameIndexMap = context.frameState.frameIndexMap,
             )
+        syncRuntimePositionFromVisibleFrame(runtime, frames, book)
     }
 }
 
 internal fun shouldSyncPositionFromFrameState(frameState: RsvpFrameLoadState): Boolean =
     frameState.frames.isNotEmpty() && !frameState.isLoading && frameState.isComplete
+
+internal fun syncRuntimePositionFromVisibleFrame(
+    runtime: RsvpRuntimeState,
+    frames: List<RsvpFrame>,
+    book: RsvpBookContext,
+) {
+    if (frames.isEmpty()) return
+    val safeFrameIndex = runtime.frameIndex.coerceIn(0, frames.lastIndex)
+    if (safeFrameIndex != runtime.frameIndex) {
+        runtime.frameIndex = safeFrameIndex
+    }
+    runtime.currentTokenIndex =
+        resolveCurrentTokenIndex(
+            frames = frames,
+            frameIndex = safeFrameIndex,
+            fallbackIndex = book.startIndex,
+        )
+    runtime.currentResumeCursor =
+        resolveCurrentResumeCursor(
+            frames = frames,
+            frameIndex = safeFrameIndex,
+            fallbackCursor = book.startResumeCursor.takeIf { it >= 0 } ?: -1,
+        )
+}
 
 @Composable
 internal fun RsvpFrameLoadFailureEffect(context: RsvpUiContext) {
@@ -320,7 +373,9 @@ internal fun RsvpAutoHideControlsEffect(runtime: RsvpRuntimeState) {
 
 @Composable
 internal fun RsvpAutoHideTempoIndicatorEffect(runtime: RsvpRuntimeState) {
-    LaunchedEffect(runtime.showTempoIndicator) {
+    // Keyed on the tempo as well so every adjustment step restarts the timer — otherwise the
+    // indicator vanishes mid-drag once the delay from the *first* step expires.
+    LaunchedEffect(runtime.showTempoIndicator, runtime.currentTempoMsPerWord) {
         if (runtime.showTempoIndicator) {
             delay(TEMPO_INDICATOR_HIDE_DELAY_MS)
             runtime.showTempoIndicator = false
@@ -330,7 +385,8 @@ internal fun RsvpAutoHideTempoIndicatorEffect(runtime: RsvpRuntimeState) {
 
 @Composable
 internal fun RsvpAutoHideFontSizeIndicatorEffect(runtime: RsvpRuntimeState) {
-    LaunchedEffect(runtime.showFontSizeIndicator) {
+    // Keyed on the size as well so every adjustment step restarts the timer (see tempo above).
+    LaunchedEffect(runtime.showFontSizeIndicator, runtime.currentFontSizeSp) {
         if (runtime.showFontSizeIndicator) {
             delay(FONT_SIZE_INDICATOR_HIDE_DELAY_MS)
             runtime.showFontSizeIndicator = false

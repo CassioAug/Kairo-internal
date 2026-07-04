@@ -270,7 +270,7 @@ class RsvpPlaybackStateTest {
     }
 
     @Test
-    fun loadingPreviewFramesDoNotSyncOverRestoredRotationPosition() {
+    fun loadingPreviewFramesDoNotPersistOverRestoredRotationPosition() {
         val previewFrameState =
             RsvpFrameLoadState(
                 frames =
@@ -288,6 +288,69 @@ class RsvpPlaybackStateTest {
 
         assertFalse(shouldSyncPositionFromFrameState(previewFrameState))
         assertTrue(shouldSyncPositionFromFrameState(loadedFrameState))
+    }
+
+    @Test
+    fun visiblePreviewFramesStillUpdateRuntimeResumePoint() {
+        val runtime =
+            RsvpRuntimeState().apply {
+                frameIndex = 1
+                currentTokenIndex = 4
+                currentResumeCursor = 40
+            }
+        val frames =
+            listOf(
+                RsvpFrame(
+                    tokens = listOf(Token(text = "First", type = TokenType.WORD)),
+                    durationMs = 120L,
+                    originalTokenIndex = 4,
+                    resumeCursor = 40,
+                ),
+                RsvpFrame(
+                    tokens = listOf(Token(text = "Second", type = TokenType.WORD)),
+                    durationMs = 120L,
+                    originalTokenIndex = 8,
+                    resumeCursor = 80,
+                ),
+            )
+
+        syncRuntimePositionFromVisibleFrame(
+            runtime = runtime,
+            frames = frames,
+            book = rsvpBookContext(startIndex = 4, startResumeCursor = 40),
+        )
+
+        assertEquals(8, runtime.currentTokenIndex)
+        assertEquals(80, runtime.currentResumeCursor)
+    }
+
+    @Test
+    fun visibleFrameSyncClampsRuntimeFrameIndexToLoadedFrames() {
+        val runtime =
+            RsvpRuntimeState().apply {
+                frameIndex = 10
+                currentTokenIndex = 0
+                currentResumeCursor = 0
+            }
+        val frames =
+            listOf(
+                RsvpFrame(
+                    tokens = listOf(Token(text = "Only", type = TokenType.WORD)),
+                    durationMs = 120L,
+                    originalTokenIndex = 12,
+                    resumeCursor = 120,
+                ),
+            )
+
+        syncRuntimePositionFromVisibleFrame(
+            runtime = runtime,
+            frames = frames,
+            book = rsvpBookContext(startIndex = 4, startResumeCursor = 40),
+        )
+
+        assertEquals(0, runtime.frameIndex)
+        assertEquals(12, runtime.currentTokenIndex)
+        assertEquals(120, runtime.currentResumeCursor)
     }
 
     @Test
@@ -591,5 +654,17 @@ class RsvpPlaybackStateTest {
             frames = frames,
             baseTempoMs = 120L,
             isLoading = isLoading,
+        )
+
+    private fun rsvpBookContext(
+        startIndex: Int,
+        startResumeCursor: Int,
+    ): RsvpBookContext =
+        RsvpBookContext(
+            bookId = BookId("book"),
+            chapterIndex = 0,
+            tokens = emptyList(),
+            startIndex = startIndex,
+            startResumeCursor = startResumeCursor,
         )
 }

@@ -6,6 +6,7 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.rsvp.RsvpEngine
+import com.kairo.reader.core.rsvp.resolveAnalysisStartIndex
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
 import com.kairo.reader.data.token.TokenRepository
@@ -137,12 +138,18 @@ class RsvpFrameRepositoryImpl(
         if (safeStartIndex >= endExclusive) {
             return RsvpFrameSet(frames = emptyList(), baseTempoMs = config.tempoMsPerWord)
         }
-        val previewTokens = tokens.subList(safeStartIndex, endExclusive)
+        val contextStartIndex = resolveAnalysisStartIndex(tokens, safeStartIndex)
+        val previewTokens = tokens.subList(contextStartIndex, endExclusive)
+        val relativeStartIndex = safeStartIndex - contextStartIndex
         val frames =
             withContext(previewDispatcher) {
-                engine.generateFrames(previewTokens, startIndex = 0, config = config)
+                engine.generateFrames(
+                    tokens = previewTokens,
+                    startIndex = relativeStartIndex,
+                    config = config,
+                )
             }.map { frame ->
-                frame.asPreviewFrame(originalIndexOffset = safeStartIndex, tokenCount = tokens.size)
+                frame.asPreviewFrame(originalIndexOffset = contextStartIndex, tokenCount = tokens.size)
             }
         return RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
     }

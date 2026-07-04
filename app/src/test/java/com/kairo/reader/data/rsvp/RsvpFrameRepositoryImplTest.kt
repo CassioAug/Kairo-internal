@@ -205,7 +205,7 @@ class RsvpFrameRepositoryImplTest {
     }
 
     @Test
-    fun getPreviewFramesUsesLocalWindowAndShiftsOriginalIndexes() = runTest {
+    fun getPreviewFramesUsesContextWindowAndShiftsOriginalIndexes() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val engine = CountingEngine()
         val repository =
@@ -233,8 +233,8 @@ class RsvpFrameRepositoryImplTest {
         request.join()
 
         val frames = requireNotNull(preview).frames
-        assertEquals(listOf(0), engine.startIndexes)
-        assertEquals(listOf(3), engine.tokenCounts)
+        assertEquals(listOf(4), engine.startIndexes)
+        assertEquals(listOf(7), engine.tokenCounts)
         assertEquals(3, frames.size)
         assertEquals(4, frames.first().originalTokenIndex)
         assertEquals(7, frames.last().nextOriginalTokenIndex)

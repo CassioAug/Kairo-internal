@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -143,6 +144,21 @@ internal fun ReaderRoute(
             )
         }
     val rsvpResultResumeCursor by rsvpResumeCursorFlow.collectAsState(initial = -1)
+    val rsvpResultTempoFlow =
+        remember(backStackEntry) {
+            backStackEntry.savedStateHandle.getStateFlow(
+                KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS,
+                -1L,
+            )
+        }
+    val rsvpResultTempoMs by rsvpResultTempoFlow.collectAsState(initial = -1L)
+    var pendingRsvpLaunchTempoMs by rememberSaveable(bookId) { mutableLongStateOf(-1L) }
+    LaunchedEffect(rsvpResultTempoMs) {
+        if (rsvpResultTempoMs > 0L) {
+            pendingRsvpLaunchTempoMs = rsvpResultTempoMs
+            backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS] = -1L
+        }
+    }
     val safeRsvpResultIndex =
         if (rsvpResultIndex >= 0) {
             val tokens = uiState.chapterData?.tokens
@@ -306,6 +322,8 @@ internal fun ReaderRoute(
                 readerPositionSaver = readerPositionSaver,
                 getLastExplicitFocusIndex = { lastExplicitFocusIndex },
                 setLastExplicitFocusIndex = { lastExplicitFocusIndex = it },
+                getPendingRsvpLaunchTempoMsPerWord = { pendingRsvpLaunchTempoMs },
+                clearPendingRsvpLaunchTempoMsPerWord = { pendingRsvpLaunchTempoMs = -1L },
                 onShowUserMessage = onShowUserMessage,
             )
         )

@@ -47,6 +47,10 @@ interface PreferencesRepository {
 
     suspend fun updateRsvpHorizontalBias(bias: Float)
 
+    suspend fun updateRsvpPositioningGridEnabled(enabled: Boolean)
+
+    suspend fun updateRsvpPositioningGridSnap(snap: Float)
+
     suspend fun updateFocusModeEnabled(enabled: Boolean)
 
     suspend fun updateFocusHideStatusBar(enabled: Boolean)

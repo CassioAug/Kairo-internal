@@ -2,6 +2,8 @@
 
 package com.kairo.reader.core.linguistics
 
+import kotlin.math.ln
+
 data class WordAnalysis(
     val syllableCount: Int,
     val frequencyScore: Double,
@@ -322,42 +324,74 @@ object WordAnalyzer {
      */
     fun getFrequencyScore(word: String): Double = analyze(word).frequencyScore
 
-    @Suppress("CyclomaticComplexMethod")
+    /**
+     * Estimates how *easy a word is to decode at a glance*, from [MIN_EASE] (slow, effortful) to
+     * 1.0 (instant). This drives how much extra display time a word earns.
+     *
+     * It is computed from the word's own structure — no dictionary — so it generalises to any
+     * word, including proper names and invented words:
+     *  - **letter rarity**: words built from common English letters (e, t, a, o, …) decode faster
+     *    than ones with rare letters (q, x, z, j, k, v), measured as mean per-letter surprisal;
+     *  - **consonant clusters**: runs like "str", "ngth", "mps" are slower to resolve;
+     *  - **short-word bonus**: very short tokens are recognised almost instantly.
+     *
+     * Word length and syllable count are deliberately *not* folded in here — the engine's length
+     * curve and per-syllable time already handle those. Double-counting length is exactly what
+     * made the old list-based heuristic over-slow common-but-long words.
+     *
+     * A small built-in set of ultra-common words acts only as a floor, so a word like "the" can
+     * never be misjudged as effortful.
+     */
     private fun computeFrequencyScore(word: String): Double {
-        val lower = word.lowercase()
+        val letters = word.lowercase().filter { it.isLetter() }
+        if (letters.isEmpty()) return NEUTRAL_EASE
 
-        // Heuristic for unknown words based on word length and structure
-        val lengthPenalty =
-            when {
-                lower.length <= 4 -> 0.6 // Short words are often common
-                lower.length <= 6 -> 0.5
-                lower.length <= 8 -> 0.4
-                lower.length <= 10 -> 0.3
-                else -> 0.2 // Very long words are usually rare/complex
+        // Mean per-letter information content (bits). Common letters ~3-4 bits; rare ~7-10.
+        val meanSurprisal = letters.sumOf { ch -> letterSurprisalBits(ch) } / letters.length
+        val letterEase =
+            ((HARD_SURPRISAL_BITS - meanSurprisal) / (HARD_SURPRISAL_BITS - EASY_SURPRISAL_BITS))
+                .coerceIn(0.0, 1.0)
+
+        // Hardest consonant cluster to decode (longest run of consecutive consonants).
+        val clusterPenalty =
+            when (longestConsonantRun(letters)) {
+                0, 1, 2 -> 0.0
+                3 -> CONSONANT_CLUSTER_PENALTY
+                else -> CONSONANT_CLUSTER_PENALTY * 2
             }
 
-        // Bonus for common word patterns
-        val patternBonus =
-            when {
-                lower.endsWith("ing") -> 0.1
-                lower.endsWith("ed") -> 0.1
-                lower.endsWith("ly") -> 0.05
-                lower.endsWith("ness") -> 0.0
-                lower.endsWith("ment") -> 0.0
-                lower.endsWith("tion") -> -0.05 // Technical/formal
-                lower.endsWith("ology") -> -0.1 // Scientific
-                else -> 0.0
-            }
+        val shortBonus = if (letters.length <= 3) SHORT_WORD_EASE_BONUS else 0.0
+        val computed = (letterEase + shortBonus - clusterPenalty).coerceIn(MIN_EASE, 1.0)
 
-        val score =
-            when (lower) {
-                in veryCommonWords -> 1.0
-                in commonWords -> 0.85
-                in moderateWords -> 0.7
-                else -> (lengthPenalty + patternBonus).coerceIn(0.1, 0.6)
-            }
+        return maxOf(computed, knownCommonEase(word.lowercase()))
+    }
 
-        return score
+    /** A floor for words we are certain are common, so they are never over-slowed. */
+    private fun knownCommonEase(word: String): Double =
+        when (word) {
+            in veryCommonWords -> 1.0
+            in commonWords -> 0.85
+            in moderateWords -> 0.7
+            else -> 0.0
+        }
+
+    private fun letterSurprisalBits(ch: Char): Double {
+        val pct = ENGLISH_LETTER_FREQ_PCT[ch] ?: UNKNOWN_LETTER_FREQ_PCT
+        return -ln(pct / 100.0) / LN2
+    }
+
+    private fun longestConsonantRun(letters: String): Int {
+        var best = 0
+        var run = 0
+        for (ch in letters) {
+            if (ch in vowels) {
+                run = 0
+            } else {
+                run++
+                if (run > best) best = run
+            }
+        }
+        return best
     }
 
     /**
@@ -471,6 +505,32 @@ object WordAnalyzer {
 
         return (baseOrp + adjustment).coerceIn(0, length - 1)
     }
+
+    // --- Decoding-ease model (dictionary-free) ---
+    private const val LN2 = 0.6931471805599453
+    private const val NEUTRAL_EASE = 0.6
+    private const val MIN_EASE = 0.12
+
+    // Mean per-letter surprisal (bits) mapped to ease: <= EASY reads instantly, >= HARD is slow.
+    private const val EASY_SURPRISAL_BITS = 3.6
+    private const val HARD_SURPRISAL_BITS = 6.2
+    private const val CONSONANT_CLUSTER_PENALTY = 0.12
+    private const val SHORT_WORD_EASE_BONUS = 0.15
+
+    // Letters outside a-z (digits, accented chars) are treated as fairly uncommon.
+    private const val UNKNOWN_LETTER_FREQ_PCT = 0.5
+
+    // Standard English letter frequencies (% of letters in running text). This is alphabet
+    // statistics — 26 numbers — not a word list, so the difficulty estimate generalises to any
+    // word without us enumerating a dictionary.
+    private val ENGLISH_LETTER_FREQ_PCT =
+        mapOf(
+            'e' to 12.70, 't' to 9.06, 'a' to 8.17, 'o' to 7.51, 'i' to 6.97, 'n' to 6.75,
+            's' to 6.33, 'h' to 6.09, 'r' to 5.99, 'd' to 4.25, 'l' to 4.03, 'c' to 2.78,
+            'u' to 2.76, 'm' to 2.41, 'w' to 2.36, 'f' to 2.23, 'g' to 2.02, 'y' to 1.97,
+            'p' to 1.93, 'b' to 1.29, 'v' to 0.98, 'k' to 0.77, 'j' to 0.15, 'x' to 0.15,
+            'q' to 0.10, 'z' to 0.07,
+        )
 
     private const val ANALYSIS_CACHE_INITIAL_CAPACITY = 256
     private const val ANALYSIS_CACHE_LOAD_FACTOR = 0.75f
