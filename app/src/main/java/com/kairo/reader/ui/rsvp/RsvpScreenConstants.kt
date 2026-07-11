@@ -26,6 +26,11 @@ const val TEMPO_SWIPE_THRESHOLD_PX = 30f
 const val DRAG_AXIS_LOCK_THRESHOLD_PX = 12f
 const val SWEEP_SWIPE_THRESHOLD_PX = 30f
 const val SWEEP_FRAME_STEP = 1
+const val REGRESSION_PACE_STEP = 0.06f
+const val REGRESSION_PACE_MAX_SCALE = 1.18f
+const val REGRESSION_RECOVERY_START_FRAMES = 14
+const val REGRESSION_RECOVERY_STEP = 0.006f
+const val REPLAY_PHRASE_MAX_WORDS = 12
 const val POSITIONING_BIAS_PER_PX = 0.0015f
 
 // Positioning-mode adjustment grid: alignment lines every POSITIONING_GRID_SPACING_BIAS on both

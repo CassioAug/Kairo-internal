@@ -559,13 +559,11 @@ private fun RsvpPlaybackControlsRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = {
-            runtime.frameIndex = (runtime.frameIndex - 1).coerceAtLeast(0)
-            runtime.completed = false
-            context.haptics.onFrameStep()
+            replayPreviousPhrase(context)
         }) {
             Icon(
                 Icons.Default.SkipPrevious,
-                contentDescription = stringResource(R.string.content_desc_previous),
+                contentDescription = stringResource(R.string.content_desc_replay_phrase),
                 modifier = Modifier.size(skipIconSize),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
