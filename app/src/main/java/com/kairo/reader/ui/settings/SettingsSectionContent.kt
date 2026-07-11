@@ -67,6 +67,7 @@ import com.kairo.reader.R
 import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.model.RsvpCustomProfile
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
@@ -78,8 +79,12 @@ import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.MAX_TEMPO_MS_PER_WORD
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
+import com.kairo.reader.ui.rsvp.HORIZONTAL_BIAS_MAX
+import com.kairo.reader.ui.rsvp.HORIZONTAL_BIAS_MIN
 import com.kairo.reader.ui.rsvp.MAX_FONT_SIZE_SP
 import com.kairo.reader.ui.rsvp.MIN_FONT_SIZE_SP
+import com.kairo.reader.ui.rsvp.VERTICAL_BIAS_MAX
+import com.kairo.reader.ui.rsvp.VERTICAL_BIAS_MIN
 import com.kairo.reader.ui.rsvp.rsvpSpeedBandLabelRes
 import kotlin.math.roundToInt
 
@@ -528,6 +533,70 @@ private fun BlinkModeSelector(
 }
 
 @Composable
+private fun ContextAssistModeSelector(
+    selected: RsvpContextAssistMode,
+    onSelect: (RsvpContextAssistMode) -> Unit,
+) {
+    Text(
+        stringResource(R.string.rsvp_context_assist_title),
+        style = MaterialTheme.typography.bodyLarge,
+    )
+    Text(
+        stringResource(contextAssistModeDescriptionRes(selected)),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(RsvpContextAssistMode.entries, key = { it.name }) { mode ->
+            val isSelected = mode == selected
+            Surface(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onSelect(mode) },
+                shape = RoundedCornerShape(12.dp),
+                color =
+                    MaterialTheme.colorScheme.surfaceVariant.copy(
+                        alpha = if (isSelected) 0.7f else 0.4f,
+                    ),
+                border =
+                    BorderStroke(
+                        1.dp,
+                        if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        },
+                    ),
+            ) {
+                Text(
+                    stringResource(contextAssistModeLabelRes(mode)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+private fun contextAssistModeLabelRes(mode: RsvpContextAssistMode): Int =
+    when (mode) {
+        RsvpContextAssistMode.OFF -> R.string.rsvp_context_assist_off
+        RsvpContextAssistMode.PREVIOUS_WORDS -> R.string.rsvp_context_assist_previous
+        RsvpContextAssistMode.FULL_CLAUSE -> R.string.rsvp_context_assist_clause
+    }
+
+private fun contextAssistModeDescriptionRes(mode: RsvpContextAssistMode): Int =
+    when (mode) {
+        RsvpContextAssistMode.OFF -> R.string.rsvp_context_assist_off_description
+        RsvpContextAssistMode.PREVIOUS_WORDS ->
+            R.string.rsvp_context_assist_previous_description
+        RsvpContextAssistMode.FULL_CLAUSE -> R.string.rsvp_context_assist_clause_description
+    }
+
+@Composable
 fun RsvpSettingsContent(
     selectedProfileId: String,
     customProfiles: List<RsvpCustomProfile>,
@@ -546,7 +615,7 @@ fun RsvpSettingsContent(
     onSaveCustomProfile: (String, RsvpConfig) -> Unit,
     onDeleteCustomProfile: (String) -> Unit,
     onTempoMsPerWordChange: (Long) -> Unit,
-    onConfigChange: (RsvpConfig) -> Unit,
+    onConfigChange: ((RsvpConfig) -> RsvpConfig) -> Unit,
     onUnlockExtremeSpeedChange: (Boolean) -> Unit,
     onRsvpFontSizeChange: (Float) -> Unit,
     onRsvpTextBrightnessChange: (Float) -> Unit,
@@ -562,7 +631,7 @@ fun RsvpSettingsContent(
         }
 
     fun updateConfig(updater: (RsvpConfig) -> RsvpConfig) {
-        onConfigChange(updater(config))
+        onConfigChange(updater)
     }
 
     RsvpProfileSelector(
@@ -671,6 +740,58 @@ fun RsvpSettingsContent(
             checked = config.useAdaptiveTiming,
             onCheckedChange = { enabled ->
                 updateConfig { it.copy(useAdaptiveTiming = enabled) }
+            },
+        )
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    SettingsCard(
+        title = stringResource(R.string.rsvp_comprehension_title),
+        subtitle = stringResource(R.string.rsvp_comprehension_subtitle),
+    ) {
+        ContextAssistModeSelector(
+            selected = config.contextAssistMode,
+            onSelect = { mode -> updateConfig { it.copy(contextAssistMode = mode) } },
+        )
+        SettingsSwitchRow(
+            title = stringResource(R.string.rsvp_phrase_chunking_title),
+            subtitle = stringResource(R.string.rsvp_phrase_chunking_subtitle),
+            checked = config.enablePhraseChunking,
+            onCheckedChange = { enabled ->
+                updateConfig {
+                    it.copy(
+                        enablePhraseChunking = enabled,
+                        maxWordsPerUnit =
+                            if (enabled) {
+                                coercePhraseChunkWordLimit(it.maxWordsPerUnit)
+                            } else {
+                                it.maxWordsPerUnit
+                            },
+                    )
+                }
+            },
+        )
+        if (config.enablePhraseChunking) {
+            DeferredIntegerSliderRow(
+                title = stringResource(R.string.rsvp_phrase_chunk_size_title),
+                subtitle = stringResource(R.string.rsvp_phrase_chunk_size_subtitle),
+                valueLabel = { context.getString(R.string.format_words, it) },
+                rawValue = config.maxWordsPerUnit,
+                onCommit = { wordLimit ->
+                    updateConfig {
+                        it.copy(maxWordsPerUnit = coercePhraseChunkWordLimit(wordLimit))
+                    }
+                },
+                valueRange = PHRASE_CHUNK_MIN_WORDS..PHRASE_CHUNK_MAX_WORDS,
+            )
+        }
+        SettingsSwitchRow(
+            title = stringResource(R.string.rsvp_regression_pacing_title),
+            subtitle = stringResource(R.string.rsvp_regression_pacing_subtitle),
+            checked = config.useRegressionAdaptivePacing,
+            onCheckedChange = { enabled ->
+                updateConfig { it.copy(useRegressionAdaptivePacing = enabled) }
             },
         )
     }
@@ -1057,7 +1178,10 @@ fun RsvpSettingsContent(
                     rawValue = (config.dialoguePunctuationScale * 100).toFloat(),
                     onCommit = { newValue ->
                         updateConfig {
-                            it.copy(dialoguePunctuationScale = (newValue / 100.0).coerceIn(50.0, 100.0))
+                            it.copy(
+                                dialoguePunctuationScale =
+                                    percentToMultiplier(newValue, minValue = 0.5, maxValue = 1.0),
+                            )
                         }
                     },
                     valueRange = 50f..100f,
@@ -1080,7 +1204,7 @@ fun RsvpSettingsContent(
                             updateConfig {
                                 it.copy(
                                     parentheticalAsideMultiplier =
-                                    (newValue / 100.0).coerceIn(50.0, 100.0),
+                                    percentToMultiplier(newValue, minValue = 0.5, maxValue = 1.0),
                                 )
                             }
                         },
@@ -1173,7 +1297,10 @@ fun RsvpSettingsContent(
                         rawValue = (config.focalSupportCompression * 100).toFloat(),
                         onCommit = { newValue ->
                             updateConfig {
-                                it.copy(focalSupportCompression = (newValue / 100.0).coerceIn(75.0, 100.0))
+                                it.copy(
+                                    focalSupportCompression =
+                                        percentToMultiplier(newValue, minValue = 0.75, maxValue = 1.0),
+                                )
                             }
                         },
                         valueRange = 75f..100f,
@@ -1264,39 +1391,6 @@ fun RsvpSettingsContent(
                     onSelect = { mode -> updateConfig { it.copy(blinkMode = mode) } },
                 )
 
-                SettingsSwitchRow(
-                    title = stringResource(R.string.rsvp_phrase_chunking_title),
-                    subtitle = stringResource(R.string.rsvp_phrase_chunking_subtitle),
-                    checked = config.enablePhraseChunking,
-                    onCheckedChange = { enabled ->
-                        updateConfig {
-                            it.copy(
-                                enablePhraseChunking = enabled,
-                                maxWordsPerUnit =
-                                if (enabled) {
-                                    coercePhraseChunkWordLimit(it.maxWordsPerUnit)
-                                } else {
-                                    it.maxWordsPerUnit
-                                },
-                            )
-                        }
-                    },
-                )
-
-                if (config.enablePhraseChunking) {
-                    DeferredIntegerSliderRow(
-                        title = stringResource(R.string.rsvp_phrase_chunk_size_title),
-                        subtitle = stringResource(R.string.rsvp_phrase_chunk_size_subtitle),
-                        valueLabel = { context.getString(R.string.format_words, it) },
-                        rawValue = config.maxWordsPerUnit,
-                        onCommit = { wordLimit ->
-                            updateConfig {
-                                it.copy(maxWordsPerUnit = coercePhraseChunkWordLimit(wordLimit))
-                            }
-                        },
-                        valueRange = PHRASE_CHUNK_MIN_WORDS..PHRASE_CHUNK_MAX_WORDS,
-                    )
-                }
             }
 
             ExpandableSettingsSection(
@@ -1323,14 +1417,14 @@ fun RsvpSettingsContent(
                     valueLabel = { context.getString(R.string.format_percent, (it * 100).toInt()) },
                     rawValue = rsvpVerticalBias,
                     onCommit = onRsvpVerticalBiasChange,
-                    valueRange = -0.6f..0.6f,
+                    valueRange = VERTICAL_BIAS_MIN..VERTICAL_BIAS_MAX,
                 )
                 DeferredSliderRow(
                     title = stringResource(R.string.rsvp_left_bias_title),
                     valueLabel = { context.getString(R.string.format_percent, (it * 100).toInt()) },
                     rawValue = rsvpHorizontalBias,
                     onCommit = onRsvpHorizontalBiasChange,
-                    valueRange = -0.6f..0.6f,
+                    valueRange = HORIZONTAL_BIAS_MIN..HORIZONTAL_BIAS_MAX,
                 )
             }
         }
@@ -1349,9 +1443,9 @@ private fun RsvpProfileSelector(
     onDeleteCustomProfile: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var showSaveDialog by remember { mutableStateOf(false) }
-    var saveName by remember { mutableStateOf("") }
-    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSaveDialog by rememberSaveable { mutableStateOf(false) }
+    var saveName by rememberSaveable { mutableStateOf("") }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 
     val builtInOptions = remember { RsvpProfile.entries.toList() }
     val selectionState =
@@ -1531,6 +1625,7 @@ private fun RsvpProfileSelector(
                         showSaveDialog = false
                         saveName = ""
                     },
+                    enabled = saveName.trim().isNotEmpty(),
                 ) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
@@ -1625,6 +1720,13 @@ private fun RsvpConfig.asProfileIdentityConfig(): RsvpConfig {
 
 internal fun coercePhraseChunkWordLimit(value: Int): Int =
     value.coerceIn(PHRASE_CHUNK_MIN_WORDS, PHRASE_CHUNK_MAX_WORDS)
+
+internal fun percentToMultiplier(
+    percent: Float,
+    minValue: Double,
+    maxValue: Double,
+): Double =
+    (percent.toDouble() / 100.0).coerceIn(minValue, maxValue)
 
 @Composable
 private fun RsvpFontFamilySelector(

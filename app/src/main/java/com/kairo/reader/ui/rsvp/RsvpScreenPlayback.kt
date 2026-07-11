@@ -86,7 +86,11 @@ internal fun advanceFrame(context: RsvpUiContext) {
         runtime.frameIndex += 1
         return
     }
-    completePlayback(context)
+    if (shouldCompleteAtLoadedFrameBoundary(context)) {
+        completePlayback(context)
+    } else {
+        holdAtLoadingFrameBoundary(context)
+    }
 }
 
 internal fun completePlayback(context: RsvpUiContext) {

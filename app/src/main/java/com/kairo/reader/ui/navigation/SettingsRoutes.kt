@@ -85,9 +85,9 @@ internal fun NavGraphBuilder.settingsRoutes(dependencies: SettingsRouteDependenc
                     )
                 }
             },
-            onRsvpConfigChange = { config ->
+            onRsvpConfigChange = { updater ->
                 coroutineScope.launch {
-                    dependencies.container.preferencesRepository.updateRsvpConfig { config }
+                    dependencies.container.preferencesRepository.updateRsvpConfig(updater)
                 }
             },
             onUnlockExtremeSpeedChange = { enabled ->
