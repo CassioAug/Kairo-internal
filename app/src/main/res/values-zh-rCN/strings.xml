@@ -391,6 +391,27 @@
     <string name="toast_import_failed_timeout">导入失败：链接响应时间过长。</string>
     <string name="toast_import_failed_secure">导入失败：无法与该网站建立安全连接。</string>
 
+    <string name="content_desc_replay_phrase">重读短语</string>
+    <string name="rsvp_frame_load_failed">无法准备 RSVP。点按以返回阅读器。</string>
+    <string name="rsvp_positioning_grid_title">调整网格</string>
+    <string name="rsvp_positioning_grid_subtitle">定位时将单词吸附到对齐线。关闭 = 自由定位。</string>
+    <string name="rsvp_positioning_grid_snap_title">吸附强度</string>
+    <string name="rsvp_positioning_grid_snap_subtitle">位置向网格线吸附的强度。</string>
+    <string name="rsvp_positioning_grid_snap_value">%1$d％</string>
+    <string name="rsvp_comprehension_title">理解辅助</string>
+    <string name="rsvp_comprehension_subtitle">提供周边上下文、自然短语单元以及更轻松的重读体验。</string>
+    <string name="rsvp_context_assist_title">上下文辅助</string>
+    <string name="rsvp_context_assist_off">关闭</string>
+    <string name="rsvp_context_assist_previous">上一词提示</string>
+    <string name="rsvp_context_assist_clause">分句提示</string>
+    <string name="rsvp_context_assist_off_description">保留经典的单焦点 RSVP 显示。</string>
+    <string name="rsvp_context_assist_previous_description">在 ORP 焦点旁淡显最近的上一词。</string>
+    <string name="rsvp_context_assist_clause_description">在 ORP 焦点周围添加淡显的上一词和下一词提示。</string>
+    <string name="rsvp_context_assist_quick_title">上下文辅助</string>
+    <string name="rsvp_context_assist_quick_subtitle">在 ORP 焦点旁显示淡化的上一词提示。</string>
+    <string name="rsvp_regression_pacing_title">重读后放缓</string>
+    <string name="rsvp_regression_pacing_subtitle">重读或向后滑动后，暂时放缓阅读节奏。</string>
+
     <plurals name="library_chapter_count">
         <item quantity="one">%1$d 章</item>
         <item quantity="other">%1$d 章</item>
