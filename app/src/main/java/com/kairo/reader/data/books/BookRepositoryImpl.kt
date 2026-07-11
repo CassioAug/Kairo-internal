@@ -95,6 +95,21 @@ class BookRepositoryImpl(
             return@withLock persistImportedBook(parsedBook, sourceFingerprint)
         }
 
+    override suspend fun importText(request: TextImportRequest): BookImportResult =
+        importMutex.withLock {
+            val parsedText = TextImportParser.parse(request)
+            val sourceFingerprint = ImportFingerprint.textFingerprint(parsedText.plainText)
+            bookDao.getBookByImportFingerprint(sourceFingerprint)?.let { existing ->
+                return@withLock BookImportResult(
+                    book = existing.toDomain(bookDao.getChapters(existing.id)),
+                    alreadyImported = true,
+                )
+            }
+
+            val bookId = ImportFingerprint.bookIdForFingerprint(sourceFingerprint)
+            persistImportedBook(parsedText.toBook(bookId), sourceFingerprint)
+        }
+
     private fun prepareImportSource(
         uri: Uri,
         extension: String,

@@ -11,6 +11,7 @@ import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.library.LibraryBookProgress
 import com.kairo.reader.ui.library.LibraryScreen
@@ -31,6 +32,7 @@ internal fun LibraryRoute(
     initialTabRouteValue: String? = null,
     onImportFile: (Uri) -> Unit,
     onImportUrl: (String) -> Unit,
+    onImportText: (TextImportRequest) -> Unit,
     tutorialState: StartingTutorialOverlayState?,
     onTutorialNext: () -> Unit,
     onTutorialPrevious: () -> Unit,
@@ -109,6 +111,7 @@ internal fun LibraryRoute(
         },
         onImportFile = onImportFile,
         onImportUrl = onImportUrl,
+        onImportText = onImportText,
         onSettings = { navController.navigate(KairoRoutes.SETTINGS) },
         onSetCompleted = { book, isCompleted ->
             coroutineScope.launch {

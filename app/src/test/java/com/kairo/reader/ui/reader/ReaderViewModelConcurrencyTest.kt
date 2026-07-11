@@ -8,6 +8,7 @@ import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.data.books.BookImportResult
 import com.kairo.reader.data.books.BookRepository
+import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -15,9 +16,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.test.resetMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -105,14 +106,14 @@ class ReaderViewModelConcurrencyTest {
     }
 }
 
-private class FakeBookRepository(
-    private val book: Book,
-    private val chapters: List<Chapter>,
-) : BookRepository {
+private class FakeBookRepository(private val book: Book, private val chapters: List<Chapter>,) : BookRepository {
     override suspend fun importBook(uri: android.net.Uri): BookImportResult =
         BookImportResult(book = book, alreadyImported = false)
 
     override suspend fun importUrl(rawUrl: String): BookImportResult =
+        BookImportResult(book = book, alreadyImported = false)
+
+    override suspend fun importText(request: TextImportRequest): BookImportResult =
         BookImportResult(book = book, alreadyImported = false)
 
     override suspend fun getBook(bookId: BookId): Book = book

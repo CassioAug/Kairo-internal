@@ -17,6 +17,7 @@ import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.data.books.SharedTextImport
 import com.kairo.reader.sample.SampleBooks
 import com.kairo.reader.ui.navigation.KairoRoutes
 import kotlinx.coroutines.flow.combine
@@ -44,6 +45,7 @@ internal fun rememberStartingTutorialCoordinator(
     currentRoute: String?,
     externalImportUri: Uri?,
     externalArticleUrl: String?,
+    externalSharedText: SharedTextImport?,
     isImporting: Boolean,
 ): StartingTutorialCoordinator {
     val coroutineScope = rememberCoroutineScope()
@@ -207,6 +209,7 @@ internal fun rememberStartingTutorialCoordinator(
         prefs.hasSeenStartingTutorial,
         externalImportUri,
         externalArticleUrl,
+        externalSharedText,
         isImporting,
         availableTutorialLaunchContext,
     ) {
@@ -214,6 +217,7 @@ internal fun rememberStartingTutorialCoordinator(
             !tutorialAutoStarted &&
             externalImportUri == null &&
             externalArticleUrl == null &&
+            externalSharedText == null &&
             !isImporting &&
             availableTutorialLaunchContext != null
         ) {
@@ -248,11 +252,7 @@ internal fun clampTutorialStepIndex(
         index.coerceIn(0, steps.lastIndex)
     }
 
-private data class StartingTutorialLaunchContext(
-    val bookId: String,
-    val chapterIndex: Int,
-    val tokenIndex: Int,
-)
+private data class StartingTutorialLaunchContext(val bookId: String, val chapterIndex: Int, val tokenIndex: Int,)
 
 private fun resolveStartingTutorialLaunchContext(
     books: List<Book>,

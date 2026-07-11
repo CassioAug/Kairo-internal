@@ -334,7 +334,8 @@ internal object RsvpPunctuationTimingPolicy {
                     ch == '.' &&
                         (isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken)) -> null
                     isLikelySentenceContinuation(nextToken) -> sentenceContinuationPauseMs(config)
-                    else -> config.periodPauseMs.toDouble()
+                    ch == '.' -> config.periodPauseMs.toDouble()
+                    else -> max(config.periodPauseMs, config.sentenceEndPauseMs).toDouble()
                 }
             ch == '\u2026' -> ellipsisPauseBaseMs(nextToken = nextToken, config = config)
             isQuestionPunctuation(ch) -> config.sentenceEndPauseMs * QUESTION_PAUSE_FACTOR
