@@ -233,6 +233,10 @@ class RsvpFrameRepositoryImpl(
         copy(
             originalTokenIndex = (originalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
             nextOriginalTokenIndex = (nextOriginalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
+            displayOriginalStartIndex =
+                (displayOriginalStartIndex + originalIndexOffset).coerceIn(0, tokenCount),
+            displayOriginalEndExclusive =
+                (displayOriginalEndExclusive + originalIndexOffset).coerceIn(0, tokenCount),
             resumeCursor = -1,
         )
 

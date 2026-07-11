@@ -1,6 +1,7 @@
 package com.kairo.reader.ui.rsvp
 
 import androidx.compose.ui.unit.dp
+import com.kairo.reader.core.model.PAIRED_OPENING_PUNCTUATION_CHARS
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
@@ -204,4 +205,4 @@ val ORP_LINE_HEIGHT = 1.dp
 val ORP_POINTER_HEIGHT = 12.dp
 val ORP_POINTER_WIDTH = 1.dp
 val ORP_TEXT_SPACER = 4.dp
-val ORP_OPENING_PUNCTUATION = setOf('(', '[', '{', '\u201C', '\u2018')
+val ORP_OPENING_PUNCTUATION = PAIRED_OPENING_PUNCTUATION_CHARS

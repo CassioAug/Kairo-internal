@@ -273,7 +273,7 @@ data class RsvpConfig(
 
 enum class BlinkMode { OFF, SUBTLE, ADAPTIVE }
 
-enum class RsvpContextAssistMode { OFF, PREVIOUS_WORDS, FULL_CLAUSE }
+enum class RsvpContextAssistMode { OFF, PREVIOUS_WORDS, FULL_CLAUSE, SENTENCE_TICKER }
 
 enum class RsvpProfile {
     BALANCED,

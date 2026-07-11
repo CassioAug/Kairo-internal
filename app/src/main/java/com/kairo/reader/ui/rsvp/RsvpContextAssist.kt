@@ -9,10 +9,13 @@
 package com.kairo.reader.ui.rsvp
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -21,7 +24,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -47,7 +58,9 @@ import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
+import com.kairo.reader.core.model.prefersSimplifiedOrpDisplay
 import com.kairo.reader.core.model.shouldInsertSpaceBeforeToken
+import kotlin.math.roundToInt
 
 internal data class RsvpContextWindow(
     val startIndex: Int,
@@ -59,6 +72,16 @@ internal data class RsvpContextWindow(
 private data class RsvpContextContent(
     val previous: AnnotatedString,
     val upcoming: AnnotatedString,
+    val ticker: RsvpSentenceTickerContent? = null,
+)
+
+internal data class RsvpSentenceTickerContent(
+    val text: AnnotatedString,
+    val pivotPosition: Int,
+    val focusStart: Int,
+    val focusEndExclusive: Int,
+    val displayedFocusStart: Int,
+    val displayedFocusEndExclusive: Int,
 )
 
 internal data class ContextCueSlots(
@@ -74,6 +97,12 @@ internal data class ContextFocusEnvelope(
     val rightReserve: Dp,
 )
 
+internal data class ContextTickerFocusAlignment(
+    val startOffset: Int,
+    val endExclusiveOffset: Int,
+    val pivotOffset: Int,
+)
+
 @Composable
 internal fun BoxScope.RsvpContextAssist(
     context: RsvpUiContext,
@@ -84,10 +113,12 @@ internal fun BoxScope.RsvpContextAssist(
     val config = context.state.profile.config
     val mode = config.contextAssistMode
     val content = rememberRsvpContextContent(context, frame)
+    val controlsAllowContext =
+        !runtime.showControls || mode == RsvpContextAssistMode.SENTENCE_TICKER
     val visible =
         content != null &&
             mode != RsvpContextAssistMode.OFF &&
-            !runtime.showControls &&
+            controlsAllowContext &&
             !runtime.showQuickSettings &&
             !runtime.isPositioningMode &&
             !runtime.isExiting
@@ -113,26 +144,6 @@ internal fun BoxScope.RsvpContextAssist(
                         ),
                 ),
         ) {
-            val targetFocusEnvelope =
-                rememberContextFocusEnvelope(
-                    frames = context.frameState.frames,
-                    frameIndex = runtime.frameIndex,
-                    fontSizeSp = runtime.currentFontSizeSp,
-                    fontFamily = runtime.currentFontFamily,
-                    fontWeight = runtime.currentFontWeight,
-                )
-            val leftReserve =
-                animateDpAsState(
-                    targetValue = targetFocusEnvelope.leftReserve,
-                    animationSpec = tween(durationMillis = CONTEXT_ENVELOPE_ANIMATION_MS),
-                    label = "contextLeftReserve",
-                ).value
-            val rightReserve =
-                animateDpAsState(
-                    targetValue = targetFocusEnvelope.rightReserve,
-                    animationSpec = tween(durationMillis = CONTEXT_ENVELOPE_ANIMATION_MS),
-                    label = "contextRightReserve",
-                ).value
             val guideBandHeight =
                 rememberContextGuideBandHeight(
                     fontSizeSp = runtime.currentFontSizeSp,
@@ -145,16 +156,185 @@ internal fun BoxScope.RsvpContextAssist(
                             .toFloat()
                             .coerceIn(ORP_GUIDE_THICKNESS_MIN, ORP_GUIDE_THICKNESS_MAX),
                 )
-            RsvpPeripheralContext(
-                previous = content?.previous ?: AnnotatedString(""),
-                upcoming = content?.upcoming ?: AnnotatedString(""),
-                focusLeftReserve = leftReserve,
-                focusRightReserve = rightReserve,
-                fontSizeSp = runtime.currentFontSizeSp,
-                fontFamily = runtime.currentFontFamily,
-                fontWeight = runtime.currentFontWeight,
-                horizontalBias = runtime.currentHorizontalBias,
-                guideBandHeight = guideBandHeight,
+            if (mode == RsvpContextAssistMode.SENTENCE_TICKER && content?.ticker != null) {
+                RsvpSentenceTicker(
+                    content = content.ticker,
+                    fontSizeSp = runtime.currentFontSizeSp,
+                    fontFamily = runtime.currentFontFamily,
+                    fontWeight = runtime.currentFontWeight,
+                    horizontalBias = runtime.currentHorizontalBias,
+                    guideBandHeight = guideBandHeight,
+                    frameDurationMs = frame?.durationMs ?: CONTEXT_TICKER_FALLBACK_FRAME_MS,
+                )
+            } else {
+                val targetFocusEnvelope =
+                    rememberContextFocusEnvelope(
+                        frames = context.frameState.frames,
+                        frameIndex = runtime.frameIndex,
+                        fontSizeSp = runtime.currentFontSizeSp,
+                        fontFamily = runtime.currentFontFamily,
+                        fontWeight = runtime.currentFontWeight,
+                    )
+                val leftReserve =
+                    animateDpAsState(
+                        targetValue = targetFocusEnvelope.leftReserve,
+                        animationSpec = tween(durationMillis = CONTEXT_ENVELOPE_ANIMATION_MS),
+                        label = "contextLeftReserve",
+                    ).value
+                val rightReserve =
+                    animateDpAsState(
+                        targetValue = targetFocusEnvelope.rightReserve,
+                        animationSpec = tween(durationMillis = CONTEXT_ENVELOPE_ANIMATION_MS),
+                        label = "contextRightReserve",
+                    ).value
+                RsvpPeripheralContext(
+                    previous = content?.previous ?: AnnotatedString(""),
+                    upcoming = content?.upcoming ?: AnnotatedString(""),
+                    focusLeftReserve = leftReserve,
+                    focusRightReserve = rightReserve,
+                    fontSizeSp = runtime.currentFontSizeSp,
+                    fontFamily = runtime.currentFontFamily,
+                    fontWeight = runtime.currentFontWeight,
+                    horizontalBias = runtime.currentHorizontalBias,
+                    guideBandHeight = guideBandHeight,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RsvpSentenceTicker(
+    content: RsvpSentenceTickerContent,
+    fontSizeSp: Float,
+    fontFamily: RsvpFontFamily,
+    fontWeight: RsvpFontWeight,
+    horizontalBias: Float,
+    guideBandHeight: Dp?,
+    frameDurationMs: Long,
+) {
+    if (content.text.isEmpty()) return
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    val effectiveFontSizeSp = stableContextCueFontSizeSp(fontSizeSp)
+    val baseStyle = MaterialTheme.typography.displayMedium
+    val textStyle =
+        remember(effectiveFontSizeSp, fontFamily, fontWeight, baseStyle) {
+            baseStyle.copy(
+                fontSize = effectiveFontSizeSp.sp,
+                lineHeight = (effectiveFontSizeSp * ORP_TEXT_LINE_HEIGHT_MULTIPLIER).sp,
+                fontFamily = resolveFontFamily(fontFamily),
+                fontWeight = resolveFontWeight(fontWeight),
+                letterSpacing = ORP_LETTER_SPACING_SP.sp,
+            )
+        }
+    val tickerModifier =
+        if (guideBandHeight != null) {
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = ORP_HORIZONTAL_PADDING)
+                .height(guideBandHeight)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = ORP_HORIZONTAL_PADDING)
+        }
+
+    BoxWithConstraints(
+        modifier = tickerModifier.clipToBounds(),
+        contentAlignment = Alignment.Center,
+    ) {
+        val measured =
+            remember(content.text.text, textStyle, textMeasurer) {
+                textMeasurer.measure(
+                    text = AnnotatedString(content.text.text),
+                    style = textStyle,
+                    overflow = TextOverflow.Clip,
+                    maxLines = 1,
+                    softWrap = false,
+                    constraints = Constraints(maxWidth = Int.MAX_VALUE),
+                )
+            }
+        val safePivot =
+            content.pivotPosition.coerceIn(0, (content.text.length - 1).coerceAtLeast(0))
+        val pivotBox = measured.getBoundingBox(safePivot)
+        val pivotCenter = pivotBox.left + (pivotBox.width / BIAS_SCALE_FACTOR)
+        val safeFocusStart = content.displayedFocusStart.coerceIn(0, content.text.lastIndex)
+        val safeFocusEnd =
+            (content.displayedFocusEndExclusive - 1)
+                .coerceIn(safeFocusStart, content.text.lastIndex)
+        val focusStartBox = measured.getBoundingBox(safeFocusStart)
+        val focusEndBox = measured.getBoundingBox(safeFocusEnd)
+        val focusWidth = (focusEndBox.right - focusStartBox.left).coerceAtLeast(pivotBox.width)
+        val maxWidthPx = with(density) { maxWidth.toPx() }.coerceAtLeast(MIN_ORP_WIDTH_PX)
+        val bounds =
+            calculateOrpBounds(
+                maxWidthPx = maxWidthPx,
+                effectiveBias =
+                    horizontalBias.coerceIn(HORIZONTAL_BIAS_MIN, HORIZONTAL_BIAS_MAX),
+                baseEdgePx = with(density) { ORP_BASE_EDGE.toPx() },
+                extraEdgePx = with(density) { ORP_EXTRA_EDGE.toPx() },
+                measuredWidthPx = focusWidth,
+            )
+        val targetTranslation = bounds.desiredPivotX - pivotCenter
+        val tickerWidth = with(density) { measured.size.width.toDp() }
+        val motionDurationMs =
+            (frameDurationMs.coerceAtLeast(1L) * CONTEXT_TICKER_MOTION_DURATION_FRACTION)
+                .roundToInt()
+                .coerceIn(
+                    CONTEXT_TICKER_MOTION_MIN_MS,
+                    CONTEXT_TICKER_MOTION_MAX_MS,
+                )
+        val translationX =
+            animateFloatAsState(
+                targetValue = targetTranslation,
+                animationSpec =
+                    tween(
+                        durationMillis = motionDurationMs,
+                        easing = LinearOutSlowInEasing,
+                    ),
+                label = "sentenceTickerTranslation",
+            ).value
+
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush =
+                                Brush.horizontalGradient(
+                                    ZERO_FLOAT to Color.Transparent,
+                                    CONTEXT_TICKER_EDGE_FADE_FRACTION to Color.Black,
+                                    (ONE_FLOAT - CONTEXT_TICKER_EDGE_FADE_FRACTION) to Color.Black,
+                                    ONE_FLOAT to Color.Transparent,
+                            ),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    },
+        ) {
+            Text(
+                text = content.text,
+                style = textStyle,
+                color = Color.Transparent,
+                overflow = TextOverflow.Clip,
+                maxLines = 1,
+                softWrap = false,
+                modifier =
+                    Modifier
+                        .wrapContentSize(
+                            align = Alignment.CenterStart,
+                            unbounded = true,
+                        )
+                        .requiredWidth(tickerWidth)
+                        .graphicsLayer {
+                            this.translationX = snapTranslationToRenderPixel(translationX)
+                        },
             )
         }
     }
@@ -361,6 +541,10 @@ private fun rememberRsvpContextContent(
     if (frame == null) return null
     val tokens = context.state.book.tokens
     val mode = context.state.profile.config.contextAssistMode
+    val simplifyPunctuation =
+        context.state.profile.config.prefersSimplifiedOrpDisplay(
+            context.runtime.currentTempoMsPerWord,
+        )
     if (tokens.isEmpty() || mode == RsvpContextAssistMode.OFF) return null
 
     val currentTokenIndex = frame.originalTokenIndex.coerceIn(0, tokens.lastIndex)
@@ -368,23 +552,53 @@ private fun rememberRsvpContextContent(
     val isBoundaryFrame =
         currentToken.type == TokenType.PARAGRAPH_BREAK ||
             currentToken.type == TokenType.PAGE_BREAK
-    if (isBoundaryFrame) return null
+    if (isBoundaryFrame && mode != RsvpContextAssistMode.SENTENCE_TICKER) return null
 
     val window =
         remember(
             tokens,
             currentTokenIndex,
-            frame.nextOriginalTokenIndex,
+            frame.displayOriginalStartIndex,
+            frame.displayOriginalEndExclusive,
             mode,
         ) {
             resolveRsvpContextWindow(
                 tokens = tokens,
-                frameStartIndex = currentTokenIndex,
-                frameEndExclusive = frame.nextOriginalTokenIndex,
+                frameStartIndex = frame.displayOriginalStartIndex,
+                frameEndExclusive = frame.displayOriginalEndExclusive,
                 mode = mode,
             )
         } ?: return null
     val contextColor = MaterialTheme.colorScheme.onBackground
+    if (mode == RsvpContextAssistMode.SENTENCE_TICKER) {
+        val ticker =
+            remember(
+                tokens,
+                window,
+                frame.tokens,
+                frame.displayOriginalStartCharacterOffset,
+                frame.displayOriginalEndCharacterOffset,
+                simplifyPunctuation,
+                contextColor,
+            ) {
+                buildSentenceTickerContent(
+                    tokens = tokens,
+                    window = window,
+                    displayedTokens = frame.tokens,
+                    displayedSourceStartCharacterOffset =
+                        frame.displayOriginalStartCharacterOffset,
+                    displayedSourceEndCharacterOffset =
+                        frame.displayOriginalEndCharacterOffset,
+                    simplifyPunctuation = simplifyPunctuation,
+                    color = contextColor,
+                )
+            }
+        return RsvpContextContent(
+            previous = AnnotatedString(""),
+            upcoming = AnnotatedString(""),
+            ticker = ticker,
+        )
+    }
     val previousWords =
         if (mode == RsvpContextAssistMode.FULL_CLAUSE) {
             CONTEXT_CLAUSE_PREVIOUS_WORDS
@@ -441,11 +655,10 @@ internal fun resolveRsvpContextWindow(
 ): RsvpContextWindow? {
     if (tokens.isEmpty() || mode == RsvpContextAssistMode.OFF) return null
     val safeStart = frameStartIndex.coerceIn(0, tokens.lastIndex)
-    val focusStart =
+    val focusWordIndex =
         findWordInRange(tokens, safeStart, frameEndExclusive)
             ?: findWordAtOrAfter(tokens, safeStart)
-    if (focusStart < 0) return null
-    val focusEnd = frameEndExclusive.coerceIn(focusStart + 1, tokens.size)
+    if (focusWordIndex < 0) return null
 
     val baseRange =
         when (mode) {
@@ -453,16 +666,30 @@ internal fun resolveRsvpContextWindow(
             RsvpContextAssistMode.PREVIOUS_WORDS ->
                 resolveNearbyWordRange(
                     tokens = tokens,
-                    focusIndex = focusStart,
+                    focusIndex = focusWordIndex,
                     wordsBefore = CONTEXT_PREVIOUS_WORDS,
                     wordsAfter = CONTEXT_UPCOMING_WORDS,
                 )
             RsvpContextAssistMode.FULL_CLAUSE ->
                 resolveClauseRange(
                     tokens = tokens,
-                    focusIndex = focusStart,
+                    focusIndex = focusWordIndex,
+                )
+            RsvpContextAssistMode.SENTENCE_TICKER ->
+                resolveTickerRange(
+                    tokens = tokens,
+                    focusIndex = focusWordIndex,
                 )
         }
+    val frameContainsWord =
+        focusWordIndex in safeStart until frameEndExclusive.coerceAtMost(tokens.size)
+    val focusStart =
+        if (mode == RsvpContextAssistMode.SENTENCE_TICKER && frameContainsWord) {
+            safeStart
+        } else {
+            focusWordIndex
+        }
+    val focusEnd = frameEndExclusive.coerceIn(focusStart + 1, baseRange.last + 1)
     return RsvpContextWindow(
         startIndex = baseRange.first,
         endExclusive = baseRange.last + 1,
@@ -534,6 +761,135 @@ private fun resolveClauseRange(
             wordsAfter = CONTEXT_LONG_CLAUSE_UPCOMING_WORDS,
         )
     }
+}
+
+private fun resolveTickerRange(
+    tokens: List<Token>,
+    focusIndex: Int,
+): IntRange {
+    var start = focusIndex
+    var previousWords = 0
+    while (start > 0) {
+        val candidate = tokens[start - 1]
+        if (candidate.type == TokenType.WORD && previousWords >= CONTEXT_TICKER_PREVIOUS_WORDS) {
+            break
+        }
+        start -= 1
+        if (candidate.type == TokenType.WORD) previousWords += 1
+    }
+
+    var endExclusive = (focusIndex + 1).coerceAtMost(tokens.size)
+    var upcomingWords = 0
+    while (endExclusive < tokens.size) {
+        val candidate = tokens[endExclusive]
+        if (candidate.type == TokenType.WORD && upcomingWords >= CONTEXT_TICKER_UPCOMING_WORDS) {
+            break
+        }
+        endExclusive += 1
+        if (candidate.type == TokenType.WORD) upcomingWords += 1
+    }
+    return start until endExclusive
+}
+
+internal fun buildSentenceTickerContent(
+    tokens: List<Token>,
+    window: RsvpContextWindow,
+    color: Color,
+    displayedTokens: List<Token>? = null,
+    displayedSourceStartCharacterOffset: Int = 0,
+    displayedSourceEndCharacterOffset: Int? = null,
+    simplifyPunctuation: Boolean = false,
+): RsvpSentenceTickerContent {
+    val safeStart = window.startIndex.coerceIn(0, tokens.size)
+    val safeEnd = window.endExclusive.coerceIn(safeStart, tokens.size)
+    val safeFocusStart = window.focusStartIndex.coerceIn(safeStart, safeEnd)
+    val safeFocusEnd = window.focusEndExclusive.coerceIn(safeFocusStart, safeEnd)
+    var focusStartChar = 0
+    var focusEndChar = 0
+    var previous: Token? = null
+    var renderedIndex = 0
+    val tokenStartCharacters = mutableMapOf<Int, Int>()
+    val tokenEndCharacters = mutableMapOf<Int, Int>()
+    val plainText =
+        buildString {
+            for (index in safeStart until safeEnd) {
+                val token = tokens[index]
+                if (token.isParagraphBoundary()) {
+                    if (isNotEmpty() && !endsWith(CONTEXT_TICKER_BOUNDARY_GAP)) {
+                        append(CONTEXT_TICKER_BOUNDARY_GAP)
+                    }
+                    previous = null
+                    renderedIndex = 0
+                    continue
+                }
+                if (shouldInsertSpaceBeforeToken(token, previous, renderedIndex)) append(' ')
+                val tokenStart = length
+                tokenStartCharacters[index] = tokenStart
+                if (index == safeFocusStart) focusStartChar = tokenStart
+                append(token.text)
+                tokenEndCharacters[index] = length
+                if (index in safeFocusStart until safeFocusEnd) focusEndChar = length
+                previous = token
+                renderedIndex += 1
+            }
+        }
+    if (plainText.isEmpty()) {
+        return RsvpSentenceTickerContent(AnnotatedString(""), 0, 0, 0, 0, 0)
+    }
+    val sourceFocusTokens = tokens.subList(safeFocusStart, safeFocusEnd)
+    val focusContent =
+        buildOrpTextContent(
+            tokens = displayedTokens ?: sourceFocusTokens,
+            simplifyPunctuation = simplifyPunctuation,
+        )
+    val lastFocusTokenIndex = (safeFocusEnd - 1).coerceAtLeast(safeFocusStart)
+    val firstTokenStart = tokenStartCharacters[safeFocusStart] ?: focusStartChar
+    val firstTokenEnd = tokenEndCharacters[safeFocusStart] ?: firstTokenStart
+    val lastTokenStart = tokenStartCharacters[lastFocusTokenIndex] ?: firstTokenStart
+    val lastTokenEnd = tokenEndCharacters[lastFocusTokenIndex] ?: focusEndChar
+    val sourceSliceStart =
+        (firstTokenStart + displayedSourceStartCharacterOffset)
+            .coerceIn(firstTokenStart, firstTokenEnd)
+    val sourceSliceEnd =
+        (lastTokenStart +
+            (displayedSourceEndCharacterOffset ?: (lastTokenEnd - lastTokenStart)))
+            .coerceIn(sourceSliceStart, lastTokenEnd)
+    val sourceFocusText = plainText.substring(sourceSliceStart, sourceSliceEnd)
+    val alignment =
+        resolveContextTickerFocusAlignment(
+            sourceText = sourceFocusText,
+            displayedText = focusContent.fullText,
+            displayedPivot = focusContent.pivotPosition,
+        )
+    val displayedFocusStart = sourceSliceStart + alignment.startOffset
+    val displayedFocusEndExclusive = sourceSliceStart + alignment.endExclusiveOffset
+    val pivotPosition =
+        (sourceSliceStart + alignment.pivotOffset)
+            .coerceIn(focusStartChar, (focusEndChar - 1).coerceAtLeast(focusStartChar))
+    val annotated =
+        buildAnnotatedString {
+            append(plainText)
+            addStyle(
+                SpanStyle(color = color.copy(alpha = CONTEXT_TICKER_ALPHA)),
+                0,
+                length,
+            )
+            if (focusEndChar > focusStartChar) {
+                addStyle(
+                    SpanStyle(color = Color.Transparent),
+                    focusStartChar,
+                    focusEndChar,
+                )
+            }
+        }
+    return RsvpSentenceTickerContent(
+        text = annotated,
+        pivotPosition = pivotPosition,
+        focusStart = focusStartChar,
+        focusEndExclusive = focusEndChar,
+        displayedFocusStart = displayedFocusStart,
+        displayedFocusEndExclusive = displayedFocusEndExclusive,
+    )
 }
 
 internal fun buildPeripheralContextText(
@@ -630,6 +986,59 @@ private fun Token.isClausePunctuation(): Boolean =
 internal fun stableContextCueFontSizeSp(fontSizeSp: Float): Float =
     fontSizeSp.coerceAtLeast(0f) * CONTEXT_CUE_FONT_SCALE
 
+internal fun resolveContextTickerFocusAlignment(
+    sourceText: String,
+    displayedText: String,
+    displayedPivot: Int,
+): ContextTickerFocusAlignment {
+    if (sourceText.isEmpty()) return ContextTickerFocusAlignment(0, 0, 0)
+
+    val safeDisplayedPivot =
+        displayedPivot.coerceIn(0, (displayedText.length - 1).coerceAtLeast(0))
+    val exactStart = sourceText.indexOf(displayedText).takeIf { displayedText.isNotEmpty() }
+    if (exactStart != null && exactStart >= 0) {
+        return ContextTickerFocusAlignment(
+            startOffset = exactStart,
+            endExclusiveOffset = exactStart + displayedText.length,
+            pivotOffset = exactStart + safeDisplayedPivot,
+        )
+    }
+
+    val sourceCharacterIndices = sourceText.indices.filterNot { sourceText[it].isWhitespace() }
+    val compactSource = sourceCharacterIndices.joinToString(separator = "") { sourceText[it].toString() }
+    val displayedCharacterIndices = displayedText.indices.filterNot { displayedText[it].isWhitespace() }
+    val compactDisplayed =
+        displayedCharacterIndices.joinToString(separator = "") { displayedText[it].toString() }
+    val compactStart =
+        compactSource.indexOf(compactDisplayed).takeIf { compactDisplayed.isNotEmpty() }
+    if (compactStart != null && compactStart >= 0) {
+        val compactEnd = compactStart + compactDisplayed.length - 1
+        val pivotCharacterOrdinal =
+            displayedCharacterIndices
+                .indexOfLast { it <= safeDisplayedPivot }
+                .coerceAtLeast(0)
+                .coerceAtMost(compactDisplayed.lastIndex)
+        return ContextTickerFocusAlignment(
+            startOffset = sourceCharacterIndices[compactStart],
+            endExclusiveOffset = sourceCharacterIndices[compactEnd] + 1,
+            pivotOffset = sourceCharacterIndices[compactStart + pivotCharacterOrdinal],
+        )
+    }
+
+    // Fail closed: the complete source range is already transparent, so an unexpected formatting
+    // mismatch must reserve that same range rather than expose a duplicate ticker fragment.
+    val fallbackPivot =
+        sourceText.indices
+            .filter { sourceText[it].isLetterOrDigit() }
+            .let { wordIndices -> wordIndices.getOrNull(wordIndices.size / 2) }
+            ?: (sourceText.length / 2).coerceAtMost(sourceText.lastIndex)
+    return ContextTickerFocusAlignment(
+        startOffset = 0,
+        endExclusiveOffset = sourceText.length,
+        pivotOffset = fallbackPivot,
+    )
+}
+
 internal fun resolveContextEnvelopeFrameRange(
     frameIndex: Int,
     frameCount: Int,
@@ -691,6 +1100,15 @@ private const val CONTEXT_PREVIOUS_FARTHEST_ALPHA = 0.34f
 private const val CONTEXT_UPCOMING_NEAREST_ALPHA = 0.34f
 private const val CONTEXT_UPCOMING_FARTHEST_ALPHA = 0.34f
 private const val CONTEXT_CUE_FONT_SCALE = 1f
+private const val CONTEXT_TICKER_ALPHA = 0.30f
+private const val CONTEXT_TICKER_EDGE_FADE_FRACTION = 0.08f
+private const val CONTEXT_TICKER_MOTION_DURATION_FRACTION = 0.38
+private const val CONTEXT_TICKER_MOTION_MIN_MS = 24
+private const val CONTEXT_TICKER_MOTION_MAX_MS = 72
+private const val CONTEXT_TICKER_FALLBACK_FRAME_MS = 150L
+private const val CONTEXT_TICKER_PREVIOUS_WORDS = 24
+private const val CONTEXT_TICKER_UPCOMING_WORDS = 24
+private const val CONTEXT_TICKER_BOUNDARY_GAP = "   "
 private const val CONTEXT_BASELINE_SAMPLE = "Ag"
 private val CONTEXT_FOCUS_SIDE_PADDING = 18.dp
 private val CONTEXT_MIN_FOCUS_SIDE_RESERVE = 48.dp

@@ -8,6 +8,8 @@ internal data class ExpandedToken(
     val token: Token,
     val originalIndex: Int,
     val expandedIndex: Int,
+    val sourceCharacterStart: Int,
+    val sourceCharacterEndExclusive: Int,
 )
 
 

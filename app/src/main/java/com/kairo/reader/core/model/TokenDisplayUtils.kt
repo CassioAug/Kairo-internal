@@ -2,7 +2,7 @@
 
 package com.kairo.reader.core.model
 
-private val openingPunctuationCharsForDisplay = setOf('"', '\u201C', '\u2018', '(', '[', '{')
+private val openingPunctuationCharsForDisplay = PAIRED_OPENING_PUNCTUATION_CHARS + '"'
 private val closingPunctuationCharsForDisplay =
     setOf(
         '.',
@@ -12,15 +12,20 @@ private val closingPunctuationCharsForDisplay =
         '!',
         '?',
         '"',
-        '\u201D',
-        '\u2019',
-        ')',
-        ']',
-        '}',
         '\u2014',
         '\u2013', // Em-dash — and en-dash –
         '\u2026', // Ellipsis …
-    )
+        '\u3001', // Ideographic comma 、
+        '\u3002', // Ideographic full stop 。
+        '\uFF01', // Fullwidth exclamation mark ！
+        '\uFF0C', // Fullwidth comma ，
+        '\uFF0E', // Fullwidth full stop ．
+        '\uFF1A', // Fullwidth colon ：
+        '\uFF1B', // Fullwidth semicolon ；
+        '\uFF1F', // Fullwidth question mark ？
+        '\uFF61', // Halfwidth ideographic full stop ｡
+        '\uFF64', // Halfwidth ideographic comma ､
+    ) + PAIRED_CLOSING_PUNCTUATION_CHARS
 
 private val dashJoinersForDisplay = setOf('\u2014', '\u2013')
 

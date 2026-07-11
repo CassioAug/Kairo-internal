@@ -595,6 +595,23 @@ class ComprehensionRsvpEngineHeuristicsTest {
             )
 
         assertEquals(frames.size, frames.map { it.resumeCursor }.distinct().size)
+        assertTrue(frames.all { it.displayOriginalEndExclusive == 1 })
+    }
+
+    @Test
+    fun repeatedHyphenPartsExposeDistinctVisualCharacterRanges() {
+        val frames =
+            engine.generateFrames(
+                tokens = listOf(w("ha-ha-ha")),
+                startIndex = 0,
+                config = stableConfig,
+            )
+
+        assertEquals(listOf("ha-", "ha-", "ha"), frames.map { it.tokens.first().text })
+        assertEquals(listOf(0, 3, 6), frames.map { it.displayOriginalStartCharacterOffset })
+        assertEquals(listOf(3, 6, 8), frames.map { it.displayOriginalEndCharacterOffset })
+        assertTrue(frames.all { it.displayOriginalStartIndex == 0 })
+        assertTrue(frames.all { it.displayOriginalEndExclusive == 1 })
     }
 
     @Test
@@ -829,6 +846,61 @@ class ComprehensionRsvpEngineHeuristicsTest {
         assertTrue(frames.size >= 2)
         assertEquals(listOf("word", "."), frames[0].tokens.map { it.text })
         assertEquals(listOf("\u201C", "Get"), frames[1].tokens.map { it.text })
+        assertEquals(2, frames[1].displayOriginalStartIndex)
+        assertEquals(4, frames[1].displayOriginalEndExclusive)
+        assertEquals(3, frames[1].originalTokenIndex)
+    }
+
+    @Test
+    fun nestedOpeningPunctuationHasOneVisualSourceRange() {
+        val frames =
+            engine.generateFrames(
+                tokens =
+                    listOf(
+                        w("Earlier"),
+                        p("."),
+                        p("("),
+                        p("\u201C"),
+                        w("Hello"),
+                        p(","),
+                        w("there"),
+                        p("."),
+                        p("\u201D"),
+                        p(")"),
+                    ),
+                startIndex = 0,
+                config = stableConfig,
+            )
+
+        val quotedFrame = frames.first { frame ->
+            frame.tokens.any { token -> token.type == TokenType.WORD && token.text == "Hello" }
+        }
+        assertEquals(listOf("(", "\u201C", "Hello", ","), quotedFrame.tokens.map { it.text })
+        assertEquals(2, quotedFrame.displayOriginalStartIndex)
+        assertEquals(6, quotedFrame.displayOriginalEndExclusive)
+        assertEquals(4, quotedFrame.originalTokenIndex)
+    }
+
+    @Test
+    fun cjkPairedPunctuationBelongsToOneVisualFrameRange() {
+        val frames =
+            engine.generateFrames(
+                tokens =
+                    listOf(
+                        p("\u300C"),
+                        w("\u4F60\u597D"),
+                        p("\uFF01"),
+                        p("\u300D"),
+                        w("\u7EE7\u7EED"),
+                    ),
+                startIndex = 0,
+                config = stableConfig,
+            )
+
+        assertEquals(listOf("\u300C", "\u4F60\u597D", "\uFF01", "\u300D"), frames[0].tokens.map { it.text })
+        assertEquals(0, frames[0].displayOriginalStartIndex)
+        assertEquals(4, frames[0].displayOriginalEndExclusive)
+        assertEquals(1, frames[0].originalTokenIndex)
     }
 
     @Test

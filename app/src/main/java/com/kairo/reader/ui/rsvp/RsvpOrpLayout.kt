@@ -590,7 +590,7 @@ private fun Int.safeCoerceIn(minimum: Int, maximum: Int): Int {
     }
 }
 
-private fun calculateOrpBounds(
+internal fun calculateOrpBounds(
     maxWidthPx: Float,
     effectiveBias: Float,
     baseEdgePx: Float,
