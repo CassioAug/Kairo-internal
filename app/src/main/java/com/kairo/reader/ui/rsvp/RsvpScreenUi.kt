@@ -114,6 +114,7 @@ internal fun RsvpPlaybackSurface(
     ) {
         RsvpPositioningGrid(context, bottomChromeInset)
         RsvpFocusWord(context, currentFrame, typography, colors, bottomChromeInset)
+        RsvpContextAssist(context, currentFrame, bottomChromeInset)
         RsvpPositionGuide(context, bottomChromeInset)
         RsvpProgressBar(context)
         RsvpTopBar(
@@ -282,16 +283,8 @@ private fun RsvpFocusWord(
                 preferWindowing = profile.config.prefersOrpWindowing(runtime.currentTempoMsPerWord),
                 simplifyPunctuation =
                     profile.config.prefersSimplifiedOrpDisplay(runtime.currentTempoMsPerWord),
-                guideVisible =
-                    shouldShowOrpVisualAnchor(
-                        phraseChunkingEnabled = profile.config.enablePhraseChunking,
-                        visualAnchorEnabled = profile.config.orpGuideEnabled,
-                    ),
-                pivotHighlightVisible =
-                    shouldShowOrpVisualAnchor(
-                        phraseChunkingEnabled = profile.config.enablePhraseChunking,
-                        visualAnchorEnabled = profile.config.orpHighlightEnabled,
-                    ),
+                guideVisible = profile.config.orpGuideEnabled,
+                pivotHighlightVisible = profile.config.orpHighlightEnabled,
                 guideThickness =
                     profile.config.orpGuideThickness
                         .toFloat()
@@ -300,11 +293,6 @@ private fun RsvpFocusWord(
         )
     }
 }
-
-internal fun shouldShowOrpVisualAnchor(
-    phraseChunkingEnabled: Boolean,
-    visualAnchorEnabled: Boolean,
-): Boolean = visualAnchorEnabled && !phraseChunkingEnabled
 
 /**
  * Adjustment grid shown in positioning mode: faint alignment lines at every grid bias on both

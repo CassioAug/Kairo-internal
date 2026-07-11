@@ -78,7 +78,7 @@ data class RsvpPreferenceCallbacks(
     val onSelectProfile: (String) -> Unit,
     val onSaveCustomProfile: (String, RsvpConfig) -> Unit,
     val onDeleteCustomProfile: (String) -> Unit,
-    val onRsvpConfigChange: (RsvpConfig) -> Unit,
+    val onRsvpConfigChange: ((RsvpConfig) -> RsvpConfig) -> Unit,
 )
 
 data class RsvpUiCallbacks(

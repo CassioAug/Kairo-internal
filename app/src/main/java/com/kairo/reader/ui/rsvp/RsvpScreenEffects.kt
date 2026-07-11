@@ -225,6 +225,8 @@ internal fun RsvpSessionResetEffect(
         runtime.isAdjustingPosition = false
         runtime.isScrubbing = false
         runtime.isExiting = false
+        runtime.comprehensionPaceScale = 1f
+        runtime.stableFramesSinceRegression = 0
         runtime.dragAxis = RsvpDragAxis.NONE
         runtime.dragAccumulator = ZERO_FLOAT
         runtime.dragAccumulatorX = ZERO_FLOAT
@@ -285,7 +287,7 @@ internal fun RsvpPlaybackLoopEffect(
                 .roundToLong()
                 .coerceAtLeast(MIN_FRAME_DELAY_MS)
         var scaledMs =
-            ((frameMs + resumeDelayMs) * tempoScale)
+            ((frameMs + resumeDelayMs) * tempoScale * runtime.comprehensionPaceScale)
                 .roundToLong()
                 .coerceAtLeast(MIN_FRAME_DELAY_MS)
         val floorMs = frameFloorMs(frame, config, effectiveTempoMs)
@@ -329,6 +331,10 @@ internal fun RsvpPlaybackLoopEffect(
                 holdAtLoadingFrameBoundary(context)
             }
         } else {
+            recoverRsvpRegressionPace(
+                runtime = runtime,
+                enabled = config.useRegressionAdaptivePacing,
+            )
             runtime.frameIndex += 1
         }
     }

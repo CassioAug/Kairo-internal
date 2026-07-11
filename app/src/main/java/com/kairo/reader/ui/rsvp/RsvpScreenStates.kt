@@ -33,6 +33,25 @@ internal fun RsvpLoadingState() {
 }
 
 @Composable
+internal fun RsvpFrameLoadFailedState(onExit: () -> Unit) {
+    Box(
+        modifier =
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .clickable(onClick = onExit),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            stringResource(R.string.rsvp_frame_load_failed),
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = LOADING_TEXT_ALPHA),
+        )
+    }
+}
+
+@Composable
 internal fun RsvpEmptyState(onExit: () -> Unit) {
     Box(
         modifier =

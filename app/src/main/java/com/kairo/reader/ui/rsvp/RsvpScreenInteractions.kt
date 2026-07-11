@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package com.kairo.reader.ui.rsvp
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -7,6 +9,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import com.kairo.reader.core.model.Token
+import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import kotlin.math.abs
@@ -49,6 +53,11 @@ internal fun Modifier.rsvpGestureModifier(
         interactionSource = interactionSource,
         indication = null,
         onClick = { handleTap(context) },
+        onDoubleClick = {
+            if (!runtime.showQuickSettings && !runtime.isPositioningMode) {
+                replayPreviousPhrase(context)
+            }
+        },
         onLongClick = {
             // Long-press exits both while playing and while paused (controls visible) — pausing
             // sets showControls, so gating on it made the exit gesture dead exactly when paused.
@@ -117,6 +126,109 @@ internal fun addBookmarkNow(context: RsvpUiContext) {
             .orEmpty()
     context.callbacks.bookmarks.onAddBookmark(safeIndex, preview)
     runtime.showQuickSettings = false
+}
+
+internal fun replayPreviousPhrase(context: RsvpUiContext) {
+    val runtime = context.runtime
+    val tokens = context.state.book.tokens
+    val frames = context.frameState.frames
+    if (tokens.isEmpty() || frames.isEmpty()) return
+
+    val currentTokenIndex =
+        resolveCurrentTokenIndex(
+            frames = frames,
+            frameIndex = runtime.frameIndex,
+            fallbackIndex = context.state.book.startIndex,
+        )
+    val replayTokenIndex = findReplayPhraseStartTokenIndex(tokens, currentTokenIndex)
+    val targetFrameIndex =
+        alignFrameIndex(
+            frames = frames,
+            tokenIndex = replayTokenIndex,
+            frameIndexMap = context.frameState.frameIndexMap,
+        )
+    if (targetFrameIndex >= runtime.frameIndex && runtime.frameIndex > 0) {
+        runtime.frameIndex = (runtime.frameIndex - 1).coerceAtLeast(0)
+    } else {
+        runtime.frameIndex = targetFrameIndex
+    }
+    runtime.completed = false
+    runtime.rampStartFrameIndex = runtime.frameIndex
+    runtime.scheduledFrameIndex = -1
+    runtime.nextFrameAtMs = 0L
+    registerRsvpRegression(runtime, context.state.profile.config.useRegressionAdaptivePacing)
+    context.callbacks.playback.onPositionChanged(currentResumePoint(context))
+    context.haptics.onFrameStep()
+}
+
+internal fun findReplayPhraseStartTokenIndex(
+    tokens: List<Token>,
+    currentTokenIndex: Int,
+): Int {
+    if (tokens.isEmpty()) return 0
+    val currentWord = findWordAtOrBefore(tokens, currentTokenIndex.coerceIn(0, tokens.lastIndex))
+    if (currentWord < 0) return 0
+    val currentPhraseStart = findPhraseStart(tokens, currentWord)
+    if (currentPhraseStart < currentWord) return currentPhraseStart
+
+    val previousWord = findWordAtOrBefore(tokens, currentPhraseStart - 1)
+    return if (previousWord >= 0) findPhraseStart(tokens, previousWord) else currentPhraseStart
+}
+
+private fun findPhraseStart(tokens: List<Token>, wordIndex: Int): Int {
+    if (tokens[wordIndex].isClauseBoundary) return wordIndex
+    var earliestWord = wordIndex
+    var wordsSeen = 1
+    for (index in wordIndex - 1 downTo 0) {
+        val token = tokens[index]
+        if (token.isReplayPunctuationBoundary()) break
+        if (token.type == TokenType.WORD) {
+            earliestWord = index
+            wordsSeen += 1
+            if (token.isClauseBoundary) break
+            if (wordsSeen >= REPLAY_PHRASE_MAX_WORDS) break
+        }
+    }
+    return earliestWord
+}
+
+private fun findWordAtOrBefore(tokens: List<Token>, startIndex: Int): Int {
+    for (index in startIndex.coerceAtMost(tokens.lastIndex) downTo 0) {
+        if (tokens[index].type == TokenType.WORD) return index
+    }
+    return -1
+}
+
+private fun Token.isReplayPunctuationBoundary(): Boolean =
+    type == TokenType.PARAGRAPH_BREAK ||
+        type == TokenType.PAGE_BREAK ||
+        (type == TokenType.PUNCTUATION && text.any { it in REPLAY_BOUNDARY_PUNCTUATION })
+
+internal fun registerRsvpRegression(
+    runtime: RsvpRuntimeState,
+    enabled: Boolean,
+) {
+    if (!enabled) return
+    runtime.comprehensionPaceScale =
+        (runtime.comprehensionPaceScale + REGRESSION_PACE_STEP)
+            .coerceAtMost(REGRESSION_PACE_MAX_SCALE)
+    runtime.stableFramesSinceRegression = 0
+}
+
+internal fun recoverRsvpRegressionPace(
+    runtime: RsvpRuntimeState,
+    enabled: Boolean,
+) {
+    if (!enabled) {
+        runtime.comprehensionPaceScale = 1f
+        runtime.stableFramesSinceRegression = 0
+        return
+    }
+    if (runtime.comprehensionPaceScale <= 1f) return
+    runtime.stableFramesSinceRegression += 1
+    if (runtime.stableFramesSinceRegression < REGRESSION_RECOVERY_START_FRAMES) return
+    runtime.comprehensionPaceScale =
+        (runtime.comprehensionPaceScale - REGRESSION_RECOVERY_STEP).coerceAtLeast(1f)
 }
 
 internal fun handleTap(context: RsvpUiContext) {
@@ -336,6 +448,9 @@ private fun finishScrubbing(context: RsvpUiContext) {
     val runtime = context.runtime
     if (!runtime.isScrubbing) return
 
+    if (runtime.frameIndex < runtime.dragStartFrameIndex) {
+        registerRsvpRegression(runtime, context.state.profile.config.useRegressionAdaptivePacing)
+    }
     context.callbacks.playback.onPositionChanged(currentResumePoint(context))
     val shouldResume = runtime.wasPlayingBeforeScrub && !runtime.completed
     if (shouldResume) {
@@ -368,3 +483,6 @@ internal fun resumePlayback(runtime: RsvpRuntimeState) {
     runtime.nextFrameAtMs = 0L
     runtime.isPlaying = true
 }
+
+private val REPLAY_BOUNDARY_PUNCTUATION =
+    setOf('.', ',', ';', ':', '!', '?', '\u2026', '\u2014', '\u2013')

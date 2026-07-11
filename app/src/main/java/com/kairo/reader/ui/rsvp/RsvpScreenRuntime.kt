@@ -53,6 +53,8 @@ internal class RsvpRuntimeState(
     var currentFontWeight by mutableStateOf(DEFAULT_FONT_WEIGHT)
     var currentFontFamily by mutableStateOf(DEFAULT_FONT_FAMILY)
     var currentTextBrightness by mutableFloatStateOf(DEFAULT_TEXT_BRIGHTNESS)
+    var comprehensionPaceScale by mutableFloatStateOf(1f)
+    var stableFramesSinceRegression by mutableIntStateOf(0)
     var frameIndex by mutableIntStateOf(0)
     var currentTokenIndex by mutableIntStateOf(0)
     var currentResumeCursor by mutableIntStateOf(0)

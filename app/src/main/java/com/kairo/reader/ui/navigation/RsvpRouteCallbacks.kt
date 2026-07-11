@@ -254,9 +254,9 @@ private fun buildRsvpPreferenceCallbacks(
                 dependencies.container.preferencesRepository.deleteRsvpCustomProfile(profileId)
             }
         },
-        onRsvpConfigChange = { updated ->
+        onRsvpConfigChange = { updater ->
             dependencies.coroutineScope.launch {
-                dependencies.container.preferencesRepository.updateRsvpConfig { updated }
+                dependencies.container.preferencesRepository.updateRsvpConfig(updater)
             }
         },
     )

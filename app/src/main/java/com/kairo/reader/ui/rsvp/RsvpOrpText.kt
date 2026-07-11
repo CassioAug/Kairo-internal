@@ -196,8 +196,8 @@ private fun resolvePivotPosition(
     val wordEndExclusive = state.firstWordEndExclusive
     if (wordStart < 0 || wordEndExclusive <= wordStart) return DEFAULT_PIVOT_INDEX
 
-    // For multi-word phrases, always place the pivot at the true center
-    // of the text so it stays aligned with the centered layout and static guide.
+    // For multi-word phrases, select one authoritative pivot near the true text center.
+    // The phrase layout uses this same character for both guide alignment and highlighting.
     if (wordCount > 1 && fullText.isNotEmpty()) {
         val textStart = fullText.indexOfFirst { it.isLetterOrDigit() }
         val textEnd = fullText.indexOfLast { it.isLetterOrDigit() }

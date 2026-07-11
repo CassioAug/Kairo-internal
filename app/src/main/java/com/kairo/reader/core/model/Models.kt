@@ -113,7 +113,7 @@ data class RsvpConfig(
      *
      * An estimated WPM can be derived from this, but WPM is not the direct control.
      */
-    val tempoMsPerWord: Long = 115L,
+    val tempoMsPerWord: Long = 155L,
     /**
      * Word timing floors.
      * These prevent "flashing" at very high WPM and keep long/complex words readable.
@@ -144,6 +144,13 @@ data class RsvpConfig(
     val maxWordsPerUnit: Int = 2,
     val maxCharsPerUnit: Int = 14,
     /**
+     * A low-emphasis sentence scaffold shown around the active RSVP unit.
+     * This restores some spatial context without moving the ORP focus word.
+     */
+    val contextAssistMode: RsvpContextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
+    /** Briefly ease the live pace after the reader deliberately moves backwards. */
+    val useRegressionAdaptivePacing: Boolean = true,
+    /**
      * Extra pause after intermediate chunks when long words are split for RSVP.
      */
     val subwordChunkPauseMs: Long = 60L,
@@ -151,34 +158,34 @@ data class RsvpConfig(
      * Punctuation pauses (milliseconds).
      * These are *breath* values; they are further shaped by pauseScaleExponent at very high WPM.
      */
-    val commaPauseMs: Long = 112L,
+    val commaPauseMs: Long = 150L,
     /** Full-stop pause for '.' */
-    val periodPauseMs: Long = 250L,
-    val semicolonPauseMs: Long = 190L,
-    val colonPauseMs: Long = 178L,
-    val dashPauseMs: Long = 186L,
-    val parenthesesPauseMs: Long = 135L,
-    val quotePauseMs: Long = 80L,
+    val periodPauseMs: Long = 330L,
+    val semicolonPauseMs: Long = 260L,
+    val colonPauseMs: Long = 242L,
+    val dashPauseMs: Long = 258L,
+    val parenthesesPauseMs: Long = 162L,
+    val quotePauseMs: Long = 105L,
     /** Generic sentence-end pause for '!' and '?' */
-    val sentenceEndPauseMs: Long = 265L,
-    val paragraphPauseMs: Long = 320L,
+    val sentenceEndPauseMs: Long = 355L,
+    val paragraphPauseMs: Long = 440L,
     /**
      * Extra shaping for paragraph boundaries. The raw pause remains user-visible in settings,
      * while this controls how strongly a paragraph break is held during RSVP playback.
      */
-    val paragraphPauseMultiplier: Double = 1.34,
+    val paragraphPauseMultiplier: Double = 1.42,
     /**
      * Page breaks need a larger visual breath than paragraph boundaries because the RSVP frame
      * intentionally goes blank while the reader resets to the next page/scene.
      */
-    val pageBreakPauseMultiplier: Double = 3.2,
+    val pageBreakPauseMultiplier: Double = 3.65,
     /**
      * How punctuation pauses scale as WPM increases.
      * Values < 1 compress pauses at high WPM, but minPauseScale preserves a baseline share so
      * punctuation does not collapse into a near-zero pause.
      */
-    val pauseScaleExponent: Double = 0.52,
-    val minPauseScale: Double = 0.74,
+    val pauseScaleExponent: Double = 0.44,
+    val minPauseScale: Double = 0.84,
     /**
      * Adds a tiny post-punctuation settling hold after strong punctuation when reading continues.
      * This helps clause and sentence endings feel less clipped in high-speed RSVP.
@@ -220,7 +227,7 @@ data class RsvpConfig(
     val wordsPerFrame: Int = 1,
     val maxChunkLength: Int = 10,
     /** Global punctuation breathing multiplier. 1.0 is neutral. */
-    val punctuationPauseFactor: Double = 1.04,
+    val punctuationPauseFactor: Double = 1.08,
     val longWordMultiplier: Double = 1.2,
     val useAdaptiveTiming: Boolean = true,
     val adaptiveDifficultyMaxHoldMs: Long = 70L,
@@ -253,7 +260,7 @@ data class RsvpConfig(
      * faster in the inner voice — commas and periods inside quotes get compressed so the
      * speech rhythm feels distinct from narration. 1.0 disables.
      */
-    val dialoguePunctuationScale: Double = 0.92,
+    val dialoguePunctuationScale: Double = 0.96,
     /**
      * Parenthetical aside mode: words inside (), [], {}, or between em-dashes are compressed
      * so they feel like a faster, quieter side-remark. When enabled, overrides
@@ -265,6 +272,8 @@ data class RsvpConfig(
 )
 
 enum class BlinkMode { OFF, SUBTLE, ADAPTIVE }
+
+enum class RsvpContextAssistMode { OFF, PREVIOUS_WORDS, FULL_CLAUSE }
 
 enum class RsvpProfile {
     BALANCED,
@@ -297,7 +306,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
     when (this) {
         RsvpProfile.BALANCED ->
             RsvpConfig().copy(
-                tempoMsPerWord = 112L,
+                tempoMsPerWord = 150L,
                 minWordMs = 48L,
                 longWordMinMs = 140L,
                 longWordChars = 10,
@@ -309,6 +318,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = false,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
+                contextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
                 subwordChunkPauseMs = 60L,
                 dialogueMultiplier = 0.97,
                 smoothingAlpha = 0.30,
@@ -332,7 +342,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
             )
         RsvpProfile.CHILL ->
             RsvpConfig().copy(
-                tempoMsPerWord = 154L,
+                tempoMsPerWord = 215L,
                 minWordMs = 64L,
                 longWordMinMs = 176L,
                 longWordChars = 9,
@@ -344,6 +354,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = false,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
+                contextAssistMode = RsvpContextAssistMode.FULL_CLAUSE,
                 subwordChunkPauseMs = 76L,
                 dialogueMultiplier = 0.96,
                 smoothingAlpha = 0.20,
@@ -367,7 +378,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
             )
         RsvpProfile.NARRATIVE ->
             RsvpConfig().copy(
-                tempoMsPerWord = 110L,
+                tempoMsPerWord = 148L,
                 minWordMs = 52L,
                 longWordMinMs = 150L,
                 longWordChars = 10,
@@ -376,9 +387,10 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 complexityStrength = 0.72,
                 lengthStrength = 0.96,
                 lengthExponent = 1.32,
-                enablePhraseChunking = false,
+                enablePhraseChunking = true,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
+                contextAssistMode = RsvpContextAssistMode.FULL_CLAUSE,
                 subwordChunkPauseMs = 66L,
                 dialogueMultiplier = 0.91,
                 smoothingAlpha = 0.27,
@@ -402,7 +414,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
             )
         RsvpProfile.FOCUS ->
             RsvpConfig().copy(
-                tempoMsPerWord = 96L,
+                tempoMsPerWord = 125L,
                 minWordMs = 48L,
                 longWordMinMs = 134L,
                 longWordChars = 10,
@@ -414,6 +426,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = false,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 13,
+                contextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
                 subwordChunkPauseMs = 52L,
                 dialogueMultiplier = 0.98,
                 smoothingAlpha = 0.32,
@@ -437,7 +450,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
             )
         RsvpProfile.FLOW ->
             RsvpConfig().copy(
-                tempoMsPerWord = 102L,
+                tempoMsPerWord = 135L,
                 minWordMs = 50L,
                 longWordMinMs = 138L,
                 longWordChars = 10,
@@ -446,9 +459,10 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 complexityStrength = 0.64,
                 lengthStrength = 0.90,
                 lengthExponent = 1.30,
-                enablePhraseChunking = false,
+                enablePhraseChunking = true,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 15,
+                contextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
                 subwordChunkPauseMs = 58L,
                 dialogueMultiplier = 0.95,
                 smoothingAlpha = 0.28,
@@ -472,7 +486,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
             )
         RsvpProfile.SPRINT ->
             RsvpConfig().copy(
-                tempoMsPerWord = 82L,
+                tempoMsPerWord = 105L,
                 minWordMs = 46L,
                 longWordMinMs = 128L,
                 longWordChars = 9,
@@ -484,6 +498,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = false,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 12,
+                contextAssistMode = RsvpContextAssistMode.OFF,
                 subwordChunkPauseMs = 48L,
                 dialogueMultiplier = 0.99,
                 smoothingAlpha = 0.24,
@@ -507,7 +522,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
             )
         RsvpProfile.STUDY ->
             RsvpConfig().copy(
-                tempoMsPerWord = 138L,
+                tempoMsPerWord = 190L,
                 minWordMs = 62L,
                 longWordMinMs = 192L,
                 longWordChars = 9,
@@ -516,9 +531,10 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 complexityStrength = 0.92,
                 lengthStrength = 1.12,
                 lengthExponent = 1.38,
-                enablePhraseChunking = false,
+                enablePhraseChunking = true,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
+                contextAssistMode = RsvpContextAssistMode.FULL_CLAUSE,
                 subwordChunkPauseMs = 84L,
                 dialogueMultiplier = 0.96,
                 smoothingAlpha = 0.18,
@@ -596,15 +612,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
     when (this) {
         RsvpProfile.BALANCED ->
             RsvpProfilePunctuationTuning(
-                commaPauseMs = 142L,
-                periodPauseMs = 315L,
-                semicolonPauseMs = 242L,
-                colonPauseMs = 226L,
-                dashPauseMs = 236L,
-                parenthesesPauseMs = 154L,
-                quotePauseMs = 100L,
-                sentenceEndPauseMs = 335L,
-                paragraphPauseMs = 420L,
+                commaPauseMs = 170L,
+                periodPauseMs = 335L,
+                semicolonPauseMs = 270L,
+                colonPauseMs = 250L,
+                dashPauseMs = 270L,
+                parenthesesPauseMs = 170L,
+                quotePauseMs = 105L,
+                sentenceEndPauseMs = 360L,
+                paragraphPauseMs = 440L,
                 paragraphPauseMultiplier = 1.42,
                 pageBreakPauseMultiplier = 3.65,
                 pauseScaleExponent = 0.44,
@@ -618,15 +634,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
             )
         RsvpProfile.CHILL ->
             RsvpProfilePunctuationTuning(
-                commaPauseMs = 190L,
-                periodPauseMs = 460L,
-                semicolonPauseMs = 330L,
-                colonPauseMs = 300L,
-                dashPauseMs = 320L,
-                parenthesesPauseMs = 196L,
-                quotePauseMs = 136L,
-                sentenceEndPauseMs = 500L,
-                paragraphPauseMs = 640L,
+                commaPauseMs = 220L,
+                periodPauseMs = 480L,
+                semicolonPauseMs = 360L,
+                colonPauseMs = 330L,
+                dashPauseMs = 355L,
+                parenthesesPauseMs = 215L,
+                quotePauseMs = 145L,
+                sentenceEndPauseMs = 520L,
+                paragraphPauseMs = 660L,
                 paragraphPauseMultiplier = 1.62,
                 pageBreakPauseMultiplier = 4.20,
                 pauseScaleExponent = 0.52,
@@ -640,15 +656,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
             )
         RsvpProfile.NARRATIVE ->
             RsvpProfilePunctuationTuning(
-                commaPauseMs = 158L,
-                periodPauseMs = 360L,
-                semicolonPauseMs = 270L,
-                colonPauseMs = 252L,
-                dashPauseMs = 280L,
-                parenthesesPauseMs = 174L,
-                quotePauseMs = 150L,
-                sentenceEndPauseMs = 392L,
-                paragraphPauseMs = 500L,
+                commaPauseMs = 185L,
+                periodPauseMs = 385L,
+                semicolonPauseMs = 300L,
+                colonPauseMs = 280L,
+                dashPauseMs = 310L,
+                parenthesesPauseMs = 190L,
+                quotePauseMs = 155L,
+                sentenceEndPauseMs = 420L,
+                paragraphPauseMs = 525L,
                 paragraphPauseMultiplier = 1.52,
                 pageBreakPauseMultiplier = 3.90,
                 pauseScaleExponent = 0.44,
@@ -662,15 +678,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
             )
         RsvpProfile.FOCUS ->
             RsvpProfilePunctuationTuning(
-                commaPauseMs = 122L,
-                periodPauseMs = 285L,
-                semicolonPauseMs = 214L,
-                colonPauseMs = 200L,
-                dashPauseMs = 208L,
-                parenthesesPauseMs = 134L,
-                quotePauseMs = 82L,
-                sentenceEndPauseMs = 305L,
-                paragraphPauseMs = 360L,
+                commaPauseMs = 145L,
+                periodPauseMs = 305L,
+                semicolonPauseMs = 230L,
+                colonPauseMs = 215L,
+                dashPauseMs = 230L,
+                parenthesesPauseMs = 145L,
+                quotePauseMs = 85L,
+                sentenceEndPauseMs = 325L,
+                paragraphPauseMs = 380L,
                 paragraphPauseMultiplier = 1.34,
                 pageBreakPauseMultiplier = 3.35,
                 pauseScaleExponent = 0.40,
@@ -684,15 +700,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
             )
         RsvpProfile.FLOW ->
             RsvpProfilePunctuationTuning(
-                commaPauseMs = 132L,
-                periodPauseMs = 305L,
-                semicolonPauseMs = 228L,
-                colonPauseMs = 214L,
-                dashPauseMs = 226L,
-                parenthesesPauseMs = 146L,
-                quotePauseMs = 92L,
-                sentenceEndPauseMs = 328L,
-                paragraphPauseMs = 390L,
+                commaPauseMs = 158L,
+                periodPauseMs = 325L,
+                semicolonPauseMs = 250L,
+                colonPauseMs = 230L,
+                dashPauseMs = 250L,
+                parenthesesPauseMs = 158L,
+                quotePauseMs = 95L,
+                sentenceEndPauseMs = 350L,
+                paragraphPauseMs = 410L,
                 paragraphPauseMultiplier = 1.40,
                 pageBreakPauseMultiplier = 3.55,
                 pauseScaleExponent = 0.42,
@@ -706,15 +722,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
             )
         RsvpProfile.SPRINT ->
             RsvpProfilePunctuationTuning(
-                commaPauseMs = 106L,
-                periodPauseMs = 260L,
-                semicolonPauseMs = 198L,
-                colonPauseMs = 188L,
-                dashPauseMs = 196L,
-                parenthesesPauseMs = 120L,
-                quotePauseMs = 70L,
-                sentenceEndPauseMs = 280L,
-                paragraphPauseMs = 330L,
+                commaPauseMs = 125L,
+                periodPauseMs = 275L,
+                semicolonPauseMs = 215L,
+                colonPauseMs = 200L,
+                dashPauseMs = 215L,
+                parenthesesPauseMs = 128L,
+                quotePauseMs = 72L,
+                sentenceEndPauseMs = 295L,
+                paragraphPauseMs = 345L,
                 paragraphPauseMultiplier = 1.28,
                 pageBreakPauseMultiplier = 3.25,
                 pauseScaleExponent = 0.34,
@@ -728,15 +744,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
             )
         RsvpProfile.STUDY ->
             RsvpProfilePunctuationTuning(
-                commaPauseMs = 190L,
-                periodPauseMs = 490L,
-                semicolonPauseMs = 348L,
-                colonPauseMs = 326L,
-                dashPauseMs = 342L,
-                parenthesesPauseMs = 214L,
-                quotePauseMs = 152L,
-                sentenceEndPauseMs = 530L,
-                paragraphPauseMs = 680L,
+                commaPauseMs = 220L,
+                periodPauseMs = 510L,
+                semicolonPauseMs = 380L,
+                colonPauseMs = 350L,
+                dashPauseMs = 375L,
+                parenthesesPauseMs = 230L,
+                quotePauseMs = 160L,
+                sentenceEndPauseMs = 550L,
+                paragraphPauseMs = 700L,
                 paragraphPauseMultiplier = 1.68,
                 pageBreakPauseMultiplier = 4.35,
                 pauseScaleExponent = 0.54,

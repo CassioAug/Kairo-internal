@@ -2,6 +2,7 @@ package com.kairo.reader.data.preferences
 
 import android.content.res.Configuration
 import com.kairo.reader.core.model.ReaderTheme
+import com.kairo.reader.core.model.RsvpConfig
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -19,6 +20,25 @@ class PreferencesRepositoryDefaultsTest {
         assertEquals(
             ReaderTheme.LIGHT,
             readerThemeForNightMode(Configuration.UI_MODE_NIGHT_UNDEFINED),
+        )
+    }
+
+    @Test
+    fun naturalFlowMultipliersRepairInvalidPersistedValues() {
+        val defaults = RsvpConfig()
+        val normalized =
+            RsvpConfig(
+                focalSupportCompression = 75.0,
+                dialoguePunctuationScale = 50.0,
+                parentheticalAsideMultiplier = Double.NaN,
+            ).normalizedNaturalFlowMultipliers(defaults)
+
+        assertEquals(1.0, normalized.focalSupportCompression, 0.0)
+        assertEquals(1.0, normalized.dialoguePunctuationScale, 0.0)
+        assertEquals(
+            defaults.parentheticalAsideMultiplier,
+            normalized.parentheticalAsideMultiplier,
+            0.0,
         )
     }
 }

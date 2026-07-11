@@ -27,6 +27,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.model.RsvpCustomProfile
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
@@ -45,11 +46,53 @@ import org.json.JSONObject
 private val legacyBaseWpmKey = intPreferencesKey("base_wpm")
 private const val MIN_TEXT_BRIGHTNESS = 0.55f
 private const val MAX_TEXT_BRIGHTNESS = 1.0f
+private const val MIN_RSVP_VERTICAL_BIAS = -0.7f
+private const val MAX_RSVP_VERTICAL_BIAS = 0.7f
+private const val MIN_RSVP_HORIZONTAL_BIAS = -0.6f
+private const val MAX_RSVP_HORIZONTAL_BIAS = 0.6f
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_prefs")
 
 private fun <T> Preferences.readOrDefault(key: Preferences.Key<T>, fallback: T): T =
     this[key] ?: fallback
+
+internal fun RsvpConfig.normalizedNaturalFlowMultipliers(
+    defaults: RsvpConfig = RsvpConfig(),
+): RsvpConfig =
+    copy(
+        focalSupportCompression =
+            normalizedFiniteMultiplier(
+                value = focalSupportCompression,
+                fallback = defaults.focalSupportCompression,
+                minValue = 0.75,
+                maxValue = 1.0,
+            ),
+        dialoguePunctuationScale =
+            normalizedFiniteMultiplier(
+                value = dialoguePunctuationScale,
+                fallback = defaults.dialoguePunctuationScale,
+                minValue = 0.5,
+                maxValue = 1.0,
+            ),
+        parentheticalAsideMultiplier =
+            normalizedFiniteMultiplier(
+                value = parentheticalAsideMultiplier,
+                fallback = defaults.parentheticalAsideMultiplier,
+                minValue = 0.5,
+                maxValue = 1.0,
+            ),
+    )
+
+private fun normalizedFiniteMultiplier(
+    value: Double,
+    fallback: Double,
+    minValue: Double,
+    maxValue: Double,
+): Double =
+    value
+        .takeIf { it.isFinite() }
+        ?.coerceIn(minValue, maxValue)
+        ?: fallback.coerceIn(minValue, maxValue)
 
 internal fun readerThemeForNightMode(uiMode: Int): ReaderTheme =
     when (uiMode and Configuration.UI_MODE_NIGHT_MASK) {
@@ -62,7 +105,11 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     override val preferences: Flow<UserPreferences> =
         context.dataStore.data
-            .onEach { prefs -> migrateLegacyBaseWpmIfNeeded(prefs) }
+            .onEach { prefs ->
+                migrateLegacyBaseWpmIfNeeded(prefs)
+                migrateRsvpSpeedCurveIfNeeded(prefs)
+                migrateRsvpPunctuationTuningIfNeeded(prefs)
+            }
             .map { prefs -> buildUserPreferences(prefs) }
 
     private suspend fun migrateLegacyBaseWpmIfNeeded(prefs: Preferences) {
@@ -77,6 +124,59 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                 mutable[keys.tempoMsPerWord] = tempoMs
             }
             mutable.remove(legacyBaseWpmKey)
+        }
+    }
+
+    private suspend fun migrateRsvpSpeedCurveIfNeeded(prefs: Preferences) {
+        if (prefs.contains(legacyBaseWpmKey)) return
+        val storedVersion = prefs[keys.rsvpSpeedCurveVersion] ?: 1
+        if (storedVersion >= RsvpSpeedControl.SPEED_CURVE_VERSION) return
+
+        context.dataStore.edit { mutable ->
+            val storedTempo = mutable[keys.tempoMsPerWord]
+            if (storedTempo != null) {
+                val minTempoMs =
+                    if (mutable[keys.unlockExtremeSpeed] == true ||
+                        storedTempo < RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
+                    ) {
+                        RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
+                    } else {
+                        RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD
+                    }
+                mutable[keys.tempoMsPerWord] =
+                    RsvpSpeedControl.recalibrateLegacyTempoMs(
+                        tempoMsPerWord = storedTempo,
+                        minTempoMsPerWord = minTempoMs,
+                    )
+            }
+            mutable[keys.rsvpSpeedCurveVersion] = RsvpSpeedControl.SPEED_CURVE_VERSION
+        }
+    }
+
+    private suspend fun migrateRsvpPunctuationTuningIfNeeded(prefs: Preferences) {
+        val storedVersion = prefs[keys.rsvpPunctuationTuningVersion] ?: 1
+        if (storedVersion >= CURRENT_RSVP_PUNCTUATION_TUNING_VERSION) return
+
+        val selectedProfileId =
+            prefs[keys.rsvpProfile]
+                ?.let(::normalizeProfileId)
+                ?: RsvpProfileIds.builtIn(RsvpProfile.BALANCED)
+        val builtInProfile = RsvpProfileIds.parseBuiltIn(selectedProfileId)
+
+        context.dataStore.edit { mutable ->
+            if (builtInProfile != null) {
+                val config = builtInProfile.defaultConfig()
+                writePunctuationPauses(mutable, config)
+                writePauseScaling(mutable, config)
+                mutable[keys.parentheticalMultiplier] = config.parentheticalMultiplier
+                mutable[keys.dialoguePunctuationScale] = config.dialoguePunctuationScale
+                mutable[keys.clausePauseFactor] = config.clausePauseFactor
+                mutable[keys.punctuationPause] = config.punctuationPauseFactor
+                mutable[keys.anticipatoryLandingBoost] = config.anticipatoryLandingBoost
+                mutable[keys.parentheticalAsideMultiplier] = config.parentheticalAsideMultiplier
+            }
+            mutable[keys.rsvpPunctuationTuningVersion] =
+                CURRENT_RSVP_PUNCTUATION_TUNING_VERSION
         }
     }
 
@@ -155,9 +255,14 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             rsvpTextBrightness = rsvpTextBrightness,
             rsvpFontWeight = rsvpFontWeight,
             rsvpFontFamily = rsvpFontFamily,
-            rsvpVerticalBias = prefs.readOrDefault(keys.rsvpVerticalBias, defaults.rsvpVerticalBias),
+            rsvpVerticalBias =
+                prefs
+                    .readOrDefault(keys.rsvpVerticalBias, defaults.rsvpVerticalBias)
+                    .coerceIn(MIN_RSVP_VERTICAL_BIAS, MAX_RSVP_VERTICAL_BIAS),
             rsvpHorizontalBias =
-                prefs.readOrDefault(keys.rsvpHorizontalBias, defaults.rsvpHorizontalBias),
+                prefs
+                    .readOrDefault(keys.rsvpHorizontalBias, defaults.rsvpHorizontalBias)
+                    .coerceIn(MIN_RSVP_HORIZONTAL_BIAS, MAX_RSVP_HORIZONTAL_BIAS),
             rsvpPositioningGridEnabled =
                 prefs.readOrDefault(
                     keys.rsvpPositioningGridEnabled,
@@ -207,6 +312,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         context.dataStore.edit { prefs ->
             prefs[keys.tempoMsPerWord] =
                 tempoMsPerWord.coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
+            prefs[keys.rsvpSpeedCurveVersion] = RsvpSpeedControl.SPEED_CURVE_VERSION
             prefs.remove(legacyBaseWpmKey)
         }
     }
@@ -342,13 +448,15 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     override suspend fun updateRsvpVerticalBias(bias: Float) {
         context.dataStore.edit { prefs ->
-            prefs[keys.rsvpVerticalBias] = bias.coerceIn(-0.7f, 0.7f)
+            prefs[keys.rsvpVerticalBias] =
+                bias.coerceIn(MIN_RSVP_VERTICAL_BIAS, MAX_RSVP_VERTICAL_BIAS)
         }
     }
 
     override suspend fun updateRsvpHorizontalBias(bias: Float) {
         context.dataStore.edit { prefs ->
-            prefs[keys.rsvpHorizontalBias] = bias.coerceIn(-0.7f, 0.7f)
+            prefs[keys.rsvpHorizontalBias] =
+                bias.coerceIn(MIN_RSVP_HORIZONTAL_BIAS, MAX_RSVP_HORIZONTAL_BIAS)
         }
     }
 
@@ -553,6 +661,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         put("maxWordsPerUnit", config.maxWordsPerUnit)
         put("maxCharsPerUnit", config.maxCharsPerUnit)
         put("subwordChunkPauseMs", config.subwordChunkPauseMs)
+        put("contextAssistMode", config.contextAssistMode.name)
+        put("useRegressionAdaptivePacing", config.useRegressionAdaptivePacing)
     }
 
     private fun JSONObject.putPunctuationPauses(config: RsvpConfig) {
@@ -707,6 +817,14 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             maxWordsPerUnit = obj.optInt("maxWordsPerUnit", defaults.maxWordsPerUnit),
             maxCharsPerUnit = obj.optInt("maxCharsPerUnit", defaults.maxCharsPerUnit),
             subwordChunkPauseMs = obj.optLong("subwordChunkPauseMs", defaults.subwordChunkPauseMs),
+            contextAssistMode =
+                parseContextAssistMode(obj.optString("contextAssistMode", ""))
+                    ?: defaults.contextAssistMode,
+            useRegressionAdaptivePacing =
+                obj.optBoolean(
+                    "useRegressionAdaptivePacing",
+                    defaults.useRegressionAdaptivePacing,
+                ),
         )
 
     private fun RsvpConfig.withPunctuationPausesFromJson(
@@ -862,7 +980,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                 obj.optBoolean("useParentheticalAside", defaults.useParentheticalAside),
             parentheticalAsideMultiplier =
                 obj.optDouble("parentheticalAsideMultiplier", defaults.parentheticalAsideMultiplier),
-        )
+        ).normalizedNaturalFlowMultipliers(defaults)
 
     private fun writeRsvpConfig(
         prefs: MutablePreferences,
@@ -893,6 +1011,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     private fun writeTiming(prefs: MutablePreferences, config: RsvpConfig) {
         prefs[keys.tempoMsPerWord] =
             config.tempoMsPerWord.coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
+        prefs[keys.rsvpSpeedCurveVersion] = RsvpSpeedControl.SPEED_CURVE_VERSION
         prefs.remove(legacyBaseWpmKey)
     }
 
@@ -918,6 +1037,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         prefs[keys.maxWordsPerUnit] = config.maxWordsPerUnit
         prefs[keys.maxCharsPerUnit] = config.maxCharsPerUnit
         prefs[keys.subwordChunkPauseMs] = config.subwordChunkPauseMs
+        prefs[keys.contextAssistMode] = config.contextAssistMode.name
+        prefs[keys.useRegressionAdaptivePacing] = config.useRegressionAdaptivePacing
     }
 
     private fun writePunctuationPauses(prefs: MutablePreferences, config: RsvpConfig) {
@@ -998,13 +1119,14 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     }
 
     private fun writeNaturalFlow(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.useFocalStress] = config.useFocalStress
-        prefs[keys.focalSupportCompression] = config.focalSupportCompression
-        prefs[keys.useAnticipatoryLanding] = config.useAnticipatoryLanding
-        prefs[keys.anticipatoryLandingBoost] = config.anticipatoryLandingBoost
-        prefs[keys.dialoguePunctuationScale] = config.dialoguePunctuationScale
-        prefs[keys.useParentheticalAside] = config.useParentheticalAside
-        prefs[keys.parentheticalAsideMultiplier] = config.parentheticalAsideMultiplier
+        val normalized = config.normalizedNaturalFlowMultipliers()
+        prefs[keys.useFocalStress] = normalized.useFocalStress
+        prefs[keys.focalSupportCompression] = normalized.focalSupportCompression
+        prefs[keys.useAnticipatoryLanding] = normalized.useAnticipatoryLanding
+        prefs[keys.anticipatoryLandingBoost] = normalized.anticipatoryLandingBoost
+        prefs[keys.dialoguePunctuationScale] = normalized.dialoguePunctuationScale
+        prefs[keys.useParentheticalAside] = normalized.useParentheticalAside
+        prefs[keys.parentheticalAsideMultiplier] = normalized.parentheticalAsideMultiplier
     }
 
     private fun writeBlink(prefs: MutablePreferences, config: RsvpConfig) {
@@ -1139,6 +1261,14 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             maxCharsPerUnit = prefs.readOrDefault(keys.maxCharsPerUnit, defaults.maxCharsPerUnit),
             subwordChunkPauseMs =
                 prefs.readOrDefault(keys.subwordChunkPauseMs, defaults.subwordChunkPauseMs),
+            contextAssistMode =
+                parseContextAssistMode(prefs[keys.contextAssistMode])
+                    ?: defaults.contextAssistMode,
+            useRegressionAdaptivePacing =
+                prefs.readOrDefault(
+                    keys.useRegressionAdaptivePacing,
+                    defaults.useRegressionAdaptivePacing,
+                ),
         )
 
     private fun RsvpConfig.withPunctuationPauses(
@@ -1293,7 +1423,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                     keys.parentheticalAsideMultiplier,
                     defaults.parentheticalAsideMultiplier,
                 ),
-        )
+        ).normalizedNaturalFlowMultipliers(defaults)
 
     private fun RsvpConfig.withOrpAndDelays(
         prefs: Preferences,
@@ -1319,10 +1449,16 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     private fun parseBlinkMode(value: String?): BlinkMode? = value?.let {
         runCatching { BlinkMode.valueOf(it) }.getOrNull()
     }
+
+    private fun parseContextAssistMode(value: String?): RsvpContextAssistMode? = value?.let {
+        runCatching { RsvpContextAssistMode.valueOf(it) }.getOrNull()
+    }
 }
 
 private object PrefKeys {
     val tempoMsPerWord = longPreferencesKey("tempo_ms_per_word")
+    val rsvpSpeedCurveVersion = intPreferencesKey("rsvp_speed_curve_version")
+    val rsvpPunctuationTuningVersion = intPreferencesKey("rsvp_punctuation_tuning_version")
     val rsvpProfile = stringPreferencesKey("rsvp_profile")
     val customRsvpProfilesJson = stringPreferencesKey("custom_rsvp_profiles_json")
     val hasSeenStartingTutorial = booleanPreferencesKey("has_seen_starting_tutorial")
@@ -1338,6 +1474,8 @@ private object PrefKeys {
     val maxWordsPerUnit = intPreferencesKey("max_words_per_unit")
     val maxCharsPerUnit = intPreferencesKey("max_chars_per_unit")
     val subwordChunkPauseMs = longPreferencesKey("subword_chunk_pause_ms")
+    val contextAssistMode = stringPreferencesKey("rsvp_context_assist_mode")
+    val useRegressionAdaptivePacing = booleanPreferencesKey("rsvp_regression_adaptive_pacing")
     val commaPauseMs = longPreferencesKey("comma_pause_ms")
     val periodPauseMs = longPreferencesKey("period_pause_ms")
     val semicolonPauseMs = longPreferencesKey("semicolon_pause_ms")
@@ -1406,3 +1544,5 @@ private object PrefKeys {
     val focusApplyInReader = booleanPreferencesKey("focus_apply_in_reader")
     val focusApplyInRsvp = booleanPreferencesKey("focus_apply_in_rsvp")
 }
+
+private const val CURRENT_RSVP_PUNCTUATION_TUNING_VERSION = 2

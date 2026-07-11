@@ -133,7 +133,8 @@ internal fun wordDurationMs(
         val ease = word.frequencyScore.coerceIn(0.0, 1.0)
         if (ease > DYNAMISM_EASE_PIVOT) {
             val t = (ease - DYNAMISM_EASE_PIVOT) / (1.0 - DYNAMISM_EASE_PIVOT)
-            duration *= 1.0 - (DYNAMISM_MAX_SPEEDUP * t)
+            val compressionStrength = speedStrength(msPerWord)
+            duration *= 1.0 - (DYNAMISM_MAX_SPEEDUP * t * compressionStrength)
         }
     }
 

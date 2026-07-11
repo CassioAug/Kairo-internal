@@ -25,14 +25,36 @@ class RsvpProfileDefaultsTest {
     }
 
     @Test
-    fun builtInProfilesHavePhraseChunkingOffByDefault() {
+    fun comprehensionProfilesUseConservativePhraseChunking() {
+        val chunkedProfiles = setOf(RsvpProfile.NARRATIVE, RsvpProfile.FLOW, RsvpProfile.STUDY)
         RsvpProfile.entries.forEach { profile ->
             val config = profile.defaultConfig()
-            assertFalse(
-                "Expected phrase chunking off for ${profile.name}",
+            assertEquals(
+                "Unexpected phrase chunking default for ${profile.name}",
+                profile in chunkedProfiles,
                 config.enablePhraseChunking,
             )
         }
+    }
+
+    @Test
+    fun builtInProfilesChooseContextByReadingIntent() {
+        assertEquals(
+            RsvpContextAssistMode.OFF,
+            RsvpProfile.SPRINT.defaultConfig().contextAssistMode,
+        )
+        assertEquals(
+            RsvpContextAssistMode.FULL_CLAUSE,
+            RsvpProfile.NARRATIVE.defaultConfig().contextAssistMode,
+        )
+        assertEquals(
+            RsvpContextAssistMode.FULL_CLAUSE,
+            RsvpProfile.STUDY.defaultConfig().contextAssistMode,
+        )
+        assertEquals(
+            RsvpContextAssistMode.PREVIOUS_WORDS,
+            RsvpProfile.BALANCED.defaultConfig().contextAssistMode,
+        )
     }
 
     @Test
@@ -50,11 +72,11 @@ class RsvpProfileDefaultsTest {
     fun balancedProfileStartsWithBreathablePunctuation() {
         val config = RsvpProfile.BALANCED.defaultConfig()
 
-        assertTrue("Expected comma breath to be noticeable", config.commaPauseMs >= 140L)
-        assertTrue("Expected semicolon breath to exceed commas", config.semicolonPauseMs >= 240L)
-        assertTrue("Expected full stops to settle", config.periodPauseMs >= 300L)
-        assertTrue("Expected expressive sentence marks to settle", config.sentenceEndPauseMs >= 330L)
-        assertTrue("Expected paragraphs to create a real reset", config.paragraphPauseMs >= 400L)
+        assertTrue("Expected comma breath to be noticeable", config.commaPauseMs >= 165L)
+        assertTrue("Expected semicolon breath to exceed commas", config.semicolonPauseMs >= 260L)
+        assertTrue("Expected full stops to settle", config.periodPauseMs >= 330L)
+        assertTrue("Expected expressive sentence marks to settle", config.sentenceEndPauseMs >= 350L)
+        assertTrue("Expected paragraphs to create a real reset", config.paragraphPauseMs >= 430L)
         assertTrue("Expected global punctuation breathing above neutral", config.punctuationPauseFactor >= 1.08)
         assertTrue("Expected dialogue punctuation to stay readable", config.dialoguePunctuationScale >= 0.94)
         assertFalse("Expected first-run parentheticals to stay readable", config.useParentheticalAside)
@@ -64,7 +86,7 @@ class RsvpProfileDefaultsTest {
     fun builtInProfilesLeanIntoPunctuationWithoutLosingTheirSpeedShape() {
         RsvpProfile.entries.forEach { profile ->
             val config = profile.defaultConfig()
-            assertTrue("Expected readable comma breath for ${profile.name}", config.commaPauseMs >= 100L)
+            assertTrue("Expected readable comma breath for ${profile.name}", config.commaPauseMs >= 120L)
             assertTrue(
                 "Expected semicolon to be closer to a stop than a comma for ${profile.name}",
                 config.semicolonPauseMs >= (config.commaPauseMs * 1.45).toLong(),
@@ -169,12 +191,8 @@ class RsvpProfileDefaultsTest {
                 "Expected punctuation breathing to be intentionally profiled for ${profile.name}",
                 config.punctuationPauseFactor in 1.0..1.25,
             )
-            assertFalse(
-                "Expected phrase chunking to stay opt-in for ${profile.name}",
-                config.enablePhraseChunking,
-            )
             assertTrue(
-                "Expected opt-in phrase chunks to stay short for ${profile.name}",
+                "Expected phrase chunks to stay short for ${profile.name}",
                 config.maxWordsPerUnit == 2,
             )
             assertTrue(

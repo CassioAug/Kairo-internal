@@ -140,6 +140,14 @@ fun RsvpScreen(
     )
     RsvpIndicatorEffects(runtime)
 
+    if (frameState.loadFailed) {
+        RsvpFrameLoadFailedState {
+            if (!isTutorialMode) {
+                exitAndSavePosition(context)
+            }
+        }
+        return
+    }
     if (shouldShowLoading(frameState)) {
         RsvpLoadingState()
         return

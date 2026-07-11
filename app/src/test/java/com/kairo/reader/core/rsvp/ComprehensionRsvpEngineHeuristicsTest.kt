@@ -114,6 +114,26 @@ class ComprehensionRsvpEngineHeuristicsTest {
     }
 
     @Test
+    fun steadyTempoDoesNotStackEasyWordCompressionIntoFastBursts() {
+        val config =
+            punctuationConfig.copy(
+                tempoMsPerWord = 150L,
+                useAdaptiveTiming = false,
+                useClausePausing = false,
+                useProsodyPacing = false,
+                useFocalStress = true,
+            )
+
+        val frames = engine.generateFrames(listOf(w("calm"), w("reading")), 0, config)
+
+        assertTrue(frames.size >= 2)
+        assertTrue(
+            "Steady easy-word frames should remain close to the selected 150ms tempo: $frames",
+            frames.take(2).all { it.durationMs >= 140L },
+        )
+    }
+
+    @Test
     fun abbreviationAtSentenceEndKeepsSentencePause() {
         val config =
             stableConfig.copy(

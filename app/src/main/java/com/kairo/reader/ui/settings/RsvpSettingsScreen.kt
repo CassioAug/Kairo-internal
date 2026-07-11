@@ -23,7 +23,7 @@ fun RsvpSettingsScreen(
     onSaveRsvpProfile: (String, RsvpConfig) -> Unit,
     onDeleteRsvpProfile: (String) -> Unit,
     onRsvpTempoMsPerWordChange: (Long) -> Unit,
-    onRsvpConfigChange: (RsvpConfig) -> Unit,
+    onRsvpConfigChange: ((RsvpConfig) -> RsvpConfig) -> Unit,
     onUnlockExtremeSpeedChange: (Boolean) -> Unit,
     onRsvpFontSizeChange: (Float) -> Unit,
     onRsvpTextBrightnessChange: (Float) -> Unit,

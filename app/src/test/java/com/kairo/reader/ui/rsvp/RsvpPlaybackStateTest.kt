@@ -86,28 +86,6 @@ class RsvpPlaybackStateTest {
     }
 
     @Test
-    fun phraseChunkingSuppressesOrpVisualAnchorsGlobally() {
-        assertTrue(
-            shouldShowOrpVisualAnchor(
-                phraseChunkingEnabled = false,
-                visualAnchorEnabled = true,
-            ),
-        )
-        assertFalse(
-            shouldShowOrpVisualAnchor(
-                phraseChunkingEnabled = true,
-                visualAnchorEnabled = true,
-            ),
-        )
-        assertFalse(
-            shouldShowOrpVisualAnchor(
-                phraseChunkingEnabled = false,
-                visualAnchorEnabled = false,
-            ),
-        )
-    }
-
-    @Test
     fun completePlaybackMarksCompletedAndCallsOnFinished() {
         var finishedPoint = RsvpResumePoint(tokenIndex = -1, resumeCursor = -1)
         val context =
@@ -219,6 +197,57 @@ class RsvpPlaybackStateTest {
             )
 
         assertFalse(shouldCompleteAtLoadedFrameBoundary(context))
+    }
+
+    @Test
+    fun manualAdvanceDoesNotCompletePreviewFrames() {
+        var finished = false
+        val context =
+            createContext(
+                frames =
+                    listOf(
+                        RsvpFrame(
+                            tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
+                            durationMs = 120L,
+                            originalTokenIndex = 0,
+                            nextOriginalTokenIndex = 3,
+                        ),
+                    ),
+                isLoading = true,
+                isComplete = false,
+                onFinished = { finished = true },
+            )
+
+        advanceFrame(context)
+
+        assertFalse(finished)
+        assertFalse(context.runtime.completed)
+        assertEquals(3, context.runtime.currentTokenIndex)
+    }
+
+    @Test
+    fun manualAdvanceCompletesReadyFrames() {
+        var finished = false
+        val context =
+            createContext(
+                frames =
+                    listOf(
+                        RsvpFrame(
+                            tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
+                            durationMs = 120L,
+                            originalTokenIndex = 0,
+                            nextOriginalTokenIndex = 1,
+                        ),
+                    ),
+                isLoading = false,
+                isComplete = true,
+                onFinished = { finished = true },
+            )
+
+        advanceFrame(context)
+
+        assertTrue(finished)
+        assertTrue(context.runtime.completed)
     }
 
     @Test
@@ -562,6 +591,7 @@ class RsvpPlaybackStateTest {
         frames: List<RsvpFrame> = emptyList(),
         tokens: List<Token> = listOf(Token(text = "Hello", type = TokenType.WORD)),
         isLoading: Boolean = false,
+        isComplete: Boolean = !isLoading,
         onFinished: (RsvpResumePoint) -> Unit = {},
         onVerticalBiasChange: (Float) -> Unit = {},
         onHorizontalBiasChange: (Float) -> Unit = {},
@@ -632,6 +662,7 @@ class RsvpPlaybackStateTest {
                     frames = frames,
                     baseTempoMs = RsvpConfig().tempoMsPerWord,
                     isLoading = isLoading,
+                    isComplete = isComplete,
                 ),
             timing = RsvpTimingInfo(minTempoMs = 1L, maxTempoMs = 1000L, tempoScale = 1.0),
         )

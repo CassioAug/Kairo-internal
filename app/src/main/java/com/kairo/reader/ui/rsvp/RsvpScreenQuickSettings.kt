@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
+import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import com.kairo.reader.ui.settings.RsvpSettingsContent
 import com.kairo.reader.ui.settings.SettingsNavRow
@@ -147,9 +148,32 @@ private fun RsvpQuickSettingsMain(
     )
     RsvpQuickSettingsThemeAndFocus(context)
     RsvpQuickSettingsPositioningToggle(context)
+    RsvpQuickSettingsContextAssist(context)
     RsvpQuickSettingsTempoControls(context, speedPercent)
     RsvpQuickSettingsTextSizeControls(context)
     RsvpQuickSettingsHints()
+}
+
+@Composable
+private fun RsvpQuickSettingsContextAssist(context: RsvpUiContext) {
+    val enabled = context.state.profile.config.contextAssistMode != RsvpContextAssistMode.OFF
+    SettingsSwitchRow(
+        title = stringResource(R.string.rsvp_context_assist_quick_title),
+        subtitle = stringResource(R.string.rsvp_context_assist_quick_subtitle),
+        checked = enabled,
+        onCheckedChange = { shouldEnable ->
+            context.callbacks.preferences.onRsvpConfigChange { config ->
+                config.copy(
+                    contextAssistMode =
+                        if (shouldEnable) {
+                            RsvpContextAssistMode.PREVIOUS_WORDS
+                        } else {
+                            RsvpContextAssistMode.OFF
+                        },
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -394,9 +418,7 @@ private fun RsvpQuickSettingsAdvancedContent(context: RsvpUiContext) {
             runtime.currentTempoMsPerWord = updatedTempoMsPerWord
             context.callbacks.playback.onTempoChange(updatedTempoMsPerWord)
         },
-        onConfigChange = { updated ->
-            context.callbacks.preferences.onRsvpConfigChange(updated)
-        },
+        onConfigChange = context.callbacks.preferences.onRsvpConfigChange,
         onUnlockExtremeSpeedChange = context.callbacks.preferences.onExtremeSpeedUnlockedChange,
         onRsvpFontSizeChange = { size ->
             runtime.currentFontSizeSp = size
