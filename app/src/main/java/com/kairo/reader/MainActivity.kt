@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,9 +20,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.appcompat.app.AppCompatActivity
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.data.books.SharedTextImport
 import com.kairo.reader.data.books.WebArticleUrl
 import com.kairo.reader.ui.LocalDispatcherProvider
 import com.kairo.reader.ui.focus.SystemBarsStyleSideEffect
@@ -46,13 +47,12 @@ private fun rememberSystemDefaultPreferences(): UserPreferences {
 class MainActivity : AppCompatActivity() {
     private val pendingExternalImportUriState = mutableStateOf<Uri?>(null)
     private val pendingSharedArticleUrlState = mutableStateOf<String?>(null)
+    private val pendingSharedTextState = mutableStateOf<SharedTextImport?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        pendingExternalImportUriState.value = intent.bookImportUri()
-        pendingSharedArticleUrlState.value =
-            if (pendingExternalImportUriState.value == null) intent.sharedArticleUrl() else null
+        applyIncomingIntent(intent)
 
         val container = application as KairoApplication
 
@@ -85,11 +85,15 @@ class MainActivity : AppCompatActivity() {
                                 prefs = effectivePrefs,
                                 externalImportUri = pendingExternalImportUriState.value,
                                 externalArticleUrl = pendingSharedArticleUrlState.value,
+                                externalSharedText = pendingSharedTextState.value,
                                 onExternalImportUriConsumed = { consumedUri ->
                                     clearConsumedExternalImportIntent(consumedUri)
                                 },
                                 onExternalArticleUrlConsumed = { consumedUrl ->
                                     clearConsumedSharedArticleIntent(consumedUrl)
+                                },
+                                onExternalSharedTextConsumed = { consumedText ->
+                                    clearConsumedSharedTextIntent(consumedText)
                                 },
                             )
                         }
@@ -102,10 +106,17 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         this.intent = intent
-        val importUri = intent.bookImportUri()
+        applyIncomingIntent(intent)
+    }
+
+    private fun applyIncomingIntent(incomingIntent: Intent) {
+        val importUri = incomingIntent.bookImportUri()
+        val sharedImport = if (importUri == null) incomingIntent.sharedImport() else null
         pendingExternalImportUriState.value = importUri
         pendingSharedArticleUrlState.value =
-            if (importUri == null) intent.sharedArticleUrl() else null
+            (sharedImport as? SharedImport.Article)?.url
+        pendingSharedTextState.value =
+            (sharedImport as? SharedImport.Text)?.payload
     }
 
     private fun clearConsumedExternalImportIntent(consumedUri: Uri) {
@@ -121,7 +132,16 @@ class MainActivity : AppCompatActivity() {
         if (pendingSharedArticleUrlState.value == consumedUrl) {
             pendingSharedArticleUrlState.value = null
         }
-        if (intent.sharedArticleUrl() == consumedUrl) {
+        if ((intent.sharedImport() as? SharedImport.Article)?.url == consumedUrl) {
+            intent = Intent(this, MainActivity::class.java)
+        }
+    }
+
+    private fun clearConsumedSharedTextIntent(consumedText: SharedTextImport) {
+        if (pendingSharedTextState.value == consumedText) {
+            pendingSharedTextState.value = null
+        }
+        if ((intent.sharedImport() as? SharedImport.Text)?.payload == consumedText) {
             intent = Intent(this, MainActivity::class.java)
         }
     }
@@ -134,15 +154,46 @@ private fun Intent.bookImportUri(): Uri? =
         null
     }
 
-private fun Intent.sharedArticleUrl(): String? =
-    if (action == Intent.ACTION_SEND && type?.startsWith("text/", ignoreCase = true) == true) {
-        listOfNotNull(
-            getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
-            getCharSequenceExtra(Intent.EXTRA_HTML_TEXT)?.toString(),
-            getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString(),
-        )
-            .joinToString(separator = "\n")
-            .let(WebArticleUrl::extractBestWebUrl)
-    } else {
-        null
+private sealed interface SharedImport {
+    data class Article(val url: String) : SharedImport
+
+    data class Text(val payload: SharedTextImport) : SharedImport
+}
+
+private fun Intent.sharedImport(): SharedImport? {
+    if (action != Intent.ACTION_SEND || type?.startsWith("text/", ignoreCase = true) != true) {
+        return null
     }
+    val sharedText = getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+    val sharedHtml = getCharSequenceExtra(Intent.EXTRA_HTML_TEXT)?.toString()?.trim().orEmpty()
+    val subject =
+        getCharSequenceExtra(Intent.EXTRA_SUBJECT)
+            ?.toString()
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+    val renderedHtml = htmlToReadableText(sharedHtml)
+    val articleSource = sharedText.ifBlank { renderedHtml }
+    val articleUrl =
+        WebArticleUrl.extractBestWebUrl(articleSource)
+            ?.takeIf { url ->
+                val remainingText =
+                    articleSource
+                        .replace(url, "")
+                        .trim()
+                        .trim('-', '—', ':', '|')
+                        .trim()
+                remainingText.isBlank() ||
+                    subject?.let { sharedSubject ->
+                        remainingText.equals(sharedSubject, ignoreCase = true)
+                    } == true
+            }
+    if (articleUrl != null) return SharedImport.Article(articleUrl)
+
+    val content = sharedText.ifBlank { renderedHtml }
+    return content
+        .takeIf(String::isNotBlank)
+        ?.let { SharedImport.Text(SharedTextImport(content = it, title = subject)) }
+}
+
+private fun htmlToReadableText(html: String): String =
+    org.jsoup.Jsoup.parseBodyFragment(html).wholeText().trim()

@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 
@@ -20,6 +21,7 @@ internal data class LibraryDestinationDependencies(
     val importState: ImportUiState,
     val onImportFile: (Uri) -> Unit,
     val onImportUrl: (String) -> Unit,
+    val onImportText: (TextImportRequest) -> Unit,
     val tutorialState: StartingTutorialOverlayState?,
     val onTutorialNext: () -> Unit,
     val onTutorialPrevious: () -> Unit,
@@ -64,6 +66,7 @@ private fun KairoLibraryDestination(
         initialTabRouteValue = initialTabRouteValue,
         onImportFile = dependencies.onImportFile,
         onImportUrl = dependencies.onImportUrl,
+        onImportText = dependencies.onImportText,
         tutorialState = dependencies.tutorialState,
         onTutorialNext = dependencies.onTutorialNext,
         onTutorialPrevious = dependencies.onTutorialPrevious,

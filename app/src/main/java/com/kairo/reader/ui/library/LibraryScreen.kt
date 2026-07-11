@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -57,10 +59,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -77,6 +79,7 @@ import coil3.request.crossfade
 import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookmarkItem
+import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.format.formatShortDurationMinutes
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
@@ -97,6 +100,7 @@ fun LibraryScreen(
     onDeleteBookmarksForBook: (bookId: String) -> Unit,
     onImportFile: (Uri) -> Unit,
     onImportUrl: (String) -> Unit,
+    onImportText: (TextImportRequest) -> Unit = {},
     onSettings: () -> Unit,
     onSetCompleted: (Book, Boolean) -> Unit,
     onDelete: (Book) -> Unit,
@@ -121,6 +125,9 @@ fun LibraryScreen(
     var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
     var showReadLinkDialog by rememberSaveable { mutableStateOf(false) }
     var linkInput by rememberSaveable { mutableStateOf("") }
+    var showAddTextDialog by rememberSaveable { mutableStateOf(false) }
+    var textImportTitle by rememberSaveable { mutableStateOf("") }
+    var textImportContent by rememberSaveable { mutableStateOf("") }
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
     val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
     val completedBooks = remember(books) { books.filter { it.isCompleted } }
@@ -193,6 +200,11 @@ fun LibraryScreen(
                             enabled = !importState.isImporting,
                             compact = true,
                         )
+                        AddTextButton(
+                            onClick = { showAddTextDialog = true },
+                            enabled = !importState.isImporting,
+                            compact = true,
+                        )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                 }
@@ -242,14 +254,22 @@ fun LibraryScreen(
 
             if (selectedTab == LibraryTab.Library.ordinal) {
                 if (!compactLandscape) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.library_add_content_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        ImportBookButton(
+                            ImportSourceCard(
+                                icon = Icons.Default.Book,
+                                label = stringResource(R.string.library_source_book),
+                                supportingText = stringResource(R.string.library_source_book_hint),
                             onClick = launchBookImport,
                             enabled = !importState.isImporting,
-                            compact = false,
                             modifier =
                                 Modifier
                                     .weight(1f)
@@ -260,12 +280,23 @@ fun LibraryScreen(
                                         tutorialTargets[targetId] = bounds
                                     },
                         )
-                        ReadFromLinkButton(
+                            ImportSourceCard(
+                                icon = Icons.Default.Link,
+                                label = stringResource(R.string.library_source_link),
+                                supportingText = stringResource(R.string.library_source_link_hint),
                             onClick = { showReadLinkDialog = true },
                             enabled = !importState.isImporting,
-                            compact = false,
                             modifier = Modifier.weight(1f),
                         )
+                            ImportSourceCard(
+                                icon = Icons.Default.TextSnippet,
+                                label = stringResource(R.string.library_source_text),
+                                supportingText = stringResource(R.string.library_source_text_hint),
+                                onClick = { showAddTextDialog = true },
+                                enabled = !importState.isImporting,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
 
@@ -449,6 +480,31 @@ fun LibraryScreen(
             },
         )
     }
+
+    if (showAddTextDialog) {
+        val defaultTitle = stringResource(R.string.library_text_default_title)
+        AddTextDialog(
+            title = textImportTitle,
+            content = textImportContent,
+            onTitleChange = { textImportTitle = it },
+            onContentChange = { textImportContent = it },
+            onDismiss = { showAddTextDialog = false },
+            onSubmit = {
+                val submittedContent = textImportContent.trim()
+                if (submittedContent.isNotBlank()) {
+                    onImportText(
+                        TextImportRequest(
+                            content = submittedContent,
+                            title = textImportTitle.trim().ifBlank { defaultTitle },
+                        )
+                    )
+                    textImportTitle = ""
+                    textImportContent = ""
+                    showAddTextDialog = false
+                }
+            },
+        )
+    }
 }
 
 enum class LibraryTab { Library, Completed, Bookmarks }
@@ -460,6 +516,15 @@ private fun ImportBookButton(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    if (compact) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = stringResource(R.string.library_import_button),
+            )
+        }
+        return
+    }
     Button(
         onClick = onClick,
         modifier = modifier,
@@ -486,6 +551,15 @@ private fun ReadFromLinkButton(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    if (compact) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(
+                Icons.Default.Link,
+                contentDescription = stringResource(R.string.library_read_from_link_button),
+            )
+        }
+        return
+    }
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
@@ -502,6 +576,86 @@ private fun ReadFromLinkButton(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun AddTextButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (compact) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(
+                Icons.Default.TextSnippet,
+                contentDescription = stringResource(R.string.library_text_import_button),
+            )
+        }
+        return
+    }
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+    ) {
+        Icon(
+            Icons.Default.TextSnippet,
+            contentDescription = null,
+            modifier = Modifier.size(if (compact) 18.dp else 24.dp),
+        )
+        Spacer(modifier = Modifier.width(if (compact) 6.dp else 8.dp))
+        Text(
+            stringResource(R.string.library_text_import_button),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun ImportSourceCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    supportingText: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 92.dp),
+        colors =
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

@@ -7,6 +7,7 @@ import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.data.books.BookImportResult
 import com.kairo.reader.data.books.BookRepository
+import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.data.local.BookDao
 import com.kairo.reader.data.local.BookmarkDao
 import com.kairo.reader.data.local.KairoDatabase
@@ -33,6 +34,9 @@ class LibraryRepositoryImpl(
 
     override suspend fun importUrl(rawUrl: String): BookImportResult =
         bookRepository.importUrl(rawUrl)
+
+    override suspend fun importText(request: TextImportRequest): BookImportResult =
+        bookRepository.importText(request)
 
     override suspend fun setCompleted(
         bookId: String,

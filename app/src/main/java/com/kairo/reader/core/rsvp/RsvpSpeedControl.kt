@@ -72,7 +72,9 @@ object RsvpSpeedControl {
                 maxTempoMsPerWord = LEGACY_MAX_TEMPO_MS_PER_WORD,
             )
         return tempoForSpeed(
-            speed = legacySpeed,
+            // Saved tempos were already rounded on the legacy curve. Re-map the slider value the
+            // user actually saw instead of carrying that sub-step rounding error into the new curve.
+            speed = displaySpeed(legacySpeed).toFloat(),
             minTempoMsPerWord = minTempoMsPerWord,
             maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
         )
