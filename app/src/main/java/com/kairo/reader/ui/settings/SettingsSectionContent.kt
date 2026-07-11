@@ -586,6 +586,7 @@ private fun contextAssistModeLabelRes(mode: RsvpContextAssistMode): Int =
         RsvpContextAssistMode.OFF -> R.string.rsvp_context_assist_off
         RsvpContextAssistMode.PREVIOUS_WORDS -> R.string.rsvp_context_assist_previous
         RsvpContextAssistMode.FULL_CLAUSE -> R.string.rsvp_context_assist_clause
+        RsvpContextAssistMode.SENTENCE_TICKER -> R.string.rsvp_context_assist_ticker
     }
 
 private fun contextAssistModeDescriptionRes(mode: RsvpContextAssistMode): Int =
@@ -594,6 +595,8 @@ private fun contextAssistModeDescriptionRes(mode: RsvpContextAssistMode): Int =
         RsvpContextAssistMode.PREVIOUS_WORDS ->
             R.string.rsvp_context_assist_previous_description
         RsvpContextAssistMode.FULL_CLAUSE -> R.string.rsvp_context_assist_clause_description
+        RsvpContextAssistMode.SENTENCE_TICKER ->
+            R.string.rsvp_context_assist_ticker_description
     }
 
 @Composable
