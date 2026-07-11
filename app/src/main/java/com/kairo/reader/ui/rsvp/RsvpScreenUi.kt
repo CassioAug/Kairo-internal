@@ -57,7 +57,12 @@ internal fun RsvpPlaybackSurface(
 ) {
     val runtime = context.runtime
     val frames = context.frameState.frames
-    val currentFrame = frames.getOrNull(runtime.frameIndex)
+    val currentFrame =
+        resolveRsvpDisplayFrame(
+            frames = frames,
+            frameIndex = runtime.frameIndex,
+            contextAssistMode = context.state.profile.config.contextAssistMode,
+        )
     val compactLandscape = isCompactLandscape()
     val bottomChromeInset =
         rememberBottomChromeInset(
