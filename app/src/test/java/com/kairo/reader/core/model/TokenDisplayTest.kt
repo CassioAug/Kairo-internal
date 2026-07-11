@@ -44,4 +44,17 @@ class TokenDisplayTest {
 
         assertEquals("“—No”", joinTokensForDisplay(tokens))
     }
+
+    @Test
+    fun joinsCjkPairedPunctuationWithoutWesternSpacing() {
+        val tokens =
+            listOf(
+                punct("\u300C"),
+                word("\u4F60\u597D"),
+                punct("\uFF01"),
+                punct("\u300D"),
+            )
+
+        assertEquals("\u300C\u4F60\u597D\uFF01\u300D", joinTokensForDisplay(tokens))
+    }
 }

@@ -1,5 +1,8 @@
 package com.kairo.reader.core.rsvp.engine
 
+import com.kairo.reader.core.model.PAIRED_CLOSING_PUNCTUATION_CHARS
+import com.kairo.reader.core.model.PAIRED_OPENING_PUNCTUATION_CHARS
+
 internal const val MIN_FRAME_MS = 40L
 
 // Cadence dynamism: words easier than this ease pivot are allowed to glide *below* the baseline
@@ -117,39 +120,15 @@ internal const val PARAGRAPH_SENTENCE_MULTIPLIER = 0.8
 internal const val PAGE_BREAK_RETENTION_BOOST = 0.32
 internal const val PAGE_BREAK_SENTENCE_MULTIPLIER_RATIO = 0.85
 
-internal val OPENING_PUNCTUATION = setOf('(', '[', '{', '\u201C', '\u2018')
+internal val OPENING_PUNCTUATION = PAIRED_OPENING_PUNCTUATION_CHARS
 internal val CURRENCY_PREFIX_PUNCTUATION = setOf('$', '€', '£', '¥')
 internal val CURRENCY_NUMERIC_WORD_REGEX = Regex("""\d+(?:[.,]\d+)*""")
 
 internal val QUOTE_OR_BRACKET_PUNCTUATION =
-    setOf(
-        '(',
-        ')',
-        '[',
-        ']',
-        '{',
-        '}',
-        '"',
-        '\u201C',
-        '\u201D',
-        '\u2018',
-        '\u2019',
-    )
+    PAIRED_OPENING_PUNCTUATION_CHARS + PAIRED_CLOSING_PUNCTUATION_CHARS + '"'
 
 internal val SKIPPABLE_BOUNDARY_PUNCTUATION =
-    setOf(
-        '(',
-        ')',
-        '[',
-        ']',
-        '{',
-        '}',
-        '"',
-        '\u201C',
-        '\u201D',
-        '\u2018',
-        '\u2019',
-    )
+    PAIRED_OPENING_PUNCTUATION_CHARS + PAIRED_CLOSING_PUNCTUATION_CHARS + '"'
 
 internal val GLUE_WORDS =
     setOf(

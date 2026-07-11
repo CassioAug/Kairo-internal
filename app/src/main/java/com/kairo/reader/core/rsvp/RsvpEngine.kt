@@ -132,12 +132,30 @@ private fun buildExpandedTokens(
     tokens
         .subList(analysisStartIndex, tokens.size)
         .flatMapIndexed { index, token ->
+            var sourceCursor = 0
             splitTokenForRsvp(
                 token = token,
                 maxChunkLength = config.maxChunkLength,
                 subwordChunkPauseMs = config.subwordChunkPauseMs,
             ).map { splitToken ->
-                ExpandedToken(splitToken, analysisStartIndex + index, -1)
+                val sourceStart =
+                    if (splitToken.text == token.text) {
+                        0
+                    } else {
+                        token.text.indexOf(splitToken.text, startIndex = sourceCursor)
+                            .takeIf { it >= 0 }
+                            ?: token.text.indexOf(splitToken.text).coerceAtLeast(0)
+                    }
+                val sourceEnd =
+                    (sourceStart + splitToken.text.length).coerceIn(sourceStart, token.text.length)
+                sourceCursor = sourceEnd
+                ExpandedToken(
+                    token = splitToken,
+                    originalIndex = analysisStartIndex + index,
+                    expandedIndex = -1,
+                    sourceCharacterStart = sourceStart,
+                    sourceCharacterEndExclusive = sourceEnd,
+                )
             }
         }.mapIndexed { expandedIndex, expandedToken ->
             expandedToken.copy(expandedIndex = expandedIndex)
@@ -268,6 +286,10 @@ private fun RsvpGenerationContext.appendBreakFrame(cursor: Int): Int? {
             originalTokenIndex = expanded[cursor].originalIndex,
             resumeCursor = expanded[cursor].expandedIndex,
             nextOriginalTokenIndex = expanded[nextWordCursor].originalIndex,
+            displayOriginalStartIndex = expanded[cursor].originalIndex,
+            displayOriginalEndExclusive = expanded[cursor].originalIndex + 1,
+            displayOriginalStartCharacterOffset = expanded[cursor].sourceCharacterStart,
+            displayOriginalEndCharacterOffset = expanded[cursor].sourceCharacterEndExclusive,
         )
     rhythm.reset()
     flow.reset()
@@ -359,6 +381,16 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
             originalTokenIndex = frameOriginalIndex,
             resumeCursor = expanded[frameStartCursor].expandedIndex,
             nextOriginalTokenIndex = nextOriginalTokenIndex(nextCursor),
+            displayOriginalStartIndex = expanded[frameStartCursor].originalIndex,
+            displayOriginalEndExclusive =
+                displayOriginalEndExclusive(
+                    frameStartCursor = frameStartCursor,
+                    nextCursor = nextCursor,
+                ),
+            displayOriginalStartCharacterOffset =
+                expanded[frameStartCursor].sourceCharacterStart,
+            displayOriginalEndCharacterOffset =
+                expanded.getOrNull(nextCursor - 1)?.sourceCharacterEndExclusive,
         )
 
     return consumeContextPunctuation(nextCursor)
@@ -410,6 +442,14 @@ private fun RsvpGenerationContext.nextOriginalTokenIndex(nextCursor: Int): Int {
         tokens.size
     }
 }
+
+private fun RsvpGenerationContext.displayOriginalEndExclusive(
+    frameStartCursor: Int,
+    nextCursor: Int,
+): Int =
+    (frameStartCursor until nextCursor)
+        .maxOfOrNull { cursor -> expanded[cursor].originalIndex + 1 }
+        ?: (expanded.getOrNull(frameStartCursor)?.originalIndex?.plus(1) ?: tokens.size)
 
 private fun RsvpGenerationContext.consumeContextPunctuation(cursor: Int): Int {
     var nextCursor = cursor

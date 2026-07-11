@@ -104,6 +104,12 @@ internal fun applyBlinkSeparation(
                         originalTokenIndex = frame.originalTokenIndex,
                         resumeCursor = frame.resumeCursor,
                         nextOriginalTokenIndex = frame.nextOriginalTokenIndex,
+                        displayOriginalStartIndex = frame.displayOriginalStartIndex,
+                        displayOriginalEndExclusive = frame.displayOriginalEndExclusive,
+                        displayOriginalStartCharacterOffset =
+                            frame.displayOriginalStartCharacterOffset,
+                        displayOriginalEndCharacterOffset =
+                            frame.displayOriginalEndCharacterOffset,
                     )
                 continue
             }
