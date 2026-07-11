@@ -367,8 +367,7 @@ internal fun givennessGlideMultiplier(
     prose.record(key)
     if (!given) return 1.0
 
-    val presence = PHRASE_BREATH_BASE + ((1.0 - PHRASE_BREATH_BASE) * speedStrength)
-    return 1.0 - (GIVENNESS_GLIDE * presence)
+    return 1.0 - (GIVENNESS_GLIDE * speedStrength.coerceIn(0.0, 1.0))
 }
 
 

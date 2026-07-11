@@ -10,7 +10,8 @@ object RsvpSpeedControl {
     const val MAX_SPEED = 100f
     const val SAFE_MIN_TEMPO_MS_PER_WORD = 20L
     const val EXTREME_MIN_TEMPO_MS_PER_WORD = 3L
-    const val MAX_TEMPO_MS_PER_WORD = 240L
+    const val MAX_TEMPO_MS_PER_WORD = 360L
+    const val SPEED_CURVE_VERSION = 2
 
     enum class SpeedBand {
         VERY_SLOW,
@@ -56,6 +57,27 @@ object RsvpSpeedControl {
 
     fun displaySpeed(speed: Float): Int = speed.roundToInt().coerceIn(0, 100)
 
+    /**
+     * Keeps a saved slider position stable while moving it onto the more readable speed curve.
+     * Version 1 used a 240ms slow endpoint, which made the 28-30 region roughly 500-525 WPM.
+     */
+    fun recalibrateLegacyTempoMs(
+        tempoMsPerWord: Long,
+        minTempoMsPerWord: Long,
+    ): Long {
+        val legacySpeed =
+            speedForTempoMs(
+                tempoMsPerWord = tempoMsPerWord,
+                minTempoMsPerWord = minTempoMsPerWord,
+                maxTempoMsPerWord = LEGACY_MAX_TEMPO_MS_PER_WORD,
+            )
+        return tempoForSpeed(
+            speed = legacySpeed,
+            minTempoMsPerWord = minTempoMsPerWord,
+            maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
+        )
+    }
+
     fun bandForSpeed(
         speed: Float,
         extremeUnlocked: Boolean,
@@ -93,9 +115,10 @@ object RsvpSpeedControl {
     }
 
     private const val MS_PER_MINUTE = 60_000.0
-    private const val SLOW_MIN_WPM = 300
-    private const val STEADY_MIN_WPM = 450
-    private const val FAST_MIN_WPM = 650
-    private const val VERY_FAST_MIN_WPM = 950
+    private const val SLOW_MIN_WPM = 250
+    private const val STEADY_MIN_WPM = 350
+    private const val FAST_MIN_WPM = 550
+    private const val VERY_FAST_MIN_WPM = 850
     private const val EXTREME_MIN_WPM = 1_800
+    private const val LEGACY_MAX_TEMPO_MS_PER_WORD = 240L
 }

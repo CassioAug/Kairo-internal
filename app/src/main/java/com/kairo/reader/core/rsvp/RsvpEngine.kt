@@ -45,6 +45,7 @@ import com.kairo.reader.core.rsvp.timing.paragraphBreakBasePauseMs
 import com.kairo.reader.core.rsvp.timing.pauseScale
 import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTier
 import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
+import com.kairo.reader.core.rsvp.timing.speedStrength
 import kotlin.math.max
 
 interface RsvpEngine {
@@ -386,7 +387,9 @@ private fun RsvpGenerationContext.focalSuppression(wordCursor: Int): Double {
         wordCursor !in analysis.focalWordIndices &&
         !shouldKeepFullFocalDuration(word)
     ) {
-        config.focalSupportCompression.coerceIn(MIN_FOCAL_SUPPORT_COMPRESSION, 1.0)
+        val target = config.focalSupportCompression.coerceIn(MIN_FOCAL_SUPPORT_COMPRESSION, 1.0)
+        val compressionStrength = speedStrength(config.tempoMsPerWord.toDouble())
+        1.0 + ((target - 1.0) * compressionStrength)
     } else {
         1.0
     }
