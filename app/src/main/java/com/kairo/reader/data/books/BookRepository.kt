@@ -11,6 +11,8 @@ interface BookRepository {
 
     suspend fun importUrl(rawUrl: String): BookImportResult
 
+    suspend fun importText(request: TextImportRequest): BookImportResult
+
     suspend fun getBook(bookId: BookId): Book
 
     suspend fun getChapter(

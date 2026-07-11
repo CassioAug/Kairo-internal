@@ -30,6 +30,11 @@ internal object ImportFingerprint {
             "web:url:$it"
         }
 
+    fun textFingerprint(normalizedText: String): String =
+        normalizeContent(normalizedText).toByteArray(Charsets.UTF_8).sha256Hex().let {
+            "text:sha256:$it"
+        }
+
     fun contentFingerprint(book: Book): String {
         val digest = MessageDigest.getInstance("SHA-256")
         digest.updateValue(normalizeMetadata(book.title))

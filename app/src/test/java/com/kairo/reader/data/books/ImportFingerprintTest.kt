@@ -11,6 +11,14 @@ import org.junit.Test
 
 class ImportFingerprintTest {
     @Test
+    fun `text fingerprint ignores line ending differences`() {
+        assertEquals(
+            ImportFingerprint.textFingerprint("First line\nSecond line"),
+            ImportFingerprint.textFingerprint("First line\r\nSecond line"),
+        )
+    }
+
+    @Test
     fun sourceFingerprintIsStableForSameFileBytes() {
         val first =
             ImportFingerprint.sourceFingerprint(
