@@ -4,6 +4,7 @@ package com.kairo.reader.ui.rsvp
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -22,6 +24,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import java.util.LinkedHashMap
@@ -141,30 +144,72 @@ internal fun OrpAlignedTextLayout(
             } else {
                 layoutResult.translationX
             }
+        val annotatedText =
+            remember(
+                display.content,
+                layoutResult.pivotIndex,
+                colors,
+                layout.pivotHighlightVisible,
+            ) {
+                buildOrpAnnotatedText(
+                    fullText = display.content.fullText,
+                    pivotPosition = layoutResult.pivotIndex,
+                    pivotColor = colors.pivotColor,
+                    highlightStart = display.content.highlightStart,
+                    highlightEndExclusive = display.content.highlightEndExclusive,
+                    highlightColor = colors.highlightColor,
+                    pivotHighlightVisible = layout.pivotHighlightVisible,
+                )
+            }
 
         val guideThickness = ORP_LINE_HEIGHT * layout.guideThickness
         val pointerThickness = ORP_POINTER_WIDTH * layout.guideThickness
-
-        Column(modifier = Modifier.fillMaxWidth()) {
+        val measuredTextHeight = with(density) { display.measured.size.height.toDp() }
+        val containerModifier =
             if (layout.guideVisible) {
-                OrpStaticLine(colors.pivotLineColor, guideThickness)
-                OrpPointer(layoutResult.guideBias, colors.pivotLineColor, pointerThickness)
-                Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
+                Modifier
+                    .fillMaxWidth()
+                    .height(orpGuideBandHeight(measuredTextHeight, layout.guideThickness))
+            } else {
+                Modifier.fillMaxWidth()
+            }
+
+        // Keep the text line independently centered inside an explicit guide band. The context
+        // layer reserves this same height, so a non-zero BiasAlignment positions both layers from
+        // identical geometry instead of shifting the taller guide assembly away from bare cues.
+        Box(
+            modifier = containerModifier,
+            contentAlignment = Alignment.Center,
+        ) {
+            if (layout.guideVisible) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OrpStaticLine(colors.pivotLineColor, guideThickness)
+                    OrpPointer(layoutResult.guideBias, colors.pivotLineColor, pointerThickness)
+                    Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
+                    Spacer(modifier = Modifier.height(measuredTextHeight))
+                    Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
+                    OrpPointer(layoutResult.guideBias, colors.pivotLineColor, pointerThickness)
+                    OrpStaticLine(colors.pivotLineColor, guideThickness)
+                }
             }
             OrpTextLine(
-                display.annotatedText,
+                annotatedText,
                 display.textStyle,
                 colors.textColor,
                 translationX,
             )
-            if (layout.guideVisible) {
-                Spacer(modifier = Modifier.height(ORP_TEXT_SPACER))
-                OrpPointer(layoutResult.guideBias, colors.pivotLineColor, pointerThickness)
-                OrpStaticLine(colors.pivotLineColor, guideThickness)
-            }
         }
     }
 }
+
+internal fun orpGuideBandHeight(
+    measuredTextHeight: Dp,
+    guideThickness: Float,
+): Dp =
+    measuredTextHeight +
+        (ORP_TEXT_SPACER * 2) +
+        (ORP_POINTER_HEIGHT * 2) +
+        (ORP_LINE_HEIGHT * guideThickness * 2f)
 
 private data class OrpDisplay(
     val content: OrpTextContent,
@@ -624,11 +669,21 @@ private fun calculateOrpBounds(
     )
 }
 
-private fun calculatePivotRange(
+internal fun calculatePivotRange(
     content: OrpTextContent,
     lastIndex: Int,
     safePivotIndex: Int,
 ): OrpPivotRange {
+    // A phrase pivot can legitimately live in any word. Keeping the first-word range here used
+    // to clamp the layout pivot away from the independently highlighted phrase pivot.
+    if (content.wordCount > ORP_LOCK_PIVOT_WORDS) {
+        return OrpPivotRange(
+            start = DEFAULT_PIVOT_INDEX,
+            end = lastIndex.coerceAtLeast(DEFAULT_PIVOT_INDEX),
+            safePivotIndex = safePivotIndex,
+        )
+    }
+
     val start = if (content.firstWordStart >= 0) content.firstWordStart else DEFAULT_PIVOT_INDEX
     val rawEnd =
         if (content.firstWordEndExclusive > 0) {
@@ -662,16 +717,18 @@ private fun layoutLockedPivot(
     bounds: OrpBounds,
 ): OrpLayoutResult {
     val pivotIndex = pivotRange.safePivotIndex.safeCoerceIn(pivotRange.start, pivotRange.end)
-    val measuredWidthPx = measured.size.width.toFloat()
-
-    // Keep phrase chunks stable without falling back to screen center. The phrase center is
-    // anchored to the user's chosen horizontal bias so positioning mode remains consistent.
+    val pivotCenter =
+        pivotCenterX(
+            measured = measured,
+            index = pivotIndex,
+            lastIndex = pivotRange.end,
+        )
     val minTranslationX = minOf(bounds.safeLeftPx, bounds.maxTranslationX)
     val maxTranslationX = maxOf(bounds.safeLeftPx, bounds.maxTranslationX)
     val translationX =
-        stableBiasedCenterTranslationX(
-            desiredCenterX = bounds.desiredPivotX,
-            measuredWidthPx = measuredWidthPx,
+        stablePivotAlignedTranslationX(
+            desiredPivotX = bounds.desiredPivotX,
+            pivotCenterX = pivotCenter,
             minTranslationX = minTranslationX,
             maxTranslationX = maxTranslationX,
         )
@@ -808,6 +865,24 @@ internal fun stableBiasedCenterTranslationX(
         }
     val clampedTranslationX =
         centeredTranslationX.safeCoerceIn(minTranslationX, maxTranslationX)
+    return snapTranslationToRenderPixel(clampedTranslationX)
+        .safeCoerceIn(minTranslationX, maxTranslationX)
+}
+
+internal fun stablePivotAlignedTranslationX(
+    desiredPivotX: Float,
+    pivotCenterX: Float,
+    minTranslationX: Float,
+    maxTranslationX: Float,
+): Float {
+    val pivotAlignedTranslationX =
+        if (desiredPivotX.isFinite() && pivotCenterX.isFinite()) {
+            desiredPivotX - pivotCenterX
+        } else {
+            ZERO_FLOAT
+        }
+    val clampedTranslationX =
+        pivotAlignedTranslationX.safeCoerceIn(minTranslationX, maxTranslationX)
     return snapTranslationToRenderPixel(clampedTranslationX)
         .safeCoerceIn(minTranslationX, maxTranslationX)
 }

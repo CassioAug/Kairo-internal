@@ -40,6 +40,29 @@ class RsvpOrpTextTest {
     }
 
     @Test
+    fun phrasePivotRangeKeepsTheAuthoritativeChunkPivot() {
+        val content =
+            buildOrpTextContent(
+                listOf(
+                    Token(text = "a", type = TokenType.WORD),
+                    Token(text = "considerably", type = TokenType.WORD),
+                ),
+            )
+
+        assertTrue(content.pivotPosition >= content.firstWordEndExclusive)
+
+        val range =
+            calculatePivotRange(
+                content = content,
+                lastIndex = content.fullText.lastIndex,
+                safePivotIndex = content.pivotPosition,
+            )
+
+        assertEquals(content.pivotPosition, range.safePivotIndex)
+        assertTrue(content.pivotPosition in range.start..range.end)
+    }
+
+    @Test
     fun straightQuoteAfterCommaIsRenderedAsOpeningQuote() {
         val content =
             buildOrpTextContent(
@@ -140,5 +163,21 @@ class RsvpOrpTextTest {
             ),
             0f,
         )
+    }
+
+    @Test
+    fun phrasePivotTranslationAnchorsTheHighlightedCharacterToTheGuide() {
+        val pivotCenterX = 37.25f
+        val guideX = 100f
+
+        val translation =
+            stablePivotAlignedTranslationX(
+                desiredPivotX = guideX,
+                pivotCenterX = pivotCenterX,
+                minTranslationX = 0f,
+                maxTranslationX = 150f,
+            )
+
+        assertEquals(guideX, pivotCenterX + translation, 0.5f)
     }
 }
