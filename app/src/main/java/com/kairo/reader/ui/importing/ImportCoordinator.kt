@@ -18,6 +18,8 @@ import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.R
 import com.kairo.reader.data.books.BookImportResult
+import com.kairo.reader.data.books.SharedTextImport
+import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.data.books.WebArticleUrl
 import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.navigation.KairoRoutes
@@ -26,12 +28,12 @@ import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jsoup.HttpStatusException
@@ -49,6 +51,7 @@ internal data class ImportCoordinator(
     val state: ImportUiState,
     val importFile: (Uri) -> Unit,
     val importUrl: (String) -> Unit,
+    val importText: (TextImportRequest) -> Unit,
 )
 
 @Composable
@@ -57,8 +60,10 @@ internal fun rememberImportCoordinator(
     navController: NavHostController,
     externalImportUri: Uri?,
     externalArticleUrl: String?,
+    externalSharedText: SharedTextImport?,
     onExternalImportUriConsumed: (Uri) -> Unit,
     onExternalArticleUrlConsumed: (String) -> Unit,
+    onExternalSharedTextConsumed: (SharedTextImport) -> Unit,
     onShowUserMessage: (String, SnackbarDuration) -> Unit,
 ): ImportCoordinator {
     val importViewModel: ImportCoordinatorViewModel =
@@ -104,25 +109,43 @@ internal fun rememberImportCoordinator(
         onExternalArticleUrlConsumed(url)
     }
 
+    LaunchedEffect(externalSharedText, importState.isImporting) {
+        val sharedText = externalSharedText ?: return@LaunchedEffect
+        if (importState.isImporting) return@LaunchedEffect
+        val request =
+            TextImportRequest(
+                content = sharedText.content,
+                title =
+                sharedText.title
+                    ?.takeIf(String::isNotBlank)
+                    ?: container.getString(R.string.library_text_default_title),
+            )
+        val accepted = importViewModel.importText(request, openReaderOnSuccess = true)
+        if (!accepted) return@LaunchedEffect
+        navController.navigate(KairoRoutes.LIBRARY) {
+            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
+            launchSingleTop = true
+        }
+        onExternalSharedTextConsumed(sharedText)
+    }
+
     return ImportCoordinator(
         state = importState,
         importFile = { uri -> importViewModel.importFile(uri) },
         importUrl = { url -> importViewModel.importUrl(url, openReaderOnSuccess = true) },
+        importText = { request ->
+            importViewModel.importText(request, openReaderOnSuccess = true)
+        },
     )
 }
 
 internal sealed interface ImportCoordinatorEvent {
-    data class UserMessage(
-        val message: String,
-        val duration: SnackbarDuration,
-    ) : ImportCoordinatorEvent
+    data class UserMessage(val message: String, val duration: SnackbarDuration,) : ImportCoordinatorEvent
 
     data class OpenReader(val bookId: String) : ImportCoordinatorEvent
 }
 
-internal class ImportCoordinatorViewModel(
-    private val container: KairoApplication,
-) : ViewModel() {
+internal class ImportCoordinatorViewModel(private val container: KairoApplication,) : ViewModel() {
     private val _state = MutableStateFlow(ImportUiState())
     val state: StateFlow<ImportUiState> = _state.asStateFlow()
 
@@ -152,6 +175,22 @@ internal class ImportCoordinatorViewModel(
             },
         ) {
             container.libraryRepository.importUrl(rawUrl)
+        }
+
+    fun importText(
+        request: TextImportRequest,
+        openReaderOnSuccess: Boolean,
+    ): Boolean =
+        handleImport(
+            displayName = request.title?.takeIf(String::isNotBlank),
+            completionHoldMs = URL_IMPORT_COMPLETE_HOLD_MS,
+            onImported = { importResult ->
+                if (openReaderOnSuccess) {
+                    emitEvent(ImportCoordinatorEvent.OpenReader(importResult.book.id.value))
+                }
+            },
+        ) {
+            container.libraryRepository.importText(request)
         }
 
     private fun handleImport(

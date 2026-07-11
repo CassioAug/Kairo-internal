@@ -8,6 +8,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.data.books.SharedTextImport
 import com.kairo.reader.ui.importing.rememberImportCoordinator
 import com.kairo.reader.ui.tutorial.rememberStartingTutorialCoordinator
 
@@ -18,8 +19,10 @@ internal fun KairoNavHost(
     prefs: UserPreferences,
     externalImportUri: Uri?,
     externalArticleUrl: String?,
+    externalSharedText: SharedTextImport?,
     onExternalImportUriConsumed: (Uri) -> Unit,
     onExternalArticleUrlConsumed: (String) -> Unit,
+    onExternalSharedTextConsumed: (SharedTextImport) -> Unit,
 ) {
     val navController = rememberNavController()
     val dispatcherProvider = container.dispatcherProvider
@@ -31,8 +34,10 @@ internal fun KairoNavHost(
             navController = navController,
             externalImportUri = externalImportUri,
             externalArticleUrl = externalArticleUrl,
+            externalSharedText = externalSharedText,
             onExternalImportUriConsumed = onExternalImportUriConsumed,
             onExternalArticleUrlConsumed = onExternalArticleUrlConsumed,
+            onExternalSharedTextConsumed = onExternalSharedTextConsumed,
             onShowUserMessage = { message, duration ->
                 messageController.show(message, duration)
             },
@@ -53,6 +58,7 @@ internal fun KairoNavHost(
             currentRoute = currentRoute,
             externalImportUri = externalImportUri,
             externalArticleUrl = externalArticleUrl,
+            externalSharedText = externalSharedText,
             isImporting = importCoordinator.state.isImporting,
         )
     KairoNavChrome(
@@ -72,6 +78,7 @@ internal fun KairoNavHost(
                             importState = importCoordinator.state,
                             onImportFile = importCoordinator.importFile,
                             onImportUrl = importCoordinator.importUrl,
+                        onImportText = importCoordinator.importText,
                             tutorialState = tutorialCoordinator.libraryState,
                             onTutorialNext = tutorialCoordinator.next,
                             onTutorialPrevious = tutorialCoordinator.previous,
