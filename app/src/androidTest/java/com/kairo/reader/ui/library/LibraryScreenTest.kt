@@ -17,6 +17,7 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.BookmarkItem
 import com.kairo.reader.core.model.Chapter
+import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.theme.KairoTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -265,7 +266,7 @@ class LibraryScreenTest {
         }
 
         composeRule.onNodeWithText(
-            composeRule.activity.getString(R.string.library_read_from_link_button)
+            composeRule.activity.getString(R.string.library_source_link)
         ).performClick()
         composeRule.onNode(hasSetTextAction()).performTextInput("example.com/story")
         composeRule.onNodeWithText(
@@ -273,5 +274,48 @@ class LibraryScreenTest {
         ).performClick()
 
         composeRule.runOnIdle { assertEquals("example.com/story", importedUrl) }
+    }
+
+    @Test
+    fun addTextDialog_submitsPastedReading() {
+        var importedText: TextImportRequest? = null
+
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Library,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onImportText = { importedText = it },
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_source_text)
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_text_import_content_placeholder)
+        ).performTextInput("# Shared note\n\nThis is enough shared text to read in Kairo.")
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_text_import_submit)
+        ).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                "# Shared note\n\nThis is enough shared text to read in Kairo.",
+                importedText?.content,
+            )
+        }
     }
 }
