@@ -391,6 +391,27 @@
     <string name="toast_import_failed_timeout">インポート失敗: リンクの応答に時間がかかりすぎました。</string>
     <string name="toast_import_failed_secure">インポート失敗: そのサイトへの安全な接続を開けませんでした。</string>
 
+    <string name="content_desc_replay_phrase">フレーズを再読</string>
+    <string name="rsvp_frame_load_failed">RSVPを準備できませんでした。タップしてリーダーに戻ります。</string>
+    <string name="rsvp_positioning_grid_title">調整グリッド</string>
+    <string name="rsvp_positioning_grid_subtitle">配置中に単語をガイド線にスナップします。オフ = 自由配置。</string>
+    <string name="rsvp_positioning_grid_snap_title">スナップの強さ</string>
+    <string name="rsvp_positioning_grid_snap_subtitle">位置をグリッド線に引き寄せる強さです。</string>
+    <string name="rsvp_positioning_grid_snap_value">%1$d％</string>
+    <string name="rsvp_comprehension_title">理解サポート</string>
+    <string name="rsvp_comprehension_subtitle">周辺コンテキスト、自然なフレーズ単位、読み返しやすさを提供します。</string>
+    <string name="rsvp_context_assist_title">コンテキスト補助</string>
+    <string name="rsvp_context_assist_off">オフ</string>
+    <string name="rsvp_context_assist_previous">前の語のヒント</string>
+    <string name="rsvp_context_assist_clause">節のヒント</string>
+    <string name="rsvp_context_assist_off_description">従来の単一フォーカスRSVP表示を維持します。</string>
+    <string name="rsvp_context_assist_previous_description">ORPフォーカスの横に最も近い前の語を薄く表示します。</string>
+    <string name="rsvp_context_assist_clause_description">ORPフォーカスの周囲に前後の語のヒントを薄く表示します。</string>
+    <string name="rsvp_context_assist_quick_title">コンテキスト補助</string>
+    <string name="rsvp_context_assist_quick_subtitle">ORPフォーカスの横に前の語のヒントを薄く表示します。</string>
+    <string name="rsvp_regression_pacing_title">読み返し後にペースを緩和</string>
+    <string name="rsvp_regression_pacing_subtitle">フレーズの再読や後方への移動後、一時的にペースを緩めます。</string>
+
     <plurals name="library_chapter_count">
         <item quantity="one">%1$d 章</item>
         <item quantity="other">%1$d 章</item>
