@@ -53,7 +53,7 @@ internal const val BIONIC_MIN_FONT_SIZE_SP = 18f
 internal const val BIONIC_MAX_FONT_SIZE_SP = 40f
 internal const val BIONIC_PANE_LINES = 5
 internal const val BIONIC_COMPACT_PANE_LINES = 3
-internal const val BIONIC_MIN_PANE_LINES = 2
+internal const val BIONIC_MIN_PANE_LINES = 1
 
 @Composable
 internal fun BionicReadingText(

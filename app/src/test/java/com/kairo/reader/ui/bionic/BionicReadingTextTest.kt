@@ -370,6 +370,37 @@ class BionicReadingTextTest {
     }
 
     @Test
+    fun bionicDisplayMetrics_allowSingleLinePaneAtExtremeAccessibilityScale() {
+        assertEquals(
+            BIONIC_MIN_PANE_LINES,
+            bionicPaneLineCount(
+                screenWidthDp = 800,
+                screenHeightDp = 220,
+                fontSizeSp = 40f,
+                fontScale = 2f,
+            ),
+        )
+        assertEquals(
+            1,
+            estimateBionicWordCapacity(
+                screenWidthDp = 240,
+                fontSizeSp = 40f,
+                paneLineCount = BIONIC_MIN_PANE_LINES,
+                fontScale = 2f,
+            ),
+        )
+        assertEquals(
+            4,
+            estimateBionicCharacterCapacity(
+                screenWidthDp = 240,
+                fontSizeSp = 40f,
+                paneLineCount = BIONIC_MIN_PANE_LINES,
+                fontScale = 2f,
+            ),
+        )
+    }
+
+    @Test
     fun resolveBionicTargetWordCount_reservesSentenceHeadroomWhenSpaceAllows() {
         assertEquals(14, resolveBionicTargetWordCount(wordCapacity = 17))
         assertEquals(30, resolveBionicTargetWordCount(wordCapacity = 40))
