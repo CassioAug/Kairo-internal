@@ -50,6 +50,7 @@
     <string name="content_desc_move_book_to_library">Move book back to library</string>
     <string name="content_desc_settings">Settings</string>
     <string name="content_desc_start_rsvp">Start RSVP</string>
+    <string name="content_desc_start_timed_reading">Start %1$s</string>
     <string name="content_desc_title_page_of_title">Title page of %1$s</string>
 
     <string name="import_status_title">Importing</string>
@@ -132,11 +133,19 @@
     <string name="reader_eta_book">book ~%1$s</string>
     <string name="reader_eta_prefix">ETA: %1$s</string>
     <string name="reader_rsvp_dock_progress">RSVP %1$d%%</string>
+    <string name="reader_timed_reading_dock_progress">%1$s · %2$d%%</string>
+    <string name="reader_choose_timed_reading_mode">Choose reading mode. %1$s selected</string>
+    <string name="reader_recenter_focus_action">Recenter focus word</string>
+    <string name="timed_reading_mode_rsvp">RSVP</string>
+    <string name="timed_reading_mode_bionic">Bionic</string>
+    <string name="timed_reading_mode_rsvp_description">One word at a time</string>
+    <string name="timed_reading_mode_bionic_description">Guided text flow</string>
     <string name="reader_empty_chapter">No content in this chapter</string>
     <string name="reader_chapter_load_failed">This chapter could not be loaded: %1$s</string>
     <string name="reader_missing_book_title">Book not found</string>
     <string name="reader_missing_book_body">This book may have been deleted or is no longer available.</string>
     <string name="reader_start_rsvp_action">Start RSVP from focus word</string>
+    <string name="reader_start_timed_reading_action">Start %1$s from focus word</string>
     <string name="reader_image_hold_to_view">Hold to view</string>
     <string name="reader_image_not_found">Image not found</string>
     <string name="reader_image_viewer_hint">Pinch to zoom. Drag to pan. Double tap to reset.</string>
@@ -153,8 +162,8 @@
     <string name="focus_apply_title">Apply focus mode</string>
     <string name="focus_apply_reader_title">Apply in Reader</string>
     <string name="focus_apply_reader_subtitle">Use focus mode in the scroll reader.</string>
-    <string name="focus_apply_rsvp_title">Apply in RSVP</string>
-    <string name="focus_apply_rsvp_subtitle">Use focus mode in RSVP playback.</string>
+    <string name="focus_apply_rsvp_title">Apply in timed reading</string>
+    <string name="focus_apply_rsvp_subtitle">Use focus mode in RSVP and Bionic Reading playback.</string>
     <string name="focus_settings_title">Focus settings</string>
     <string name="focus_settings_subtitle">Minimal mode and Do Not Disturb options</string>
 
@@ -164,6 +173,7 @@
     <string name="rsvp_frame_load_failed">RSVP could not be prepared. Tap to return to the reader.</string>
     <string name="rsvp_empty_state">No content to display.\nTap to go back.</string>
     <string name="rsvp_quick_settings_title">Quick Settings</string>
+    <string name="bionic_quick_settings_title">Bionic Reading</string>
     <string name="rsvp_quick_settings_hints">Swipe left/right to scrub position\nDouble tap or use replay to revisit a phrase\nSwipe up/down to adjust speed\nLong press to exit</string>
     <string name="rsvp_selected_speed">Selected speed: %1$d WPM</string>
     <string name="rsvp_reading_speed_title">Reading speed</string>
@@ -363,6 +373,23 @@
     <string name="settings_language_title">Language</string>
     <string name="settings_language_system_default">System default</string>
     <string name="settings_rsvp_subtitle">Speed, timing, readability shaping, RSVP typography</string>
+    <string name="bionic_settings_title">Bionic Reading</string>
+    <string name="settings_bionic_subtitle">Reading pane, fixation, and moving focus</string>
+    <string name="bionic_experimental_label">EXPERIMENTAL</string>
+    <string name="bionic_settings_explanation">Bionic Reading keeps a stable block of text on screen, bolds the opening portion of each word, and moves one RSVP-timed highlight through the chunk.</string>
+    <string name="bionic_uses_rsvp_timing">Playback speed, phrase grouping, punctuation pauses, and adaptive pacing come from your RSVP settings.</string>
+    <string name="bionic_fixation_title">Fixation strength</string>
+    <string name="bionic_fixation_subtitle">How much of each word is bolded to create the visual anchor.</string>
+    <string name="bionic_highlight_title">Moving highlight</string>
+    <string name="bionic_highlight_subtitle">Controls the strength of the RSVP-timed focus moving through the chunk.</string>
+    <string name="bionic_text_size_title">Bionic text size</string>
+    <string name="bionic_text_size_subtitle">Changes the chunk text without affecting the Reader or RSVP word.</string>
+    <string name="bionic_brightness_title">Bionic text brightness</string>
+    <string name="bionic_brightness_subtitle">Dims the chunk text without changing the current theme.</string>
+    <string name="bionic_advanced_settings_subtitle">Fixation, moving focus, and brightness.</string>
+    <string name="bionic_preparing">Preparing Bionic Reading...</string>
+    <string name="bionic_frame_load_failed">Bionic Reading could not be prepared. Tap to return to the reader.</string>
+    <string name="bionic_empty_state">No content to display.\nTap to go back.</string>
     <string name="settings_starting_tutorial_title">Starting tutorial</string>
     <string name="settings_starting_tutorial_subtitle">Replay the guided app walkthrough.</string>
     <string name="info_settings_title">Info</string>
@@ -373,9 +400,11 @@
     <string name="info_contribute_subtitle">Open the Kairo GitHub repository</string>
     <string name="settings_reset_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
-    <string name="settings_reset_confirm_message">This will restore RSVP, reader, focus, profile, and tutorial preferences to their defaults.</string>
+    <string name="settings_reset_confirm_message">This will restore RSVP, Bionic Reading, reader, focus, profile, and tutorial preferences to their defaults.</string>
     <string name="settings_advanced_title">Advanced settings</string>
     <string name="settings_advanced_subtitle">All tuning controls, grouped by section.</string>
+    <string name="accessibility_state_expanded">Expanded</string>
+    <string name="accessibility_state_collapsed">Collapsed</string>
 
     <string name="starting_tutorial_progress">%1$d of %2$d</string>
     <string name="starting_tutorial_intro_title">Welcome to Kairo</string>
