@@ -52,6 +52,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
+import com.kairo.reader.core.model.TimedReadingMode
 import java.io.File
 import kotlin.math.abs
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -80,8 +81,9 @@ internal fun ReaderContent(
     focusIndex: Int,
     fontSizeSp: Float,
     textBrightness: Float,
+    timedReadingMode: TimedReadingMode,
     onSafeFocusChange: (Int) -> Unit,
-    onStartRsvpForToken: (Int) -> Unit,
+    onStartTimedReadingForToken: (Int) -> Unit,
     onPrevPage: () -> Unit,
     onNextPage: () -> Unit,
     onSwipePreviewChange: (ReaderSwipeDirection?, Float) -> Unit,
@@ -335,8 +337,9 @@ internal fun ReaderContent(
                             focusIndex = block.paragraph.focusIndexOrNone(focusIndex),
                             fontSizeSp = fontSizeSp,
                             textBrightness = textBrightness,
+                            timedReadingMode = timedReadingMode,
                             onFocusChange = onSafeFocusChange,
-                            onStartRsvp = onStartRsvpForToken,
+                            onStartTimedReading = onStartTimedReadingForToken,
                             onChapterSelected = onChapterSelected,
                         )
                     }

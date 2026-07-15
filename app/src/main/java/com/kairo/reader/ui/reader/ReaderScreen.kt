@@ -51,6 +51,7 @@ import androidx.core.text.TextUtilsCompat
 import com.kairo.reader.core.language.BookLanguageResolver
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.ReaderTheme
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
@@ -74,7 +75,9 @@ private const val READER_CHROME_COLLAPSE_SCROLL_PX = 56
  *     fontSizeSp = 18f,
  *     invertedScroll = false,
  *     onFocusChange = viewModel::setFocusIndex,
- *     onStartRsvp = { index -> navController.navigate("rsvp/$index") },
+ *     timedReadingMode = TimedReadingMode.RSVP,
+ *     onStartTimedReading = { mode, index -> navigateToTimedReading(mode, index) },
+ *     onSelectTimedReadingMode = { mode, index -> selectAndNavigate(mode, index) },
  *     onChapterChange = viewModel::loadChapter
  * )
  * ```
@@ -100,7 +103,9 @@ fun ReaderScreen(
     onOpenLibrary: () -> Unit,
     onFocusChange: (Int) -> Unit,
     onPageChange: (pageIndex: Int, focusTokenIndex: Int) -> Unit,
-    onStartRsvp: (Int) -> Unit,
+    timedReadingMode: TimedReadingMode,
+    onStartTimedReading: (TimedReadingMode, Int) -> Unit,
+    onSelectTimedReadingMode: (TimedReadingMode, Int) -> Unit,
     onChapterChange: (Int, Int?) -> Unit,
     onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
     tutorialState: StartingTutorialOverlayState? = null,
@@ -185,13 +190,26 @@ fun ReaderScreen(
             tutorialTargetId == StartingTutorialTargetIds.READER_MENU_SETTINGS
     }
 
-    val isRsvpEnabled =
+    val effectiveTimedReadingMode =
+        timedReadingModeForReader(
+            selectedMode = timedReadingMode,
+            tutorialActive = tutorialState != null,
+        )
+    val isTimedReadingEnabled =
         !uiState.isLoading && renderState.firstWordIndex != -1 && renderState.tokens.isNotEmpty()
-    val onStartRsvpForToken =
-        remember(isRsvpEnabled, renderState.tokens, onStartRsvp) {
+    val onStartTimedReadingForToken =
+        remember(
+            isTimedReadingEnabled,
+            renderState.tokens,
+            effectiveTimedReadingMode,
+            onStartTimedReading,
+        ) {
             { tokenIndex: Int ->
-                if (isRsvpEnabled && renderState.tokens.isNotEmpty()) {
-                    onStartRsvp(renderState.tokens.nearestWordIndex(tokenIndex))
+                if (isTimedReadingEnabled && renderState.tokens.isNotEmpty()) {
+                    onStartTimedReading(
+                        effectiveTimedReadingMode,
+                        renderState.tokens.nearestWordIndex(tokenIndex),
+                    )
                 }
             }
         }
@@ -222,14 +240,14 @@ fun ReaderScreen(
         WindowInsetsSides.Bottom
     ).asPaddingValues()
     val bottomInset = bottomInsetPadding.calculateBottomPadding()
-    val showRsvpLauncher =
-        isRsvpEnabled &&
+    val showTimedReadingLauncher =
+        isTimedReadingEnabled &&
             renderState.currentPage?.kind != ChapterPageKind.IMAGE &&
             renderState.currentPage?.kind != ChapterPageKind.BLANK &&
             !showReaderMenu &&
             !showChapterList.value
     val overlayBottomPadding =
-        if (showRsvpLauncher) {
+        if (showTimedReadingLauncher) {
             if (compactLandscape) {
                 76.dp
             } else {
@@ -337,8 +355,9 @@ fun ReaderScreen(
                     focusIndex = focusIndex,
                     fontSizeSp = fontSizeSp,
                     textBrightness = textBrightness,
+                    timedReadingMode = effectiveTimedReadingMode,
                     onSafeFocusChange = onSafeFocusChange,
-                    onStartRsvpForToken = onStartRsvpForToken,
+                    onStartTimedReadingForToken = onStartTimedReadingForToken,
                     onPrevPage = navigationState.onPrevPage,
                     onNextPage = navigationState.onNextPage,
                     onSwipePreviewChange = { direction, progress ->
@@ -415,7 +434,7 @@ fun ReaderScreen(
         }
 
         AnimatedVisibility(
-            visible = showRsvpLauncher,
+            visible = showTimedReadingLauncher,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier =
@@ -423,15 +442,18 @@ fun ReaderScreen(
                 .align(Alignment.BottomEnd)
                 .padding(end = 16.dp, bottom = 16.dp + bottomInset),
         ) {
-            ReaderRsvpLauncher(
+            ReaderTimedReadingLauncher(
                 tokens = renderState.tokens,
                 focusIndex = focusIndex,
                 invertedScroll = invertedScroll,
                 listState = listStateHolder.listState,
                 focusListIndex = renderState.focusListIndex,
                 progressFraction = progressState.progressFraction,
+                selectedMode = effectiveTimedReadingMode,
+                modeSelectionEnabled = tutorialState == null,
                 onFocusChange = onFocusChange,
-                onStartRsvp = onStartRsvp,
+                onStartTimedReading = onStartTimedReading,
+                onSelectTimedReadingMode = onSelectTimedReadingMode,
                 modifier =
                     Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_RSVP_LAUNCHER) {
                         targetId,
@@ -461,3 +483,9 @@ fun ReaderScreen(
         }
     }
 }
+
+internal fun timedReadingModeForReader(
+    selectedMode: TimedReadingMode,
+    tutorialActive: Boolean,
+): TimedReadingMode =
+    if (tutorialActive) TimedReadingMode.RSVP else selectedMode

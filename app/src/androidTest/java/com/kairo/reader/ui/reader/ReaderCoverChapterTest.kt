@@ -11,6 +11,7 @@ import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.ReaderTheme
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.ui.theme.KairoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -64,7 +65,10 @@ class ReaderCoverChapterTest {
                     onOpenBookmarks = {},
                     onOpenLibrary = {},
                     onFocusChange = {},
-                    onStartRsvp = {},
+                    onPageChange = { _, _ -> },
+                    timedReadingMode = TimedReadingMode.RSVP,
+                    onStartTimedReading = { _, _ -> },
+                    onSelectTimedReadingMode = { _, _ -> },
                     onChapterChange = { _, _ -> },
                     onViewportMetricsChanged = { _, _ -> },
                 )

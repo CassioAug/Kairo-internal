@@ -1,5 +1,7 @@
 package com.kairo.reader.ui.navigation
 
+import com.kairo.reader.core.model.TimedReadingMode
+
 internal object KairoRoutes {
     const val LIBRARY = "library"
     const val LIBRARY_WITH_TAB = "library?tab={tab}"
@@ -7,11 +9,13 @@ internal object KairoRoutes {
     const val SETTINGS_LANGUAGE = "settings/language"
     const val SETTINGS_INFO = "settings/info"
     const val SETTINGS_RSVP = "settings/rsvp"
+    const val SETTINGS_BIONIC = "settings/bionic"
     const val SETTINGS_READER = "settings/reader"
     const val SETTINGS_FOCUS = "settings/focus"
     const val READER = "reader/{bookId}"
     const val READER_WITH_POSITION = "reader/{bookId}/{chapterIndex}/{tokenIndex}"
     const val RSVP = "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}"
+    const val BIONIC = "bionic/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}"
 
     const val ARG_BOOK_ID = "bookId"
     const val ARG_CHAPTER_INDEX = "chapterIndex"
@@ -42,6 +46,30 @@ internal object KairoRoutes {
         val encodedTempoMs = tempoMsPerWord?.takeIf { it > 0L } ?: -1L
         return "rsvp/$bookId/$chapterIndex/$tokenIndex?tempoMs=$encodedTempoMs"
     }
+
+    fun bionic(
+        bookId: String,
+        chapterIndex: Int,
+        tokenIndex: Int,
+        tempoMsPerWord: Long? = null,
+    ): String {
+        val encodedTempoMs = tempoMsPerWord?.takeIf { it > 0L } ?: -1L
+        return "bionic/$bookId/$chapterIndex/$tokenIndex?tempoMs=$encodedTempoMs"
+    }
+
+    fun timedReading(
+        mode: TimedReadingMode,
+        bookId: String,
+        chapterIndex: Int,
+        tokenIndex: Int,
+        tempoMsPerWord: Long? = null,
+    ): String =
+        when (mode) {
+            TimedReadingMode.RSVP ->
+                rsvp(bookId, chapterIndex, tokenIndex, tempoMsPerWord)
+            TimedReadingMode.BIONIC ->
+                bionic(bookId, chapterIndex, tokenIndex, tempoMsPerWord)
+        }
 }
 
 internal object KairoSavedStateKeys {

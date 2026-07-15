@@ -1,25 +1,36 @@
 package com.kairo.reader.ui.reader
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -29,61 +40,88 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.nearestWordIndex
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ReaderRsvpLauncher(
+internal fun ReaderTimedReadingLauncher(
     tokens: List<Token>,
     focusIndex: Int,
     invertedScroll: Boolean,
-    listState: LazyListState,
+    listState: androidx.compose.foundation.lazy.LazyListState,
     focusListIndex: Int,
     progressFraction: Float,
+    selectedMode: TimedReadingMode,
+    modeSelectionEnabled: Boolean,
     onFocusChange: (Int) -> Unit,
-    onStartRsvp: (Int) -> Unit,
+    onStartTimedReading: (TimedReadingMode, Int) -> Unit,
+    onSelectTimedReadingMode: (TimedReadingMode, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
-    val progressPercent = (progressFraction * 100f).toInt().coerceIn(0, 100)
+    var modeMenuExpanded by remember { mutableStateOf(false) }
+    val safeProgress = progressFraction.coerceIn(0f, 1f)
+    val progressPercent = (safeProgress * 100f).toInt()
     val currentTokens by rememberUpdatedState(tokens)
     val currentFocusIndex by rememberUpdatedState(focusIndex)
     val currentInvertedScroll by rememberUpdatedState(invertedScroll)
     val currentFocusListIndex by rememberUpdatedState(focusListIndex)
     val currentOnFocusChange by rememberUpdatedState(onFocusChange)
-    val currentOnStartRsvp by rememberUpdatedState(onStartRsvp)
+    val currentOnStartTimedReading by rememberUpdatedState(onStartTimedReading)
+    val currentOnSelectTimedReadingMode by rememberUpdatedState(onSelectTimedReadingMode)
+    val selectedModeLabel = selectedMode.label()
+    val startActionLabel =
+        stringResource(R.string.content_desc_start_timed_reading, selectedModeLabel)
+    val chooseModeActionLabel =
+        stringResource(R.string.reader_choose_timed_reading_mode, selectedModeLabel)
+    val recenterActionLabel = stringResource(R.string.reader_recenter_focus_action)
+    val launcherShape = RoundedCornerShape(28.dp)
+
+    fun launchAtFocus(
+        mode: TimedReadingMode,
+        rememberSelection: Boolean,
+    ) {
+        val latestTokens = currentTokens
+        if (latestTokens.isEmpty()) return
+        val safeIndex = latestTokens.nearestWordIndex(currentFocusIndex)
+        if (rememberSelection) {
+            currentOnSelectTimedReadingMode(mode, safeIndex)
+        } else {
+            currentOnStartTimedReading(mode, safeIndex)
+        }
+    }
+
+    fun recenterFocus() {
+        val targetListIndex = currentFocusListIndex
+        if (targetListIndex < 0) return
+        coroutineScope.launch { listState.animateScrollToItem(targetListIndex) }
+    }
+
+    LaunchedEffect(modeSelectionEnabled) {
+        if (!modeSelectionEnabled) modeMenuExpanded = false
+    }
 
     Surface(
-        shape = RoundedCornerShape(28.dp),
+        shape = launcherShape,
         tonalElevation = 6.dp,
         shadowElevation = 8.dp,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier
-                .clip(RoundedCornerShape(28.dp))
-                .combinedClickable(
-                    onClick = {
-                        val latestTokens = currentTokens
-                        if (latestTokens.isNotEmpty()) {
-                            val safeIndex = latestTokens.nearestWordIndex(currentFocusIndex)
-                            currentOnStartRsvp(safeIndex)
-                        }
-                    },
-                    onLongClick = {
-                        coroutineScope.launch {
-                            listState.animateScrollToItem(currentFocusListIndex)
-                        }
-                    },
-                )
+                .clip(launcherShape)
                 .pointerInput(Unit) {
-                    val thresholdPx = 22f
+                    val thresholdPx = 22.dp.toPx()
                     var gestureFocusIndex = 0
                     detectVerticalDragGestures(
                         onDragStart = {
@@ -100,9 +138,11 @@ internal fun ReaderRsvpLauncher(
                                 }
                         },
                         onDragEnd = { dragAccumulator = 0f },
-                        onVerticalDrag = { _, dragAmount ->
+                        onDragCancel = { dragAccumulator = 0f },
+                        onVerticalDrag = { change, dragAmount ->
                             val latestTokens = currentTokens
                             if (latestTokens.isEmpty()) return@detectVerticalDragGestures
+                            change.consume()
                             dragAccumulator += dragAmount
                             val steps = (dragAccumulator / thresholdPx).toInt()
                             if (steps == 0) return@detectVerticalDragGestures
@@ -123,13 +163,29 @@ internal fun ReaderRsvpLauncher(
                     )
                 },
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 6.dp, top = 6.dp, end = 14.dp, bottom = 6.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier =
+                    Modifier
+                        .size(52.dp)
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 28.dp,
+                                bottomStart = 28.dp,
+                            ),
+                        ).combinedClickable(
+                            role = Role.Button,
+                            onClickLabel = startActionLabel,
+                            onLongClickLabel = recenterActionLabel,
+                            onClick = {
+                                launchAtFocus(selectedMode, rememberSelection = false)
+                            },
+                            onLongClick = ::recenterFocus,
+                        ),
+            ) {
                 CircularProgressIndicator(
-                    progress = { progressFraction },
+                    progress = { safeProgress },
                     modifier = Modifier.size(44.dp),
                     strokeWidth = 3.dp,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
@@ -140,27 +196,124 @@ internal fun ReaderRsvpLauncher(
                     color = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     shadowElevation = 2.dp,
-                    modifier =
-                    Modifier
-                        .size(34.dp)
-                        .clip(CircleShape),
+                    modifier = Modifier.size(34.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.PlayArrow,
-                            contentDescription = stringResource(R.string.content_desc_start_rsvp),
+                            contentDescription = null,
                             modifier = Modifier.size(22.dp),
                         )
                     }
                 }
             }
-            Text(
-                text = stringResource(R.string.reader_rsvp_dock_progress, progressPercent),
-                modifier = Modifier.padding(start = 8.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
+
+            Box(
+                modifier =
+                    Modifier
+                        .width(1.dp)
+                        .height(28.dp)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
             )
+
+            Box {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier =
+                        Modifier
+                            .heightIn(min = 52.dp)
+                            .widthIn(min = 112.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topEnd = 28.dp,
+                                    bottomEnd = 28.dp,
+                                ),
+                            ).semantics { stateDescription = selectedModeLabel }
+                            .combinedClickable(
+                                enabled = modeSelectionEnabled,
+                                role = Role.Button,
+                                onClickLabel = chooseModeActionLabel,
+                                onLongClickLabel = recenterActionLabel,
+                                onClick = { modeMenuExpanded = true },
+                                onLongClick = ::recenterFocus,
+                            ).padding(start = 12.dp, end = 8.dp),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.reader_timed_reading_dock_progress,
+                                selectedModeLabel,
+                                progressPercent,
+                            ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
+                    if (modeSelectionEnabled) {
+                        Icon(
+                            Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = modeMenuExpanded,
+                    onDismissRequest = { modeMenuExpanded = false },
+                    modifier = Modifier.widthIn(min = 216.dp),
+                ) {
+                    TimedReadingMode.entries.forEach { mode ->
+                        val modeLabel = mode.label()
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = modeLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                    Text(
+                                        text = mode.description(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            trailingIcon =
+                                if (mode == selectedMode) {
+                                    {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                            onClick = {
+                                modeMenuExpanded = false
+                                launchAtFocus(mode, rememberSelection = true)
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun TimedReadingMode.label(): String =
+    when (this) {
+        TimedReadingMode.RSVP -> stringResource(R.string.timed_reading_mode_rsvp)
+        TimedReadingMode.BIONIC -> stringResource(R.string.timed_reading_mode_bionic)
+    }
+
+@Composable
+private fun TimedReadingMode.description(): String =
+    when (this) {
+        TimedReadingMode.RSVP -> stringResource(R.string.timed_reading_mode_rsvp_description)
+        TimedReadingMode.BIONIC -> stringResource(R.string.timed_reading_mode_bionic_description)
+    }

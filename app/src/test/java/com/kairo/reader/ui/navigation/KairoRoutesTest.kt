@@ -1,5 +1,6 @@
 package com.kairo.reader.ui.navigation
 
+import com.kairo.reader.core.model.TimedReadingMode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -51,6 +52,51 @@ class KairoRoutesTest {
                 chapterIndex = 2,
                 tokenIndex = 34,
                 tempoMsPerWord = 0L,
+            ),
+        )
+    }
+
+    @Test
+    fun bionic_usesSharedTempoRouteContract() {
+        assertEquals(
+            "bionic/book-123/2/34?tempoMs=118",
+            KairoRoutes.bionic(
+                bookId = "book-123",
+                chapterIndex = 2,
+                tokenIndex = 34,
+                tempoMsPerWord = 118L,
+            ),
+        )
+        assertEquals(
+            "bionic/book-123/2/34?tempoMs=-1",
+            KairoRoutes.bionic(
+                bookId = "book-123",
+                chapterIndex = 2,
+                tokenIndex = 34,
+            ),
+        )
+    }
+
+    @Test
+    fun timedReading_routesEachPresentationModeThroughItsExistingContract() {
+        assertEquals(
+            "rsvp/book-123/2/34?tempoMs=118",
+            KairoRoutes.timedReading(
+                mode = TimedReadingMode.RSVP,
+                bookId = "book-123",
+                chapterIndex = 2,
+                tokenIndex = 34,
+                tempoMsPerWord = 118L,
+            ),
+        )
+        assertEquals(
+            "bionic/book-123/2/34?tempoMs=118",
+            KairoRoutes.timedReading(
+                mode = TimedReadingMode.BIONIC,
+                bookId = "book-123",
+                chapterIndex = 2,
+                tokenIndex = 34,
+                tempoMsPerWord = 118L,
             ),
         )
     }
