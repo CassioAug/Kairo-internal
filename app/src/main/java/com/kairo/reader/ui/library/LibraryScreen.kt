@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
@@ -35,7 +36,6 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -289,7 +289,7 @@ fun LibraryScreen(
                             modifier = Modifier.weight(1f),
                         )
                             ImportSourceCard(
-                                icon = Icons.Default.TextSnippet,
+                                icon = Icons.AutoMirrored.Filled.TextSnippet,
                                 label = stringResource(R.string.library_source_text),
                                 supportingText = stringResource(R.string.library_source_text_hint),
                                 onClick = { showAddTextDialog = true },
@@ -589,7 +589,7 @@ private fun AddTextButton(
     if (compact) {
         IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
             Icon(
-                Icons.Default.TextSnippet,
+                Icons.AutoMirrored.Filled.TextSnippet,
                 contentDescription = stringResource(R.string.library_text_import_button),
             )
         }
@@ -601,7 +601,7 @@ private fun AddTextButton(
         enabled = enabled,
     ) {
         Icon(
-            Icons.Default.TextSnippet,
+            Icons.AutoMirrored.Filled.TextSnippet,
             contentDescription = null,
             modifier = Modifier.size(if (compact) 18.dp else 24.dp),
         )
