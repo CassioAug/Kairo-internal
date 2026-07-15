@@ -141,7 +141,12 @@ fun RsvpScreen(
         context = context,
         sessionKey = sessionKey,
         autoPlay = state.initialIsPlaying && !isTutorialMode,
-        playbackEnabled = !isTutorialMode,
+        playbackEnabled =
+            !isTutorialMode &&
+                isFrameSetReadyForPlayback(
+                    frameState = frameState,
+                    presentationMode = presentationMode,
+                ),
     )
     RsvpIndicatorEffects(runtime)
 
@@ -153,7 +158,7 @@ fun RsvpScreen(
         }
         return
     }
-    if (shouldShowLoading(frameState)) {
+    if (shouldShowLoading(frameState, presentationMode)) {
         RsvpLoadingState(presentationMode)
         return
     }
@@ -514,8 +519,18 @@ private fun rememberTempoScale(
         }
     }
 
-private fun shouldShowLoading(frameState: RsvpFrameLoadState): Boolean =
-    frameState.isLoading && frameState.frames.isEmpty()
+internal fun shouldShowLoading(
+    frameState: RsvpFrameLoadState,
+    presentationMode: ReadingPresentationMode,
+): Boolean =
+    frameState.isLoading &&
+        (frameState.frames.isEmpty() || presentationMode == ReadingPresentationMode.BIONIC)
+
+internal fun isFrameSetReadyForPlayback(
+    frameState: RsvpFrameLoadState,
+    presentationMode: ReadingPresentationMode,
+): Boolean =
+    presentationMode == ReadingPresentationMode.RSVP || frameState.isComplete
 
 internal fun buildSessionKey(book: RsvpBookContext): String =
     "${book.bookId.value}:${book.chapterIndex}:${book.sessionStartIndex}"
