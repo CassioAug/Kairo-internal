@@ -59,6 +59,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -321,19 +324,29 @@ private fun SettingsCard(
 }
 
 @Composable
-private fun AdvancedSettingsToggle(
+internal fun AdvancedSettingsToggle(
     expanded: Boolean,
     onToggle: () -> Unit,
+    subtitle: String? = null,
 ) {
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "advanced-toggle")
+    val disclosureStateDescription =
+        stringResource(
+            if (expanded) {
+                R.string.accessibility_state_expanded
+            } else {
+                R.string.accessibility_state_collapsed
+            }
+        )
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { onToggle() },
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .semantics { stateDescription = disclosureStateDescription }
+                .clickable(role = Role.Button) { onToggle() },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -345,7 +358,7 @@ private fun AdvancedSettingsToggle(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    stringResource(R.string.settings_advanced_subtitle),
+                    subtitle ?: stringResource(R.string.settings_advanced_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -6,6 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.ui.settings.BionicSettingsScreen
 import com.kairo.reader.ui.settings.FocusSettingsScreen
 import com.kairo.reader.ui.settings.InfoSettingsScreen
 import com.kairo.reader.ui.settings.LanguageSettingsScreen
@@ -34,6 +35,7 @@ internal fun NavGraphBuilder.settingsRoutes(dependencies: SettingsRouteDependenc
                 dependencies.navController.navigate(KairoRoutes.SETTINGS_LANGUAGE)
             },
             onOpenRsvp = { dependencies.navController.navigate(KairoRoutes.SETTINGS_RSVP) },
+            onOpenBionic = { dependencies.navController.navigate(KairoRoutes.SETTINGS_BIONIC) },
             onOpenReader = { dependencies.navController.navigate(KairoRoutes.SETTINGS_READER) },
             onOpenFocus = { dependencies.navController.navigate(KairoRoutes.SETTINGS_FOCUS) },
             onOpenInfo = { dependencies.navController.navigate(KairoRoutes.SETTINGS_INFO) },
@@ -155,6 +157,37 @@ internal fun NavGraphBuilder.settingsRoutes(dependencies: SettingsRouteDependenc
             onInvertedScrollChange = { enabled ->
                 coroutineScope.launch {
                     dependencies.container.preferencesRepository.updateInvertedScroll(enabled)
+                }
+            },
+            onBack = { dependencies.navController.popBackStack() },
+        )
+    }
+
+    composable(KairoRoutes.SETTINGS_BIONIC) {
+        val coroutineScope = rememberCoroutineScope()
+        BionicSettingsScreen(
+            preferences = dependencies.prefs.bionicReading,
+            onFixationStrengthChange = { strength ->
+                coroutineScope.launch {
+                    dependencies.container.preferencesRepository
+                        .updateBionicFixationStrength(strength)
+                }
+            },
+            onHighlightStrengthChange = { strength ->
+                coroutineScope.launch {
+                    dependencies.container.preferencesRepository
+                        .updateBionicHighlightStrength(strength)
+                }
+            },
+            onFontSizeChange = { size ->
+                coroutineScope.launch {
+                    dependencies.container.preferencesRepository.updateBionicFontSize(size)
+                }
+            },
+            onTextBrightnessChange = { brightness ->
+                coroutineScope.launch {
+                    dependencies.container.preferencesRepository
+                        .updateBionicTextBrightness(brightness)
                 }
             },
             onBack = { dependencies.navController.popBackStack() },
