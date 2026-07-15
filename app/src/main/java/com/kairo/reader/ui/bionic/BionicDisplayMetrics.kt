@@ -4,10 +4,11 @@ package com.kairo.reader.ui.bionic
 
 import kotlin.math.min
 
-private const val BIONIC_MIN_RENDERED_CHUNK_WORDS = 4
+private const val BIONIC_MIN_TARGET_CHUNK_WORDS = 4
+private const val BIONIC_MIN_WORD_CAPACITY = 1
 private const val BIONIC_TARGET_CHUNK_WORDS = 30
 private const val BIONIC_MAX_RENDERED_CHUNK_WORDS = 96
-private const val BIONIC_MIN_RENDERED_CHUNK_CHARACTERS = 24
+private const val BIONIC_MIN_CHARACTERS_PER_LINE = 4
 private const val BIONIC_SEMANTIC_HEADROOM_RATIO = 1.18f
 
 internal fun resolveBionicTargetWordCount(
@@ -17,7 +18,7 @@ internal fun resolveBionicTargetWordCount(
     val targetWithHeadroom =
         (safeCapacity / BIONIC_SEMANTIC_HEADROOM_RATIO)
             .toInt()
-            .coerceAtLeast(min(BIONIC_MIN_RENDERED_CHUNK_WORDS, safeCapacity))
+            .coerceAtLeast(min(BIONIC_MIN_TARGET_CHUNK_WORDS, safeCapacity))
     return min(
         BIONIC_TARGET_CHUNK_WORDS,
         targetWithHeadroom,
@@ -33,11 +34,12 @@ internal fun estimateBionicWordCapacity(
     val safeFontSize =
         fontSizeSp.coerceIn(BIONIC_MIN_FONT_SIZE_SP, BIONIC_MAX_FONT_SIZE_SP) *
             fontScale.coerceAtLeast(0.5f)
+    val safeLineCount = paneLineCount.coerceAtLeast(1)
     val usableWidth = (min(screenWidthDp, 720) - 88).coerceAtLeast(180)
     val estimatedWordsPerLine = (usableWidth / (safeFontSize * 2.6f)).coerceAtLeast(2f)
-    return (estimatedWordsPerLine * paneLineCount.coerceAtLeast(1) * 0.78f)
+    return (estimatedWordsPerLine * safeLineCount * 0.78f)
         .toInt()
-        .coerceIn(BIONIC_MIN_RENDERED_CHUNK_WORDS, BIONIC_MAX_RENDERED_CHUNK_WORDS)
+        .coerceIn(BIONIC_MIN_WORD_CAPACITY, BIONIC_MAX_RENDERED_CHUNK_WORDS)
 }
 
 internal fun estimateBionicCharacterCapacity(
@@ -49,11 +51,14 @@ internal fun estimateBionicCharacterCapacity(
     val safeFontSize =
         fontSizeSp.coerceIn(BIONIC_MIN_FONT_SIZE_SP, BIONIC_MAX_FONT_SIZE_SP) *
             fontScale.coerceAtLeast(0.5f)
+    val safeLineCount = paneLineCount.coerceAtLeast(1)
     val usableWidth = (min(screenWidthDp, 720) - 88).coerceAtLeast(180)
-    val estimatedCharactersPerLine = (usableWidth / (safeFontSize * 0.54f)).coerceAtLeast(8f)
-    return (estimatedCharactersPerLine * paneLineCount.coerceAtLeast(1) * 0.86f)
+    val estimatedCharactersPerLine =
+        (usableWidth / (safeFontSize * 0.54f))
+            .coerceAtLeast(BIONIC_MIN_CHARACTERS_PER_LINE.toFloat())
+    return (estimatedCharactersPerLine * safeLineCount * 0.86f)
         .toInt()
-        .coerceAtLeast(BIONIC_MIN_RENDERED_CHUNK_CHARACTERS)
+        .coerceAtLeast(BIONIC_MIN_CHARACTERS_PER_LINE * safeLineCount)
 }
 
 internal fun bionicPaneLineCount(
