@@ -19,6 +19,8 @@ data class RsvpScreenState(
     val layoutBias: RsvpLayoutBias,
 )
 
+enum class ReadingPresentationMode { RSVP, BIONIC }
+
 data class RsvpBookContext(
     val bookId: BookId,
     val chapterIndex: Int,
@@ -53,6 +55,14 @@ data class RsvpScreenCallbacks(
     val preferences: RsvpPreferenceCallbacks,
     val ui: RsvpUiCallbacks,
     val theme: RsvpThemeCallbacks,
+    val bionic: BionicReadingCallbacks = BionicReadingCallbacks(),
+)
+
+data class BionicReadingCallbacks(
+    val onFixationStrengthChange: (Float) -> Unit = {},
+    val onHighlightStrengthChange: (Float) -> Unit = {},
+    val onFontSizeChange: (Float) -> Unit = {},
+    val onTextBrightnessChange: (Float) -> Unit = {},
 )
 
 data class RsvpBookmarkCallbacks(val onAddBookmark: (tokenIndex: Int, previewText: String) -> Unit, val onOpenBookmarks: () -> Unit,)

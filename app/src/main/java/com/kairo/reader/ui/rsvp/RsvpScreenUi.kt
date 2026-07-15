@@ -39,6 +39,7 @@ import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.prefersOrpWindowing
 import com.kairo.reader.core.model.prefersSimplifiedOrpDisplay
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
+import com.kairo.reader.ui.bionic.BionicReadingText
 import com.kairo.reader.ui.theme.InterFontFamily
 import com.kairo.reader.ui.theme.RobotoFontFamily
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
@@ -57,7 +58,7 @@ internal fun RsvpPlaybackSurface(
 ) {
     val runtime = context.runtime
     val frames = context.frameState.frames
-    val currentFrame =
+    val rsvpDisplayFrame =
         resolveRsvpDisplayFrame(
             frames = frames,
             frameIndex = runtime.frameIndex,
@@ -117,10 +118,23 @@ internal fun RsvpPlaybackSurface(
             .rsvpGestureModifier(context, interactionSource),
         contentAlignment = Alignment.Center,
     ) {
-        RsvpPositioningGrid(context, bottomChromeInset)
-        RsvpFocusWord(context, currentFrame, typography, colors, bottomChromeInset)
-        RsvpContextAssist(context, currentFrame, bottomChromeInset)
-        RsvpPositionGuide(context, bottomChromeInset)
+        when (context.presentationMode) {
+            ReadingPresentationMode.RSVP -> {
+                RsvpPositioningGrid(context, bottomChromeInset)
+                RsvpFocusWord(context, rsvpDisplayFrame, typography, colors, bottomChromeInset)
+                RsvpContextAssist(context, rsvpDisplayFrame, bottomChromeInset)
+                RsvpPositionGuide(context, bottomChromeInset)
+            }
+            ReadingPresentationMode.BIONIC -> {
+                BionicReadingText(
+                    frames = frames,
+                    tokens = context.state.book.tokens,
+                    frameIndex = runtime.frameIndex,
+                    runtime = runtime,
+                    preferences = context.bionicPreferences,
+                )
+            }
+        }
         RsvpProgressBar(context)
         RsvpTopBar(
             context = context,

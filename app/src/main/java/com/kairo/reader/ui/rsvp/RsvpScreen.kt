@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.kairo.reader.core.model.BlinkMode
+import com.kairo.reader.core.model.BionicReadingPreferences
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.RsvpReadabilityMode
@@ -36,6 +37,8 @@ fun RsvpScreen(
     state: RsvpScreenState,
     callbacks: RsvpScreenCallbacks,
     dependencies: RsvpScreenDependencies,
+    presentationMode: ReadingPresentationMode = ReadingPresentationMode.RSVP,
+    bionicPreferences: BionicReadingPreferences = BionicReadingPreferences(),
     tutorialState: StartingTutorialOverlayState? = null,
     onTutorialNext: () -> Unit = {},
     onTutorialPrevious: () -> Unit = {},
@@ -89,6 +92,8 @@ fun RsvpScreen(
             runtime = runtime,
             frameState = frameState,
             timing = timing,
+            presentationMode = presentationMode,
+            bionicPreferences = bionicPreferences,
             haptics =
             RsvpHapticCallbacks(
                 onFrameStep = {
@@ -141,7 +146,7 @@ fun RsvpScreen(
     RsvpIndicatorEffects(runtime)
 
     if (frameState.loadFailed) {
-        RsvpFrameLoadFailedState {
+        RsvpFrameLoadFailedState(presentationMode) {
             if (!isTutorialMode) {
                 exitAndSavePosition(context)
             }
@@ -149,11 +154,11 @@ fun RsvpScreen(
         return
     }
     if (shouldShowLoading(frameState)) {
-        RsvpLoadingState()
+        RsvpLoadingState(presentationMode)
         return
     }
     if (frameState.frames.isEmpty()) {
-        RsvpEmptyState {
+        RsvpEmptyState(presentationMode) {
             if (!isTutorialMode) {
                 exitAndSavePosition(context)
             }

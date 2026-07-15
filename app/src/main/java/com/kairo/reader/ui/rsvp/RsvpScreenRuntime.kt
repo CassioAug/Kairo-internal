@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.kairo.reader.core.model.BionicReadingPreferences
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.data.rsvp.RsvpFrameIndexMap
 
@@ -31,6 +32,8 @@ internal data class RsvpUiContext(
     val runtime: RsvpRuntimeState,
     val frameState: RsvpFrameLoadState,
     val timing: RsvpTimingInfo,
+    val presentationMode: ReadingPresentationMode = ReadingPresentationMode.RSVP,
+    val bionicPreferences: BionicReadingPreferences = BionicReadingPreferences(),
     val haptics: RsvpHapticCallbacks = RsvpHapticCallbacks(),
 )
 
