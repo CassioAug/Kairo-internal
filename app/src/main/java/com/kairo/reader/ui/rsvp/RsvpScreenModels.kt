@@ -6,6 +6,7 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpCustomProfile
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
 
@@ -19,7 +20,7 @@ data class RsvpScreenState(
     val layoutBias: RsvpLayoutBias,
 )
 
-enum class ReadingPresentationMode { RSVP, BIONIC }
+typealias ReadingPresentationMode = TimedReadingMode
 
 data class RsvpBookContext(
     val bookId: BookId,
