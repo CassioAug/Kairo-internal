@@ -766,6 +766,15 @@ private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
             )
     }
 
+enum class TimedReadingMode { RSVP, BIONIC }
+
+data class BionicReadingPreferences(
+    val fixationStrength: Float = 0.45f,
+    val highlightStrength: Float = 0.16f,
+    val fontSizeSp: Float = 24f,
+    val textBrightness: Float = 0.90f,
+)
+
 data class UserPreferences(
     val rsvpConfig: RsvpConfig = RsvpProfile.BALANCED.defaultConfig(),
     val rsvpTempoMsPerWord: Long = RsvpProfile.BALANCED.defaultConfig().tempoMsPerWord,
@@ -801,6 +810,8 @@ data class UserPreferences(
      */
     val rsvpPositioningGridEnabled: Boolean = true,
     val rsvpPositioningGridSnap: Float = DEFAULT_RSVP_POSITIONING_GRID_SNAP,
+    val timedReadingMode: TimedReadingMode = TimedReadingMode.RSVP,
+    val bionicReading: BionicReadingPreferences = BionicReadingPreferences(),
     val unlockExtremeSpeed: Boolean = false,
     // Focus mode
     val focusModeEnabled: Boolean = false,
