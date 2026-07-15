@@ -25,6 +25,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.kairo.reader.core.model.BlinkMode
+import com.kairo.reader.core.model.BionicReadingPreferences
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpContextAssistMode
@@ -33,6 +34,7 @@ import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.RsvpProfile
 import com.kairo.reader.core.model.RsvpProfileIds
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.defaultConfig
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
@@ -50,6 +52,12 @@ private const val MIN_RSVP_VERTICAL_BIAS = -0.7f
 private const val MAX_RSVP_VERTICAL_BIAS = 0.7f
 private const val MIN_RSVP_HORIZONTAL_BIAS = -0.6f
 private const val MAX_RSVP_HORIZONTAL_BIAS = 0.6f
+private const val MIN_BIONIC_FIXATION_STRENGTH = 0.30f
+private const val MAX_BIONIC_FIXATION_STRENGTH = 0.70f
+private const val MIN_BIONIC_HIGHLIGHT_STRENGTH = 0.08f
+private const val MAX_BIONIC_HIGHLIGHT_STRENGTH = 0.32f
+private const val MIN_BIONIC_FONT_SIZE_SP = 18f
+private const val MAX_BIONIC_FONT_SIZE_SP = 40f
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_prefs")
 
@@ -99,6 +107,14 @@ internal fun readerThemeForNightMode(uiMode: Int): ReaderTheme =
         Configuration.UI_MODE_NIGHT_YES -> ReaderTheme.DARK
         else -> ReaderTheme.LIGHT
     }
+
+internal fun timedReadingModeFromStored(
+    value: String?,
+    fallback: TimedReadingMode = TimedReadingMode.RSVP,
+): TimedReadingMode =
+    value
+        ?.let { stored -> runCatching { TimedReadingMode.valueOf(stored) }.getOrNull() }
+        ?: fallback
 
 class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepository {
     private val keys = PrefKeys
@@ -192,7 +208,9 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             .withRsvpState(rsvpConfig, timingInfo.tempoMsPerWord, selectedProfileId, customProfiles)
             .withTutorialState(prefs, defaults)
             .withReaderSettings(prefs, defaults)
+            .withTimedReadingMode(prefs, defaults)
             .withRsvpDisplaySettings(prefs, defaults, rsvpConfig)
+            .withBionicDisplaySettings(prefs, defaults)
             .withFocusSettings(prefs, defaults)
     }
 
@@ -236,6 +254,18 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         )
     }
 
+    private fun UserPreferences.withTimedReadingMode(
+        prefs: Preferences,
+        defaults: UserPreferences,
+    ): UserPreferences =
+        copy(
+            timedReadingMode =
+                timedReadingModeFromStored(
+                    value = prefs[keys.timedReadingMode],
+                    fallback = defaults.timedReadingMode,
+                ),
+        )
+
     private fun UserPreferences.withRsvpDisplaySettings(
         prefs: Preferences,
         defaults: UserPreferences,
@@ -271,6 +301,41 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
             rsvpPositioningGridSnap =
                 prefs.readOrDefault(keys.rsvpPositioningGridSnap, defaults.rsvpPositioningGridSnap),
             unlockExtremeSpeed = unlockExtremeSpeed,
+        )
+    }
+
+    private fun UserPreferences.withBionicDisplaySettings(
+        prefs: Preferences,
+        defaults: UserPreferences,
+    ): UserPreferences {
+        val fallback = defaults.bionicReading
+        return copy(
+            bionicReading =
+                BionicReadingPreferences(
+                    fixationStrength =
+                        prefs
+                            .readOrDefault(keys.bionicFixationStrength, fallback.fixationStrength)
+                            .coerceIn(
+                                MIN_BIONIC_FIXATION_STRENGTH,
+                                MAX_BIONIC_FIXATION_STRENGTH,
+                            ),
+                    highlightStrength =
+                        prefs
+                            .readOrDefault(keys.bionicHighlightStrength, fallback.highlightStrength)
+                            .coerceIn(
+                                MIN_BIONIC_HIGHLIGHT_STRENGTH,
+                                MAX_BIONIC_HIGHLIGHT_STRENGTH,
+                            ),
+                    fontSizeSp =
+                        prefs
+                            .readOrDefault(keys.bionicFontSize, fallback.fontSizeSp)
+                            .coerceIn(MIN_BIONIC_FONT_SIZE_SP, MAX_BIONIC_FONT_SIZE_SP),
+                    textBrightness =
+                        coerceTextBrightness(
+                            prefs[keys.bionicTextBrightness],
+                            fallback.textBrightness,
+                        ),
+                ),
         )
     }
 
@@ -467,6 +532,44 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     override suspend fun updateRsvpPositioningGridSnap(snap: Float) {
         context.dataStore.edit { prefs ->
             prefs[keys.rsvpPositioningGridSnap] = snap.coerceIn(0f, 1f)
+        }
+    }
+
+    override suspend fun updateTimedReadingMode(mode: TimedReadingMode) {
+        context.dataStore.edit { prefs -> prefs[keys.timedReadingMode] = mode.name }
+    }
+
+    override suspend fun updateBionicFixationStrength(strength: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[keys.bionicFixationStrength] =
+                strength.coerceIn(
+                    MIN_BIONIC_FIXATION_STRENGTH,
+                    MAX_BIONIC_FIXATION_STRENGTH,
+                )
+        }
+    }
+
+    override suspend fun updateBionicHighlightStrength(strength: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[keys.bionicHighlightStrength] =
+                strength.coerceIn(
+                    MIN_BIONIC_HIGHLIGHT_STRENGTH,
+                    MAX_BIONIC_HIGHLIGHT_STRENGTH,
+                )
+        }
+    }
+
+    override suspend fun updateBionicFontSize(size: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[keys.bionicFontSize] =
+                size.coerceIn(MIN_BIONIC_FONT_SIZE_SP, MAX_BIONIC_FONT_SIZE_SP)
+        }
+    }
+
+    override suspend fun updateBionicTextBrightness(brightness: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[keys.bionicTextBrightness] =
+                brightness.coerceIn(MIN_TEXT_BRIGHTNESS, MAX_TEXT_BRIGHTNESS)
         }
     }
 
@@ -1537,6 +1640,11 @@ private object PrefKeys {
     val rsvpHorizontalBias = floatPreferencesKey("rsvp_horizontal_bias")
     val rsvpPositioningGridEnabled = booleanPreferencesKey("rsvp_positioning_grid_enabled")
     val rsvpPositioningGridSnap = floatPreferencesKey("rsvp_positioning_grid_snap")
+    val timedReadingMode = stringPreferencesKey("timed_reading_mode")
+    val bionicFixationStrength = floatPreferencesKey("bionic_fixation_strength")
+    val bionicHighlightStrength = floatPreferencesKey("bionic_highlight_strength")
+    val bionicFontSize = floatPreferencesKey("bionic_font_size")
+    val bionicTextBrightness = floatPreferencesKey("bionic_text_brightness")
     val unlockExtremeSpeed = booleanPreferencesKey("unlock_extreme_speed")
     val focusModeEnabled = booleanPreferencesKey("focus_mode_enabled")
     val focusHideStatusBar = booleanPreferencesKey("focus_hide_status_bar")

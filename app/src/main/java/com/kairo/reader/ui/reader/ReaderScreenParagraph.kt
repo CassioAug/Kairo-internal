@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.sp
 import com.kairo.reader.R
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.shouldInsertSpaceBeforeToken
 import com.kairo.reader.ui.theme.MerriweatherFontFamily
@@ -37,8 +38,9 @@ internal fun ParagraphText(
     focusIndex: Int,
     fontSizeSp: Float,
     textBrightness: Float,
+    timedReadingMode: TimedReadingMode,
     onFocusChange: (Int) -> Unit,
-    onStartRsvp: (Int) -> Unit,
+    onStartTimedReading: (Int) -> Unit,
     onChapterSelected: ((Int) -> Unit)? = null,
 ) {
     val baseStyle =
@@ -134,9 +136,17 @@ internal fun ParagraphText(
     val currentAnnotated by rememberUpdatedState(annotated)
     val currentFocusIndex by rememberUpdatedState(focusIndex)
     val currentOnFocusChange by rememberUpdatedState(onFocusChange)
-    val currentOnStartRsvp by rememberUpdatedState(onStartRsvp)
+    val currentOnStartTimedReading by rememberUpdatedState(onStartTimedReading)
     val currentOnChapterSelected by rememberUpdatedState(onChapterSelected)
-    val startRsvpActionLabel = stringResource(R.string.reader_start_rsvp_action)
+    val timedReadingModeLabel =
+        stringResource(
+            when (timedReadingMode) {
+                TimedReadingMode.RSVP -> R.string.timed_reading_mode_rsvp
+                TimedReadingMode.BIONIC -> R.string.timed_reading_mode_bionic
+            },
+        )
+    val startTimedReadingActionLabel =
+        stringResource(R.string.reader_start_timed_reading_action, timedReadingModeLabel)
 
     Text(
         text = annotated,
@@ -146,8 +156,8 @@ internal fun ParagraphText(
             .fillMaxWidth()
             .semantics {
                 role = Role.Button
-                onClick(label = startRsvpActionLabel) {
-                    currentOnStartRsvp(currentFocusIndex)
+                onClick(label = startTimedReadingActionLabel) {
+                    currentOnStartTimedReading(currentFocusIndex)
                     true
                 }
             }
@@ -191,7 +201,7 @@ internal fun ParagraphText(
                         if (tokenIndex ==
                             currentFocusIndex
                         ) {
-                            currentOnStartRsvp(tokenIndex)
+                            currentOnStartTimedReading(tokenIndex)
                         } else {
                             currentOnFocusChange(tokenIndex)
                         }
@@ -215,7 +225,7 @@ internal fun ParagraphText(
                                 ?: return@detectTapGestures
                         val tokenIndex = hit.item.toIntOrNull() ?: return@detectTapGestures
                         if (tokenIndex != currentFocusIndex) currentOnFocusChange(tokenIndex)
-                        currentOnStartRsvp(tokenIndex)
+                        currentOnStartTimedReading(tokenIndex)
                     },
                 )
             },

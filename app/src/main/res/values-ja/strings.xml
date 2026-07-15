@@ -112,8 +112,8 @@
     <string name="focus_apply_title">集中モードを適用</string>
     <string name="focus_apply_reader_title">リーダーで適用</string>
     <string name="focus_apply_reader_subtitle">スクロールリーダーで集中モードを使用します。</string>
-    <string name="focus_apply_rsvp_title">速読で適用</string>
-    <string name="focus_apply_rsvp_subtitle">速読中は集中モードを使用します。</string>
+    <string name="focus_apply_rsvp_title">タイムドリーディングに適用</string>
+    <string name="focus_apply_rsvp_subtitle">RSVPおよびバイオニックリーディングの再生中に集中モードを使用します。</string>
     <string name="focus_settings_title">集中設定</string>
     <string name="focus_settings_subtitle">最小表示とおやすみモードの設定</string>
 
@@ -358,7 +358,7 @@
     <string name="info_contribute_title">貢献しますか？</string>
     <string name="info_contribute_subtitle">KairoのGitHubリポジトリを開く</string>
     <string name="settings_reset_confirm_title">すべての設定をリセットしますか？</string>
-    <string name="settings_reset_confirm_message">RSVP、リーダー、フォーカス、プロファイル、チュートリアルの設定を既定値に戻します。</string>
+    <string name="settings_reset_confirm_message">RSVP、バイオニックリーディング、リーダー、フォーカス、プロファイル、チュートリアルの設定を既定値に戻します。</string>
     <string name="starting_tutorial_progress">%1$d / %2$d</string>
     <string name="starting_tutorial_intro_title">Kairoへようこそ</string>
     <string name="starting_tutorial_intro_body">Kairoはライブラリから始まります。本をインポートして開き、リーダーでフォーカス語をタップするとRSVP再生に移動します。</string>
@@ -446,4 +446,33 @@
         <item quantity="one">インポートしました: %1$s（%2$d 章）</item>
         <item quantity="other">インポートしました: %1$s（%2$d 章）</item>
     </plurals>
+    <string name="content_desc_start_timed_reading">%1$sを開始</string>
+    <string name="reader_timed_reading_dock_progress">%1$s · %2$d%%</string>
+    <string name="reader_choose_timed_reading_mode">読書モードを選択。%1$sを選択中</string>
+    <string name="reader_recenter_focus_action">フォーカス単語を中央に戻す</string>
+    <string name="timed_reading_mode_rsvp">RSVP</string>
+    <string name="timed_reading_mode_bionic">バイオニック</string>
+    <string name="timed_reading_mode_rsvp_description">1語ずつ表示</string>
+    <string name="timed_reading_mode_bionic_description">ガイド付きテキストフロー</string>
+    <string name="reader_start_timed_reading_action">フォーカス単語から%1$sを開始</string>
+    <string name="bionic_quick_settings_title">バイオニックリーディング</string>
+    <string name="bionic_settings_title">バイオニックリーディング</string>
+    <string name="settings_bionic_subtitle">読書ペイン、注視、移動フォーカス</string>
+    <string name="bionic_experimental_label">試験的機能</string>
+    <string name="bionic_settings_explanation">バイオニックリーディングでは、安定したテキストブロックを画面に表示し、各単語の先頭部分を太字にして、RSVPのタイミングに合わせたハイライトをブロック内で移動させます。</string>
+    <string name="bionic_uses_rsvp_timing">再生速度、フレーズのグループ化、句読点での一時停止、適応型ペーシングにはRSVP設定が使用されます。</string>
+    <string name="bionic_fixation_title">注視の強さ</string>
+    <string name="bionic_fixation_subtitle">視覚的な目印を作るため、各単語をどこまで太字にするかを設定します。</string>
+    <string name="bionic_highlight_title">移動ハイライト</string>
+    <string name="bionic_highlight_subtitle">ブロック内を移動する、RSVPのタイミングに合わせたフォーカスの強さを調整します。</string>
+    <string name="bionic_text_size_title">バイオニックテキストのサイズ</string>
+    <string name="bionic_text_size_subtitle">リーダーやRSVPの単語に影響を与えず、ブロック内のテキストを変更します。</string>
+    <string name="bionic_brightness_title">バイオニックテキストの明るさ</string>
+    <string name="bionic_brightness_subtitle">現在のテーマを変更せずに、ブロック内のテキストを暗くします。</string>
+    <string name="bionic_advanced_settings_subtitle">注視、移動フォーカス、明るさ。</string>
+    <string name="bionic_preparing">バイオニックリーディングを準備しています...</string>
+    <string name="bionic_frame_load_failed">バイオニックリーディングを準備できませんでした。タップしてリーダーに戻ります。</string>
+    <string name="bionic_empty_state">表示するコンテンツがありません。\nタップして戻ります。</string>
+    <string name="accessibility_state_expanded">展開済み</string>
+    <string name="accessibility_state_collapsed">折りたたみ済み</string>
 </resources>

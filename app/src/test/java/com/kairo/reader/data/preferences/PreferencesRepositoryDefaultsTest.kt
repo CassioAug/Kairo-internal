@@ -3,6 +3,7 @@ package com.kairo.reader.data.preferences
 import android.content.res.Configuration
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.TimedReadingMode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -40,5 +41,16 @@ class PreferencesRepositoryDefaultsTest {
             normalized.parentheticalAsideMultiplier,
             0.0,
         )
+    }
+
+    @Test
+    fun timedReadingModeDefaultsToRsvpForMissingOrInvalidValues() {
+        assertEquals(TimedReadingMode.RSVP, timedReadingModeFromStored(null))
+        assertEquals(TimedReadingMode.RSVP, timedReadingModeFromStored("not-a-mode"))
+    }
+
+    @Test
+    fun timedReadingModeRestoresBionicSelection() {
+        assertEquals(TimedReadingMode.BIONIC, timedReadingModeFromStored("BIONIC"))
     }
 }

@@ -244,6 +244,7 @@ private fun rememberPausedPreviewContent(
     context: RsvpUiContext,
     compact: Boolean,
 ): PausedPreviewContent? {
+    if (context.presentationMode != ReadingPresentationMode.RSVP) return null
     val runtime = context.runtime
     val tokens = context.state.book.tokens
     if (tokens.isEmpty()) return null

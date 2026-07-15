@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
@@ -45,6 +46,7 @@ import com.kairo.reader.ui.tutorial.startingTutorialTarget
 @Composable
 fun SettingsHomeScreen(
     onOpenRsvp: () -> Unit,
+    onOpenBionic: () -> Unit,
     onOpenReader: () -> Unit,
     onOpenFocus: () -> Unit,
     onOpenInfo: () -> Unit,
@@ -100,6 +102,12 @@ fun SettingsHomeScreen(
                 subtitle = stringResource(R.string.settings_rsvp_subtitle),
                 icon = Icons.Default.Settings,
                 onClick = onOpenRsvp,
+            )
+            SettingsNavRow(
+                title = stringResource(R.string.bionic_settings_title),
+                subtitle = stringResource(R.string.settings_bionic_subtitle),
+                icon = Icons.Default.AutoStories,
+                onClick = onOpenBionic,
             )
             SettingsNavRow(
                 modifier =

@@ -14,6 +14,7 @@ class FocusModeRoutePolicyTest {
         assertFalse(shouldApplyFocusMode(KairoRoutes.SETTINGS, preferences))
         assertFalse(shouldApplyFocusMode(KairoRoutes.READER, preferences))
         assertFalse(shouldApplyFocusMode(KairoRoutes.RSVP, preferences))
+        assertFalse(shouldApplyFocusMode(KairoRoutes.BIONIC, preferences))
     }
 
     @Test
@@ -28,6 +29,7 @@ class FocusModeRoutePolicyTest {
         assertTrue(shouldApplyFocusMode(KairoRoutes.SETTINGS, preferences))
         assertTrue(shouldApplyFocusMode(KairoRoutes.SETTINGS_LANGUAGE, preferences))
         assertTrue(shouldApplyFocusMode(KairoRoutes.SETTINGS_INFO, preferences))
+        assertTrue(shouldApplyFocusMode(KairoRoutes.SETTINGS_BIONIC, preferences))
     }
 
     @Test
@@ -54,6 +56,12 @@ class FocusModeRoutePolicyTest {
             shouldApplyFocusMode(
                 KairoRoutes.RSVP,
                 UserPreferences(focusModeEnabled = true, focusApplyInRsvp = false),
+            )
+        )
+        assertTrue(
+            shouldApplyFocusMode(
+                KairoRoutes.BIONIC,
+                UserPreferences(focusModeEnabled = true, focusApplyInRsvp = true),
             )
         )
     }

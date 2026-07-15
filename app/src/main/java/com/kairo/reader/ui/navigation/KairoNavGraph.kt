@@ -13,5 +13,6 @@ internal fun NavGraphBuilder.kairoNavGraph(dependencies: KairoNavGraphDependenci
     libraryDestinations(dependencies.library)
     readerDestinations(dependencies.reader)
     rsvpDestination(dependencies.rsvp)
+    bionicDestination(dependencies.rsvp)
     settingsRoutes(dependencies.settings)
 }

@@ -16,7 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import com.kairo.reader.R
 
 @Composable
-internal fun RsvpLoadingState() {
+internal fun RsvpLoadingState(presentationMode: ReadingPresentationMode) {
     Box(
         modifier =
         Modifier
@@ -25,7 +25,13 @@ internal fun RsvpLoadingState() {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            stringResource(R.string.rsvp_preparing),
+            stringResource(
+                if (presentationMode == ReadingPresentationMode.BIONIC) {
+                    R.string.bionic_preparing
+                } else {
+                    R.string.rsvp_preparing
+                }
+            ),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = LOADING_TEXT_ALPHA),
         )
@@ -33,7 +39,10 @@ internal fun RsvpLoadingState() {
 }
 
 @Composable
-internal fun RsvpFrameLoadFailedState(onExit: () -> Unit) {
+internal fun RsvpFrameLoadFailedState(
+    presentationMode: ReadingPresentationMode,
+    onExit: () -> Unit,
+) {
     Box(
         modifier =
         Modifier
@@ -43,7 +52,13 @@ internal fun RsvpFrameLoadFailedState(onExit: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            stringResource(R.string.rsvp_frame_load_failed),
+            stringResource(
+                if (presentationMode == ReadingPresentationMode.BIONIC) {
+                    R.string.bionic_frame_load_failed
+                } else {
+                    R.string.rsvp_frame_load_failed
+                }
+            ),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = LOADING_TEXT_ALPHA),
@@ -52,7 +67,10 @@ internal fun RsvpFrameLoadFailedState(onExit: () -> Unit) {
 }
 
 @Composable
-internal fun RsvpEmptyState(onExit: () -> Unit) {
+internal fun RsvpEmptyState(
+    presentationMode: ReadingPresentationMode,
+    onExit: () -> Unit,
+) {
     Box(
         modifier =
         Modifier
@@ -62,7 +80,13 @@ internal fun RsvpEmptyState(onExit: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            stringResource(R.string.rsvp_empty_state),
+            stringResource(
+                if (presentationMode == ReadingPresentationMode.BIONIC) {
+                    R.string.bionic_empty_state
+                } else {
+                    R.string.rsvp_empty_state
+                }
+            ),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = LOADING_TEXT_ALPHA),

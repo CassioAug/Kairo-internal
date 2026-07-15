@@ -13,9 +13,11 @@ import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.buildWordCountByToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.ui.rsvp.ReadingPresentationMode
 import com.kairo.reader.ui.rsvp.RsvpBookContext
 import com.kairo.reader.ui.rsvp.RsvpLayoutBias
 import com.kairo.reader.ui.rsvp.RsvpProfileContext
@@ -38,6 +40,7 @@ internal fun RsvpRoute(
     onTutorialNext: () -> Unit,
     onTutorialPrevious: () -> Unit,
     onTutorialSkip: () -> Unit,
+    presentationMode: ReadingPresentationMode = ReadingPresentationMode.RSVP,
 ) {
     val bookId = backStackEntry.arguments?.getString(KairoRoutes.ARG_BOOK_ID) ?: return
     val chapterIndex = backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0
@@ -141,17 +144,30 @@ internal fun RsvpRoute(
                     positioningGridSnap = prefs.rsvpPositioningGridSnap,
                 ),
             textStyle =
-                RsvpTextStyle(
-                    fontSizeSp = prefs.rsvpFontSizeSp,
-                    fontFamily = prefs.rsvpFontFamily,
-                    fontWeight = prefs.rsvpFontWeight,
-                    textBrightness = prefs.rsvpTextBrightness,
-                ),
+                if (presentationMode == ReadingPresentationMode.BIONIC) {
+                    RsvpTextStyle(
+                        fontSizeSp = prefs.bionicReading.fontSizeSp,
+                        fontFamily = prefs.rsvpFontFamily,
+                        fontWeight = RsvpFontWeight.NORMAL,
+                        textBrightness = prefs.bionicReading.textBrightness,
+                    )
+                } else {
+                    RsvpTextStyle(
+                        fontSizeSp = prefs.rsvpFontSizeSp,
+                        fontFamily = prefs.rsvpFontFamily,
+                        fontWeight = prefs.rsvpFontWeight,
+                        textBrightness = prefs.rsvpTextBrightness,
+                    )
+                },
             layoutBias =
-                RsvpLayoutBias(
-                    verticalBias = prefs.rsvpVerticalBias,
-                    horizontalBias = prefs.rsvpHorizontalBias,
-                ),
+                if (presentationMode == ReadingPresentationMode.BIONIC) {
+                    RsvpLayoutBias(verticalBias = 0f, horizontalBias = 0f)
+                } else {
+                    RsvpLayoutBias(
+                        verticalBias = prefs.rsvpVerticalBias,
+                        horizontalBias = prefs.rsvpHorizontalBias,
+                    )
+                },
         )
     val rsvpCallbacks =
         buildRsvpRouteCallbacks(
@@ -182,6 +198,8 @@ internal fun RsvpRoute(
         state = rsvpState,
         callbacks = rsvpCallbacks,
         dependencies = rsvpDependencies,
+        presentationMode = presentationMode,
+        bionicPreferences = prefs.bionicReading,
         tutorialState = tutorialState,
         onTutorialNext = onTutorialNext,
         onTutorialPrevious = onTutorialPrevious,

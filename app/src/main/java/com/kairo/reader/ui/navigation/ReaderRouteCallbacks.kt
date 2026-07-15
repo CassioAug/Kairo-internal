@@ -9,6 +9,7 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.ui.reader.ReaderUiState
@@ -29,7 +30,8 @@ internal data class ReaderRouteCallbacks(
     val onOpenLibrary: () -> Unit,
     val onFocusChange: (Int) -> Unit,
     val onPageChange: (pageIndex: Int, focusTokenIndex: Int) -> Unit,
-    val onStartRsvp: (Int) -> Unit,
+    val onStartTimedReading: (TimedReadingMode, Int) -> Unit,
+    val onSelectTimedReadingMode: (TimedReadingMode, Int) -> Unit,
     val onChapterChange: (Int, Int?) -> Unit,
     val onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
 )
@@ -157,8 +159,11 @@ internal fun buildReaderRouteCallbacks(
                 ),
             )
         },
-        onStartRsvp = { start ->
-            dependencies.startRsvp(start)
+        onStartTimedReading = { mode, start ->
+            dependencies.startTimedReading(mode, start, rememberMode = false)
+        },
+        onSelectTimedReadingMode = { mode, start ->
+            dependencies.startTimedReading(mode, start, rememberMode = true)
         },
         onChapterChange = { newIndex, focusIndex ->
             dependencies.readerViewModel.loadChapter(newIndex, focusIndex)
@@ -210,7 +215,11 @@ private fun ReaderRouteCallbackDependencies.navigateReaderToLibrary() {
     }
 }
 
-private fun ReaderRouteCallbackDependencies.startRsvp(start: Int) {
+private fun ReaderRouteCallbackDependencies.startTimedReading(
+    mode: TimedReadingMode,
+    start: Int,
+    rememberMode: Boolean,
+) {
     RsvpLaunchSnapshotStore.put(
         bookId = bookId,
         chapterIndex = uiState.chapterIndex,
@@ -221,6 +230,9 @@ private fun ReaderRouteCallbackDependencies.startRsvp(start: Int) {
         getPendingRsvpLaunchTempoMsPerWord()
             .takeIf { it > 0L }
     lifecycleScope.launch(dispatcherProvider.io) {
+        if (rememberMode) {
+            container.preferencesRepository.updateTimedReadingMode(mode)
+        }
         val existingPosition = container.readingPositionRepository.getPosition(bookIdValue)
         val resumeCursor =
             existingPosition
@@ -239,7 +251,8 @@ private fun ReaderRouteCallbackDependencies.startRsvp(start: Int) {
         )
         withContext(Dispatchers.Main) {
             navController.navigate(
-                KairoRoutes.rsvp(
+                KairoRoutes.timedReading(
+                    mode = mode,
                     bookId = bookId,
                     chapterIndex = uiState.chapterIndex,
                     tokenIndex = start,

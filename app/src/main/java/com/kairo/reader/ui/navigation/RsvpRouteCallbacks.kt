@@ -10,6 +10,7 @@ import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.ui.rsvp.BionicReadingCallbacks
 import com.kairo.reader.ui.rsvp.RsvpBookmarkCallbacks
 import com.kairo.reader.ui.rsvp.RsvpPlaybackCallbacks
 import com.kairo.reader.ui.rsvp.RsvpPreferenceCallbacks
@@ -51,6 +52,36 @@ internal fun buildRsvpRouteCallbacks(
         preferences = buildRsvpPreferenceCallbacks(dependencies),
         ui = buildRsvpUiCallbacks(dependencies),
         theme = buildRsvpThemeCallbacks(dependencies),
+        bionic = buildBionicReadingCallbacks(dependencies),
+    )
+
+private fun buildBionicReadingCallbacks(
+    dependencies: RsvpRouteCallbackDependencies,
+): BionicReadingCallbacks =
+    BionicReadingCallbacks(
+        onFixationStrengthChange = { strength ->
+            dependencies.coroutineScope.launch {
+                dependencies.container.preferencesRepository
+                    .updateBionicFixationStrength(strength)
+            }
+        },
+        onHighlightStrengthChange = { strength ->
+            dependencies.coroutineScope.launch {
+                dependencies.container.preferencesRepository
+                    .updateBionicHighlightStrength(strength)
+            }
+        },
+        onFontSizeChange = { size ->
+            dependencies.coroutineScope.launch {
+                dependencies.container.preferencesRepository.updateBionicFontSize(size)
+            }
+        },
+        onTextBrightnessChange = { brightness ->
+            dependencies.coroutineScope.launch {
+                dependencies.container.preferencesRepository
+                    .updateBionicTextBrightness(brightness)
+            }
+        },
     )
 
 private fun buildRsvpBookmarkCallbacks(

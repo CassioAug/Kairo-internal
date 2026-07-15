@@ -3,6 +3,7 @@ package com.kairo.reader.data.preferences
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
+import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.UserPreferences
 import kotlinx.coroutines.flow.Flow
 
@@ -50,6 +51,16 @@ interface PreferencesRepository {
     suspend fun updateRsvpPositioningGridEnabled(enabled: Boolean)
 
     suspend fun updateRsvpPositioningGridSnap(snap: Float)
+
+    suspend fun updateTimedReadingMode(mode: TimedReadingMode)
+
+    suspend fun updateBionicFixationStrength(strength: Float)
+
+    suspend fun updateBionicHighlightStrength(strength: Float)
+
+    suspend fun updateBionicFontSize(size: Float)
+
+    suspend fun updateBionicTextBrightness(brightness: Float)
 
     suspend fun updateFocusModeEnabled(enabled: Boolean)
 
