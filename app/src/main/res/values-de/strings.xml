@@ -112,8 +112,8 @@
     <string name="focus_apply_title">Fokusmodus anwenden</string>
     <string name="focus_apply_reader_title">Im Reader anwenden</string>
     <string name="focus_apply_reader_subtitle">Fokusmodus im Scroll-Reader verwenden.</string>
-    <string name="focus_apply_rsvp_title">Im Schnelllesemodus anwenden</string>
-    <string name="focus_apply_rsvp_subtitle">Fokusmodus im Schnelllesemodus verwenden.</string>
+    <string name="focus_apply_rsvp_title">Beim zeitgesteuerten Lesen anwenden</string>
+    <string name="focus_apply_rsvp_subtitle">Fokusmodus bei der RSVP-Wiedergabe und beim bionischen Lesen verwenden.</string>
     <string name="focus_settings_title">Fokuseinstellungen</string>
     <string name="focus_settings_subtitle">Minimalmodus und Nicht stören-Optionen</string>
 
@@ -358,7 +358,7 @@
     <string name="info_contribute_title">Möchtest du mitwirken?</string>
     <string name="info_contribute_subtitle">Das Kairo-GitHub-Repository öffnen</string>
     <string name="settings_reset_confirm_title">Alle Einstellungen zurücksetzen?</string>
-    <string name="settings_reset_confirm_message">Dadurch werden RSVP-, Leser-, Fokus-, Profil- und Einführungseinstellungen auf die Standardwerte zurückgesetzt.</string>
+    <string name="settings_reset_confirm_message">Dadurch werden die Einstellungen für RSVP, bionisches Lesen, Reader, Fokus, Profile und Einführung auf die Standardwerte zurückgesetzt.</string>
     <string name="starting_tutorial_progress">%1$d von %2$d</string>
     <string name="starting_tutorial_intro_title">Willkommen bei Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo startet in deiner Bibliothek. Importiere ein Buch, öffne es und tippe dann im Reader auf das Fokuswort, um in die RSVP-Wiedergabe zu springen.</string>
@@ -446,4 +446,33 @@
         <item quantity="one">Importiert: %1$s (%2$d Kapitel)</item>
         <item quantity="other">Importiert: %1$s (%2$d Kapitel)</item>
     </plurals>
+    <string name="content_desc_start_timed_reading">%1$s starten</string>
+    <string name="reader_timed_reading_dock_progress">%1$s · %2$d%%</string>
+    <string name="reader_choose_timed_reading_mode">Lesemodus auswählen. %1$s ist ausgewählt</string>
+    <string name="reader_recenter_focus_action">Fokuswort neu zentrieren</string>
+    <string name="timed_reading_mode_rsvp">RSVP</string>
+    <string name="timed_reading_mode_bionic">Bionisch</string>
+    <string name="timed_reading_mode_rsvp_description">Ein Wort nach dem anderen</string>
+    <string name="timed_reading_mode_bionic_description">Geführter Textfluss</string>
+    <string name="reader_start_timed_reading_action">%1$s ab dem Fokuswort starten</string>
+    <string name="bionic_quick_settings_title">Bionisches Lesen</string>
+    <string name="bionic_settings_title">Bionisches Lesen</string>
+    <string name="settings_bionic_subtitle">Lesebereich, Fixierung und bewegter Fokus</string>
+    <string name="bionic_experimental_label">EXPERIMENTELL</string>
+    <string name="bionic_settings_explanation">Beim bionischen Lesen bleibt ein stabiler Textblock auf dem Bildschirm, der Anfang jedes Wortes wird fett dargestellt und eine nach RSVP getaktete Hervorhebung bewegt sich durch den Abschnitt.</string>
+    <string name="bionic_uses_rsvp_timing">Wiedergabegeschwindigkeit, Wortgruppierung, Satzzeichenpausen und adaptives Tempo werden aus deinen RSVP-Einstellungen übernommen.</string>
+    <string name="bionic_fixation_title">Fixierungsstärke</string>
+    <string name="bionic_fixation_subtitle">Legt fest, wie viel von jedem Wort fett dargestellt wird, um einen visuellen Anker zu bilden.</string>
+    <string name="bionic_highlight_title">Bewegte Hervorhebung</string>
+    <string name="bionic_highlight_subtitle">Steuert die Stärke des nach RSVP getakteten Fokus, der sich durch den Abschnitt bewegt.</string>
+    <string name="bionic_text_size_title">Textgröße für bionisches Lesen</string>
+    <string name="bionic_text_size_subtitle">Ändert den Text im Abschnitt, ohne den Reader oder das RSVP-Wort zu beeinflussen.</string>
+    <string name="bionic_brightness_title">Texthelligkeit für bionisches Lesen</string>
+    <string name="bionic_brightness_subtitle">Dimmt den Text im Abschnitt, ohne das aktuelle Thema zu ändern.</string>
+    <string name="bionic_advanced_settings_subtitle">Fixierung, bewegter Fokus und Helligkeit.</string>
+    <string name="bionic_preparing">Bionisches Lesen wird vorbereitet...</string>
+    <string name="bionic_frame_load_failed">Bionisches Lesen konnte nicht vorbereitet werden. Tippe, um zum Reader zurückzukehren.</string>
+    <string name="bionic_empty_state">Kein Inhalt zum Anzeigen.\nTippe, um zurückzugehen.</string>
+    <string name="accessibility_state_expanded">Ausgeklappt</string>
+    <string name="accessibility_state_collapsed">Eingeklappt</string>
 </resources>

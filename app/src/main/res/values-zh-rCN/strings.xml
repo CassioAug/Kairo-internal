@@ -112,8 +112,8 @@
     <string name="focus_apply_title">应用专注模式</string>
     <string name="focus_apply_reader_title">在阅读器中应用</string>
     <string name="focus_apply_reader_subtitle">在滚动阅读器中使用专注模式。</string>
-    <string name="focus_apply_rsvp_title">在速读中应用</string>
-    <string name="focus_apply_rsvp_subtitle">在速读时使用专注模式。</string>
+    <string name="focus_apply_rsvp_title">应用于定时阅读</string>
+    <string name="focus_apply_rsvp_subtitle">在 RSVP 和仿生阅读播放中使用专注模式。</string>
     <string name="focus_settings_title">专注设置</string>
     <string name="focus_settings_subtitle">极简模式和勿扰选项</string>
 
@@ -358,7 +358,7 @@
     <string name="info_contribute_title">想参与贡献？</string>
     <string name="info_contribute_subtitle">打开 Kairo GitHub 仓库</string>
     <string name="settings_reset_confirm_title">重置所有设置？</string>
-    <string name="settings_reset_confirm_message">这会将 RSVP、阅读器、专注、配置和教程偏好恢复为默认值。</string>
+    <string name="settings_reset_confirm_message">这会将 RSVP、仿生阅读、阅读器、专注、配置和教程偏好恢复为默认值。</string>
     <string name="starting_tutorial_progress">%1$d / %2$d</string>
     <string name="starting_tutorial_intro_title">欢迎使用 Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo 从书库开始。导入一本书，打开它，然后在阅读器中点按焦点词即可进入 RSVP 播放。</string>
@@ -446,4 +446,33 @@
         <item quantity="one">已导入：%1$s（%2$d 章）</item>
         <item quantity="other">已导入：%1$s（%2$d 章）</item>
     </plurals>
+    <string name="content_desc_start_timed_reading">开始%1$s</string>
+    <string name="reader_timed_reading_dock_progress">%1$s · %2$d%%</string>
+    <string name="reader_choose_timed_reading_mode">选择阅读模式。已选择%1$s</string>
+    <string name="reader_recenter_focus_action">重新居中焦点词</string>
+    <string name="timed_reading_mode_rsvp">RSVP</string>
+    <string name="timed_reading_mode_bionic">仿生</string>
+    <string name="timed_reading_mode_rsvp_description">逐词显示</string>
+    <string name="timed_reading_mode_bionic_description">引导式文本流</string>
+    <string name="reader_start_timed_reading_action">从焦点词开始%1$s</string>
+    <string name="bionic_quick_settings_title">仿生阅读</string>
+    <string name="bionic_settings_title">仿生阅读</string>
+    <string name="settings_bionic_subtitle">阅读窗格、注视点和移动焦点</string>
+    <string name="bionic_experimental_label">实验性功能</string>
+    <string name="bionic_settings_explanation">仿生阅读会在屏幕上保持一块稳定的文本，将每个词的开头部分加粗，并让一个按 RSVP 节奏移动的高亮在文本块中前进。</string>
+    <string name="bionic_uses_rsvp_timing">播放速度、短语分组、标点停顿和自适应节奏均取自 RSVP 设置。</string>
+    <string name="bionic_fixation_title">注视强度</string>
+    <string name="bionic_fixation_subtitle">控制每个词加粗的比例，以形成视觉锚点。</string>
+    <string name="bionic_highlight_title">移动高亮</string>
+    <string name="bionic_highlight_subtitle">控制按 RSVP 节奏在文本块中移动的焦点强度。</string>
+    <string name="bionic_text_size_title">仿生文字大小</string>
+    <string name="bionic_text_size_subtitle">更改文本块中的文字，不影响阅读器或 RSVP 单词。</string>
+    <string name="bionic_brightness_title">仿生文字亮度</string>
+    <string name="bionic_brightness_subtitle">在不更改当前主题的情况下调暗文本块中的文字。</string>
+    <string name="bionic_advanced_settings_subtitle">注视、移动焦点和亮度。</string>
+    <string name="bionic_preparing">正在准备仿生阅读...</string>
+    <string name="bionic_frame_load_failed">无法准备仿生阅读。点按以返回阅读器。</string>
+    <string name="bionic_empty_state">没有可显示的内容。\n点按返回。</string>
+    <string name="accessibility_state_expanded">已展开</string>
+    <string name="accessibility_state_collapsed">已折叠</string>
 </resources>

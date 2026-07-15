@@ -112,8 +112,8 @@
     <string name="focus_apply_title">Aplicar modo enfoque</string>
     <string name="focus_apply_reader_title">Aplicar en lector</string>
     <string name="focus_apply_reader_subtitle">Usar modo enfoque en el lector con desplazamiento.</string>
-    <string name="focus_apply_rsvp_title">Aplicar en lectura rápida</string>
-    <string name="focus_apply_rsvp_subtitle">Usar modo enfoque en la lectura rápida.</string>
+    <string name="focus_apply_rsvp_title">Aplicar en la lectura temporizada</string>
+    <string name="focus_apply_rsvp_subtitle">Usar el modo de enfoque durante la reproducción RSVP y la lectura biónica.</string>
     <string name="focus_settings_title">Ajustes de enfoque</string>
     <string name="focus_settings_subtitle">Modo minimalista y opciones de No molestar</string>
 
@@ -358,7 +358,7 @@
     <string name="info_contribute_title">¿Quieres contribuir?</string>
     <string name="info_contribute_subtitle">Abrir el repositorio de Kairo en GitHub</string>
     <string name="settings_reset_confirm_title">¿Restablecer todos los ajustes?</string>
-    <string name="settings_reset_confirm_message">Esto restaurará los ajustes de RSVP, lector, enfoque, perfil y tutorial a sus valores predeterminados.</string>
+    <string name="settings_reset_confirm_message">Esto restaurará los ajustes de RSVP, lectura biónica, lector, enfoque, perfil y tutorial a sus valores predeterminados.</string>
     <string name="starting_tutorial_progress">%1$d de %2$d</string>
     <string name="starting_tutorial_intro_title">Bienvenido a Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo empieza en tu biblioteca. Importa un libro, ábrelo y toca la palabra enfocada en el lector para pasar a la reproducción RSVP.</string>
@@ -446,4 +446,33 @@
         <item quantity="one">Importado: %1$s (%2$d capítulo)</item>
         <item quantity="other">Importado: %1$s (%2$d capítulos)</item>
     </plurals>
+    <string name="content_desc_start_timed_reading">Iniciar %1$s</string>
+    <string name="reader_timed_reading_dock_progress">%1$s · %2$d%%</string>
+    <string name="reader_choose_timed_reading_mode">Elegir modo de lectura. %1$s seleccionado</string>
+    <string name="reader_recenter_focus_action">Volver a centrar la palabra de enfoque</string>
+    <string name="timed_reading_mode_rsvp">RSVP</string>
+    <string name="timed_reading_mode_bionic">Biónica</string>
+    <string name="timed_reading_mode_rsvp_description">Una palabra a la vez</string>
+    <string name="timed_reading_mode_bionic_description">Flujo de texto guiado</string>
+    <string name="reader_start_timed_reading_action">Iniciar %1$s desde la palabra de enfoque</string>
+    <string name="bionic_quick_settings_title">Lectura biónica</string>
+    <string name="bionic_settings_title">Lectura biónica</string>
+    <string name="settings_bionic_subtitle">Panel de lectura, fijación y foco móvil</string>
+    <string name="bionic_experimental_label">EXPERIMENTAL</string>
+    <string name="bionic_settings_explanation">La lectura biónica mantiene un bloque de texto estable en pantalla, resalta en negrita el principio de cada palabra y desplaza por el fragmento un resaltado sincronizado con RSVP.</string>
+    <string name="bionic_uses_rsvp_timing">La velocidad de reproducción, la agrupación de frases, las pausas de puntuación y el ritmo adaptativo proceden de tus ajustes de RSVP.</string>
+    <string name="bionic_fixation_title">Intensidad de fijación</string>
+    <string name="bionic_fixation_subtitle">Define cuánto se resalta en negrita de cada palabra para crear el anclaje visual.</string>
+    <string name="bionic_highlight_title">Resaltado móvil</string>
+    <string name="bionic_highlight_subtitle">Controla la intensidad del foco sincronizado con RSVP que se desplaza por el fragmento.</string>
+    <string name="bionic_text_size_title">Tamaño del texto biónico</string>
+    <string name="bionic_text_size_subtitle">Cambia el texto del fragmento sin afectar al lector ni a la palabra de RSVP.</string>
+    <string name="bionic_brightness_title">Brillo del texto biónico</string>
+    <string name="bionic_brightness_subtitle">Atenúa el texto del fragmento sin cambiar el tema actual.</string>
+    <string name="bionic_advanced_settings_subtitle">Fijación, foco móvil y brillo.</string>
+    <string name="bionic_preparing">Preparando la lectura biónica...</string>
+    <string name="bionic_frame_load_failed">No se pudo preparar la lectura biónica. Toca para volver al lector.</string>
+    <string name="bionic_empty_state">No hay contenido que mostrar.\nToca para volver.</string>
+    <string name="accessibility_state_expanded">Expandido</string>
+    <string name="accessibility_state_collapsed">Contraído</string>
 </resources>

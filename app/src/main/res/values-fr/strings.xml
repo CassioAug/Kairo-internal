@@ -112,8 +112,8 @@
     <string name="focus_apply_title">Appliquer le mode concentration</string>
     <string name="focus_apply_reader_title">Appliquer dans le lecteur</string>
     <string name="focus_apply_reader_subtitle">Utiliser le mode concentration dans le lecteur défilant.</string>
-    <string name="focus_apply_rsvp_title">Appliquer en lecture rapide</string>
-    <string name="focus_apply_rsvp_subtitle">Utiliser le mode concentration pendant la lecture rapide.</string>
+    <string name="focus_apply_rsvp_title">Appliquer à la lecture rythmée</string>
+    <string name="focus_apply_rsvp_subtitle">Utiliser le mode concentration pendant la lecture RSVP et la lecture bionique.</string>
     <string name="focus_settings_title">Paramètres de concentration</string>
     <string name="focus_settings_subtitle">Mode minimal et options Ne pas déranger</string>
 
@@ -358,7 +358,7 @@
     <string name="info_contribute_title">Envie de contribuer ?</string>
     <string name="info_contribute_subtitle">Ouvrir le dépôt GitHub de Kairo</string>
     <string name="settings_reset_confirm_title">Réinitialiser tous les réglages ?</string>
-    <string name="settings_reset_confirm_message">Cela restaurera les préférences RSVP, lecteur, focus, profil et tutoriel par défaut.</string>
+    <string name="settings_reset_confirm_message">Cela restaurera les préférences RSVP, lecture bionique, lecteur, focus, profil et tutoriel par défaut.</string>
     <string name="starting_tutorial_progress">%1$d sur %2$d</string>
     <string name="starting_tutorial_intro_title">Bienvenue dans Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo démarre dans votre bibliothèque. Importez un livre, ouvrez-le, puis touchez le mot cible dans le lecteur pour passer à RSVP.</string>
@@ -446,4 +446,33 @@
         <item quantity="one">Importé : %1$s (%2$d chapitre)</item>
         <item quantity="other">Importé : %1$s (%2$d chapitres)</item>
     </plurals>
+    <string name="content_desc_start_timed_reading">Démarrer %1$s</string>
+    <string name="reader_timed_reading_dock_progress">%1$s · %2$d%%</string>
+    <string name="reader_choose_timed_reading_mode">Choisir le mode de lecture. %1$s sélectionné</string>
+    <string name="reader_recenter_focus_action">Recentrer le mot cible</string>
+    <string name="timed_reading_mode_rsvp">RSVP</string>
+    <string name="timed_reading_mode_bionic">Bionique</string>
+    <string name="timed_reading_mode_rsvp_description">Un mot à la fois</string>
+    <string name="timed_reading_mode_bionic_description">Flux de texte guidé</string>
+    <string name="reader_start_timed_reading_action">Démarrer %1$s à partir du mot cible</string>
+    <string name="bionic_quick_settings_title">Lecture bionique</string>
+    <string name="bionic_settings_title">Lecture bionique</string>
+    <string name="settings_bionic_subtitle">Volet de lecture, fixation et focus mobile</string>
+    <string name="bionic_experimental_label">EXPÉRIMENTAL</string>
+    <string name="bionic_settings_explanation">La lecture bionique conserve un bloc de texte stable à l’écran, met en gras le début de chaque mot et déplace dans le bloc un surlignage rythmé par RSVP.</string>
+    <string name="bionic_uses_rsvp_timing">La vitesse de lecture, le regroupement des expressions, les pauses de ponctuation et le rythme adaptatif proviennent de vos réglages RSVP.</string>
+    <string name="bionic_fixation_title">Intensité de fixation</string>
+    <string name="bionic_fixation_subtitle">Définit la partie de chaque mot mise en gras pour créer l’ancrage visuel.</string>
+    <string name="bionic_highlight_title">Surlignage mobile</string>
+    <string name="bionic_highlight_subtitle">Contrôle l’intensité du focus rythmé par RSVP qui se déplace dans le bloc.</string>
+    <string name="bionic_text_size_title">Taille du texte bionique</string>
+    <string name="bionic_text_size_subtitle">Modifie le texte du bloc sans affecter le lecteur ni le mot RSVP.</string>
+    <string name="bionic_brightness_title">Luminosité du texte bionique</string>
+    <string name="bionic_brightness_subtitle">Atténue le texte du bloc sans modifier le thème actuel.</string>
+    <string name="bionic_advanced_settings_subtitle">Fixation, focus mobile et luminosité.</string>
+    <string name="bionic_preparing">Préparation de la lecture bionique...</string>
+    <string name="bionic_frame_load_failed">Impossible de préparer la lecture bionique. Touchez pour revenir au lecteur.</string>
+    <string name="bionic_empty_state">Aucun contenu à afficher.\nTouchez pour revenir.</string>
+    <string name="accessibility_state_expanded">Déplié</string>
+    <string name="accessibility_state_collapsed">Replié</string>
 </resources>
