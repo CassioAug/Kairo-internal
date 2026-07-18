@@ -150,9 +150,9 @@ internal fun BookmarkRow(
     val chapterCount = item.chapterCount.coerceAtLeast(1)
     val percent =
         remember(bookmark.chapterIndex, chapterCount) {
-            (((bookmark.chapterIndex + 1).toFloat() / chapterCount.toFloat()) * 100f)
+            (((bookmark.chapterIndex + 1).toFloat() / chapterCount.toFloat()) * PERCENT_SCALE)
                 .roundToInt()
-                .coerceIn(0, 100)
+                .coerceIn(0, PERCENT_MAX)
         }
 
     Row(
@@ -196,3 +196,6 @@ internal fun BookmarkRow(
         }
     }
 }
+
+private const val PERCENT_SCALE = 100f
+private const val PERCENT_MAX = 100
