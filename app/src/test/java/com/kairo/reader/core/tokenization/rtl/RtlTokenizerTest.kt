@@ -78,13 +78,13 @@ class RtlTokenizerTest {
                 htmlContent = "",
                 plainText = "שלום עולם",
                 links =
-                    listOf(
-                        ChapterLink(
-                            startChar = 0,
-                            endChar = 4,
-                            targetChapterIndex = 2,
-                        ),
+                listOf(
+                    ChapterLink(
+                        startChar = 0,
+                        endChar = 4,
+                        targetChapterIndex = 2,
                     ),
+                ),
             )
         val tokens = RtlTokenizer().tokenize(chapter)
 

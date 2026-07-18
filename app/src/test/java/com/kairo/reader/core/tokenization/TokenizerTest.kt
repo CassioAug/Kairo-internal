@@ -156,13 +156,13 @@ class TokenizerTest {
                     htmlContent = "",
                     plainText = "Hello, world again",
                     links =
-                        listOf(
-                            ChapterLink(
-                                startChar = 7,
-                                endChar = 12,
-                                targetChapterIndex = 2,
-                            ),
+                    listOf(
+                        ChapterLink(
+                            startChar = 7,
+                            endChar = 12,
+                            targetChapterIndex = 2,
                         ),
+                    ),
                 ),
             )
         val words = tokens.filter { it.type == TokenType.WORD }

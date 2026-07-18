@@ -5,7 +5,4 @@ internal enum class RtlSegmentType {
     PUNCTUATION,
 }
 
-internal data class RtlSegment(
-    val text: String,
-    val type: RtlSegmentType,
-)
+internal data class RtlSegment(val text: String, val type: RtlSegmentType,)

@@ -37,11 +37,11 @@ internal object CjkCharClassifier {
     }
 
     fun isHangul(codePoint: Int): Boolean =
-        inRange(codePoint, 0xAC00, 0xD7AF) || // Hangul syllables
-            inRange(codePoint, 0x1100, 0x11FF) || // Hangul Jamo
-            inRange(codePoint, 0x3130, 0x318F) || // Hangul Compatibility Jamo
-            inRange(codePoint, 0xA960, 0xA97F) || // Hangul Jamo Extended-A
-            inRange(codePoint, 0xD7B0, 0xD7FF) // Hangul Jamo Extended-B
+        codePoint in HANGUL_SYLLABLES ||
+            codePoint in HANGUL_JAMO ||
+            codePoint in HANGUL_COMPATIBILITY_JAMO ||
+            codePoint in HANGUL_JAMO_EXTENDED_A ||
+            codePoint in HANGUL_JAMO_EXTENDED_B
 
     fun isCjk(codePoint: Int): Boolean =
         isHangul(codePoint) ||
@@ -50,31 +50,45 @@ internal object CjkCharClassifier {
             isCjkIdeograph(codePoint)
 
     private fun isKana(codePoint: Int): Boolean =
-        inRange(codePoint, 0x3040, 0x309F) || // Hiragana
-            inRange(codePoint, 0x30A0, 0x30FF) || // Katakana
-            inRange(codePoint, 0x31F0, 0x31FF) // Katakana Phonetic Extensions
+        codePoint in HIRAGANA ||
+            codePoint in KATAKANA ||
+            codePoint in KATAKANA_PHONETIC_EXTENSIONS
 
     private fun isBopomofo(codePoint: Int): Boolean =
-        inRange(codePoint, 0x3100, 0x312F) || // Bopomofo
-            inRange(codePoint, 0x31A0, 0x31BF) // Bopomofo Extended
+        codePoint in BOPOMOFO || codePoint in BOPOMOFO_EXTENDED
 
     private fun isCjkIdeograph(codePoint: Int): Boolean =
-        inRange(codePoint, 0x3400, 0x4DBF) || // Extension A
-            inRange(codePoint, 0x4E00, 0x9FFF) || // Unified Ideographs
-            inRange(codePoint, 0xF900, 0xFAFF) || // Compatibility Ideographs
-            inRange(codePoint, 0x20000, 0x2A6DF) || // Extension B
-            inRange(codePoint, 0x2A700, 0x2B73F) || // Extension C
-            inRange(codePoint, 0x2B740, 0x2B81F) || // Extension D
-            inRange(codePoint, 0x2B820, 0x2CEAF) || // Extension E
-            inRange(codePoint, 0x2CEB0, 0x2EBEF) || // Extension F
-            inRange(codePoint, 0x30000, 0x3134F) || // Extension G
-            inRange(codePoint, 0x2F800, 0x2FA1F) // Compatibility Ideographs Supplement
+        codePoint in CJK_EXTENSION_A ||
+            codePoint in CJK_UNIFIED_IDEOGRAPHS ||
+            codePoint in CJK_COMPATIBILITY_IDEOGRAPHS ||
+            codePoint in CJK_EXTENSION_B ||
+            codePoint in CJK_EXTENSION_C ||
+            codePoint in CJK_EXTENSION_D ||
+            codePoint in CJK_EXTENSION_E ||
+            codePoint in CJK_EXTENSION_F ||
+            codePoint in CJK_EXTENSION_G ||
+            codePoint in CJK_COMPATIBILITY_SUPPLEMENT
 
-    private fun inRange(
-        codePoint: Int,
-        start: Int,
-        end: Int,
-    ): Boolean = codePoint in start..end
+    private val HANGUL_SYLLABLES = 0xAC00..0xD7AF
+    private val HANGUL_JAMO = 0x1100..0x11FF
+    private val HANGUL_COMPATIBILITY_JAMO = 0x3130..0x318F
+    private val HANGUL_JAMO_EXTENDED_A = 0xA960..0xA97F
+    private val HANGUL_JAMO_EXTENDED_B = 0xD7B0..0xD7FF
+    private val HIRAGANA = 0x3040..0x309F
+    private val KATAKANA = 0x30A0..0x30FF
+    private val KATAKANA_PHONETIC_EXTENSIONS = 0x31F0..0x31FF
+    private val BOPOMOFO = 0x3100..0x312F
+    private val BOPOMOFO_EXTENDED = 0x31A0..0x31BF
+    private val CJK_EXTENSION_A = 0x3400..0x4DBF
+    private val CJK_UNIFIED_IDEOGRAPHS = 0x4E00..0x9FFF
+    private val CJK_COMPATIBILITY_IDEOGRAPHS = 0xF900..0xFAFF
+    private val CJK_EXTENSION_B = 0x20000..0x2A6DF
+    private val CJK_EXTENSION_C = 0x2A700..0x2B73F
+    private val CJK_EXTENSION_D = 0x2B740..0x2B81F
+    private val CJK_EXTENSION_E = 0x2B820..0x2CEAF
+    private val CJK_EXTENSION_F = 0x2CEB0..0x2EBEF
+    private val CJK_EXTENSION_G = 0x30000..0x3134F
+    private val CJK_COMPATIBILITY_SUPPLEMENT = 0x2F800..0x2FA1F
 
     private val WORD_CONNECTORS =
         setOf(

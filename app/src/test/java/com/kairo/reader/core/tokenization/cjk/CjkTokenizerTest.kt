@@ -121,13 +121,13 @@ class CjkTokenizerTest {
                 htmlContent = "",
                 plainText = "你好世界",
                 links =
-                    listOf(
-                        ChapterLink(
-                            startChar = 0,
-                            endChar = 2,
-                            targetChapterIndex = 3,
-                        ),
+                listOf(
+                    ChapterLink(
+                        startChar = 0,
+                        endChar = 2,
+                        targetChapterIndex = 3,
                     ),
+                ),
             )
         val tokens = CjkTokenizer().tokenize(chapter)
 
