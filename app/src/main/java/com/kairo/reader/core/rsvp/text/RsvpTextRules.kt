@@ -6,9 +6,9 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.isMidSentencePunctuation
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
 import com.kairo.reader.core.rsvp.engine.BoundaryBefore
-import com.kairo.reader.core.rsvp.engine.ContextState
 import com.kairo.reader.core.rsvp.engine.CURRENCY_NUMERIC_WORD_REGEX
 import com.kairo.reader.core.rsvp.engine.CURRENCY_PREFIX_PUNCTUATION
+import com.kairo.reader.core.rsvp.engine.ContextState
 import com.kairo.reader.core.rsvp.engine.ExpandedToken
 import com.kairo.reader.core.rsvp.engine.OPENING_PUNCTUATION
 import com.kairo.reader.core.rsvp.engine.QUOTE_OR_BRACKET_PUNCTUATION
@@ -22,13 +22,7 @@ internal fun isClauseLeadPunctuation(
     ch: Char,
     nextToken: Token?,
 ): Boolean {
-    if (ch != ',' &&
-        ch != ';' &&
-        ch != ':' &&
-        ch != '\u2014' &&
-        ch != '\u2013' &&
-        ch != '-'
-    ) {
+    if (ch !in CLAUSE_LEAD_PUNCTUATION) {
         return false
     }
     val nextWord = nextToken?.takeIf { it.type == TokenType.WORD } ?: return false
@@ -37,13 +31,13 @@ internal fun isClauseLeadPunctuation(
         ClauseDetector.isCoordinatingConjunction(nextLower)
 }
 
+private val CLAUSE_LEAD_PUNCTUATION = setOf(',', ';', ':', '\u2014', '\u2013', '-')
 
 internal fun isLikelySentenceContinuation(nextToken: Token?): Boolean {
     val nextWord = nextToken?.takeIf { it.type == TokenType.WORD } ?: return false
     val firstChar = nextWord.text.firstOrNull() ?: return false
     return firstChar.isLowerCase()
 }
-
 
 internal fun isEmbeddedQuote(
     ch: Char,
@@ -70,14 +64,12 @@ internal fun isEmbeddedQuote(
     return adjacentSentencePunct || (prevWord != null && nextToken?.type == TokenType.WORD)
 }
 
-
 internal fun breakMarkerToken(type: TokenType): Token =
     when (type) {
         TokenType.PAGE_BREAK -> Token(text = " ", type = TokenType.PUNCTUATION)
         TokenType.PARAGRAPH_BREAK -> Token(text = " ", type = TokenType.PUNCTUATION)
         else -> Token(text = " ", type = TokenType.PUNCTUATION)
     }
-
 
 internal fun isOpeningPunctuation(
     token: Token,
@@ -91,7 +83,6 @@ internal fun isOpeningPunctuation(
         else -> ch in OPENING_PUNCTUATION
     }
 }
-
 
 internal fun shouldSkipPunctuationPause(
     token: Token,
@@ -119,9 +110,7 @@ internal fun shouldSkipPunctuationPause(
     return isSentenceEnd && prevIsSentenceEnd
 }
 
-
 internal fun isOpeningPunctuationChar(ch: Char): Boolean = ch == '"' || ch in OPENING_PUNCTUATION
-
 
 internal fun updateParentheticalDepthAfterPunctuation(
     currentDepth: Int,
@@ -135,7 +124,6 @@ internal fun updateParentheticalDepthAfterPunctuation(
     }
 }
 
-
 internal fun isCurrencyPrefixPunctuation(
     token: Token,
     nextToken: Token?,
@@ -146,13 +134,10 @@ internal fun isCurrencyPrefixPunctuation(
     return CURRENCY_NUMERIC_WORD_REGEX.matches(nextWordText)
 }
 
-
 internal fun isQuoteOrBracket(ch: Char): Boolean = ch in QUOTE_OR_BRACKET_PUNCTUATION
-
 
 internal fun isQuoteChar(ch: Char): Boolean =
     ch == '"' || ch == '\u201C' || ch == '\u201D' || ch == '\u2018' || ch == '\u2019'
-
 
 internal fun isHardBoundaryPunctuation(
     token: Token,
@@ -164,7 +149,6 @@ internal fun isHardBoundaryPunctuation(
         prevWord = prevWord,
         nextToken = nextToken,
     ) == BoundaryBefore.SENTENCE
-
 
 internal fun boundaryBeforeForPunctuation(
     token: Token,
@@ -189,7 +173,6 @@ internal fun boundaryBeforeForPunctuation(
         else -> BoundaryBefore.NONE
     }
 }
-
 
 internal fun isHardBoundary(
     tokens: List<Token>,
@@ -225,7 +208,6 @@ internal fun isHardBoundary(
     return false
 }
 
-
 internal fun findFirstWordCursor(
     expandedTokens: List<ExpandedToken>,
     startCursor: Int,
@@ -238,7 +220,6 @@ internal fun findFirstWordCursor(
     }
     return cursor
 }
-
 
 internal fun boundaryBefore(
     expandedTokens: List<ExpandedToken>,
@@ -272,7 +253,6 @@ internal fun boundaryBefore(
     return BoundaryBefore.NONE
 }
 
-
 internal fun findPrevWord(
     expandedTokens: List<ExpandedToken>,
     beforeIndex: Int,
@@ -285,7 +265,6 @@ internal fun findPrevWord(
     }
     return null
 }
-
 
 internal fun isDecimalPoint(
     prevText: String,
@@ -300,7 +279,6 @@ internal fun isDecimalPoint(
 
 private const val MAX_SEPARATED_DECIMAL_FRACTION_DIGITS = 3
 
-
 internal fun isThousandSeparator(
     prevText: String,
     nextToken: Token?,
@@ -308,9 +286,8 @@ internal fun isThousandSeparator(
     if (prevText.isEmpty() || nextToken?.type != TokenType.WORD) return false
     if (!prevText.all { it.isDigit() }) return false
     val nextText = nextToken.text
-    return nextText.length == 3 && nextText.all { it.isDigit() }
+    return nextText.length == THOUSANDS_GROUP_DIGITS && nextText.all { it.isDigit() }
 }
-
 
 internal fun isAbbreviationDot(
     prevWordText: String,
@@ -330,24 +307,23 @@ internal fun isAbbreviationDot(
     val isSentenceStarter = nextWord.lowercase() in SENTENCE_STARTERS
     val nextIsInitial = nextLetters.length == 1 && nextLetters.all { it.isUpperCase() }
 
-    if (normalized in TITLE_ABBREVIATIONS) return true
-
-    if (normalized in KNOWN_ABBREVIATIONS) {
-        return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
-    }
-
     val prevLetters = rawPrev.filter { it.isLetter() }
-    if (prevLetters.isEmpty()) return false
-    if (prevLetters.length == 1) {
-        return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
-    }
-    if (prevLetters.length <= 3 && prevLetters.all { it.isUpperCase() }) {
-        return nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
-    }
-
-    return false
+    val canContinueAbbreviation = nextStartsLower || (nextStartsUpper && !isSentenceStarter) || nextIsInitial
+    val abbreviationShape =
+        prevLetters.isNotEmpty() &&
+            (
+                prevLetters.length == 1 ||
+                    (
+                        prevLetters.length <= MAX_UPPERCASE_ABBREVIATION_LENGTH &&
+                            prevLetters.all(Char::isUpperCase)
+                        )
+                )
+    return normalized in TITLE_ABBREVIATIONS ||
+        (canContinueAbbreviation && (normalized in KNOWN_ABBREVIATIONS || abbreviationShape))
 }
 
+private const val THOUSANDS_GROUP_DIGITS = 3
+private const val MAX_UPPERCASE_ABBREVIATION_LENGTH = 3
 
 internal fun isRhythmBoundaryPunctuation(
     token: Token,

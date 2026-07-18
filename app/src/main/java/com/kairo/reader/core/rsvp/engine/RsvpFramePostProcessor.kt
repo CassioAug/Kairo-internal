@@ -22,7 +22,6 @@ internal fun applySessionRamps(
     config: RsvpConfig,
 ) = RsvpSessionTimingPolicy.applyInitialSessionRamps(frames = frames, config = config)
 
-
 internal fun applyBlinkSeparation(
     frames: MutableList<RsvpFrame>,
     config: RsvpConfig,
@@ -49,79 +48,65 @@ internal fun applyBlinkSeparation(
     for (i in frames.indices) {
         val frame = frames[i]
         val next = frames.getOrNull(i + 1)
-        val hasWord = frame.tokens.any { it.type == TokenType.WORD }
-        val nextTokens = next?.tokens.orEmpty()
-        val nextHasWord = nextTokens.any { it.type == TokenType.WORD }
-        val wordCount = frame.tokens.count { it.type == TokenType.WORD }
-        val nextWordCount = nextTokens.count { it.type == TokenType.WORD }
-
-        if (hasWord && nextHasWord) {
-            // Keep chunked phrase units visually stable by avoiding injected blink frames
-            // between multi-word frames.
-            if (wordCount != 1 || nextWordCount != 1) {
-                output += frame
-                continue
-            }
-            val firstWord = frame.tokens.firstOrNull { it.type == TokenType.WORD }
-            if (firstWord == null) {
-                output += frame
-                continue
-            }
-            val nextWord = nextTokens.firstOrNull { it.type == TokenType.WORD }
-            if (nextWord != null &&
-                frame.tokens.none { it.type == TokenType.PUNCTUATION } &&
-                shouldPreferHold(firstWord, nextWord)
-            ) {
-                output += frame
-                continue
-            }
-            if (isHardBoundary(frame.tokens, nextWord)) {
-                output += frame
-                continue
-            }
-            val floorMs = max(wordFloorMs(firstWord, config), MIN_FRAME_MS)
-            val maxBlink = (frame.durationMs - floorMs).coerceAtLeast(0L)
-            val punctuationFactor = blinkPunctuationFactor(frame.tokens)
-            val weight =
-                when (blinkMode) {
-                    BlinkMode.SUBTLE -> punctuationFactor
-                    BlinkMode.ADAPTIVE -> {
-                        val ease = (wordEase(firstWord) + wordEase(nextWord ?: firstWord)) * 0.5
-                        if (ease >= ADAPTIVE_EASE_THRESHOLD) punctuationFactor else 0.0
-                    }
-                    BlinkMode.OFF -> 0.0
-                }
-            val blinkMs = min((targetBlinkMs * weight).roundToLong(), maxBlink)
-            if (blinkMs >= MIN_BLINK_MS) {
-                output +=
-                    frame.copy(
-                        durationMs = (frame.durationMs - blinkMs).coerceAtLeast(MIN_FRAME_MS)
-                    )
-                output +=
-                    RsvpFrame(
-                        tokens = listOf(blinkToken),
-                        durationMs = blinkMs,
-                        originalTokenIndex = frame.originalTokenIndex,
-                        resumeCursor = frame.resumeCursor,
-                        nextOriginalTokenIndex = frame.nextOriginalTokenIndex,
-                        displayOriginalStartIndex = frame.displayOriginalStartIndex,
-                        displayOriginalEndExclusive = frame.displayOriginalEndExclusive,
-                        displayOriginalStartCharacterOffset =
-                            frame.displayOriginalStartCharacterOffset,
-                        displayOriginalEndCharacterOffset =
-                            frame.displayOriginalEndCharacterOffset,
-                    )
-                continue
-            }
-        }
-
-        output += frame
+        output += splitFrameForBlink(frame, next, config, blinkMode, targetBlinkMs, blinkToken)
     }
 
     frames.clear()
     frames.addAll(output)
 }
 
+private fun splitFrameForBlink(
+    frame: RsvpFrame,
+    next: RsvpFrame?,
+    config: RsvpConfig,
+    blinkMode: BlinkMode,
+    targetBlinkMs: Long,
+    blinkToken: Token,
+): List<RsvpFrame> {
+    val nextTokens = next?.tokens.orEmpty()
+    val firstWord = frame.tokens.singleWordOrNull()
+    val nextWord = nextTokens.singleWordOrNull()
+    if (firstWord == null || nextWord == null) return listOf(frame)
+    val shouldHold =
+        frame.tokens.none { it.type == TokenType.PUNCTUATION } &&
+            shouldPreferHold(firstWord, nextWord)
+    if (shouldHold || isHardBoundary(frame.tokens, nextWord)) return listOf(frame)
+
+    val floorMs = max(wordFloorMs(firstWord, config), MIN_FRAME_MS)
+    val maxBlink = (frame.durationMs - floorMs).coerceAtLeast(0L)
+    val punctuationFactor = blinkPunctuationFactor(frame.tokens)
+    val weight =
+        when (blinkMode) {
+            BlinkMode.SUBTLE -> punctuationFactor
+            BlinkMode.ADAPTIVE -> {
+                val ease = (wordEase(firstWord) + wordEase(nextWord)) * BLINK_EASE_AVERAGE_FACTOR
+                if (ease >= ADAPTIVE_EASE_THRESHOLD) punctuationFactor else 0.0
+            }
+            BlinkMode.OFF -> 0.0
+        }
+    val blinkMs = min((targetBlinkMs * weight).roundToLong(), maxBlink)
+    return if (blinkMs < MIN_BLINK_MS) {
+        listOf(frame)
+    } else {
+        listOf(
+            frame.copy(durationMs = (frame.durationMs - blinkMs).coerceAtLeast(MIN_FRAME_MS)),
+            RsvpFrame(
+                tokens = listOf(blinkToken),
+                durationMs = blinkMs,
+                originalTokenIndex = frame.originalTokenIndex,
+                resumeCursor = frame.resumeCursor,
+                nextOriginalTokenIndex = frame.nextOriginalTokenIndex,
+                displayOriginalStartIndex = frame.displayOriginalStartIndex,
+                displayOriginalEndExclusive = frame.displayOriginalEndExclusive,
+                displayOriginalStartCharacterOffset = frame.displayOriginalStartCharacterOffset,
+                displayOriginalEndCharacterOffset = frame.displayOriginalEndCharacterOffset,
+            ),
+        )
+    }
+}
+
+private fun List<Token>.singleWordOrNull(): Token? =
+    filter { it.type == TokenType.WORD }.singleOrNull()
 
 internal fun blinkPunctuationFactor(tokens: List<Token>): Double {
     val hasMidPause =
@@ -129,5 +114,8 @@ internal fun blinkPunctuationFactor(tokens: List<Token>): Double {
             val ch = token.text.firstOrNull() ?: return@any false
             token.type == TokenType.PUNCTUATION && isMidSentencePunctuation(ch)
         }
-    return if (hasMidPause) 0.55 else 1.0
+    return if (hasMidPause) MID_SENTENCE_BLINK_FACTOR else 1.0
 }
+
+private const val BLINK_EASE_AVERAGE_FACTOR = 0.5
+private const val MID_SENTENCE_BLINK_FACTOR = 0.55

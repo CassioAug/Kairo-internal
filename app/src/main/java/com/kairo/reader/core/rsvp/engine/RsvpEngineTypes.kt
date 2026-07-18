@@ -12,19 +12,13 @@ internal data class ExpandedToken(
     val sourceCharacterEndExclusive: Int,
 )
 
-
-internal data class PhraseContour(
-    val preBoundaryWeight: Double,
-    val restartWeight: Double,
-) {
+internal data class PhraseContour(val preBoundaryWeight: Double, val restartWeight: Double,) {
     companion object {
         val NONE = PhraseContour(preBoundaryWeight = 0.0, restartWeight = 0.0)
     }
 }
 
-
 internal data class UnitBuildResult(val tokens: List<Token>, val originalWordIndex: Int, val nextCursor: Int,)
-
 
 internal enum class BoundaryBefore {
     NONE,
@@ -37,7 +31,6 @@ internal enum class BoundaryBefore {
     fun isMajorStart(): Boolean =
         this == SENTENCE || this == PARAGRAPH || this == PAGE
 }
-
 
 internal class ContextState {
     var parentheticalDepth: Int = 0
@@ -72,9 +65,7 @@ internal class ContextState {
     }
 }
 
-
 internal data class ContextSnapshot(val parentheticalDepth: Int, val inDialogue: Boolean,)
-
 
 /**
  * Sequential prose memory carried across frames during generation.
@@ -90,7 +81,7 @@ internal class ProseState {
     private val seenWords =
         object : LinkedHashMap<String, Boolean>(
             GIVENNESS_INITIAL_CAPACITY,
-            0.75f,
+            GIVENNESS_CACHE_LOAD_FACTOR,
             true,
         ) {
             override fun removeEldestEntry(
@@ -123,6 +114,7 @@ internal class ProseState {
     }
 }
 
+private const val GIVENNESS_CACHE_LOAD_FACTOR = 0.75f
 
 internal class RhythmState {
     private var ema: Double? = null
@@ -168,7 +160,6 @@ internal class RhythmState {
         ema = null
     }
 }
-
 
 internal class FlowState(
     private val alpha: Double,

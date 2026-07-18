@@ -74,7 +74,7 @@ internal object RsvpSessionTimingPolicy {
         rampFrames: Int,
     ): Double {
         val progress = offset.toDouble() / rampFrames.coerceAtLeast(1).toDouble()
-        return 1.35 - (0.35 * progress)
+        return RAMP_UP_INITIAL_MULTIPLIER - (RAMP_UP_REDUCTION * progress)
     }
 
     private fun rampDownMultiplier(
@@ -82,7 +82,7 @@ internal object RsvpSessionTimingPolicy {
         rampFrames: Int,
     ): Double {
         val progress = offset.toDouble() / rampFrames.coerceAtLeast(1).toDouble()
-        return 1.0 + (0.25 * progress)
+        return 1.0 + (RAMP_DOWN_INCREASE * progress)
     }
 
     private fun addNonNegativeDelay(
@@ -96,4 +96,8 @@ internal object RsvpSessionTimingPolicy {
             durationMs + safeDelay
         }
     }
+
+    private const val RAMP_UP_INITIAL_MULTIPLIER = 1.35
+    private const val RAMP_UP_REDUCTION = 0.35
+    private const val RAMP_DOWN_INCREASE = 0.25
 }

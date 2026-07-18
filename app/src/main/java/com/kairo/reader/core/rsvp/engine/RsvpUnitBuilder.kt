@@ -14,118 +14,113 @@ internal fun buildUnit(
     config: RsvpConfig,
     state: ContextState,
 ): UnitBuildResult {
-    val unitTokens = mutableListOf<Token>()
-    var cursor = startCursor.coerceIn(0, expandedTokens.lastIndex)
-
-    // Allow opening punctuation right before the first word to be part of the unit.
-    while (cursor < expandedTokens.size) {
-        val token = expandedTokens[cursor].token
-        val nextToken = expandedTokens.getOrNull(cursor + 1)?.token
-        val isLeadingQuote =
-            token.type == TokenType.PUNCTUATION &&
-                token.text.firstOrNull()?.let { isQuoteChar(it) } == true &&
-                nextToken?.type == TokenType.WORD
-        if (token.type == TokenType.PUNCTUATION &&
-            (isOpeningPunctuation(token, state, nextToken) || isLeadingQuote)
-        ) {
-            unitTokens += token
-            state.consume(token)
-            cursor++
-        } else {
-            break
-        }
-    }
-
-    // First word is required.
-    while (cursor < expandedTokens.size &&
-        expandedTokens[cursor].token.type != TokenType.WORD
-    ) {
-        cursor++
-    }
-    val firstWord =
-        expandedTokens.getOrNull(cursor)
-            ?: return UnitBuildResult(unitTokens, startCursor, cursor)
-    val firstWordOriginalIndex = firstWord.originalIndex
-    unitTokens += firstWord.token
-    state.consume(firstWord.token)
-    cursor++
-
-    // Optionally add more words for phrase chunking (only across "soft" boundaries).
-    val maxWordsInUnit = config.maxWordsPerUnit.coerceAtLeast(1)
-    val maxCharsInUnit = config.maxCharsPerUnit.coerceAtLeast(1)
-    if (config.enablePhraseChunking && maxWordsInUnit > 1) {
-        var wordsInUnit = 1
-        var wordCharsInUnit = firstWord.token.text.length
-        while (wordsInUnit < maxWordsInUnit) {
-            val candidate = expandedTokens.getOrNull(cursor) ?: break
-            if (candidate.token.type != TokenType.WORD) break
-
-            val combinedWordChars = wordCharsInUnit + candidate.token.text.length
-            val withinLimits = combinedWordChars <= maxCharsInUnit
-            val prevWord = unitTokens.lastOrNull { it.type == TokenType.WORD } ?: break
-            val canBridge =
-                withinLimits &&
-                    isPhraseChunkCandidate(prev = prevWord, next = candidate.token)
-
-            if (!canBridge) break
-
-            unitTokens += candidate.token
-            state.consume(candidate.token)
-            cursor++
-            wordsInUnit++
-            wordCharsInUnit = combinedWordChars
-        }
-    }
-
-    // Attach closing punctuation + breaks to this unit.
-    // If we hit a hard boundary (sentence end), keep consuming trailing closers like quotes/brackets
-    // so we don't strand them on the next unit.
-    var hitHardBoundary = false
-    while (cursor < expandedTokens.size) {
-        val token = expandedTokens[cursor].token
-        if (token.type == TokenType.PUNCTUATION) {
-            val ch = token.text.firstOrNull()
-            val nextToken = expandedTokens.getOrNull(cursor + 1)?.token
-            val isQuote = ch != null && isQuoteChar(ch)
-            val isOpening = isOpeningPunctuation(token, state, nextToken)
-            val isExplicitOpeningQuote = ch == '\u201C' || ch == '\u2018'
-
-            // Opening quotes that precede a word should stay with that word,
-            // even if a sentence-ending punctuation token came right before.
-            val quoteFollowedByWord =
-                isQuote &&
-                    nextToken?.type == TokenType.WORD &&
-                    (isExplicitOpeningQuote || (ch == '"' && isOpening))
-            if (quoteFollowedByWord) {
-                break
-            }
-
-            if (hitHardBoundary && isOpening) break
-            if (!isOpening) {
-                val prevWord = unitTokens.lastOrNull { it.type == TokenType.WORD }
-                unitTokens += token
-                state.consume(token)
-                cursor++
-
-                val nextTokenAfter = expandedTokens.getOrNull(cursor)?.token
-                if (!hitHardBoundary &&
-                    isHardBoundaryPunctuation(token, prevWord = prevWord, nextToken = nextTokenAfter)
-                ) {
-                    hitHardBoundary = true
-                }
-                continue
-            }
-            break
-        }
-        if (token.type == TokenType.PARAGRAPH_BREAK || token.type == TokenType.PAGE_BREAK) {
-            break
-        }
-        break
-    }
-
+    val cursor = UnitCursor(expandedTokens, state, startCursor)
+    cursor.consumeLeadingPunctuation()
+    val firstWord = cursor.consumeFirstWord()
+        ?: return UnitBuildResult(cursor.unitTokens, startCursor, cursor.index)
+    cursor.consumePhraseWords(firstWord.token, config)
+    cursor.consumeTrailingPunctuation()
     return UnitBuildResult(
-        tokens = unitTokens,
-        originalWordIndex = firstWordOriginalIndex,
-        nextCursor = cursor,
+        tokens = cursor.unitTokens,
+        originalWordIndex = firstWord.originalIndex,
+        nextCursor = cursor.index,
     )
+}
+
+private class UnitCursor(private val expandedTokens: List<ExpandedToken>, private val state: ContextState, startCursor: Int,) {
+    val unitTokens = mutableListOf<Token>()
+    var index = startCursor.coerceIn(0, expandedTokens.lastIndex)
+        private set
+
+    fun consumeLeadingPunctuation() {
+        var scanning = true
+        while (index < expandedTokens.size && scanning) {
+            val token = expandedTokens[index].token
+            val nextToken = expandedTokens.getOrNull(index + 1)?.token
+            val isLeadingQuote =
+                token.type == TokenType.PUNCTUATION &&
+                    token.text.firstOrNull()?.let(::isQuoteChar) == true &&
+                    nextToken?.type == TokenType.WORD
+            scanning =
+                token.type == TokenType.PUNCTUATION &&
+                (isOpeningPunctuation(token, state, nextToken) || isLeadingQuote)
+            if (scanning) consume(token)
+        }
+    }
+
+    fun consumeFirstWord(): ExpandedToken? {
+        while (index < expandedTokens.size && expandedTokens[index].token.type != TokenType.WORD) {
+            index += 1
+        }
+        val firstWord = expandedTokens.getOrNull(index) ?: return null
+        consume(firstWord.token)
+        return firstWord
+    }
+
+    fun consumePhraseWords(
+        firstWord: Token,
+        config: RsvpConfig,
+    ) {
+        val maxWords = config.maxWordsPerUnit.coerceAtLeast(1)
+        if (!config.enablePhraseChunking || maxWords <= 1) return
+        val maxChars = config.maxCharsPerUnit.coerceAtLeast(1)
+        var words = 1
+        var characters = firstWord.text.length
+        var canContinue = true
+        while (words < maxWords && canContinue) {
+            val candidate = expandedTokens.getOrNull(index)?.token
+            val previousWord = unitTokens.lastOrNull { it.type == TokenType.WORD }
+            val combinedCharacters = characters + (candidate?.text?.length ?: 0)
+            canContinue =
+                candidate?.type == TokenType.WORD &&
+                previousWord != null &&
+                combinedCharacters <= maxChars &&
+                isPhraseChunkCandidate(previousWord, candidate)
+            if (canContinue && candidate != null) {
+                consume(candidate)
+                words += 1
+                characters = combinedCharacters
+            }
+        }
+    }
+
+    fun consumeTrailingPunctuation() {
+        var hitHardBoundary = false
+        var scanning = true
+        while (index < expandedTokens.size && scanning) {
+            val token = expandedTokens[index].token
+            val nextToken = expandedTokens.getOrNull(index + 1)?.token
+            val isOpening = isOpeningPunctuation(token, state, nextToken)
+            scanning = token.type == TokenType.PUNCTUATION && shouldAttach(token, nextToken, isOpening, hitHardBoundary)
+            if (scanning) {
+                val previousWord = unitTokens.lastOrNull { it.type == TokenType.WORD }
+                consume(token)
+                hitHardBoundary =
+                    hitHardBoundary ||
+                    isHardBoundaryPunctuation(token, previousWord, expandedTokens.getOrNull(index)?.token)
+            }
+        }
+    }
+
+    private fun shouldAttach(
+        token: Token,
+        nextToken: Token?,
+        isOpening: Boolean,
+        hitHardBoundary: Boolean,
+    ): Boolean {
+        val character = token.text.firstOrNull()
+        val isQuote = character?.let(::isQuoteChar) == true
+        val isExplicitOpeningQuote = character == '\u201C' || character == '\u2018'
+        val quoteFollowedByWord =
+            isQuote &&
+                nextToken?.type == TokenType.WORD &&
+                (isExplicitOpeningQuote || (character == '"' && isOpening))
+        return !quoteFollowedByWord && !(hitHardBoundary && isOpening) && !isOpening
+    }
+
+    private fun consume(token: Token) {
+        unitTokens += token
+        state.consume(token)
+        index += 1
+    }
 }

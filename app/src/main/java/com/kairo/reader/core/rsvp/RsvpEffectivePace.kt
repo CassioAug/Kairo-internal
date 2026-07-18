@@ -24,5 +24,7 @@ object RsvpEffectivePace {
     private fun wpmForTempoMsPerWord(tempoMsPerWord: Long?): Int? =
         tempoMsPerWord
             ?.takeIf { it > 0L }
-            ?.let { tempoMs -> (60_000.0 / tempoMs.toDouble()).roundToInt().coerceAtLeast(1) }
+            ?.let { tempoMs ->
+                (MILLISECONDS_PER_MINUTE / tempoMs.toDouble()).roundToInt().coerceAtLeast(1)
+            }
 }
