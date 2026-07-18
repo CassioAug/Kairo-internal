@@ -17,21 +17,18 @@ class RsvpFrameIndexMap private constructor(
         frameCount: Int,
     ): Int {
         if (frameCount <= 0) return 0
-        if (resumeCursor >= 0) {
-            wordFrameByResumeCursor[resumeCursor]?.let { return it.coerceFrameIndex(frameCount) }
-            frameByResumeCursor[resumeCursor]?.let { return it.coerceFrameIndex(frameCount) }
-        }
-
-        wordFrameByTokenIndex[tokenIndex]?.let { return it.coerceFrameIndex(frameCount) }
-        frameByTokenIndex[tokenIndex]?.let { return it.coerceFrameIndex(frameCount) }
-
-        priorWordFramesByTokenIndex.frameIndexBefore(tokenIndex)?.let {
-            return it.coerceFrameIndex(frameCount)
-        }
-        priorFramesByTokenIndex.frameIndexBefore(tokenIndex)?.let {
-            return it.coerceFrameIndex(frameCount)
-        }
-        return 0
+        val resumeFrame =
+            resumeCursor
+                .takeIf { it >= 0 }
+                ?.let { wordFrameByResumeCursor[it] ?: frameByResumeCursor[it] }
+        val aligned =
+            resumeFrame
+                ?: wordFrameByTokenIndex[tokenIndex]
+                ?: frameByTokenIndex[tokenIndex]
+                ?: priorWordFramesByTokenIndex.frameIndexBefore(tokenIndex)
+                ?: priorFramesByTokenIndex.frameIndexBefore(tokenIndex)
+                ?: 0
+        return aligned.coerceFrameIndex(frameCount)
     }
 
     companion object {
@@ -84,10 +81,7 @@ class RsvpFrameIndexMap private constructor(
     private fun Int.coerceFrameIndex(frameCount: Int): Int = coerceIn(0, frameCount - 1)
 }
 
-private class SortedFrameIndex private constructor(
-    private val tokenIndices: IntArray,
-    private val frameIndices: IntArray,
-) {
+private class SortedFrameIndex private constructor(private val tokenIndices: IntArray, private val frameIndices: IntArray,) {
     fun frameIndexBefore(tokenIndex: Int): Int? {
         var low = 0
         var high = tokenIndices.lastIndex

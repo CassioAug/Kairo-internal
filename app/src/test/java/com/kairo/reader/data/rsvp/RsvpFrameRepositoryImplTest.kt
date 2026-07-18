@@ -27,10 +27,10 @@ class RsvpFrameRepositoryImplTest {
                 tokenRepository = CountingTokenRepository(),
                 engine = CountingEngine(),
                 dispatcherProvider =
-                    object : DispatcherProvider {
-                        override val default: CoroutineDispatcher = dispatcher
-                        override val io: CoroutineDispatcher = dispatcher
-                    },
+                object : DispatcherProvider {
+                    override val default: CoroutineDispatcher = dispatcher
+                    override val io: CoroutineDispatcher = dispatcher
+                },
             )
         val bookId = BookId("book")
         val config = RsvpConfig()
@@ -60,10 +60,10 @@ class RsvpFrameRepositoryImplTest {
                 tokenRepository = CountingTokenRepository(),
                 engine = engine,
                 dispatcherProvider =
-                    object : DispatcherProvider {
-                        override val default: CoroutineDispatcher = dispatcher
-                        override val io: CoroutineDispatcher = dispatcher
-                    },
+                object : DispatcherProvider {
+                    override val default: CoroutineDispatcher = dispatcher
+                    override val io: CoroutineDispatcher = dispatcher
+                },
             )
         val bookId = BookId("book")
         val config = RsvpConfig()
@@ -96,10 +96,10 @@ class RsvpFrameRepositoryImplTest {
                 tokenRepository = CountingTokenRepository(),
                 engine = engine,
                 dispatcherProvider =
-                    object : DispatcherProvider {
-                        override val default: CoroutineDispatcher = dispatcher
-                        override val io: CoroutineDispatcher = dispatcher
-                    },
+                object : DispatcherProvider {
+                    override val default: CoroutineDispatcher = dispatcher
+                    override val io: CoroutineDispatcher = dispatcher
+                },
             )
         val bookId = BookId("book")
         val config = RsvpConfig()
@@ -138,10 +138,10 @@ class RsvpFrameRepositoryImplTest {
                 tokenRepository = CountingTokenRepository(),
                 engine = engine,
                 dispatcherProvider =
-                    object : DispatcherProvider {
-                        override val default: CoroutineDispatcher = dispatcher
-                        override val io: CoroutineDispatcher = dispatcher
-                    },
+                object : DispatcherProvider {
+                    override val default: CoroutineDispatcher = dispatcher
+                    override val io: CoroutineDispatcher = dispatcher
+                },
             )
         val bookId = BookId("book")
         val config =
@@ -186,10 +186,10 @@ class RsvpFrameRepositoryImplTest {
                 tokenRepository = CountingTokenRepository(),
                 engine = engine,
                 dispatcherProvider =
-                    object : DispatcherProvider {
-                        override val default: CoroutineDispatcher = dispatcher
-                        override val io: CoroutineDispatcher = dispatcher
-                    },
+                object : DispatcherProvider {
+                    override val default: CoroutineDispatcher = dispatcher
+                    override val io: CoroutineDispatcher = dispatcher
+                },
             )
         val bookId = BookId("book")
         var frameSet: RsvpFrameSet? = null
@@ -213,10 +213,10 @@ class RsvpFrameRepositoryImplTest {
                 tokenRepository = CountingTokenRepository(),
                 engine = engine,
                 dispatcherProvider =
-                    object : DispatcherProvider {
-                        override val default: CoroutineDispatcher = dispatcher
-                        override val io: CoroutineDispatcher = dispatcher
-                    },
+                object : DispatcherProvider {
+                    override val default: CoroutineDispatcher = dispatcher
+                    override val io: CoroutineDispatcher = dispatcher
+                },
             )
         val tokens = (0 until 10).map { index -> Token(text = "w$index", type = TokenType.WORD) }
         var preview: RsvpFrameSet? = null
@@ -241,9 +241,7 @@ class RsvpFrameRepositoryImplTest {
         assertTrue(frames.all { it.resumeCursor == -1 })
     }
 
-    private class CountingTokenRepository(
-        private val tokenCount: Int = 20,
-    ) : TokenRepository {
+    private class CountingTokenRepository(private val tokenCount: Int = 20,) : TokenRepository {
         override suspend fun getTokens(
             bookId: BookId,
             chapterIndex: Int,
