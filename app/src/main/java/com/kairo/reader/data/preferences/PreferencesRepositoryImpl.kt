@@ -1,34 +1,15 @@
-@file:Suppress(
-    "ComplexCondition",
-    "CyclomaticComplexMethod",
-    "LongMethod",
-    "LoopWithTooManyJumpStatements",
-    "MagicNumber",
-    "MaxLineLength",
-    "ReturnCount",
-    "TooManyFunctions",
-)
-
 package com.kairo.reader.data.preferences
 
 import android.content.Context
 import android.content.res.Configuration
+import android.util.Log
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.kairo.reader.core.model.BlinkMode
-import com.kairo.reader.core.model.BionicReadingPreferences
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.RsvpConfig
-import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.model.RsvpCustomProfile
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
@@ -40,55 +21,54 @@ import com.kairo.reader.core.model.defaultConfig
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
-private val legacyBaseWpmKey = intPreferencesKey("base_wpm")
-private const val MIN_TEXT_BRIGHTNESS = 0.55f
-private const val MAX_TEXT_BRIGHTNESS = 1.0f
-private const val MIN_RSVP_VERTICAL_BIAS = -0.7f
-private const val MAX_RSVP_VERTICAL_BIAS = 0.7f
-private const val MIN_RSVP_HORIZONTAL_BIAS = -0.6f
-private const val MAX_RSVP_HORIZONTAL_BIAS = 0.6f
-private const val MIN_BIONIC_FIXATION_STRENGTH = 0.30f
-private const val MAX_BIONIC_FIXATION_STRENGTH = 0.70f
-private const val MIN_BIONIC_HIGHLIGHT_STRENGTH = 0.08f
-private const val MAX_BIONIC_HIGHLIGHT_STRENGTH = 0.32f
-private const val MIN_BIONIC_FONT_SIZE_SP = 18f
-private const val MAX_BIONIC_FONT_SIZE_SP = 40f
+internal val legacyBaseWpmKey = intPreferencesKey("base_wpm")
+internal const val MIN_TEXT_BRIGHTNESS = 0.55f
+internal const val MAX_TEXT_BRIGHTNESS = 1.0f
+internal const val MIN_RSVP_VERTICAL_BIAS = -0.7f
+internal const val MAX_RSVP_VERTICAL_BIAS = 0.7f
+internal const val MIN_RSVP_HORIZONTAL_BIAS = -0.6f
+internal const val MAX_RSVP_HORIZONTAL_BIAS = 0.6f
+internal const val MIN_BIONIC_FIXATION_STRENGTH = 0.30f
+internal const val MAX_BIONIC_FIXATION_STRENGTH = 0.70f
+internal const val MIN_BIONIC_HIGHLIGHT_STRENGTH = 0.08f
+internal const val MAX_BIONIC_HIGHLIGHT_STRENGTH = 0.32f
+internal const val MIN_BIONIC_FONT_SIZE_SP = 18f
+internal const val MAX_BIONIC_FONT_SIZE_SP = 40f
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_prefs")
-
-private fun <T> Preferences.readOrDefault(key: Preferences.Key<T>, fallback: T): T =
-    this[key] ?: fallback
 
 internal fun RsvpConfig.normalizedNaturalFlowMultipliers(
     defaults: RsvpConfig = RsvpConfig(),
 ): RsvpConfig =
     copy(
         focalSupportCompression =
-            normalizedFiniteMultiplier(
-                value = focalSupportCompression,
-                fallback = defaults.focalSupportCompression,
-                minValue = 0.75,
-                maxValue = 1.0,
-            ),
+        normalizedFiniteMultiplier(
+            value = focalSupportCompression,
+            fallback = defaults.focalSupportCompression,
+            minValue = 0.75,
+            maxValue = 1.0,
+        ),
         dialoguePunctuationScale =
-            normalizedFiniteMultiplier(
-                value = dialoguePunctuationScale,
-                fallback = defaults.dialoguePunctuationScale,
-                minValue = 0.5,
-                maxValue = 1.0,
-            ),
+        normalizedFiniteMultiplier(
+            value = dialoguePunctuationScale,
+            fallback = defaults.dialoguePunctuationScale,
+            minValue = 0.5,
+            maxValue = 1.0,
+        ),
         parentheticalAsideMultiplier =
-            normalizedFiniteMultiplier(
-                value = parentheticalAsideMultiplier,
-                fallback = defaults.parentheticalAsideMultiplier,
-                minValue = 0.5,
-                maxValue = 1.0,
-            ),
+        normalizedFiniteMultiplier(
+            value = parentheticalAsideMultiplier,
+            fallback = defaults.parentheticalAsideMultiplier,
+            minValue = 0.5,
+            maxValue = 1.0,
+        ),
     )
 
 private fun normalizedFiniteMultiplier(
@@ -118,15 +98,33 @@ internal fun timedReadingModeFromStored(
 
 class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepository {
     private val keys = PrefKeys
+    private val migrationMutex = Mutex()
+
+    @Volatile private var migrationsComplete = false
+    private val profileJsonCodec =
+        RsvpProfileJsonCodec { error ->
+            Log.w(TAG, "Ignoring malformed custom RSVP profile data", error)
+        }
+    private val configCodec = RsvpConfigPreferenceCodec(keys, profileJsonCodec)
+    private val userPreferencesMapper =
+        UserPreferencesMapper(context, keys, profileJsonCodec, configCodec)
 
     override val preferences: Flow<UserPreferences> =
-        context.dataStore.data
-            .onEach { prefs ->
-                migrateLegacyBaseWpmIfNeeded(prefs)
-                migrateRsvpSpeedCurveIfNeeded(prefs)
-                migrateRsvpPunctuationTuningIfNeeded(prefs)
-            }
-            .map { prefs -> buildUserPreferences(prefs) }
+        flow {
+            ensureMigrations()
+            emitAll(context.dataStore.data.map(userPreferencesMapper::map))
+        }
+
+    private suspend fun ensureMigrations() {
+        if (migrationsComplete) return
+        migrationMutex.withLock {
+            if (migrationsComplete) return
+            migrateLegacyBaseWpmIfNeeded(context.dataStore.data.first())
+            migrateRsvpSpeedCurveIfNeeded(context.dataStore.data.first())
+            migrateRsvpPunctuationTuningIfNeeded(context.dataStore.data.first())
+            migrationsComplete = true
+        }
+    }
 
     private suspend fun migrateLegacyBaseWpmIfNeeded(prefs: Preferences) {
         if (!prefs.contains(legacyBaseWpmKey)) return
@@ -175,15 +173,15 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
         val selectedProfileId =
             prefs[keys.rsvpProfile]
-                ?.let(::normalizeProfileId)
+                ?.let(::normalizeRsvpProfileId)
                 ?: RsvpProfileIds.builtIn(RsvpProfile.BALANCED)
         val builtInProfile = RsvpProfileIds.parseBuiltIn(selectedProfileId)
 
         context.dataStore.edit { mutable ->
             if (builtInProfile != null) {
                 val config = builtInProfile.defaultConfig()
-                writePunctuationPauses(mutable, config)
-                writePauseScaling(mutable, config)
+                configCodec.writePunctuationPauses(mutable, config)
+                configCodec.writePauseScaling(mutable, config)
                 mutable[keys.parentheticalMultiplier] = config.parentheticalMultiplier
                 mutable[keys.dialoguePunctuationScale] = config.dialoguePunctuationScale
                 mutable[keys.clausePauseFactor] = config.clausePauseFactor
@@ -196,180 +194,15 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         }
     }
 
-    private fun buildUserPreferences(prefs: Preferences): UserPreferences {
-        val defaults = systemDefaultUserPreferences()
-        val customProfiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
-        val selectedProfileId = migrateAndReadSelectedProfileId(prefs, customProfiles)
-        val configDefaults = rsvpConfigDefaultsForProfile(selectedProfileId, customProfiles)
-        val timingInfo = readTimingInfo(prefs, configDefaults)
-        val rsvpConfig = readRsvpConfig(prefs, configDefaults)
-
-        return defaults
-            .withRsvpState(rsvpConfig, timingInfo.tempoMsPerWord, selectedProfileId, customProfiles)
-            .withTutorialState(prefs, defaults)
-            .withReaderSettings(prefs, defaults)
-            .withTimedReadingMode(prefs, defaults)
-            .withRsvpDisplaySettings(prefs, defaults, rsvpConfig)
-            .withBionicDisplaySettings(prefs, defaults)
-            .withFocusSettings(prefs, defaults)
-    }
-
-    private fun UserPreferences.withRsvpState(
-        config: RsvpConfig,
-        tempoMsPerWord: Long,
-        selectedProfileId: String,
-        customProfiles: List<RsvpCustomProfile>,
-    ): UserPreferences =
-        copy(
-            rsvpConfig = config,
-            rsvpTempoMsPerWord = tempoMsPerWord,
-            rsvpSelectedProfileId = selectedProfileId,
-            rsvpCustomProfiles = customProfiles,
-        )
-
-    private fun UserPreferences.withTutorialState(
-        prefs: Preferences,
-        defaults: UserPreferences,
-    ): UserPreferences =
-        copy(
-            hasSeenStartingTutorial =
-                prefs.readOrDefault(
-                    keys.hasSeenStartingTutorial,
-                    defaults.hasSeenStartingTutorial,
-                ),
-        )
-
-    private fun UserPreferences.withReaderSettings(
-        prefs: Preferences,
-        defaults: UserPreferences,
-    ): UserPreferences {
-        val readerTheme = parseReaderTheme(prefs[keys.readerTheme], defaults.readerTheme)
-        val readerTextBrightness =
-            coerceTextBrightness(prefs[keys.readerTextBrightness], defaults.readerTextBrightness)
-        return copy(
-            readerFontSizeSp = prefs.readOrDefault(keys.readerFontSize, defaults.readerFontSizeSp),
-            readerTheme = readerTheme,
-            readerTextBrightness = readerTextBrightness,
-            invertedScroll = prefs.readOrDefault(keys.invertedScroll, defaults.invertedScroll),
-        )
-    }
-
-    private fun UserPreferences.withTimedReadingMode(
-        prefs: Preferences,
-        defaults: UserPreferences,
-    ): UserPreferences =
-        copy(
-            timedReadingMode =
-                timedReadingModeFromStored(
-                    value = prefs[keys.timedReadingMode],
-                    fallback = defaults.timedReadingMode,
-                ),
-        )
-
-    private fun UserPreferences.withRsvpDisplaySettings(
-        prefs: Preferences,
-        defaults: UserPreferences,
-        rsvpConfig: RsvpConfig,
-    ): UserPreferences {
-        val rsvpTextBrightness =
-            coerceTextBrightness(prefs[keys.rsvpTextBrightness], defaults.rsvpTextBrightness)
-        val rsvpFontWeight =
-            parseRsvpFontWeight(prefs[keys.rsvpFontWeight], defaults.rsvpFontWeight)
-        val rsvpFontFamily =
-            parseRsvpFontFamily(prefs[keys.rsvpFontFamily], defaults.rsvpFontFamily)
-        val unlockExtremeSpeed =
-            prefs[keys.unlockExtremeSpeed]
-                ?: (rsvpConfig.tempoMsPerWord < RsvpSpeedControl.SAFE_MIN_TEMPO_MS_PER_WORD)
-        return copy(
-            rsvpFontSizeSp = prefs.readOrDefault(keys.rsvpFontSize, defaults.rsvpFontSizeSp),
-            rsvpTextBrightness = rsvpTextBrightness,
-            rsvpFontWeight = rsvpFontWeight,
-            rsvpFontFamily = rsvpFontFamily,
-            rsvpVerticalBias =
-                prefs
-                    .readOrDefault(keys.rsvpVerticalBias, defaults.rsvpVerticalBias)
-                    .coerceIn(MIN_RSVP_VERTICAL_BIAS, MAX_RSVP_VERTICAL_BIAS),
-            rsvpHorizontalBias =
-                prefs
-                    .readOrDefault(keys.rsvpHorizontalBias, defaults.rsvpHorizontalBias)
-                    .coerceIn(MIN_RSVP_HORIZONTAL_BIAS, MAX_RSVP_HORIZONTAL_BIAS),
-            rsvpPositioningGridEnabled =
-                prefs.readOrDefault(
-                    keys.rsvpPositioningGridEnabled,
-                    defaults.rsvpPositioningGridEnabled,
-                ),
-            rsvpPositioningGridSnap =
-                prefs.readOrDefault(keys.rsvpPositioningGridSnap, defaults.rsvpPositioningGridSnap),
-            unlockExtremeSpeed = unlockExtremeSpeed,
-        )
-    }
-
-    private fun UserPreferences.withBionicDisplaySettings(
-        prefs: Preferences,
-        defaults: UserPreferences,
-    ): UserPreferences {
-        val fallback = defaults.bionicReading
-        return copy(
-            bionicReading =
-                BionicReadingPreferences(
-                    fixationStrength =
-                        prefs
-                            .readOrDefault(keys.bionicFixationStrength, fallback.fixationStrength)
-                            .coerceIn(
-                                MIN_BIONIC_FIXATION_STRENGTH,
-                                MAX_BIONIC_FIXATION_STRENGTH,
-                            ),
-                    highlightStrength =
-                        prefs
-                            .readOrDefault(keys.bionicHighlightStrength, fallback.highlightStrength)
-                            .coerceIn(
-                                MIN_BIONIC_HIGHLIGHT_STRENGTH,
-                                MAX_BIONIC_HIGHLIGHT_STRENGTH,
-                            ),
-                    fontSizeSp =
-                        prefs
-                            .readOrDefault(keys.bionicFontSize, fallback.fontSizeSp)
-                            .coerceIn(MIN_BIONIC_FONT_SIZE_SP, MAX_BIONIC_FONT_SIZE_SP),
-                    textBrightness =
-                        coerceTextBrightness(
-                            prefs[keys.bionicTextBrightness],
-                            fallback.textBrightness,
-                        ),
-                ),
-        )
-    }
-
-    private fun UserPreferences.withFocusSettings(
-        prefs: Preferences,
-        defaults: UserPreferences,
-    ): UserPreferences =
-        copy(
-            focusModeEnabled = prefs.readOrDefault(keys.focusModeEnabled, defaults.focusModeEnabled),
-            focusHideStatusBar =
-                prefs.readOrDefault(keys.focusHideStatusBar, defaults.focusHideStatusBar),
-            focusPauseNotifications =
-                prefs.readOrDefault(
-                    keys.focusPauseNotifications,
-                    defaults.focusPauseNotifications,
-                ),
-            focusApplyInReader =
-                prefs.readOrDefault(keys.focusApplyInReader, defaults.focusApplyInReader),
-            focusApplyInRsvp =
-                prefs.readOrDefault(keys.focusApplyInRsvp, defaults.focusApplyInRsvp),
-        )
-
-    private fun systemDefaultUserPreferences(): UserPreferences =
-        UserPreferences(readerTheme = readerThemeForNightMode(context.resources.configuration.uiMode))
-
     override suspend fun updateRsvpConfig(updater: (RsvpConfig) -> RsvpConfig) {
         context.dataStore.edit { prefs ->
-            val current = readRsvpConfig(prefs)
-            val timingInfo = readTimingInfo(prefs, current)
+            val current = configCodec.readRsvpConfig(prefs)
+            val timingInfo = configCodec.readTimingInfo(prefs, current)
             val updated =
                 updater(current)
                     .withTiming(timingInfo)
             prefs[keys.rsvpProfile] = RsvpProfileIds.CUSTOM_UNSAVED
-            writeRsvpConfig(prefs, updated, includeTiming = false)
+            configCodec.writeRsvpConfig(prefs, updated, includeTiming = false)
         }
     }
 
@@ -388,7 +221,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     override suspend fun selectRsvpProfile(profileId: String) {
         context.dataStore.edit { prefs ->
-            val normalized = normalizeProfileId(profileId)
+            val normalized = normalizeRsvpProfileId(profileId)
             when {
                 normalized == RsvpProfileIds.CUSTOM_UNSAVED -> {
                     prefs[keys.rsvpProfile] = RsvpProfileIds.CUSTOM_UNSAVED
@@ -396,9 +229,9 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
                 RsvpProfileIds.isBuiltIn(normalized) -> {
                     val builtIn = RsvpProfileIds.parseBuiltIn(normalized) ?: RsvpProfile.BALANCED
-                    val currentTiming = readTimingInfo(prefs, builtIn.defaultConfig())
+                    val currentTiming = configCodec.readTimingInfo(prefs, builtIn.defaultConfig())
                     prefs[keys.rsvpProfile] = RsvpProfileIds.builtIn(builtIn)
-                    writeRsvpConfig(
+                    configCodec.writeRsvpConfig(
                         prefs,
                         builtIn.defaultConfig().withTiming(currentTiming),
                         includeTiming = false,
@@ -406,12 +239,12 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                 }
 
                 RsvpProfileIds.isCustom(normalized) -> {
-                    val currentTiming = readTimingInfo(prefs, RsvpConfig())
-                    val profiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
+                    val currentTiming = configCodec.readTimingInfo(prefs, RsvpConfig())
+                    val profiles = profileJsonCodec.parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
                     val match = profiles.firstOrNull { it.id == normalized }
                     prefs[keys.rsvpProfile] = normalized
                     if (match != null) {
-                        writeRsvpConfig(
+                        configCodec.writeRsvpConfig(
                             prefs,
                             match.config.withTiming(currentTiming),
                             includeTiming = false,
@@ -436,7 +269,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         if (trimmedName.isBlank()) return
 
         context.dataStore.edit { prefs ->
-            val existing = parseCustomProfiles(prefs[keys.customRsvpProfilesJson]).toMutableList()
+            val existing = profileJsonCodec.parseCustomProfiles(prefs[keys.customRsvpProfilesJson]).toMutableList()
             val id = "user:${UUID.randomUUID()}"
             val now = System.currentTimeMillis()
             existing.add(
@@ -447,7 +280,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
                     updatedAtMs = now,
                 ),
             )
-            prefs[keys.customRsvpProfilesJson] = encodeCustomProfiles(existing)
+            prefs[keys.customRsvpProfilesJson] = profileJsonCodec.encodeCustomProfiles(existing)
             prefs[keys.rsvpProfile] = id
         }
     }
@@ -455,10 +288,10 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     override suspend fun deleteRsvpCustomProfile(profileId: String) {
         if (!RsvpProfileIds.isCustom(profileId)) return
         context.dataStore.edit { prefs ->
-            val existing = parseCustomProfiles(prefs[keys.customRsvpProfilesJson]).toMutableList()
+            val existing = profileJsonCodec.parseCustomProfiles(prefs[keys.customRsvpProfilesJson]).toMutableList()
             val removed = existing.removeAll { it.id == profileId }
             if (!removed) return@edit
-            prefs[keys.customRsvpProfilesJson] = encodeCustomProfiles(existing)
+            prefs[keys.customRsvpProfilesJson] = profileJsonCodec.encodeCustomProfiles(existing)
             if (prefs[keys.rsvpProfile] == profileId) {
                 prefs[keys.rsvpProfile] = RsvpProfileIds.CUSTOM_UNSAVED
             }
@@ -596,1061 +429,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
     override suspend fun reset() {
         context.dataStore.edit { it.clear() }
     }
-
-    private fun legacyWpmToTempoMs(legacyWpm: Int?, defaultTempoMs: Long): Long =
-        when {
-            legacyWpm == null -> defaultTempoMs
-            legacyWpm <= 0 -> defaultTempoMs
-            else ->
-                (60_000.0 / legacyWpm.toDouble())
-                    .toLong()
-                    .coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
-        }
-
-    private fun normalizeClausePauseFactor(value: Double?, fallback: Double): Double {
-        val normalized = value?.takeIf { it.isFinite() } ?: fallback
-        return normalized.coerceIn(1.0, 1.6)
-    }
-
-    private fun normalizeClausePauseFactor(value: Double, fallback: Double): Double =
-        normalizeClausePauseFactor(value.takeIf { it.isFinite() }, fallback)
-
-    private fun normalizeProsodyStrength(value: Double?, fallback: Double): Double {
-        val normalized = value?.takeIf { it.isFinite() } ?: fallback
-        return normalized.coerceIn(0.0, 1.6)
-    }
-
-    private fun normalizeProsodyStrength(value: Double, fallback: Double): Double =
-        normalizeProsodyStrength(value.takeIf { it.isFinite() }, fallback)
-
-    private fun coerceTextBrightness(value: Float?, fallback: Float): Float =
-        (value ?: fallback).coerceIn(MIN_TEXT_BRIGHTNESS, MAX_TEXT_BRIGHTNESS)
-
-    private fun parseReaderTheme(value: String?, fallback: ReaderTheme): ReaderTheme =
-        value?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() } ?: fallback
-
-    private fun parseRsvpFontWeight(value: String?, fallback: RsvpFontWeight): RsvpFontWeight =
-        value?.let { runCatching { RsvpFontWeight.valueOf(it) }.getOrNull() } ?: fallback
-
-    private fun parseRsvpFontFamily(value: String?, fallback: RsvpFontFamily): RsvpFontFamily =
-        value?.let { runCatching { RsvpFontFamily.valueOf(it) }.getOrNull() } ?: fallback
-
-    private fun normalizeProfileId(raw: String): String {
-        val trimmed = raw.trim()
-        if (trimmed.isBlank()) return RsvpProfileIds.CUSTOM_UNSAVED
-        if (trimmed == "CUSTOM") return RsvpProfileIds.CUSTOM_UNSAVED
-        runCatching { RsvpProfile.valueOf(trimmed) }.getOrNull()?.let { parsed ->
-            return RsvpProfileIds.builtIn(parsed)
-        }
-        if (trimmed.startsWith("builtin:") ||
-            trimmed.startsWith("user:") ||
-            trimmed == RsvpProfileIds.CUSTOM_UNSAVED
-        ) {
-            return trimmed
-        }
-        return RsvpProfileIds.CUSTOM_UNSAVED
-    }
-
-    private fun migrateAndReadSelectedProfileId(
-        prefs: Preferences,
-        customProfiles: List<RsvpCustomProfile>,
-    ): String {
-        val stored = prefs[keys.rsvpProfile]
-        val normalized =
-            if (stored == null) {
-                RsvpProfileIds.builtIn(RsvpProfile.BALANCED)
-            } else {
-                normalizeProfileId(stored)
-            }
-        return when {
-            normalized == RsvpProfileIds.CUSTOM_UNSAVED -> normalized
-            RsvpProfileIds.isBuiltIn(normalized) -> normalized
-            RsvpProfileIds.isCustom(normalized) -> {
-                if (customProfiles.any {
-                        it.id == normalized
-                    }
-                ) {
-                    normalized
-                } else {
-                    RsvpProfileIds.CUSTOM_UNSAVED
-                }
-            }
-
-            else -> RsvpProfileIds.CUSTOM_UNSAVED
-        }
-    }
-
-    private fun parseCustomProfiles(raw: String?): List<RsvpCustomProfile> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching {
-            val json = JSONArray(raw)
-            buildList {
-                for (i in 0 until json.length()) {
-                    val obj = json.optJSONObject(i) ?: continue
-                    val id = obj.optString("id").orEmpty()
-                    val name = obj.optString("name").orEmpty()
-                    if (!id.startsWith("user:") || name.isBlank()) continue
-                    val updatedAt = obj.optLong("updatedAtMs", 0L)
-                    val cfgObj = obj.optJSONObject("config") ?: JSONObject()
-                    add(
-                        RsvpCustomProfile(
-                            id = id,
-                            name = name,
-                            config = decodeRsvpConfig(cfgObj),
-                            updatedAtMs = updatedAt,
-                        ),
-                    )
-                }
-            }
-        }.getOrElse { emptyList() }
-    }
-
-    private fun encodeCustomProfiles(profiles: List<RsvpCustomProfile>): String {
-        val json = JSONArray()
-        profiles.forEach { profile ->
-            val obj = JSONObject()
-            obj.put("id", profile.id)
-            obj.put("name", profile.name)
-            obj.put("updatedAtMs", profile.updatedAtMs)
-            obj.put("config", encodeRsvpConfig(profile.config))
-            json.put(obj)
-        }
-        return json.toString()
-    }
-
-    private fun encodeRsvpConfig(config: RsvpConfig): JSONObject =
-        JSONObject().apply {
-            putTiming(config)
-            putWordFloors(config)
-            putDifficulty(config)
-            putLengthCurve(config)
-            putChunking(config)
-            putPunctuationPauses(config)
-            putPauseScaling(config)
-            putContextMultipliers(config)
-            putRhythm(config)
-            putProsody(config)
-            putOrpAndDelays(config)
-            putRamping(config)
-            putAdaptiveTiming(config)
-            putLegacyFields(config)
-            putNaturalFlow(config)
-            putBlink(config)
-        }
-
-    private fun JSONObject.putTiming(config: RsvpConfig) {
-        put("tempoMsPerWord", config.tempoMsPerWord)
-    }
-
-    private fun JSONObject.putWordFloors(config: RsvpConfig) {
-        put("minWordMs", config.minWordMs)
-        put("longWordMinMs", config.longWordMinMs)
-        put("longWordChars", config.longWordChars)
-    }
-
-    private fun JSONObject.putDifficulty(config: RsvpConfig) {
-        put("syllableExtraMs", config.syllableExtraMs)
-        put("rarityExtraMaxMs", config.rarityExtraMaxMs)
-        put("complexityStrength", config.complexityStrength)
-    }
-
-    private fun JSONObject.putLengthCurve(config: RsvpConfig) {
-        put("lengthStrength", config.lengthStrength)
-        put("lengthExponent", config.lengthExponent)
-    }
-
-    private fun JSONObject.putChunking(config: RsvpConfig) {
-        put("enablePhraseChunking", config.enablePhraseChunking)
-        put("maxWordsPerUnit", config.maxWordsPerUnit)
-        put("maxCharsPerUnit", config.maxCharsPerUnit)
-        put("subwordChunkPauseMs", config.subwordChunkPauseMs)
-        put("contextAssistMode", config.contextAssistMode.name)
-        put("useRegressionAdaptivePacing", config.useRegressionAdaptivePacing)
-    }
-
-    private fun JSONObject.putPunctuationPauses(config: RsvpConfig) {
-        put("commaPauseMs", config.commaPauseMs)
-        put("periodPauseMs", config.periodPauseMs)
-        put("semicolonPauseMs", config.semicolonPauseMs)
-        put("colonPauseMs", config.colonPauseMs)
-        put("dashPauseMs", config.dashPauseMs)
-        put("parenthesesPauseMs", config.parenthesesPauseMs)
-        put("quotePauseMs", config.quotePauseMs)
-        put("sentenceEndPauseMs", config.sentenceEndPauseMs)
-        put("paragraphPauseMs", config.paragraphPauseMs)
-        put("paragraphPauseMultiplier", config.paragraphPauseMultiplier)
-        put("pageBreakPauseMultiplier", config.pageBreakPauseMultiplier)
-    }
-
-    private fun JSONObject.putPauseScaling(config: RsvpConfig) {
-        put("pauseScaleExponent", config.pauseScaleExponent)
-        put("minPauseScale", config.minPauseScale)
-        put("usePunctuationLandingHold", config.usePunctuationLandingHold)
-    }
-
-    private fun JSONObject.putContextMultipliers(config: RsvpConfig) {
-        put("parentheticalMultiplier", config.parentheticalMultiplier)
-        put("dialogueMultiplier", config.dialogueMultiplier)
-    }
-
-    private fun JSONObject.putRhythm(config: RsvpConfig) {
-        put("smoothingAlpha", config.smoothingAlpha)
-        put("maxSpeedupFactor", config.maxSpeedupFactor)
-        put("maxSlowdownFactor", config.maxSlowdownFactor)
-    }
-
-    private fun JSONObject.putProsody(config: RsvpConfig) {
-        put("useProsodyPacing", config.useProsodyPacing)
-        put("prosodyStrength", config.prosodyStrength)
-    }
-
-    private fun JSONObject.putOrpAndDelays(config: RsvpConfig) {
-        put("orpEnabled", config.orpEnabled)
-        put("orpHighlightEnabled", config.orpHighlightEnabled)
-        put("orpGuideEnabled", config.orpGuideEnabled)
-        put("orpGuideBrightness", config.orpGuideBrightness)
-        put("orpGuideThickness", config.orpGuideThickness)
-        put("startDelayMs", config.startDelayMs)
-        put("endDelayMs", config.endDelayMs)
-    }
-
-    private fun JSONObject.putRamping(config: RsvpConfig) {
-        put("rampUpFrames", config.rampUpFrames)
-        put("rampDownFrames", config.rampDownFrames)
-    }
-
-    private fun JSONObject.putAdaptiveTiming(config: RsvpConfig) {
-        put("useAdaptiveTiming", config.useAdaptiveTiming)
-        put("adaptiveDifficultyMaxHoldMs", config.adaptiveDifficultyMaxHoldMs)
-        put("complexWordHoldMs", config.complexWordHoldMs)
-        put("complexWordThreshold", config.complexWordThreshold)
-    }
-
-    private fun JSONObject.putLegacyFields(config: RsvpConfig) {
-        put("wordsPerFrame", config.wordsPerFrame)
-        put("maxChunkLength", config.maxChunkLength)
-        put("punctuationPauseFactor", config.punctuationPauseFactor)
-        put("longWordMultiplier", config.longWordMultiplier)
-        put("useClausePausing", config.useClausePausing)
-        put("clausePauseFactor", config.clausePauseFactor)
-    }
-
-    private fun JSONObject.putNaturalFlow(config: RsvpConfig) {
-        put("useFocalStress", config.useFocalStress)
-        put("focalSupportCompression", config.focalSupportCompression)
-        put("useAnticipatoryLanding", config.useAnticipatoryLanding)
-        put("anticipatoryLandingBoost", config.anticipatoryLandingBoost)
-        put("dialoguePunctuationScale", config.dialoguePunctuationScale)
-        put("useParentheticalAside", config.useParentheticalAside)
-        put("parentheticalAsideMultiplier", config.parentheticalAsideMultiplier)
-    }
-
-    private fun JSONObject.putBlink(config: RsvpConfig) {
-        put("blinkMode", config.blinkMode.name)
-        put("blinkEnabled", config.blinkMode != BlinkMode.OFF)
-    }
-
-    private fun decodeRsvpConfig(obj: JSONObject): RsvpConfig {
-        val defaults = RsvpConfig()
-        val blinkModeRaw = obj.optString("blinkMode", "")
-        val blinkMode =
-            parseBlinkMode(blinkModeRaw.takeIf { it.isNotBlank() })
-                ?: if (obj.optBoolean("blinkEnabled", false)) BlinkMode.SUBTLE else defaults.blinkMode
-        return defaults
-            .withTempoFromJson(obj, defaults)
-            .withWordFloorsFromJson(obj, defaults)
-            .withDifficultyFromJson(obj, defaults)
-            .withLengthCurveFromJson(obj, defaults)
-            .withChunkingFromJson(obj, defaults)
-            .withPunctuationPausesFromJson(obj, defaults)
-            .withPauseScalingFromJson(obj, defaults)
-            .withContextMultipliersFromJson(obj, defaults)
-            .withRhythmFromJson(obj, defaults)
-            .withProsodyFromJson(obj, defaults)
-            .withOrpAndDelaysFromJson(obj, defaults)
-            .withRampingFromJson(obj, defaults)
-            .withAdaptiveTimingFromJson(obj, defaults)
-            .withLegacyFieldsFromJson(obj, defaults)
-            .withNaturalFlowFromJson(obj, defaults)
-            .withBlinkMode(blinkMode)
-    }
-
-    private fun RsvpConfig.withTempoFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(tempoMsPerWord = obj.optLong("tempoMsPerWord", defaults.tempoMsPerWord))
-
-    private fun RsvpConfig.withWordFloorsFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            minWordMs = obj.optLong("minWordMs", defaults.minWordMs),
-            longWordMinMs = obj.optLong("longWordMinMs", defaults.longWordMinMs),
-            longWordChars = obj.optInt("longWordChars", defaults.longWordChars),
-        )
-
-    private fun RsvpConfig.withDifficultyFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            syllableExtraMs = obj.optLong("syllableExtraMs", defaults.syllableExtraMs),
-            rarityExtraMaxMs = obj.optLong("rarityExtraMaxMs", defaults.rarityExtraMaxMs),
-            complexityStrength = obj.optDouble("complexityStrength", defaults.complexityStrength),
-        )
-
-    private fun RsvpConfig.withLengthCurveFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            lengthStrength = obj.optDouble("lengthStrength", defaults.lengthStrength),
-            lengthExponent = obj.optDouble("lengthExponent", defaults.lengthExponent),
-        )
-
-    private fun RsvpConfig.withChunkingFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            enablePhraseChunking =
-                obj.optBoolean("enablePhraseChunking", defaults.enablePhraseChunking),
-            maxWordsPerUnit = obj.optInt("maxWordsPerUnit", defaults.maxWordsPerUnit),
-            maxCharsPerUnit = obj.optInt("maxCharsPerUnit", defaults.maxCharsPerUnit),
-            subwordChunkPauseMs = obj.optLong("subwordChunkPauseMs", defaults.subwordChunkPauseMs),
-            contextAssistMode =
-                parseContextAssistMode(obj.optString("contextAssistMode", ""))
-                    ?: defaults.contextAssistMode,
-            useRegressionAdaptivePacing =
-                obj.optBoolean(
-                    "useRegressionAdaptivePacing",
-                    defaults.useRegressionAdaptivePacing,
-                ),
-        )
-
-    private fun RsvpConfig.withPunctuationPausesFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            commaPauseMs = obj.optLong("commaPauseMs", defaults.commaPauseMs),
-            periodPauseMs =
-                if (obj.has("periodPauseMs")) {
-                    obj.optLong("periodPauseMs", defaults.periodPauseMs)
-                } else {
-                    obj.optLong("sentenceEndPauseMs", defaults.sentenceEndPauseMs)
-                },
-            semicolonPauseMs = obj.optLong("semicolonPauseMs", defaults.semicolonPauseMs),
-            colonPauseMs = obj.optLong("colonPauseMs", defaults.colonPauseMs),
-            dashPauseMs = obj.optLong("dashPauseMs", defaults.dashPauseMs),
-            parenthesesPauseMs =
-                obj.optLong("parenthesesPauseMs", defaults.parenthesesPauseMs),
-            quotePauseMs = obj.optLong("quotePauseMs", defaults.quotePauseMs),
-            sentenceEndPauseMs =
-                obj.optLong("sentenceEndPauseMs", defaults.sentenceEndPauseMs),
-            paragraphPauseMs = obj.optLong("paragraphPauseMs", defaults.paragraphPauseMs),
-            paragraphPauseMultiplier =
-                obj.optDouble(
-                    "paragraphPauseMultiplier",
-                    defaults.paragraphPauseMultiplier,
-                ),
-            pageBreakPauseMultiplier =
-                obj.optDouble(
-                    "pageBreakPauseMultiplier",
-                    defaults.pageBreakPauseMultiplier,
-                ),
-        )
-
-    private fun RsvpConfig.withPauseScalingFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            pauseScaleExponent = obj.optDouble("pauseScaleExponent", defaults.pauseScaleExponent),
-            minPauseScale = obj.optDouble("minPauseScale", defaults.minPauseScale),
-            usePunctuationLandingHold =
-                obj.optBoolean("usePunctuationLandingHold", defaults.usePunctuationLandingHold),
-        )
-
-    private fun RsvpConfig.withContextMultipliersFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            parentheticalMultiplier =
-                obj.optDouble("parentheticalMultiplier", defaults.parentheticalMultiplier),
-            dialogueMultiplier = obj.optDouble("dialogueMultiplier", defaults.dialogueMultiplier),
-        )
-
-    private fun RsvpConfig.withRhythmFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            smoothingAlpha = obj.optDouble("smoothingAlpha", defaults.smoothingAlpha),
-            maxSpeedupFactor = obj.optDouble("maxSpeedupFactor", defaults.maxSpeedupFactor),
-            maxSlowdownFactor = obj.optDouble("maxSlowdownFactor", defaults.maxSlowdownFactor),
-        )
-
-    private fun RsvpConfig.withProsodyFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            useProsodyPacing = obj.optBoolean("useProsodyPacing", defaults.useProsodyPacing),
-            prosodyStrength =
-                normalizeProsodyStrength(
-                    obj.optDouble("prosodyStrength", defaults.prosodyStrength),
-                    defaults.prosodyStrength,
-                ),
-        )
-
-    private fun RsvpConfig.withOrpAndDelaysFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            orpEnabled = obj.optBoolean("orpEnabled", defaults.orpEnabled),
-            orpHighlightEnabled =
-                obj.optBoolean("orpHighlightEnabled", defaults.orpHighlightEnabled),
-            orpGuideEnabled = obj.optBoolean("orpGuideEnabled", defaults.orpGuideEnabled),
-            orpGuideBrightness = obj.optDouble("orpGuideBrightness", defaults.orpGuideBrightness),
-            orpGuideThickness = obj.optDouble("orpGuideThickness", defaults.orpGuideThickness),
-            startDelayMs = obj.optLong("startDelayMs", defaults.startDelayMs),
-            endDelayMs = obj.optLong("endDelayMs", defaults.endDelayMs),
-        )
-
-    private fun RsvpConfig.withRampingFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            rampUpFrames = obj.optInt("rampUpFrames", defaults.rampUpFrames),
-            rampDownFrames = obj.optInt("rampDownFrames", defaults.rampDownFrames),
-        )
-
-    private fun RsvpConfig.withAdaptiveTimingFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            useAdaptiveTiming = obj.optBoolean("useAdaptiveTiming", defaults.useAdaptiveTiming),
-            adaptiveDifficultyMaxHoldMs =
-                obj.optLong(
-                    "adaptiveDifficultyMaxHoldMs",
-                    defaults.adaptiveDifficultyMaxHoldMs,
-                ),
-            complexWordHoldMs = obj.optLong("complexWordHoldMs", defaults.complexWordHoldMs),
-            complexWordThreshold =
-                obj.optDouble("complexWordThreshold", defaults.complexWordThreshold),
-        )
-
-    private fun RsvpConfig.withLegacyFieldsFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            wordsPerFrame = obj.optInt("wordsPerFrame", defaults.wordsPerFrame),
-            maxChunkLength = obj.optInt("maxChunkLength", defaults.maxChunkLength),
-            punctuationPauseFactor =
-                obj.optDouble("punctuationPauseFactor", defaults.punctuationPauseFactor),
-            longWordMultiplier = obj.optDouble("longWordMultiplier", defaults.longWordMultiplier),
-            useClausePausing = obj.optBoolean("useClausePausing", defaults.useClausePausing),
-            clausePauseFactor =
-                normalizeClausePauseFactor(
-                    obj.optDouble("clausePauseFactor", defaults.clausePauseFactor),
-                    defaults.clausePauseFactor,
-                ),
-        )
-
-    private fun RsvpConfig.withNaturalFlowFromJson(
-        obj: JSONObject,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            useFocalStress = obj.optBoolean("useFocalStress", defaults.useFocalStress),
-            focalSupportCompression =
-                obj.optDouble("focalSupportCompression", defaults.focalSupportCompression),
-            useAnticipatoryLanding =
-                obj.optBoolean("useAnticipatoryLanding", defaults.useAnticipatoryLanding),
-            anticipatoryLandingBoost =
-                obj.optDouble("anticipatoryLandingBoost", defaults.anticipatoryLandingBoost),
-            dialoguePunctuationScale =
-                obj.optDouble("dialoguePunctuationScale", defaults.dialoguePunctuationScale),
-            useParentheticalAside =
-                obj.optBoolean("useParentheticalAside", defaults.useParentheticalAside),
-            parentheticalAsideMultiplier =
-                obj.optDouble("parentheticalAsideMultiplier", defaults.parentheticalAsideMultiplier),
-        ).normalizedNaturalFlowMultipliers(defaults)
-
-    private fun writeRsvpConfig(
-        prefs: MutablePreferences,
-        config: RsvpConfig,
-        includeTiming: Boolean = true,
-    ) {
-        val defaults = RsvpConfig()
-        if (includeTiming) {
-            writeTiming(prefs, config)
-        }
-        writeWordFloors(prefs, config)
-        writeDifficulty(prefs, config)
-        writeLengthCurve(prefs, config)
-        writeChunking(prefs, config)
-        writePunctuationPauses(prefs, config)
-        writePauseScaling(prefs, config)
-        writeContextMultipliers(prefs, config)
-        writeRhythm(prefs, config)
-        writeProsody(prefs, config, defaults)
-        writeOrpAndDelays(prefs, config)
-        writeRamping(prefs, config)
-        writeAdaptiveTiming(prefs, config)
-        writeLegacyFields(prefs, config, defaults)
-        writeNaturalFlow(prefs, config)
-        writeBlink(prefs, config)
-    }
-
-    private fun writeTiming(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.tempoMsPerWord] =
-            config.tempoMsPerWord.coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
-        prefs[keys.rsvpSpeedCurveVersion] = RsvpSpeedControl.SPEED_CURVE_VERSION
-        prefs.remove(legacyBaseWpmKey)
-    }
-
-    private fun writeWordFloors(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.minWordMs] = config.minWordMs
-        prefs[keys.longWordMinMs] = config.longWordMinMs
-        prefs[keys.longWordChars] = config.longWordChars
-    }
-
-    private fun writeDifficulty(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.syllableExtraMs] = config.syllableExtraMs
-        prefs[keys.rarityExtraMaxMs] = config.rarityExtraMaxMs
-        prefs[keys.complexityStrength] = config.complexityStrength
-    }
-
-    private fun writeLengthCurve(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.lengthStrength] = config.lengthStrength
-        prefs[keys.lengthExponent] = config.lengthExponent
-    }
-
-    private fun writeChunking(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.enablePhraseChunking] = config.enablePhraseChunking
-        prefs[keys.maxWordsPerUnit] = config.maxWordsPerUnit
-        prefs[keys.maxCharsPerUnit] = config.maxCharsPerUnit
-        prefs[keys.subwordChunkPauseMs] = config.subwordChunkPauseMs
-        prefs[keys.contextAssistMode] = config.contextAssistMode.name
-        prefs[keys.useRegressionAdaptivePacing] = config.useRegressionAdaptivePacing
-    }
-
-    private fun writePunctuationPauses(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.commaPauseMs] = config.commaPauseMs
-        prefs[keys.periodPauseMs] = config.periodPauseMs
-        prefs[keys.semicolonPauseMs] = config.semicolonPauseMs
-        prefs[keys.colonPauseMs] = config.colonPauseMs
-        prefs[keys.dashPauseMs] = config.dashPauseMs
-        prefs[keys.parenthesesPauseMs] = config.parenthesesPauseMs
-        prefs[keys.quotePauseMs] = config.quotePauseMs
-        prefs[keys.sentenceEndPauseMs] = config.sentenceEndPauseMs
-        prefs[keys.paragraphPauseMs] = config.paragraphPauseMs
-        prefs[keys.paragraphPauseMultiplier] = config.paragraphPauseMultiplier
-        prefs[keys.pageBreakPauseMultiplier] = config.pageBreakPauseMultiplier
-    }
-
-    private fun writePauseScaling(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.pauseScaleExponent] = config.pauseScaleExponent
-        prefs[keys.minPauseScale] = config.minPauseScale
-        prefs[keys.usePunctuationLandingHold] = config.usePunctuationLandingHold
-    }
-
-    private fun writeContextMultipliers(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.parentheticalMultiplier] = config.parentheticalMultiplier
-        prefs[keys.dialogueMultiplier] = config.dialogueMultiplier
-    }
-
-    private fun writeRhythm(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.smoothingAlpha] = config.smoothingAlpha
-        prefs[keys.maxSpeedupFactor] = config.maxSpeedupFactor
-        prefs[keys.maxSlowdownFactor] = config.maxSlowdownFactor
-    }
-
-    private fun writeProsody(
-        prefs: MutablePreferences,
-        config: RsvpConfig,
-        defaults: RsvpConfig,
-    ) {
-        prefs[keys.useProsodyPacing] = config.useProsodyPacing
-        prefs[keys.prosodyStrength] =
-            normalizeProsodyStrength(config.prosodyStrength, defaults.prosodyStrength)
-    }
-
-    private fun writeOrpAndDelays(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.orpEnabled] = config.orpEnabled
-        prefs[keys.orpHighlightEnabled] = config.orpHighlightEnabled
-        prefs[keys.orpGuideEnabled] = config.orpGuideEnabled
-        prefs[keys.orpGuideBrightness] = config.orpGuideBrightness
-        prefs[keys.orpGuideThickness] = config.orpGuideThickness
-        prefs[keys.startDelayMs] = config.startDelayMs
-        prefs[keys.endDelayMs] = config.endDelayMs
-    }
-
-    private fun writeRamping(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.rampUpFrames] = config.rampUpFrames
-        prefs[keys.rampDownFrames] = config.rampDownFrames
-    }
-
-    private fun writeAdaptiveTiming(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.useAdaptiveTiming] = config.useAdaptiveTiming
-        prefs[keys.adaptiveDifficultyMaxHoldMs] = config.adaptiveDifficultyMaxHoldMs
-        prefs[keys.complexWordHoldMs] = config.complexWordHoldMs
-        prefs[keys.complexWordThreshold] = config.complexWordThreshold
-    }
-
-    private fun writeLegacyFields(
-        prefs: MutablePreferences,
-        config: RsvpConfig,
-        defaults: RsvpConfig,
-    ) {
-        prefs[keys.wordsPerFrame] = config.wordsPerFrame
-        prefs[keys.maxChunkLength] = config.maxChunkLength
-        prefs[keys.punctuationPause] = config.punctuationPauseFactor
-        prefs[keys.longWordMultiplier] = config.longWordMultiplier
-        prefs[keys.useClausePausing] = config.useClausePausing
-        prefs[keys.clausePauseFactor] =
-            normalizeClausePauseFactor(config.clausePauseFactor, defaults.clausePauseFactor)
-    }
-
-    private fun writeNaturalFlow(prefs: MutablePreferences, config: RsvpConfig) {
-        val normalized = config.normalizedNaturalFlowMultipliers()
-        prefs[keys.useFocalStress] = normalized.useFocalStress
-        prefs[keys.focalSupportCompression] = normalized.focalSupportCompression
-        prefs[keys.useAnticipatoryLanding] = normalized.useAnticipatoryLanding
-        prefs[keys.anticipatoryLandingBoost] = normalized.anticipatoryLandingBoost
-        prefs[keys.dialoguePunctuationScale] = normalized.dialoguePunctuationScale
-        prefs[keys.useParentheticalAside] = normalized.useParentheticalAside
-        prefs[keys.parentheticalAsideMultiplier] = normalized.parentheticalAsideMultiplier
-    }
-
-    private fun writeBlink(prefs: MutablePreferences, config: RsvpConfig) {
-        prefs[keys.blinkMode] = config.blinkMode.name
-        prefs[keys.blinkEnabled] = config.blinkMode != BlinkMode.OFF
-    }
-
-    private data class TimingInfo(
-        val tempoMsPerWord: Long,
-        val baseWpm: Int,
-    )
-
-    private fun readTimingInfo(prefs: Preferences, defaults: RsvpConfig): TimingInfo {
-        val tempoMsPerWord =
-            (
-                prefs[keys.tempoMsPerWord]
-                    ?: legacyWpmToTempoMs(
-                        legacyWpm = prefs[legacyBaseWpmKey],
-                        defaultTempoMs = defaults.tempoMsPerWord,
-                    )
-                ).coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
-        val baseWpm = (60_000.0 / tempoMsPerWord.toDouble()).toInt().coerceAtLeast(1)
-        return TimingInfo(tempoMsPerWord = tempoMsPerWord, baseWpm = baseWpm)
-    }
-
-    private fun readBlinkMode(prefs: Preferences, defaults: RsvpConfig): BlinkMode {
-        val storedBlinkMode = parseBlinkMode(prefs[keys.blinkMode])
-        return storedBlinkMode
-            ?: if (prefs[keys.blinkEnabled] == true) {
-                BlinkMode.SUBTLE
-            } else {
-                defaults.blinkMode
-            }
-    }
-
-    private fun readRsvpConfig(prefs: Preferences): RsvpConfig {
-        val customProfiles = parseCustomProfiles(prefs[keys.customRsvpProfilesJson])
-        val selectedProfileId = migrateAndReadSelectedProfileId(prefs, customProfiles)
-        return readRsvpConfig(
-            prefs = prefs,
-            defaults = rsvpConfigDefaultsForProfile(selectedProfileId, customProfiles),
-        )
-    }
-
-    private fun readRsvpConfig(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig {
-        val timingInfo = readTimingInfo(prefs, defaults)
-        val blinkMode = readBlinkMode(prefs, defaults)
-
-        return defaults
-            .withTiming(timingInfo)
-            .withWordFloors(prefs, defaults)
-            .withDifficulty(prefs, defaults)
-            .withLengthCurve(prefs, defaults)
-            .withChunking(prefs, defaults)
-            .withPunctuationPauses(prefs, defaults)
-            .withPauseScaling(prefs, defaults)
-            .withContextMultipliers(prefs, defaults)
-            .withRhythm(prefs, defaults)
-            .withProsody(prefs, defaults)
-            .withRamping(prefs, defaults)
-            .withAdaptiveTiming(prefs, defaults)
-            .withLegacyFields(prefs, defaults)
-            .withNaturalFlow(prefs, defaults)
-            .withOrpAndDelays(prefs, defaults)
-            .withBlinkMode(blinkMode)
-    }
-
-    private fun rsvpConfigDefaultsForProfile(
-        selectedProfileId: String,
-        customProfiles: List<RsvpCustomProfile>,
-    ): RsvpConfig =
-        when {
-            RsvpProfileIds.isBuiltIn(selectedProfileId) ->
-                RsvpProfileIds.parseBuiltIn(selectedProfileId)?.defaultConfig()
-                    ?: RsvpProfile.BALANCED.defaultConfig()
-
-            RsvpProfileIds.isCustom(selectedProfileId) ->
-                customProfiles.firstOrNull { it.id == selectedProfileId }?.config
-                    ?: RsvpProfile.BALANCED.defaultConfig()
-
-            else -> RsvpProfile.BALANCED.defaultConfig()
-        }
-
-    private fun RsvpConfig.withTiming(timingInfo: TimingInfo): RsvpConfig =
-        copy(
-            tempoMsPerWord = timingInfo.tempoMsPerWord,
-            baseWpm = timingInfo.baseWpm,
-        )
-
-    private fun RsvpConfig.withWordFloors(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            minWordMs = prefs.readOrDefault(keys.minWordMs, defaults.minWordMs),
-            longWordMinMs = prefs.readOrDefault(keys.longWordMinMs, defaults.longWordMinMs),
-            longWordChars = prefs.readOrDefault(keys.longWordChars, defaults.longWordChars),
-        )
-
-    private fun RsvpConfig.withDifficulty(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            syllableExtraMs = prefs.readOrDefault(keys.syllableExtraMs, defaults.syllableExtraMs),
-            rarityExtraMaxMs =
-                prefs.readOrDefault(keys.rarityExtraMaxMs, defaults.rarityExtraMaxMs),
-            complexityStrength =
-                prefs.readOrDefault(keys.complexityStrength, defaults.complexityStrength),
-        )
-
-    private fun RsvpConfig.withLengthCurve(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            lengthStrength = prefs.readOrDefault(keys.lengthStrength, defaults.lengthStrength),
-            lengthExponent = prefs.readOrDefault(keys.lengthExponent, defaults.lengthExponent),
-        )
-
-    private fun RsvpConfig.withChunking(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            enablePhraseChunking =
-                prefs.readOrDefault(keys.enablePhraseChunking, defaults.enablePhraseChunking),
-            maxWordsPerUnit = prefs.readOrDefault(keys.maxWordsPerUnit, defaults.maxWordsPerUnit),
-            maxCharsPerUnit = prefs.readOrDefault(keys.maxCharsPerUnit, defaults.maxCharsPerUnit),
-            subwordChunkPauseMs =
-                prefs.readOrDefault(keys.subwordChunkPauseMs, defaults.subwordChunkPauseMs),
-            contextAssistMode =
-                parseContextAssistMode(prefs[keys.contextAssistMode])
-                    ?: defaults.contextAssistMode,
-            useRegressionAdaptivePacing =
-                prefs.readOrDefault(
-                    keys.useRegressionAdaptivePacing,
-                    defaults.useRegressionAdaptivePacing,
-                ),
-        )
-
-    private fun RsvpConfig.withPunctuationPauses(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            commaPauseMs = prefs.readOrDefault(keys.commaPauseMs, defaults.commaPauseMs),
-            periodPauseMs =
-                prefs[keys.periodPauseMs]
-                    ?: prefs.readOrDefault(keys.sentenceEndPauseMs, defaults.sentenceEndPauseMs),
-            semicolonPauseMs =
-                prefs.readOrDefault(keys.semicolonPauseMs, defaults.semicolonPauseMs),
-            colonPauseMs = prefs.readOrDefault(keys.colonPauseMs, defaults.colonPauseMs),
-            dashPauseMs = prefs.readOrDefault(keys.dashPauseMs, defaults.dashPauseMs),
-            parenthesesPauseMs =
-                prefs.readOrDefault(keys.parenthesesPauseMs, defaults.parenthesesPauseMs),
-            quotePauseMs = prefs.readOrDefault(keys.quotePauseMs, defaults.quotePauseMs),
-            sentenceEndPauseMs =
-                prefs.readOrDefault(keys.sentenceEndPauseMs, defaults.sentenceEndPauseMs),
-            paragraphPauseMs =
-                prefs.readOrDefault(keys.paragraphPauseMs, defaults.paragraphPauseMs),
-            paragraphPauseMultiplier =
-                prefs.readOrDefault(
-                    keys.paragraphPauseMultiplier,
-                    defaults.paragraphPauseMultiplier,
-                ),
-            pageBreakPauseMultiplier =
-                prefs.readOrDefault(
-                    keys.pageBreakPauseMultiplier,
-                    defaults.pageBreakPauseMultiplier,
-                ),
-        )
-
-    private fun RsvpConfig.withPauseScaling(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            pauseScaleExponent =
-                prefs.readOrDefault(keys.pauseScaleExponent, defaults.pauseScaleExponent),
-            minPauseScale = prefs.readOrDefault(keys.minPauseScale, defaults.minPauseScale),
-            usePunctuationLandingHold =
-                prefs.readOrDefault(
-                    keys.usePunctuationLandingHold,
-                    defaults.usePunctuationLandingHold,
-                ),
-        )
-
-    private fun RsvpConfig.withContextMultipliers(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            parentheticalMultiplier =
-                prefs.readOrDefault(keys.parentheticalMultiplier, defaults.parentheticalMultiplier),
-            dialogueMultiplier =
-                prefs.readOrDefault(keys.dialogueMultiplier, defaults.dialogueMultiplier),
-        )
-
-    private fun RsvpConfig.withRhythm(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            smoothingAlpha = prefs.readOrDefault(keys.smoothingAlpha, defaults.smoothingAlpha),
-            maxSpeedupFactor =
-                prefs.readOrDefault(keys.maxSpeedupFactor, defaults.maxSpeedupFactor),
-            maxSlowdownFactor =
-                prefs.readOrDefault(keys.maxSlowdownFactor, defaults.maxSlowdownFactor),
-        )
-
-    private fun RsvpConfig.withProsody(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            useProsodyPacing =
-                prefs.readOrDefault(keys.useProsodyPacing, defaults.useProsodyPacing),
-            prosodyStrength =
-                normalizeProsodyStrength(
-                    prefs[keys.prosodyStrength],
-                    defaults.prosodyStrength,
-                ),
-        )
-
-    private fun RsvpConfig.withRamping(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            rampUpFrames = prefs.readOrDefault(keys.rampUpFrames, defaults.rampUpFrames),
-            rampDownFrames = prefs.readOrDefault(keys.rampDownFrames, defaults.rampDownFrames),
-        )
-
-    private fun RsvpConfig.withAdaptiveTiming(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            useAdaptiveTiming =
-                prefs.readOrDefault(keys.useAdaptiveTiming, defaults.useAdaptiveTiming),
-            adaptiveDifficultyMaxHoldMs =
-                prefs.readOrDefault(
-                    keys.adaptiveDifficultyMaxHoldMs,
-                    defaults.adaptiveDifficultyMaxHoldMs,
-                ),
-            complexWordHoldMs =
-                prefs.readOrDefault(keys.complexWordHoldMs, defaults.complexWordHoldMs),
-            complexWordThreshold =
-                prefs.readOrDefault(keys.complexWordThreshold, defaults.complexWordThreshold),
-        )
-
-    private fun RsvpConfig.withLegacyFields(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            wordsPerFrame = prefs.readOrDefault(keys.wordsPerFrame, defaults.wordsPerFrame),
-            maxChunkLength = prefs.readOrDefault(keys.maxChunkLength, defaults.maxChunkLength),
-            punctuationPauseFactor =
-                prefs.readOrDefault(keys.punctuationPause, defaults.punctuationPauseFactor),
-            longWordMultiplier =
-                prefs.readOrDefault(keys.longWordMultiplier, defaults.longWordMultiplier),
-            useClausePausing =
-                prefs.readOrDefault(keys.useClausePausing, defaults.useClausePausing),
-            clausePauseFactor =
-                normalizeClausePauseFactor(prefs[keys.clausePauseFactor], defaults.clausePauseFactor),
-        )
-
-    private fun RsvpConfig.withNaturalFlow(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            useFocalStress = prefs.readOrDefault(keys.useFocalStress, defaults.useFocalStress),
-            focalSupportCompression =
-                prefs.readOrDefault(
-                    keys.focalSupportCompression,
-                    defaults.focalSupportCompression,
-                ),
-            useAnticipatoryLanding =
-                prefs.readOrDefault(keys.useAnticipatoryLanding, defaults.useAnticipatoryLanding),
-            anticipatoryLandingBoost =
-                prefs.readOrDefault(keys.anticipatoryLandingBoost, defaults.anticipatoryLandingBoost),
-            dialoguePunctuationScale =
-                prefs.readOrDefault(keys.dialoguePunctuationScale, defaults.dialoguePunctuationScale),
-            useParentheticalAside =
-                prefs.readOrDefault(keys.useParentheticalAside, defaults.useParentheticalAside),
-            parentheticalAsideMultiplier =
-                prefs.readOrDefault(
-                    keys.parentheticalAsideMultiplier,
-                    defaults.parentheticalAsideMultiplier,
-                ),
-        ).normalizedNaturalFlowMultipliers(defaults)
-
-    private fun RsvpConfig.withOrpAndDelays(
-        prefs: Preferences,
-        defaults: RsvpConfig,
-    ): RsvpConfig =
-        copy(
-            orpEnabled = prefs.readOrDefault(keys.orpEnabled, defaults.orpEnabled),
-            orpHighlightEnabled =
-                prefs.readOrDefault(keys.orpHighlightEnabled, defaults.orpHighlightEnabled),
-            orpGuideEnabled =
-                prefs.readOrDefault(keys.orpGuideEnabled, defaults.orpGuideEnabled),
-            orpGuideBrightness =
-                prefs.readOrDefault(keys.orpGuideBrightness, defaults.orpGuideBrightness),
-            orpGuideThickness =
-                prefs.readOrDefault(keys.orpGuideThickness, defaults.orpGuideThickness),
-            startDelayMs = prefs.readOrDefault(keys.startDelayMs, defaults.startDelayMs),
-            endDelayMs = prefs.readOrDefault(keys.endDelayMs, defaults.endDelayMs),
-        )
-
-    private fun RsvpConfig.withBlinkMode(blinkMode: BlinkMode): RsvpConfig =
-        copy(blinkMode = blinkMode)
-
-    private fun parseBlinkMode(value: String?): BlinkMode? = value?.let {
-        runCatching { BlinkMode.valueOf(it) }.getOrNull()
-    }
-
-    private fun parseContextAssistMode(value: String?): RsvpContextAssistMode? = value?.let {
-        runCatching { RsvpContextAssistMode.valueOf(it) }.getOrNull()
-    }
-}
-
-private object PrefKeys {
-    val tempoMsPerWord = longPreferencesKey("tempo_ms_per_word")
-    val rsvpSpeedCurveVersion = intPreferencesKey("rsvp_speed_curve_version")
-    val rsvpPunctuationTuningVersion = intPreferencesKey("rsvp_punctuation_tuning_version")
-    val rsvpProfile = stringPreferencesKey("rsvp_profile")
-    val customRsvpProfilesJson = stringPreferencesKey("custom_rsvp_profiles_json")
-    val hasSeenStartingTutorial = booleanPreferencesKey("has_seen_starting_tutorial")
-    val minWordMs = longPreferencesKey("min_word_ms")
-    val longWordMinMs = longPreferencesKey("long_word_min_ms")
-    val longWordChars = intPreferencesKey("long_word_chars")
-    val syllableExtraMs = longPreferencesKey("syllable_extra_ms")
-    val rarityExtraMaxMs = longPreferencesKey("rarity_extra_max_ms")
-    val complexityStrength = doublePreferencesKey("complexity_strength")
-    val lengthStrength = doublePreferencesKey("length_strength")
-    val lengthExponent = doublePreferencesKey("length_exponent")
-    val enablePhraseChunking = booleanPreferencesKey("enable_phrase_chunking")
-    val maxWordsPerUnit = intPreferencesKey("max_words_per_unit")
-    val maxCharsPerUnit = intPreferencesKey("max_chars_per_unit")
-    val subwordChunkPauseMs = longPreferencesKey("subword_chunk_pause_ms")
-    val contextAssistMode = stringPreferencesKey("rsvp_context_assist_mode")
-    val useRegressionAdaptivePacing = booleanPreferencesKey("rsvp_regression_adaptive_pacing")
-    val commaPauseMs = longPreferencesKey("comma_pause_ms")
-    val periodPauseMs = longPreferencesKey("period_pause_ms")
-    val semicolonPauseMs = longPreferencesKey("semicolon_pause_ms")
-    val colonPauseMs = longPreferencesKey("colon_pause_ms")
-    val dashPauseMs = longPreferencesKey("dash_pause_ms")
-    val parenthesesPauseMs = longPreferencesKey("parentheses_pause_ms")
-    val quotePauseMs = longPreferencesKey("quote_pause_ms")
-    val sentenceEndPauseMs = longPreferencesKey("sentence_end_pause_ms")
-    val wordsPerFrame = intPreferencesKey("words_per_frame")
-    val maxChunkLength = intPreferencesKey("max_chunk_length")
-    val punctuationPause = doublePreferencesKey("punctuation_pause_factor")
-    val paragraphPauseMs = longPreferencesKey("paragraph_pause_ms")
-    val paragraphPauseMultiplier = doublePreferencesKey("paragraph_pause_multiplier")
-    val pageBreakPauseMultiplier = doublePreferencesKey("page_break_pause_multiplier")
-    val longWordMultiplier = doublePreferencesKey("long_word_multiplier")
-    val pauseScaleExponent = doublePreferencesKey("pause_scale_exponent")
-    val minPauseScale = doublePreferencesKey("min_pause_scale")
-    val usePunctuationLandingHold = booleanPreferencesKey("use_punctuation_landing_hold")
-    val parentheticalMultiplier = doublePreferencesKey("parenthetical_multiplier")
-    val dialogueMultiplier = doublePreferencesKey("dialogue_multiplier")
-    val smoothingAlpha = doublePreferencesKey("rhythm_smoothing_alpha")
-    val maxSpeedupFactor = doublePreferencesKey("rhythm_max_speedup_factor")
-    val maxSlowdownFactor = doublePreferencesKey("rhythm_max_slowdown_factor")
-    val useProsodyPacing = booleanPreferencesKey("use_prosody_pacing")
-    val prosodyStrength = doublePreferencesKey("prosody_strength")
-    val orpEnabled = booleanPreferencesKey("orp_enabled")
-    val orpHighlightEnabled = booleanPreferencesKey("orp_highlight_enabled")
-    val orpGuideEnabled = booleanPreferencesKey("orp_guide_enabled")
-    val orpGuideBrightness = doublePreferencesKey("orp_guide_brightness")
-    val orpGuideThickness = doublePreferencesKey("orp_guide_thickness")
-    val startDelayMs = longPreferencesKey("start_delay_ms")
-    val endDelayMs = longPreferencesKey("end_delay_ms")
-    val rampUpFrames = intPreferencesKey("ramp_up_frames")
-    val rampDownFrames = intPreferencesKey("ramp_down_frames")
-    val useAdaptiveTiming = booleanPreferencesKey("use_adaptive_timing")
-    val adaptiveDifficultyMaxHoldMs = longPreferencesKey("adaptive_difficulty_max_hold_ms")
-    val complexWordHoldMs = longPreferencesKey("complex_word_hold_ms")
-    val complexWordThreshold = doublePreferencesKey("complex_word_threshold")
-    val useClausePausing = booleanPreferencesKey("use_clause_pausing")
-    val clausePauseFactor = doublePreferencesKey("clause_pause_factor")
-    val useFocalStress = booleanPreferencesKey("use_focal_stress")
-    val focalSupportCompression = doublePreferencesKey("focal_support_compression")
-    val useAnticipatoryLanding = booleanPreferencesKey("use_anticipatory_landing")
-    val anticipatoryLandingBoost = doublePreferencesKey("anticipatory_landing_boost")
-    val dialoguePunctuationScale = doublePreferencesKey("dialogue_punctuation_scale")
-    val useParentheticalAside = booleanPreferencesKey("use_parenthetical_aside")
-    val parentheticalAsideMultiplier = doublePreferencesKey("parenthetical_aside_multiplier")
-    val blinkMode = stringPreferencesKey("blink_mode")
-    val blinkEnabled = booleanPreferencesKey("blink_enabled")
-    val readerFontSize = floatPreferencesKey("reader_font_size")
-    val readerTheme = stringPreferencesKey("reader_theme")
-    val readerTextBrightness = floatPreferencesKey("reader_text_brightness")
-    val invertedScroll = booleanPreferencesKey("inverted_scroll")
-    val rsvpFontSize = floatPreferencesKey("rsvp_font_size")
-    val rsvpTextBrightness = floatPreferencesKey("rsvp_text_brightness")
-    val rsvpFontWeight = stringPreferencesKey("rsvp_font_weight")
-    val rsvpFontFamily = stringPreferencesKey("rsvp_font_family")
-    val rsvpVerticalBias = floatPreferencesKey("rsvp_vertical_bias")
-    val rsvpHorizontalBias = floatPreferencesKey("rsvp_horizontal_bias")
-    val rsvpPositioningGridEnabled = booleanPreferencesKey("rsvp_positioning_grid_enabled")
-    val rsvpPositioningGridSnap = floatPreferencesKey("rsvp_positioning_grid_snap")
-    val timedReadingMode = stringPreferencesKey("timed_reading_mode")
-    val bionicFixationStrength = floatPreferencesKey("bionic_fixation_strength")
-    val bionicHighlightStrength = floatPreferencesKey("bionic_highlight_strength")
-    val bionicFontSize = floatPreferencesKey("bionic_font_size")
-    val bionicTextBrightness = floatPreferencesKey("bionic_text_brightness")
-    val unlockExtremeSpeed = booleanPreferencesKey("unlock_extreme_speed")
-    val focusModeEnabled = booleanPreferencesKey("focus_mode_enabled")
-    val focusHideStatusBar = booleanPreferencesKey("focus_hide_status_bar")
-    val focusPauseNotifications = booleanPreferencesKey("focus_pause_notifications")
-    val focusApplyInReader = booleanPreferencesKey("focus_apply_in_reader")
-    val focusApplyInRsvp = booleanPreferencesKey("focus_apply_in_rsvp")
 }
 
 private const val CURRENT_RSVP_PUNCTUATION_TUNING_VERSION = 2
+private const val TAG = "PreferencesRepository"
