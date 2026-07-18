@@ -94,8 +94,9 @@ internal object ImportFingerprint {
     }
 
     private fun MessageDigest.hexDigest(): String =
-        digest().joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
+        digest().joinToString(separator = "") { "%02x".format(it.toInt() and BYTE_MASK) }
 
     private val WHITESPACE = Regex("\\s+")
     private const val BUFFER_SIZE = 64 * 1024
+    private const val BYTE_MASK = 0xFF
 }

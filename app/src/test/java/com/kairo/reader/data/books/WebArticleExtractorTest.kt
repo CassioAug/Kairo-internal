@@ -14,7 +14,7 @@ class WebArticleExtractorTest {
         val book =
             extractor.parseHtml(
                 html =
-                    """
+                """
                     <html lang="en">
                       <head>
                         <title>Browser title</title>
@@ -31,7 +31,7 @@ class WebArticleExtractorTest {
                         <footer>All rights reserved</footer>
                       </body>
                     </html>
-                    """.trimIndent(),
+                """.trimIndent(),
                 normalizedUrl = "https://example.com/story",
                 bookId = BookId("article"),
             )
@@ -52,7 +52,7 @@ class WebArticleExtractorTest {
         val book =
             extractor.parseHtml(
                 html =
-                    """
+                """
                     <html>
                       <body>
                         <main>
@@ -61,7 +61,7 @@ class WebArticleExtractorTest {
                         </main>
                       </body>
                     </html>
-                    """.trimIndent(),
+                """.trimIndent(),
                 normalizedUrl = "https://news.example.com/post",
                 bookId = BookId("article"),
             )

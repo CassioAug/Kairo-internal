@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.data.books
 
 import com.kairo.reader.core.dispatchers.DispatcherProvider

@@ -66,7 +66,8 @@ class WebArticleExtractor(private val dispatcherProvider: DispatcherProvider) {
                 lastError = error
             }
         }
-        throw lastError ?: IllegalStateException("Could not fetch article.")
+        lastError?.let { throw it }
+        error("Could not fetch article.")
     }
 
     private fun fetchDocumentOrNull(
@@ -105,15 +106,15 @@ class WebArticleExtractor(private val dispatcherProvider: DispatcherProvider) {
             authors = listOf(author),
             languageTag = languageTag,
             chapters =
-                listOf(
-                    Chapter(
-                        index = 0,
-                        title = title,
-                        htmlContent = htmlContent,
-                        plainText = plainText,
-                        wordCount = countWords(plainText),
-                    ),
+            listOf(
+                Chapter(
+                    index = 0,
+                    title = title,
+                    htmlContent = htmlContent,
+                    plainText = plainText,
+                    wordCount = countWords(plainText),
                 ),
+            ),
         )
     }
 
@@ -329,13 +330,13 @@ class WebArticleExtractor(private val dispatcherProvider: DispatcherProvider) {
                     userAgent = BROWSER_USER_AGENT,
                     timeoutMs = BROWSER_REQUEST_TIMEOUT_MS,
                     headers =
-                        mapOf(
-                            "Accept" to
-                                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                            "Accept-Language" to "en-GB,en;q=0.9",
-                            "Cache-Control" to "no-cache",
-                            "Upgrade-Insecure-Requests" to "1",
-                        ),
+                    mapOf(
+                        "Accept" to
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language" to "en-GB,en;q=0.9",
+                        "Cache-Control" to "no-cache",
+                        "Upgrade-Insecure-Requests" to "1",
+                    ),
                 ),
                 RequestProfile(
                     userAgent = KAIRO_USER_AGENT,
@@ -349,20 +350,16 @@ class WebArticleExtractor(private val dispatcherProvider: DispatcherProvider) {
                     userAgent = BROWSER_USER_AGENT,
                     timeoutMs = FALLBACK_REQUEST_TIMEOUT_MS,
                     headers =
-                        mapOf(
-                            "Accept" to
-                                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                            "Accept-Language" to "en-GB,en;q=0.9",
-                            "Cache-Control" to "no-cache",
-                            "Upgrade-Insecure-Requests" to "1",
-                        ),
+                    mapOf(
+                        "Accept" to
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language" to "en-GB,en;q=0.9",
+                        "Cache-Control" to "no-cache",
+                        "Upgrade-Insecure-Requests" to "1",
+                    ),
                 ),
             )
     }
 }
 
-private data class RequestProfile(
-    val userAgent: String,
-    val timeoutMs: Int,
-    val headers: Map<String, String>,
-)
+private data class RequestProfile(val userAgent: String, val timeoutMs: Int, val headers: Map<String, String>,)

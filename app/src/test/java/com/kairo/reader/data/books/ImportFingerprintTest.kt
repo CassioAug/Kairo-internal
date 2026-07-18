@@ -87,13 +87,13 @@ class ImportFingerprintTest {
             title = title,
             authors = authors,
             chapters =
-                listOf(
-                    Chapter(
-                        index = 0,
-                        title = "Chapter",
-                        htmlContent = "<p>$chapterText</p>",
-                        plainText = chapterText,
-                    ),
+            listOf(
+                Chapter(
+                    index = 0,
+                    title = "Chapter",
+                    htmlContent = "<p>$chapterText</p>",
+                    plainText = chapterText,
                 ),
+            ),
         )
 }
