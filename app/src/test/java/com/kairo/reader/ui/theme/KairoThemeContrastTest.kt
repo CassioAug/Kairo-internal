@@ -4,12 +4,12 @@ package com.kairo.reader.ui.theme
 
 import androidx.compose.ui.graphics.Color
 import com.kairo.reader.core.model.ReaderTheme
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class KairoThemeContrastTest {
     @Test
@@ -252,11 +252,7 @@ class KairoThemeContrastTest {
             ((this + SRGB_EXPONENT_OFFSET) / SRGB_EXPONENT_DIVISOR).pow(SRGB_EXPONENT)
         }.toDouble()
 
-    private data class ThemeRole(
-        val label: String,
-        val expected: Color,
-        val actual: Color,
-    )
+    private data class ThemeRole(val label: String, val expected: Color, val actual: Color,)
 
     private companion object {
         const val WCAG_NORMAL_TEXT_CONTRAST = 4.5
