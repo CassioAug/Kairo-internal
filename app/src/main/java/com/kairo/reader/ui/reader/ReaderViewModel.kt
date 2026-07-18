@@ -7,20 +7,13 @@ import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.Token
-import com.kairo.reader.core.model.TokenType
-import com.kairo.reader.core.model.buildWordCountByToken
 import com.kairo.reader.core.model.countWords
-import com.kairo.reader.core.model.isPhysicalPageBreakToken
-import com.kairo.reader.core.model.isSentenceEndingPunctuation
 import com.kairo.reader.core.model.nearestWordIndex
-import com.kairo.reader.core.model.shouldKeepPhysicalPageBreak
 import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.token.TokenRepository
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,20 +22,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val HEX_RADIX = 16
-private const val PAGE_MIN_WORD_FRACTION = 0.82f
-private const val PAGE_MAX_WORD_FRACTION = 1.25f
-private const val PAGE_TARGET_FRACTION = 0.94f
-private const val PAGE_EXTRA_WORD_FRACTION = 0.2f
-private const val PAGE_EXTRA_WORDS_MIN = 10
-private const val PAGE_EXTRA_WORDS_MAX = 60
-private const val PAGE_TRAILING_PAGE_MIN_FRACTION = 0.5f
-private const val PAGE_TRAILING_PAGE_MERGED_MAX_FRACTION = 1.6f
-private const val DEFAULT_WORDS_PER_PAGE = 300
-private const val PAGINATION_VIEWPORT_BASE_DP = 760f
-private const val PAGINATION_FONT_BASE_SP = 18f
-private const val PAGINATION_WORDS_MIN = 170
-private const val PAGINATION_WORDS_MAX = 460
 private const val PAGINATION_WORDS_MIN_DELTA = 14
 
 /**
@@ -54,23 +33,13 @@ class ReaderViewModel(
     private val bookRepository: BookRepository,
     private val tokenRepository: TokenRepository,
     private val dispatcherProvider: DispatcherProvider,
+    private val chapterProcessor: ReaderChapterProcessor = ReaderChapterProcessor(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReaderUiState())
     val uiState: StateFlow<ReaderUiState> = _uiState.asStateFlow()
 
     // LRU cache for processed chapters - avoids re-tokenizing when switching back
-    private val chapterCache =
-        object : LinkedHashMap<Int, ChapterData>(
-            CHAPTER_CACHE_INITIAL_CAPACITY,
-            CHAPTER_CACHE_LOAD_FACTOR,
-            true,
-        ) {
-            override fun removeEldestEntry(
-                eldest: MutableMap.MutableEntry<Int, ChapterData>?
-            ): Boolean =
-                size > MAX_CACHED_CHAPTERS
-        }
-    private val chapterCacheLock = Any()
+    private val chapterCache = ReaderChapterCache()
     private val tokenizationDispatcher = dispatcherProvider.default.limitedParallelism(1)
 
     // Thread-safe book reference for cross-coroutine access
@@ -92,7 +61,7 @@ class ReaderViewModel(
     ) {
         currentBook.set(book)
         chapterLoadSequence.incrementAndGet()
-        synchronized(chapterCacheLock) { chapterCache.clear() } // Clear cache when loading new book
+        chapterCache.clear()
         pendingFocusIndex.set(if (initialFocusIndex > 0) initialFocusIndex else null)
         pendingPageIndex.set(null)
         _uiState.update { it.copy(bookWordCounts = emptyList(), bookTotalWords = 0) }
@@ -172,7 +141,7 @@ class ReaderViewModel(
         }
 
         // Check cache first - instant load if available
-        val cached = synchronized(chapterCacheLock) { chapterCache[chapterIndex] }
+        val cached = chapterCache[chapterIndex]
         if (cached != null) {
             // Use pending focus if set, otherwise use first word
             val pageIdx = pendingPageIndex.getAndSet(null)
@@ -228,7 +197,7 @@ class ReaderViewModel(
 
                 // Cache the result
                 result?.let {
-                    synchronized(chapterCacheLock) { chapterCache[chapterIndex] = it }
+                    chapterCache[chapterIndex] = it
                 }
 
                 // Use pending focus if set, otherwise use first word
@@ -266,39 +235,10 @@ class ReaderViewModel(
     private suspend fun processChapter(
         chapter: Chapter,
         tokens: List<Token>,
-    ): ChapterData? {
-        return withContext(tokenizationDispatcher) {
-            // Pre-compute paragraphs for lazy rendering
-            val paragraphs = tokens.toParagraphs()
-
-            // Find first word index for initial focus
-            val firstWordIndex = tokens.indexOfFirst { it.type == TokenType.WORD }
-
-            if (tokens.isEmpty() && chapter.imagePaths.isEmpty()) return@withContext null
-
-            val wordCountByToken = buildWordCountByToken(tokens)
-            val pages = buildChapterPages(tokens, wordsPerPageTarget.get())
-            val totalWords = wordCountByToken.lastOrNull() ?: 0
-
-            val blocks =
-                buildReaderBlocks(
-                    htmlContent = chapter.htmlContent,
-                    paragraphs = paragraphs,
-                    imagePaths = chapter.imagePaths,
-                )
-
-            ChapterData(
-                tokens = tokens,
-                paragraphs = paragraphs,
-                blocks = blocks,
-                firstWordIndex = firstWordIndex,
-                imagePaths = chapter.imagePaths,
-                pages = pages,
-                wordCountByToken = wordCountByToken,
-                totalWords = totalWords,
-            )
+    ): ChapterData? =
+        withContext(tokenizationDispatcher) {
+            chapterProcessor.process(chapter, tokens, wordsPerPageTarget.get())
         }
-    }
 
     /**
      * Preload adjacent chapters in background so chapter switching feels instant.
@@ -310,7 +250,7 @@ class ReaderViewModel(
             listOf(currentIndex + 1)
                 .filter { it in book.chapters.indices }
                 .filter { index ->
-                    synchronized(chapterCacheLock) { !chapterCache.containsKey(index) }
+                    !chapterCache.contains(index)
                 }
                 .forEach { index ->
                     val chapter =
@@ -325,7 +265,7 @@ class ReaderViewModel(
                     }.getOrNull()
                     if (tokens != null) {
                         processChapter(chapter, tokens)?.let { data ->
-                            synchronized(chapterCacheLock) { chapterCache[index] = data }
+                            chapterCache[index] = data
                         }
                     }
                 }
@@ -366,20 +306,16 @@ class ReaderViewModel(
         fontSizeSp: Float,
         viewportHeightDp: Int,
     ) {
-        val resolvedWordsPerPage = estimateWordsPerPage(fontSizeSp, viewportHeightDp)
+        val resolvedWordsPerPage = chapterProcessor.wordsPerPage(fontSizeSp, viewportHeightDp)
         val previousWordsPerPage = wordsPerPageTarget.get()
         if (abs(resolvedWordsPerPage - previousWordsPerPage) < PAGINATION_WORDS_MIN_DELTA) return
         wordsPerPageTarget.set(resolvedWordsPerPage)
 
-        synchronized(chapterCacheLock) {
-            chapterCache.entries.forEach { entry ->
-                entry.setValue(rePageChapterData(entry.value, resolvedWordsPerPage))
-            }
-        }
+        chapterCache.transformAll { chapterProcessor.repage(it, resolvedWordsPerPage) }
 
         _uiState.update { state ->
             val chapterData = state.chapterData ?: return@update state
-            state.copy(chapterData = rePageChapterData(chapterData, resolvedWordsPerPage))
+            state.copy(chapterData = chapterProcessor.repage(chapterData, resolvedWordsPerPage))
         }
     }
 
@@ -405,13 +341,10 @@ class ReaderViewModel(
      */
     override fun onCleared() {
         super.onCleared()
-        synchronized(chapterCacheLock) { chapterCache.clear() }
+        chapterCache.clear()
     }
 
     companion object {
-        private const val CHAPTER_CACHE_INITIAL_CAPACITY = 5
-        private const val CHAPTER_CACHE_LOAD_FACTOR = 0.75f
-        private const val MAX_CACHED_CHAPTERS = 5
         private const val DEFAULT_CHAPTER_LOAD_ERROR = "Chapter could not be loaded."
 
         fun factory(
@@ -438,713 +371,3 @@ class ReaderViewModel(
 // =============================================================================
 // State classes
 // =============================================================================
-
-data class ReaderUiState(
-    val isLoading: Boolean = false,
-    val chapterIndex: Int = 0,
-    val focusIndex: Int = 0,
-    val pageIndexOverride: Int? = null,
-    val chapterData: ChapterData? = null,
-    val chapterLoadError: String? = null,
-    val bookWordCounts: List<Int> = emptyList(),
-    val bookTotalWords: Int = 0,
-)
-
-data class ChapterData(
-    val tokens: List<Token>,
-    val paragraphs: List<Paragraph>,
-    val blocks: List<ReaderBlock>,
-    val firstWordIndex: Int,
-    val imagePaths: List<String>,
-    val pages: List<ChapterPage>,
-    val wordCountByToken: IntArray,
-    val totalWords: Int,
-)
-
-/**
- * A paragraph is a group of tokens between PARAGRAPH_BREAK tokens.
- * Stores the starting index for mapping back to the original token list.
- */
-data class Paragraph(val tokens: List<Token>, val startIndex: Int,)
-
-enum class ChapterPageKind { TEXT, IMAGE, BLANK }
-
-data class ChapterPage(
-    val index: Int,
-    val startTokenIndex: Int,
-    val endTokenIndex: Int,
-    val wordCount: Int,
-    val kind: ChapterPageKind = ChapterPageKind.TEXT,
-    val imagePath: String? = null,
-    val imageIndex: Int? = null,
-    val focusTokenIndex: Int = startTokenIndex,
-)
-
-sealed interface ReaderBlock {
-    val key: String
-}
-
-data class ReaderParagraphBlock(val paragraph: Paragraph,) : ReaderBlock {
-    override val key: String = "paragraph_${paragraph.startIndex}"
-}
-
-data class ReaderImageSize(
-    val widthPx: Float? = null,
-    val heightPx: Float? = null,
-)
-
-data class ReaderImageBlock(
-    val imagePath: String,
-    val index: Int,
-    val anchorTokenIndex: Int? = null,
-    val imageSize: ReaderImageSize? = null,
-) : ReaderBlock {
-    override val key: String = "image_${index}_$imagePath"
-}
-
-/**
- * Split tokens into paragraphs for lazy rendering.
- * Your Tokenizer already creates PARAGRAPH_BREAK tokens, so we just split on those.
- */
-fun List<Token>.toParagraphs(): List<Paragraph> {
-    if (isEmpty()) return emptyList()
-
-    val paragraphs = mutableListOf<Paragraph>()
-    val currentTokens = mutableListOf<Token>()
-    var startIndex = 0
-
-    forEachIndexed { index, token ->
-        when (token.type) {
-            TokenType.PARAGRAPH_BREAK, TokenType.PAGE_BREAK -> {
-                if (currentTokens.isNotEmpty()) {
-                    paragraphs.add(Paragraph(currentTokens.toList(), startIndex))
-                    currentTokens.clear()
-                }
-                startIndex = index + 1
-            }
-            else -> {
-                currentTokens.add(token)
-            }
-        }
-    }
-
-    // Don't forget the last paragraph (no trailing PARAGRAPH_BREAK)
-    if (currentTokens.isNotEmpty()) {
-        paragraphs.add(Paragraph(currentTokens.toList(), startIndex))
-    }
-
-    return paragraphs
-}
-
-internal fun buildChapterPages(
-    tokens: List<Token>,
-    wordsPerPage: Int,
-): List<ChapterPage> {
-    if (tokens.isEmpty() || wordsPerPage <= 0) return emptyList()
-
-    val minWords =
-        (wordsPerPage * PAGE_MIN_WORD_FRACTION)
-            .roundToInt()
-            .coerceAtLeast(1)
-    val maxWords =
-        (wordsPerPage * PAGE_MAX_WORD_FRACTION)
-            .roundToInt()
-            .coerceAtLeast(minWords)
-    val targetWords = wordsPerPage.coerceAtLeast(1)
-    val minTargetWords = (targetWords * PAGE_TARGET_FRACTION).roundToInt()
-    val maxExtraWords =
-        (wordsPerPage * PAGE_EXTRA_WORD_FRACTION)
-            .roundToInt()
-            .coerceIn(PAGE_EXTRA_WORDS_MIN, PAGE_EXTRA_WORDS_MAX)
-
-    val pages = mutableListOf<ChapterPage>()
-    var cursor = 0
-
-    outer@ while (cursor < tokens.size) {
-        val pageStartTokenIndex = nextWordTokenIndex(tokens, cursor) ?: break
-        var wordCount = 0
-        var endWordTokenIndex = pageStartTokenIndex
-        var fallbackBoundary: PageBoundary? = null
-        var preferredBoundary: PageBoundary? = null
-        var parenDepth = 0
-
-        var i = pageStartTokenIndex
-        while (i < tokens.size) {
-            val token = tokens[i]
-            when (token.type) {
-                TokenType.WORD -> {
-                    wordCount += 1
-                    endWordTokenIndex = i
-                }
-                TokenType.PAGE_BREAK -> {
-                    if (wordCount > 0 && isHardReaderPageBreak(tokens, i)) {
-                        val endTokenIndex = extendTrailingPunctuation(tokens, endWordTokenIndex)
-                        pages.add(
-                            ChapterPage(
-                                index = pages.size,
-                                startTokenIndex = pageStartTokenIndex,
-                                endTokenIndex = endTokenIndex,
-                                wordCount = wordCount,
-                            ),
-                        )
-                        cursor = i + 1
-                        continue@outer
-                    }
-                }
-                TokenType.PARAGRAPH_BREAK -> {
-                    if (wordCount > 0 && parenDepth == 0) {
-                        val boundary = PageBoundary(endWordTokenIndex, wordCount)
-                        fallbackBoundary = boundary
-                        if (wordCount >= minWords) {
-                            preferredBoundary = boundary
-                        }
-                    }
-                }
-                TokenType.PUNCTUATION -> {
-                    if (isOpeningBracket(token)) {
-                        parenDepth += 1
-                    } else if (isClosingBracket(token)) {
-                        parenDepth = (parenDepth - 1).coerceAtLeast(0)
-                    }
-                    if (wordCount > 0 && parenDepth == 0 && isSentenceEnding(token)) {
-                        val boundary = PageBoundary(endWordTokenIndex, wordCount)
-                        fallbackBoundary = boundary
-                        if (wordCount >= minWords) {
-                            preferredBoundary = boundary
-                        }
-                    }
-                }
-            }
-
-            val hasNearBoundary =
-                preferredBoundary != null && preferredBoundary.wordCount >= minTargetWords
-            if (wordCount >= maxWords || (wordCount >= targetWords && hasNearBoundary)) {
-                break
-            }
-            i += 1
-        }
-
-        if (wordCount <= 0) {
-            cursor = pageStartTokenIndex + 1
-            continue
-        }
-
-        var chosenBoundary =
-            preferredBoundary?.takeIf { boundary ->
-                boundary.wordCount >= minTargetWords || wordCount >= maxWords
-            }
-
-        if (chosenBoundary == null && maxExtraWords > 0) {
-            val forward =
-                findForwardBoundary(
-                    tokens = tokens,
-                    startIndex = endWordTokenIndex + 1,
-                    initialWordCount = wordCount,
-                    maxExtraWords = maxExtraWords,
-                    startingParenDepth = parenDepth,
-                )
-            if (forward != null) {
-                chosenBoundary = PageBoundary(forward.endWordIndex, forward.wordCount)
-            }
-        }
-
-        val boundary = chosenBoundary ?: fallbackBoundary
-        val chosenWordIndex = boundary?.endWordIndex ?: endWordTokenIndex
-        val chosenWordCount = boundary?.wordCount ?: wordCount
-        val endTokenIndex = extendTrailingPunctuation(tokens, chosenWordIndex)
-
-        pages.add(
-            ChapterPage(
-                index = pages.size,
-                startTokenIndex = pageStartTokenIndex,
-                endTokenIndex = endTokenIndex,
-                wordCount = chosenWordCount,
-            ),
-        )
-        cursor = endTokenIndex + 1
-    }
-
-    return mergeTrailingSparsePage(tokens, pages, wordsPerPage)
-}
-
-private fun nextWordTokenIndex(
-    tokens: List<Token>,
-    startIndex: Int,
-): Int? {
-    for (i in startIndex until tokens.size) {
-        if (tokens[i].type == TokenType.WORD) return i
-    }
-    return null
-}
-
-private fun extendTrailingPunctuation(
-    tokens: List<Token>,
-    endWordIndex: Int,
-): Int {
-    var endIndex = endWordIndex
-    var i = endWordIndex + 1
-    while (i < tokens.size) {
-        val token = tokens[i]
-        if (token.type == TokenType.PUNCTUATION && token.text !in LEADING_PUNCTUATION) {
-            endIndex = i
-            i += 1
-            continue
-        }
-        if (token.type == TokenType.WORD ||
-            token.type == TokenType.PARAGRAPH_BREAK ||
-            token.type == TokenType.PAGE_BREAK
-        ) {
-            break
-        }
-        break
-    }
-    return endIndex
-}
-
-private fun isSentenceEnding(token: Token): Boolean {
-    if (token.type != TokenType.PUNCTUATION) return false
-    return token.text.singleOrNull()?.let(::isSentenceEndingPunctuation) == true
-}
-
-private fun isHardReaderPageBreak(
-    tokens: List<Token>,
-    index: Int,
-): Boolean {
-    val token = tokens.getOrNull(index) ?: return false
-    return !isPhysicalPageBreakToken(token) || shouldKeepPhysicalPageBreak(tokens, index)
-}
-
-private val LEADING_PUNCTUATION = setOf("(", "[", "{")
-private val OPENING_BRACKETS = setOf("(", "[", "{")
-private val CLOSING_BRACKETS = setOf(")", "]", "}")
-
-private data class PageBoundary(
-    val endWordIndex: Int,
-    val wordCount: Int,
-)
-
-private fun isOpeningBracket(token: Token): Boolean =
-    token.type == TokenType.PUNCTUATION && token.text in OPENING_BRACKETS
-
-private fun isClosingBracket(token: Token): Boolean =
-    token.type == TokenType.PUNCTUATION && token.text in CLOSING_BRACKETS
-
-private fun mergeTrailingSparsePage(
-    tokens: List<Token>,
-    pages: List<ChapterPage>,
-    wordsPerPage: Int,
-): List<ChapterPage> {
-    if (pages.size < 2) return pages
-    val lastPage = pages.last()
-    val sparseThreshold =
-        (wordsPerPage * PAGE_TRAILING_PAGE_MIN_FRACTION)
-            .roundToInt()
-            .coerceAtLeast(1)
-    if (lastPage.wordCount >= sparseThreshold) return pages
-
-    val previousIndex = pages.lastIndex - 1
-    val previousPage = pages[previousIndex]
-    if (hasHardPageBreakBetween(tokens, previousPage.endTokenIndex, lastPage.startTokenIndex)) {
-        return pages
-    }
-
-    val mergedMaxWords =
-        (wordsPerPage * PAGE_TRAILING_PAGE_MERGED_MAX_FRACTION)
-            .roundToInt()
-            .coerceAtLeast(wordsPerPage)
-    val mergedWordCount = previousPage.wordCount + lastPage.wordCount
-    if (mergedWordCount > mergedMaxWords) return pages
-
-    val mergedPages = pages.toMutableList()
-    mergedPages[previousIndex] =
-        previousPage.copy(
-            endTokenIndex = lastPage.endTokenIndex,
-            wordCount = mergedWordCount,
-        )
-    mergedPages.removeAt(mergedPages.lastIndex)
-    return mergedPages.mapIndexed { index, page ->
-        if (page.index == index) page else page.copy(index = index)
-    }
-}
-
-private fun hasHardPageBreakBetween(
-    tokens: List<Token>,
-    previousEndTokenIndex: Int,
-    nextStartTokenIndex: Int,
-): Boolean {
-    val from = (previousEndTokenIndex + 1).coerceAtLeast(0)
-    val until = nextStartTokenIndex.coerceAtMost(tokens.size)
-    if (from >= until) return false
-    for (i in from until until) {
-        if (tokens[i].type == TokenType.PAGE_BREAK) return true
-    }
-    return false
-}
-
-private data class ForwardBoundary(
-    val endWordIndex: Int,
-    val wordCount: Int,
-)
-
-private fun findForwardBoundary(
-    tokens: List<Token>,
-    startIndex: Int,
-    initialWordCount: Int,
-    maxExtraWords: Int,
-    startingParenDepth: Int,
-): ForwardBoundary? {
-    var wordCount = initialWordCount
-    var lastWordIndex = if (startIndex > 0) startIndex - 1 else -1
-    var parenDepth = startingParenDepth
-
-    var i = startIndex
-    while (i < tokens.size) {
-        val token = tokens[i]
-        when (token.type) {
-            TokenType.WORD -> {
-                wordCount += 1
-                lastWordIndex = i
-                if (wordCount - initialWordCount > maxExtraWords) return null
-            }
-            TokenType.PAGE_BREAK -> return null
-            TokenType.PARAGRAPH_BREAK -> {
-                if (lastWordIndex >= 0 && wordCount > initialWordCount && parenDepth == 0) {
-                    return ForwardBoundary(lastWordIndex, wordCount)
-                }
-            }
-            TokenType.PUNCTUATION -> {
-                if (isOpeningBracket(token)) {
-                    parenDepth += 1
-                } else if (isClosingBracket(token)) {
-                    parenDepth = (parenDepth - 1).coerceAtLeast(0)
-                }
-                if (lastWordIndex >= 0 &&
-                    wordCount > initialWordCount &&
-                    parenDepth == 0 &&
-                    isSentenceEnding(token)
-                ) {
-                    return ForwardBoundary(lastWordIndex, wordCount)
-                }
-            }
-        }
-        i += 1
-    }
-
-    return null
-}
-
-private fun estimateWordsPerPage(
-    fontSizeSp: Float,
-    viewportHeightDp: Int,
-): Int {
-    val safeFontSp = fontSizeSp.coerceIn(12f, 36f)
-    val safeViewportDp = viewportHeightDp.coerceAtLeast(480)
-    val viewportFactor = safeViewportDp / PAGINATION_VIEWPORT_BASE_DP
-    val fontFactor = PAGINATION_FONT_BASE_SP / safeFontSp
-    return (DEFAULT_WORDS_PER_PAGE * viewportFactor * fontFactor)
-        .roundToInt()
-        .coerceIn(PAGINATION_WORDS_MIN, PAGINATION_WORDS_MAX)
-}
-
-private fun rePageChapterData(
-    chapterData: ChapterData,
-    wordsPerPage: Int,
-): ChapterData = chapterData.copy(pages = buildChapterPages(chapterData.tokens, wordsPerPage))
-
-private sealed interface HtmlBlockMarker {
-    data object Paragraph : HtmlBlockMarker
-
-    data class Image(
-        val path: String,
-        val size: ReaderImageSize?,
-    ) : HtmlBlockMarker
-}
-
-private fun buildReaderBlocks(
-    htmlContent: String,
-    paragraphs: List<Paragraph>,
-    imagePaths: List<String>,
-): List<ReaderBlock> {
-    if (paragraphs.isEmpty() && imagePaths.isEmpty()) {
-        return emptyList()
-    }
-
-    val markers = extractHtmlBlockMarkers(htmlContent, imagePaths)
-    val blocks = mutableListOf<ReaderBlock>()
-    var paragraphIndex = 0
-    var imageIndex = 0
-
-    if (markers.isEmpty() && paragraphs.isEmpty() && imagePaths.isNotEmpty()) {
-        imagePaths.forEachIndexed { index, path ->
-            blocks.add(ReaderImageBlock(path, index))
-        }
-    } else {
-        for (marker in markers) {
-            when (marker) {
-                HtmlBlockMarker.Paragraph -> {
-                    val paragraph = paragraphs.getOrNull(paragraphIndex) ?: continue
-                    blocks.add(ReaderParagraphBlock(paragraph))
-                    paragraphIndex += 1
-                }
-                is HtmlBlockMarker.Image -> {
-                    blocks.add(
-                        ReaderImageBlock(
-                            imagePath = marker.path,
-                            index = imageIndex,
-                            anchorTokenIndex =
-                                resolveImageAnchorTokenIndex(
-                                    paragraphs = paragraphs,
-                                    nextParagraphIndex = paragraphIndex,
-                                    blocks = blocks,
-                                ),
-                            imageSize = marker.size,
-                        ),
-                    )
-                    imageIndex += 1
-                }
-            }
-        }
-
-        while (paragraphIndex < paragraphs.size) {
-            blocks.add(ReaderParagraphBlock(paragraphs[paragraphIndex]))
-            paragraphIndex += 1
-        }
-    }
-
-    return blocks
-}
-
-private fun resolveImageAnchorTokenIndex(
-    paragraphs: List<Paragraph>,
-    nextParagraphIndex: Int,
-    blocks: List<ReaderBlock>,
-): Int? {
-    paragraphs.getOrNull(nextParagraphIndex)?.let { return it.startIndex }
-
-    val previousParagraphAnchor =
-        blocks
-            .asReversed()
-            .firstNotNullOfOrNull { block ->
-                val paragraph =
-                    (block as? ReaderParagraphBlock)?.paragraph
-                        ?: return@firstNotNullOfOrNull null
-                paragraph.startIndex + paragraph.tokens.lastIndex
-            }
-
-    return previousParagraphAnchor ?: paragraphs.lastOrNull()?.let { paragraph ->
-        paragraph.startIndex + paragraph.tokens.lastIndex
-    }
-}
-
-private fun extractHtmlBlockMarkers(
-    htmlContent: String,
-    imagePaths: List<String>,
-): List<HtmlBlockMarker> {
-    if (htmlContent.isBlank()) {
-        return emptyList()
-    }
-
-    val cleaned =
-        htmlContent
-            .replace(Regex("<script[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("<style[^>]*>[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), "")
-
-    val blockSeparated =
-        cleaned.replace(
-            Regex(
-                "</?(p|div|br|h[1-6]|li|tr|blockquote|pre|ul|ol|table|thead|tbody|tfoot|td|th|section|article|figure|figcaption|hr)[^>]*>",
-                RegexOption.IGNORE_CASE,
-            ),
-            "\n\n",
-        )
-    val rawBlocks =
-        blockSeparated
-            .split(Regex("\\n\\s*\\n"))
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-
-    val markers = mutableListOf<HtmlBlockMarker>()
-    var fallbackIndex = 0
-    val imgRegex =
-        Regex(
-            "<img[^>]+?src\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"][^>]*>",
-            RegexOption.IGNORE_CASE,
-        )
-    val svgRegex =
-        Regex(
-            "<image\\b[^>]*?\\b(?:xlink:href|href)\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"][^>]*>",
-            RegexOption.IGNORE_CASE,
-        )
-
-    rawBlocks.forEach { block ->
-        val imageMatches = mutableListOf<HtmlImageMatch>()
-        imgRegex.findAll(block).forEach { match ->
-            imageMatches.add(
-                HtmlImageMatch(
-                    start = match.range.first,
-                    endInclusive = match.range.last,
-                    src = match.groupValues[1],
-                    size = extractImageSize(match.value),
-                )
-            )
-        }
-        svgRegex.findAll(block).forEach { match ->
-            imageMatches.add(
-                HtmlImageMatch(
-                    start = match.range.first,
-                    endInclusive = match.range.last,
-                    src = match.groupValues[1],
-                    size = extractImageSize(match.value),
-                )
-            )
-        }
-        var cursor = 0
-        var paragraphAdded = false
-
-        fun addParagraphIfText(fragment: String) {
-            if (!paragraphAdded && decodeHtmlText(fragment).isNotBlank()) {
-                markers += HtmlBlockMarker.Paragraph
-                paragraphAdded = true
-            }
-        }
-
-        imageMatches.sortedBy { it.start }.forEach { imageMatch ->
-            if (imageMatch.start >= cursor) {
-                addParagraphIfText(block.substring(cursor, imageMatch.start))
-            }
-            val src = imageMatch.src
-            val resolved = resolveInlineImagePath(src, imagePaths, fallbackIndex)
-            if (resolved != null) {
-                markers += HtmlBlockMarker.Image(
-                    path = resolved.first,
-                    size = imageMatch.size,
-                )
-                fallbackIndex = resolved.second
-            }
-            cursor = (imageMatch.endInclusive + 1).coerceAtLeast(cursor)
-        }
-        addParagraphIfText(block.substring(cursor))
-    }
-
-    return markers
-}
-
-private data class HtmlImageMatch(
-    val start: Int,
-    val endInclusive: Int,
-    val src: String,
-    val size: ReaderImageSize?,
-)
-
-private fun extractImageSize(tag: String): ReaderImageSize? {
-    val width = extractImageLength(tag, "width")
-    val height = extractImageLength(tag, "height")
-    if (width == null && height == null) return null
-    return ReaderImageSize(widthPx = width, heightPx = height)
-}
-
-private fun extractImageLength(
-    tag: String,
-    property: String,
-): Float? =
-    extractImageAttributeLength(tag, property)
-        ?: extractImageStyleLength(tag, property)
-
-private fun extractImageAttributeLength(
-    tag: String,
-    attributeName: String,
-): Float? {
-    val regex =
-        Regex(
-            "\\b$attributeName\\s*=\\s*(['\"]?)([^'\"\\s>]+)\\1",
-            RegexOption.IGNORE_CASE,
-        )
-    return regex.find(tag)?.groupValues?.getOrNull(2)?.let(::parseCssPixelLength)
-}
-
-private fun extractImageStyleLength(
-    tag: String,
-    property: String,
-): Float? {
-    val style =
-        Regex(
-            "\\bstyle\\s*=\\s*(['\"])(.*?)\\1",
-            RegexOption.IGNORE_CASE,
-        ).find(tag)?.groupValues?.getOrNull(2) ?: return null
-    val regex =
-        Regex(
-            "(?:^|;)\\s*$property\\s*:\\s*([^;]+)",
-            RegexOption.IGNORE_CASE,
-        )
-    return regex.find(style)?.groupValues?.getOrNull(1)?.let(::parseCssPixelLength)
-}
-
-private fun parseCssPixelLength(value: String): Float? {
-    val normalized = value.trim().lowercase(Locale.ROOT)
-    if (normalized.isBlank() ||
-        normalized == "auto" ||
-        normalized.endsWith("%")
-    ) {
-        return null
-    }
-
-    val numeric =
-        when {
-            normalized.endsWith("px") -> normalized.dropLast(2)
-            normalized.all { it.isDigit() || it == '.' } -> normalized
-            else -> return null
-        }
-    return numeric
-        .toFloatOrNull()
-        ?.takeIf { it > 0f && it.isFinite() }
-}
-
-private fun decodeHtmlText(fragment: String): String =
-    fragment
-        .replace(Regex("<[^>]+>"), "")
-        .replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-        .replace("&#39;", "'")
-        .replace(Regex("&#(\\d+);")) { match ->
-            match.groupValues[1]
-                .toIntOrNull()
-                ?.toChar()
-                ?.toString()
-                .orEmpty()
-        }.replace(Regex("&#x([0-9a-fA-F]+);")) { match ->
-            match.groupValues[1]
-                .toIntOrNull(HEX_RADIX)
-                ?.toChar()
-                ?.toString()
-                .orEmpty()
-        }.replace(Regex("[ \\t]+"), " ")
-        .trim()
-
-private fun resolveInlineImagePath(
-    rawSrc: String,
-    imagePaths: List<String>,
-    fallbackIndex: Int,
-): Pair<String, Int>? {
-    val src = sanitizeInlineSrc(rawSrc)
-    return when {
-        src.isBlank() -> null
-        src.startsWith("data:", ignoreCase = true) -> null
-        src.startsWith("http://", ignoreCase = true) -> null
-        src.startsWith("https://", ignoreCase = true) -> null
-        src.startsWith("kairo_epub_assets/") -> src to fallbackIndex
-        else -> imagePaths.getOrNull(fallbackIndex)?.let { it to (fallbackIndex + 1) }
-    }
-}
-
-private fun sanitizeInlineSrc(rawSrc: String): String {
-    val trimmed = rawSrc.trim()
-    if (trimmed.isBlank()) return ""
-    return trimmed
-        .substringBefore('#')
-        .substringBefore('?')
-        .trim()
-}
