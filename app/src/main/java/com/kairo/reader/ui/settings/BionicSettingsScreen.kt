@@ -50,9 +50,9 @@ fun BionicSettingsScreen(
     ) { modifier ->
         Column(
             modifier =
-                modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+            modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             BionicExperimentalCard()

@@ -53,10 +53,10 @@ class RsvpProfileSelectionStateTest {
                 selectedProfileId = RsvpProfileIds.builtIn(RsvpProfile.NARRATIVE),
                 customProfiles = emptyList(),
                 profileComparisonConfig =
-                    RsvpProfile.NARRATIVE.defaultConfig().copy(
-                        tempoMsPerWord = 88L,
-                        baseWpm = 681,
-                    ),
+                RsvpProfile.NARRATIVE.defaultConfig().copy(
+                    tempoMsPerWord = 88L,
+                    baseWpm = 681,
+                ),
             )
 
         assertEquals(RsvpProfileIds.builtIn(RsvpProfile.NARRATIVE), state.effectiveSelectedProfileId)

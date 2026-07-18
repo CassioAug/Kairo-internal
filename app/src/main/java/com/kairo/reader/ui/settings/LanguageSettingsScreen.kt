@@ -43,10 +43,7 @@ private val SUPPORTED_LANGUAGE_TAGS =
         "zh-Hans",
     )
 
-data class LanguageOption(
-    val tag: String?,
-    val label: String,
-)
+data class LanguageOption(val tag: String?, val label: String,)
 
 fun getAppLanguageTag(): String? {
     val locales = AppCompatDelegate.getApplicationLocales()

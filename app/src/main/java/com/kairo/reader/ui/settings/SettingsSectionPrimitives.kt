@@ -134,7 +134,7 @@ internal fun AdvancedSettingsToggle(
     onToggle: () -> Unit,
     subtitle: String? = null,
 ) {
-    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "advanced-toggle")
+    val rotation by animateFloatAsState(if (expanded) EXPANDED_ROTATION_DEGREES else 0f, label = "advanced-toggle")
     val disclosureStateDescription =
         stringResource(
             if (expanded) {
@@ -186,7 +186,7 @@ internal fun ExpandableSettingsSection(
     content: @Composable () -> Unit,
 ) {
     var expanded by rememberSaveable(title) { mutableStateOf(defaultExpanded) }
-    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "section-toggle")
+    val rotation by animateFloatAsState(if (expanded) EXPANDED_ROTATION_DEGREES else 0f, label = "section-toggle")
 
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -232,11 +232,14 @@ internal fun ExpandableSettingsSection(
     }
 }
 
+private const val EXPANDED_ROTATION_DEGREES = 180f
+private const val PERCENT_SCALE = 100
+
 internal fun formatPercent(context: Context, value: Double): String =
-    context.getString(R.string.format_percent, (value * 100).roundToInt())
+    context.getString(R.string.format_percent, (value * PERCENT_SCALE).roundToInt())
 
 internal fun formatDeltaPercent(context: Context, multiplier: Double): String {
-    val delta = ((multiplier - 1.0) * 100).roundToInt()
+    val delta = ((multiplier - 1.0) * PERCENT_SCALE).roundToInt()
     return context.getString(R.string.format_signed_percent, delta)
 }
 
@@ -244,7 +247,7 @@ internal fun formatMultiplier(context: Context, value: Double): String =
     context.getString(R.string.format_multiplier, value)
 
 internal fun formatBias(context: Context, value: Float): String =
-    context.getString(R.string.format_percent, (value * 100).roundToInt())
+    context.getString(R.string.format_percent, (value * PERCENT_SCALE).roundToInt())
 
 internal fun blinkModeLabelRes(mode: BlinkMode): Int =
     when (mode) {
