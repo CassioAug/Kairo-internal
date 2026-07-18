@@ -25,11 +25,11 @@ class RsvpScreenParagraphTest {
                 paragraph = RsvpParagraph(tokens = tokens, startIndex = 0),
                 highlightIndex = highlightIndex,
                 highlightStyle =
-                    SpanStyle(
-                        color = Color.Red,
-                        fontWeight = FontWeight.Bold,
-                        background = Color.Yellow,
-                    ),
+                SpanStyle(
+                    color = Color.Red,
+                    fontWeight = FontWeight.Bold,
+                    background = Color.Yellow,
+                ),
                 maxWords = 8,
                 highlightWindowFraction = 0.35f,
             )

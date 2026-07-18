@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -18,14 +17,15 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,7 +37,6 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.prefersOrpWindowing
-import com.kairo.reader.core.model.prefersSimplifiedOrpDisplay
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import com.kairo.reader.ui.bionic.BionicReadingText
 import com.kairo.reader.ui.theme.InterFontFamily
@@ -110,8 +109,8 @@ internal fun RsvpPlaybackSurface(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .rsvpTutorialTarget(tutorialTargetsEnabled, StartingTutorialTargetIds.RSVP_SURFACE) {
-                targetId,
-                bounds,
+                    targetId,
+                    bounds,
                 ->
                 tutorialTargets[targetId] = bounds
             }
@@ -139,25 +138,25 @@ internal fun RsvpPlaybackSurface(
         RsvpTopBar(
             context = context,
             settingsModifier =
-                Modifier.rsvpTutorialTarget(
-                    tutorialTargetsEnabled,
-                    StartingTutorialTargetIds.RSVP_TOP_SETTINGS,
-                ) {
+            Modifier.rsvpTutorialTarget(
+                tutorialTargetsEnabled,
+                StartingTutorialTargetIds.RSVP_TOP_SETTINGS,
+            ) {
                     targetId,
                     bounds,
-                    ->
-                    tutorialTargets[targetId] = bounds
-                },
+                ->
+                tutorialTargets[targetId] = bounds
+            },
             closeModifier =
-                Modifier.rsvpTutorialTarget(
-                    tutorialTargetsEnabled,
-                    StartingTutorialTargetIds.RSVP_EXIT,
-                ) {
+            Modifier.rsvpTutorialTarget(
+                tutorialTargetsEnabled,
+                StartingTutorialTargetIds.RSVP_EXIT,
+            ) {
                     targetId,
                     bounds,
-                    ->
-                    tutorialTargets[targetId] = bounds
-                },
+                ->
+                tutorialTargets[targetId] = bounds
+            },
         )
         RsvpTempoIndicator(context, speedIndicatorText)
         RsvpFontSizeIndicator(context)
@@ -167,39 +166,39 @@ internal fun RsvpPlaybackSurface(
             context = context,
             speedPercent = displayedSpeed,
             panelModifier =
-                Modifier.rsvpTutorialTarget(
-                    tutorialTargetsEnabled,
-                    StartingTutorialTargetIds.RSVP_QUICK_SETTINGS,
-                ) {
+            Modifier.rsvpTutorialTarget(
+                tutorialTargetsEnabled,
+                StartingTutorialTargetIds.RSVP_QUICK_SETTINGS,
+            ) {
                     targetId,
                     bounds,
-                    ->
-                    tutorialTargets[targetId] = bounds
-                },
+                ->
+                tutorialTargets[targetId] = bounds
+            },
             settingsRowModifier =
-                Modifier.rsvpTutorialTarget(
-                    tutorialTargetsEnabled,
-                    StartingTutorialTargetIds.RSVP_SETTINGS_ROW,
-                ) {
+            Modifier.rsvpTutorialTarget(
+                tutorialTargetsEnabled,
+                StartingTutorialTargetIds.RSVP_SETTINGS_ROW,
+            ) {
                     targetId,
                     bounds,
-                    ->
-                    tutorialTargets[targetId] = bounds
-                },
+                ->
+                tutorialTargets[targetId] = bounds
+            },
         )
         RsvpBottomControls(
             context = context,
             speedIndicatorText = speedIndicatorText,
             controlsModifier =
-                Modifier.rsvpTutorialTarget(
-                    tutorialTargetsEnabled,
-                    StartingTutorialTargetIds.RSVP_PLAYBACK_CONTROLS,
-                ) {
+            Modifier.rsvpTutorialTarget(
+                tutorialTargetsEnabled,
+                StartingTutorialTargetIds.RSVP_PLAYBACK_CONTROLS,
+            ) {
                     targetId,
                     bounds,
-                    ->
-                    tutorialTargets[targetId] = bounds
-                },
+                ->
+                tutorialTargets[targetId] = bounds
+            },
         )
         tutorialState?.let { overlayState ->
             StartingTutorialOverlay(
@@ -275,9 +274,9 @@ private fun RsvpFocusWord(
 
     Box(
         modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(bottom = bottomChromeInset),
+        Modifier
+            .fillMaxSize()
+            .padding(bottom = bottomChromeInset),
         contentAlignment =
         BiasAlignment(
             horizontalBias = CENTER_BIAS,
@@ -300,14 +299,13 @@ private fun RsvpFocusWord(
                     profile.config.maxWordsPerUnit.coerceAtLeast(2) > ORP_LOCK_PIVOT_WORDS,
                 smoothTranslation = runtime.isScrubbing || runtime.isAdjustingPosition,
                 preferWindowing = profile.config.prefersOrpWindowing(runtime.currentTempoMsPerWord),
-                simplifyPunctuation =
-                    profile.config.prefersSimplifiedOrpDisplay(runtime.currentTempoMsPerWord),
+                simplifyPunctuation = false,
                 guideVisible = profile.config.orpGuideEnabled,
                 pivotHighlightVisible = profile.config.orpHighlightEnabled,
                 guideThickness =
-                    profile.config.orpGuideThickness
-                        .toFloat()
-                        .coerceIn(ORP_GUIDE_THICKNESS_MIN, ORP_GUIDE_THICKNESS_MAX),
+                profile.config.orpGuideThickness
+                    .toFloat()
+                    .coerceIn(ORP_GUIDE_THICKNESS_MIN, ORP_GUIDE_THICKNESS_MAX),
             ),
         )
     }
@@ -339,10 +337,10 @@ private fun RsvpPositioningGrid(
     ) {
         Canvas(
             modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(bottom = bottomChromeInset)
-                    .padding(horizontal = ORP_HORIZONTAL_PADDING),
+            Modifier
+                .fillMaxSize()
+                .padding(bottom = bottomChromeInset)
+                .padding(horizontal = ORP_HORIZONTAL_PADDING),
         ) {
             val strokeWidth = POSITION_GUIDE_HEIGHT.toPx()
             val verticalLineCount =
@@ -390,9 +388,9 @@ private fun RsvpPositionGuide(
     ) {
         Box(
             modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(bottom = bottomChromeInset),
+            Modifier
+                .fillMaxSize()
+                .padding(bottom = bottomChromeInset),
             contentAlignment =
             BiasAlignment(
                 horizontalBias = CENTER_BIAS,
@@ -420,7 +418,7 @@ private fun RsvpPositionGuide(
 private fun isCompactLandscape(): Boolean {
     val configuration = LocalConfiguration.current
     return configuration.screenWidthDp > configuration.screenHeightDp &&
-        configuration.screenHeightDp <= 480
+        configuration.screenHeightDp <= COMPACT_LANDSCAPE_MAX_HEIGHT_DP
 }
 
 @Composable
@@ -442,7 +440,7 @@ private fun rememberBottomChromeInset(
                 (ORP_LINE_HEIGHT * 2) +
                     (ORP_POINTER_HEIGHT * 2) +
                     (ORP_TEXT_SPACER * 2)
-            ).toPx()
+                ).toPx()
         }
     val orpTextHeightPx =
         with(density) {
@@ -502,9 +500,12 @@ internal fun resolveControlsChromeInsetPx(
     val biasFactor =
         (ONE_FLOAT + verticalBias.coerceIn(VERTICAL_BIAS_MIN, VERTICAL_BIAS_MAX)) /
             BIAS_SCALE_FACTOR
-    val insetPx = overflowPx / biasFactor.coerceAtLeast(0.01f)
+    val insetPx = overflowPx / biasFactor.coerceAtLeast(MINIMUM_BIAS_FACTOR)
     return insetPx.coerceIn(0f, controlsHeightPx)
 }
+
+private const val MINIMUM_BIAS_FACTOR = 0.01f
+private const val COMPACT_LANDSCAPE_MAX_HEIGHT_DP = 480
 
 @Composable
 private fun rememberControlsChromeInset(compactLandscape: Boolean): Dp {

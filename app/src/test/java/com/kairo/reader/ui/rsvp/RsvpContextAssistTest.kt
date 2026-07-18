@@ -258,12 +258,12 @@ class RsvpContextAssistTest {
             buildSentenceTickerContent(
                 tokens = tokens,
                 window =
-                    RsvpContextWindow(
-                        startIndex = 0,
-                        endExclusive = tokens.size,
-                        focusStartIndex = 2,
-                        focusEndExclusive = 3,
-                    ),
+                RsvpContextWindow(
+                    startIndex = 0,
+                    endExclusive = tokens.size,
+                    focusStartIndex = 2,
+                    focusEndExclusive = 3,
+                ),
                 color = Color.White,
             )
 
@@ -334,12 +334,12 @@ class RsvpContextAssistTest {
             buildSentenceTickerContent(
                 tokens = tokens,
                 window =
-                    RsvpContextWindow(
-                        startIndex = 0,
-                        endExclusive = tokens.size,
-                        focusStartIndex = 0,
-                        focusEndExclusive = 3,
-                    ),
+                RsvpContextWindow(
+                    startIndex = 0,
+                    endExclusive = tokens.size,
+                    focusStartIndex = 0,
+                    focusEndExclusive = 3,
+                ),
                 displayedTokens = tokens.subList(0, 3),
                 simplifyPunctuation = true,
                 color = Color.White,
@@ -399,12 +399,12 @@ class RsvpContextAssistTest {
             buildSentenceTickerContent(
                 tokens = tokens,
                 window =
-                    RsvpContextWindow(
-                        startIndex = 0,
-                        endExclusive = tokens.size,
-                        focusStartIndex = 0,
-                        focusEndExclusive = 2,
-                    ),
+                RsvpContextWindow(
+                    startIndex = 0,
+                    endExclusive = tokens.size,
+                    focusStartIndex = 0,
+                    focusEndExclusive = 2,
+                ),
                 displayedTokens = listOf(word("just"), word("make")),
                 color = Color.White,
             )
@@ -430,12 +430,12 @@ class RsvpContextAssistTest {
             buildSentenceTickerContent(
                 tokens = tokens,
                 window =
-                    RsvpContextWindow(
-                        startIndex = 0,
-                        endExclusive = tokens.size,
-                        focusStartIndex = 0,
-                        focusEndExclusive = 1,
-                    ),
+                RsvpContextWindow(
+                    startIndex = 0,
+                    endExclusive = tokens.size,
+                    focusStartIndex = 0,
+                    focusEndExclusive = 1,
+                ),
                 displayedTokens = listOf(word("-believe")),
                 color = Color.White,
             )

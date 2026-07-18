@@ -21,10 +21,7 @@ internal data class RsvpFrameLoadState(
 
 internal data class RsvpTimingInfo(val minTempoMs: Long, val maxTempoMs: Long, val tempoScale: Double,)
 
-internal data class RsvpHapticCallbacks(
-    val onFrameStep: () -> Unit = {},
-    val onTempoStep: () -> Unit = {},
-)
+internal data class RsvpHapticCallbacks(val onFrameStep: () -> Unit = {}, val onTempoStep: () -> Unit = {},)
 
 internal data class RsvpUiContext(
     val state: RsvpScreenState,
@@ -39,9 +36,7 @@ internal data class RsvpUiContext(
 
 internal enum class RsvpDragAxis { NONE, HORIZONTAL, VERTICAL }
 
-internal class RsvpRuntimeState(
-    private val onPlaybackStateChanged: (isPlaying: Boolean, completed: Boolean) -> Unit = { _, _ -> },
-) {
+internal class RsvpRuntimeState(private val onPlaybackStateChanged: (isPlaying: Boolean, completed: Boolean) -> Unit = { _, _ -> },) {
     var currentTempoMsPerWord by mutableLongStateOf(0L)
     var showTempoIndicator by mutableStateOf(false)
     var showFontSizeIndicator by mutableStateOf(false)

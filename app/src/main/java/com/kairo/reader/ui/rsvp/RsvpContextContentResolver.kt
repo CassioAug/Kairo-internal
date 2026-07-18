@@ -13,7 +13,6 @@ import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
-import com.kairo.reader.core.model.prefersSimplifiedOrpDisplay
 import com.kairo.reader.core.model.shouldInsertSpaceBeforeToken
 
 @Composable
@@ -24,10 +23,7 @@ internal fun rememberRsvpContextContent(
     if (frame == null) return null
     val tokens = context.state.book.tokens
     val mode = context.state.profile.config.contextAssistMode
-    val simplifyPunctuation =
-        context.state.profile.config.prefersSimplifiedOrpDisplay(
-            context.runtime.currentTempoMsPerWord,
-        )
+    val simplifyPunctuation = false
     if (tokens.isEmpty() || mode == RsvpContextAssistMode.OFF) return null
 
     val currentTokenIndex = frame.originalTokenIndex.coerceIn(0, tokens.lastIndex)

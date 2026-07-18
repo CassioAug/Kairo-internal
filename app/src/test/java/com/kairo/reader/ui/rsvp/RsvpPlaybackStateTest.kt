@@ -156,11 +156,11 @@ class RsvpPlaybackStateTest {
                 frames = listOf(
                     RsvpFrame(
                         tokens =
-                            listOf(
-                                Token(text = "in", type = TokenType.WORD),
-                                Token(text = "the", type = TokenType.WORD),
-                                Token(text = "house", type = TokenType.WORD),
-                            ),
+                        listOf(
+                            Token(text = "in", type = TokenType.WORD),
+                            Token(text = "the", type = TokenType.WORD),
+                            Token(text = "house", type = TokenType.WORD),
+                        ),
                         durationMs = 240L,
                         originalTokenIndex = 2,
                         nextOriginalTokenIndex = 5,
@@ -205,14 +205,14 @@ class RsvpPlaybackStateTest {
         val context =
             createContext(
                 frames =
-                    listOf(
-                        RsvpFrame(
-                            tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
-                            durationMs = 120L,
-                            originalTokenIndex = 0,
-                            nextOriginalTokenIndex = 3,
-                        ),
+                listOf(
+                    RsvpFrame(
+                        tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
+                        durationMs = 120L,
+                        originalTokenIndex = 0,
+                        nextOriginalTokenIndex = 3,
                     ),
+                ),
                 isLoading = true,
                 isComplete = false,
                 onFinished = { finished = true },
@@ -231,14 +231,14 @@ class RsvpPlaybackStateTest {
         val context =
             createContext(
                 frames =
-                    listOf(
-                        RsvpFrame(
-                            tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
-                            durationMs = 120L,
-                            originalTokenIndex = 0,
-                            nextOriginalTokenIndex = 1,
-                        ),
+                listOf(
+                    RsvpFrame(
+                        tokens = listOf(Token(text = "Hello", type = TokenType.WORD)),
+                        durationMs = 120L,
+                        originalTokenIndex = 0,
+                        nextOriginalTokenIndex = 1,
                     ),
+                ),
                 isLoading = false,
                 isComplete = true,
                 onFinished = { finished = true },
@@ -303,13 +303,13 @@ class RsvpPlaybackStateTest {
         val previewFrameState =
             RsvpFrameLoadState(
                 frames =
-                    listOf(
-                        RsvpFrame(
-                            tokens = listOf(Token(text = "Start", type = TokenType.WORD)),
-                            durationMs = 120L,
-                            originalTokenIndex = 4,
-                        ),
+                listOf(
+                    RsvpFrame(
+                        tokens = listOf(Token(text = "Start", type = TokenType.WORD)),
+                        durationMs = 120L,
+                        originalTokenIndex = 4,
                     ),
+                ),
                 baseTempoMs = 120L,
                 isLoading = true,
             )
@@ -601,56 +601,56 @@ class RsvpPlaybackStateTest {
             RsvpScreenState(
                 book = RsvpBookContext(BookId("book"), chapterIndex = 0, tokens = tokens, startIndex = 0),
                 profile =
-                    RsvpProfileContext(
-                        config = RsvpConfig(),
-                        selectedProfileId = "builtin",
-                        customProfiles = emptyList(),
-                    ),
+                RsvpProfileContext(
+                    config = RsvpConfig(),
+                    selectedProfileId = "builtin",
+                    customProfiles = emptyList(),
+                ),
                 uiPrefs =
-                    RsvpUiPreferences(
-                        extremeSpeedUnlocked = false,
-                        readerTheme = ReaderTheme.LIGHT,
-                        focusModeEnabled = false,
-                    ),
+                RsvpUiPreferences(
+                    extremeSpeedUnlocked = false,
+                    readerTheme = ReaderTheme.LIGHT,
+                    focusModeEnabled = false,
+                ),
                 textStyle = RsvpTextStyle(),
                 layoutBias = RsvpLayoutBias(),
             )
         val callbacks =
             RsvpScreenCallbacks(
                 bookmarks =
-                    RsvpBookmarkCallbacks(
-                        onAddBookmark = { _, _ -> },
-                        onOpenBookmarks = {},
-                    ),
+                RsvpBookmarkCallbacks(
+                    onAddBookmark = { _, _ -> },
+                    onOpenBookmarks = {},
+                ),
                 playback =
-                    RsvpPlaybackCallbacks(
-                        onFinished = onFinished,
-                        onPositionChanged = {},
-                        onTempoChange = {},
-                        onExit = {},
-                    ),
+                RsvpPlaybackCallbacks(
+                    onFinished = onFinished,
+                    onPositionChanged = {},
+                    onTempoChange = {},
+                    onExit = {},
+                ),
                 preferences =
-                    RsvpPreferenceCallbacks(
-                        onExtremeSpeedUnlockedChange = {},
-                        onSelectProfile = {},
-                        onSaveCustomProfile = { _, _ -> },
-                        onDeleteCustomProfile = {},
-                        onRsvpConfigChange = {},
-                    ),
+                RsvpPreferenceCallbacks(
+                    onExtremeSpeedUnlockedChange = {},
+                    onSelectProfile = {},
+                    onSaveCustomProfile = { _, _ -> },
+                    onDeleteCustomProfile = {},
+                    onRsvpConfigChange = {},
+                ),
                 ui =
-                    RsvpUiCallbacks(
-                        onFocusModeEnabledChange = {},
-                        onRsvpFontSizeChange = {},
-                        onRsvpTextBrightnessChange = {},
-                        onRsvpFontWeightChange = {},
-                        onRsvpFontFamilyChange = {},
-                    ),
+                RsvpUiCallbacks(
+                    onFocusModeEnabledChange = {},
+                    onRsvpFontSizeChange = {},
+                    onRsvpTextBrightnessChange = {},
+                    onRsvpFontWeightChange = {},
+                    onRsvpFontFamilyChange = {},
+                ),
                 theme =
-                    RsvpThemeCallbacks(
-                        onThemeChange = {},
-                        onVerticalBiasChange = onVerticalBiasChange,
-                        onHorizontalBiasChange = onHorizontalBiasChange,
-                    ),
+                RsvpThemeCallbacks(
+                    onThemeChange = {},
+                    onVerticalBiasChange = onVerticalBiasChange,
+                    onHorizontalBiasChange = onHorizontalBiasChange,
+                ),
             )
 
         return RsvpUiContext(
@@ -658,12 +658,12 @@ class RsvpPlaybackStateTest {
             callbacks = callbacks,
             runtime = runtime,
             frameState =
-                RsvpFrameLoadState(
-                    frames = frames,
-                    baseTempoMs = RsvpConfig().tempoMsPerWord,
-                    isLoading = isLoading,
-                    isComplete = isComplete,
-                ),
+            RsvpFrameLoadState(
+                frames = frames,
+                baseTempoMs = RsvpConfig().tempoMsPerWord,
+                isLoading = isLoading,
+                isComplete = isComplete,
+            ),
             timing = RsvpTimingInfo(minTempoMs = 1L, maxTempoMs = 1000L, tempoScale = 1.0),
         )
     }
