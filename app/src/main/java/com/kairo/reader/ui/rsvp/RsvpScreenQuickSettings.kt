@@ -42,7 +42,9 @@ import com.kairo.reader.R
 import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import com.kairo.reader.ui.settings.BionicSettingsContent
+import com.kairo.reader.ui.settings.RsvpSettingsActions
 import com.kairo.reader.ui.settings.RsvpSettingsContent
+import com.kairo.reader.ui.settings.RsvpSettingsState
 import com.kairo.reader.ui.settings.SettingsNavRow
 import com.kairo.reader.ui.settings.SettingsSliderRow
 import com.kairo.reader.ui.settings.SettingsSwitchRow
@@ -66,32 +68,32 @@ internal fun BoxScope.RsvpQuickSettingsPanel(
     ) {
         Box(
             modifier =
-                panelModifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(QUICK_SETTINGS_OUTER_PADDING),
+            panelModifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(QUICK_SETTINGS_OUTER_PADDING),
             contentAlignment = Alignment.BottomCenter,
         ) {
             Column(
                 modifier =
-                    Modifier
-                        .widthIn(max = QUICK_SETTINGS_MAX_WIDTH)
-                        .fillMaxWidth()
-                        .fillMaxHeight(QUICK_SETTINGS_HEIGHT_FRACTION)
-                        .clip(RoundedCornerShape(QUICK_SETTINGS_CORNER))
-                        .background(
-                            MaterialTheme.colorScheme.surface.copy(alpha = QUICK_SETTINGS_BACKGROUND_ALPHA),
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = QUICK_SETTINGS_BORDER_ALPHA),
-                            shape = RoundedCornerShape(QUICK_SETTINGS_CORNER),
-                        )
-                        .verticalScroll(rememberScrollState())
-                        .padding(
-                            horizontal = QUICK_SETTINGS_HORIZONTAL_PADDING,
-                            vertical = QUICK_SETTINGS_VERTICAL_PADDING,
-                        ),
+                Modifier
+                    .widthIn(max = QUICK_SETTINGS_MAX_WIDTH)
+                    .fillMaxWidth()
+                    .fillMaxHeight(QUICK_SETTINGS_HEIGHT_FRACTION)
+                    .clip(RoundedCornerShape(QUICK_SETTINGS_CORNER))
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = QUICK_SETTINGS_BACKGROUND_ALPHA),
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = QUICK_SETTINGS_BORDER_ALPHA),
+                        shape = RoundedCornerShape(QUICK_SETTINGS_CORNER),
+                    )
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        horizontal = QUICK_SETTINGS_HORIZONTAL_PADDING,
+                        vertical = QUICK_SETTINGS_VERTICAL_PADDING,
+                    ),
                 verticalArrangement = Arrangement.spacedBy(QUICK_SETTINGS_SPACING),
                 horizontalAlignment = Alignment.Start,
             ) {
@@ -116,20 +118,20 @@ internal fun BoxScope.RsvpQuickSettingsPanel(
 private fun RsvpQuickSettingsHandle() {
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(bottom = QUICK_SETTINGS_HANDLE_BOTTOM_PADDING),
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = QUICK_SETTINGS_HANDLE_BOTTOM_PADDING),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier =
-                Modifier
-                    .width(QUICK_SETTINGS_HANDLE_WIDTH)
-                    .height(QUICK_SETTINGS_HANDLE_HEIGHT)
-                    .clip(RoundedCornerShape(QUICK_SETTINGS_HANDLE_HEIGHT))
-                    .background(
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = QUICK_SETTINGS_HANDLE_ALPHA),
-                    ),
+            Modifier
+                .width(QUICK_SETTINGS_HANDLE_WIDTH)
+                .height(QUICK_SETTINGS_HANDLE_HEIGHT)
+                .clip(RoundedCornerShape(QUICK_SETTINGS_HANDLE_HEIGHT))
+                .background(
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = QUICK_SETTINGS_HANDLE_ALPHA),
+                ),
         )
     }
 }
@@ -177,11 +179,11 @@ private fun RsvpQuickSettingsContextAssist(context: RsvpUiContext) {
             context.callbacks.preferences.onRsvpConfigChange { config ->
                 config.copy(
                     contextAssistMode =
-                        if (shouldEnable) {
-                            RsvpContextAssistMode.PREVIOUS_WORDS
-                        } else {
-                            RsvpContextAssistMode.OFF
-                        },
+                    if (shouldEnable) {
+                        RsvpContextAssistMode.PREVIOUS_WORDS
+                    } else {
+                        RsvpContextAssistMode.OFF
+                    },
                 )
             }
         },
@@ -231,21 +233,21 @@ private fun RsvpQuickSettingsBookmarks(
     SettingsNavRow(
         modifier = settingsRowModifier,
         title =
-            stringResource(
-                if (context.presentationMode == ReadingPresentationMode.BIONIC) {
-                    R.string.bionic_settings_title
-                } else {
-                    R.string.rsvp_settings_title
-                }
-            ),
+        stringResource(
+            if (context.presentationMode == ReadingPresentationMode.BIONIC) {
+                R.string.bionic_settings_title
+            } else {
+                R.string.rsvp_settings_title
+            }
+        ),
         subtitle =
-            stringResource(
-                if (context.presentationMode == ReadingPresentationMode.BIONIC) {
-                    R.string.settings_bionic_subtitle
-                } else {
-                    R.string.rsvp_settings_subtitle
-                }
-            ),
+        stringResource(
+            if (context.presentationMode == ReadingPresentationMode.BIONIC) {
+                R.string.settings_bionic_subtitle
+            } else {
+                R.string.rsvp_settings_subtitle
+            }
+        ),
         icon = Icons.Default.Settings,
         onClick = onOpenModeSettings,
     )
@@ -302,10 +304,10 @@ private fun RsvpQuickSettingsPositioningGrid(context: RsvpUiContext) {
             title = stringResource(R.string.rsvp_positioning_grid_snap_title),
             subtitle = stringResource(R.string.rsvp_positioning_grid_snap_subtitle),
             valueLabel =
-                stringResource(
-                    R.string.rsvp_positioning_grid_snap_value,
-                    (snapStrength * PERCENT_SCALE).roundToInt(),
-                ),
+            stringResource(
+                R.string.rsvp_positioning_grid_snap_value,
+                (snapStrength * PERCENT_SCALE).roundToInt(),
+            ),
             value = snapStrength,
             onValueChange = { snapStrength = it.coerceIn(0f, 1f) },
             onValueChangeFinished = {
@@ -381,13 +383,13 @@ private fun RsvpQuickSettingsTextSizeControls(context: RsvpUiContext) {
 
     SettingsSliderRow(
         title =
-            stringResource(
-                if (context.presentationMode == ReadingPresentationMode.BIONIC) {
-                    R.string.bionic_text_size_title
-                } else {
-                    R.string.rsvp_text_size_title
-                }
-            ),
+        stringResource(
+            if (context.presentationMode == ReadingPresentationMode.BIONIC) {
+                R.string.bionic_text_size_title
+            } else {
+                R.string.rsvp_text_size_title
+            }
+        ),
         valueLabel =
         stringResource(
             R.string.format_sp,
@@ -406,12 +408,11 @@ private fun RsvpQuickSettingsTextSizeControls(context: RsvpUiContext) {
             }
         },
         valueRange =
-            if (context.presentationMode == ReadingPresentationMode.BIONIC) {
-                com.kairo.reader.ui.bionic.BIONIC_MIN_FONT_SIZE_SP..
-                    com.kairo.reader.ui.bionic.BIONIC_MAX_FONT_SIZE_SP
-            } else {
-                MIN_FONT_SIZE_SP..MAX_FONT_SIZE_SP
-            },
+        if (context.presentationMode == ReadingPresentationMode.BIONIC) {
+            com.kairo.reader.ui.bionic.BIONIC_MIN_FONT_SIZE_SP..com.kairo.reader.ui.bionic.BIONIC_MAX_FONT_SIZE_SP
+        } else {
+            MIN_FONT_SIZE_SP..MAX_FONT_SIZE_SP
+        },
     )
 }
 
@@ -458,52 +459,58 @@ private fun RsvpQuickSettingsAdvancedContent(context: RsvpUiContext) {
     val runtime = context.runtime
     val profile = context.state.profile
     RsvpSettingsContent(
-        selectedProfileId = profile.selectedProfileId,
-        customProfiles = profile.customProfiles,
-        config = profile.config,
-        tempoMsPerWord = runtime.currentTempoMsPerWord,
-        profileComparisonConfig = profile.config,
-        unlockExtremeSpeed = context.state.uiPrefs.extremeSpeedUnlocked,
-        rsvpFontSizeSp = runtime.currentFontSizeSp,
-        rsvpTextBrightness = runtime.currentTextBrightness,
-        rsvpFontFamily = runtime.currentFontFamily,
-        rsvpFontWeight = runtime.currentFontWeight,
-        rsvpVerticalBias = runtime.currentVerticalBias,
-        rsvpHorizontalBias = runtime.currentHorizontalBias,
-        onSelectProfile = context.callbacks.preferences.onSelectProfile,
-        onSaveCustomProfile = context.callbacks.preferences.onSaveCustomProfile,
-        onDeleteCustomProfile = context.callbacks.preferences.onDeleteCustomProfile,
-        onTempoMsPerWordChange = { updatedTempoMsPerWord ->
-            runtime.currentTempoMsPerWord = updatedTempoMsPerWord
-            context.callbacks.playback.onTempoChange(updatedTempoMsPerWord)
-        },
-        onConfigChange = context.callbacks.preferences.onRsvpConfigChange,
-        onUnlockExtremeSpeedChange = context.callbacks.preferences.onExtremeSpeedUnlockedChange,
-        onRsvpFontSizeChange = { size ->
-            runtime.currentFontSizeSp = size
-            runtime.showFontSizeIndicator = true
-            context.callbacks.ui.onRsvpFontSizeChange(size)
-        },
-        onRsvpTextBrightnessChange = { brightness ->
-            runtime.currentTextBrightness = brightness
-            context.callbacks.ui.onRsvpTextBrightnessChange(brightness)
-        },
-        onRsvpFontWeightChange = { weight ->
-            runtime.currentFontWeight = weight
-            context.callbacks.ui.onRsvpFontWeightChange(weight)
-        },
-        onRsvpFontFamilyChange = { family ->
-            runtime.currentFontFamily = family
-            context.callbacks.ui.onRsvpFontFamilyChange(family)
-        },
-        onRsvpVerticalBiasChange = { bias ->
-            runtime.currentVerticalBias = bias
-            context.callbacks.theme.onVerticalBiasChange(bias)
-        },
-        onRsvpHorizontalBiasChange = { bias ->
-            runtime.currentHorizontalBias = bias
-            context.callbacks.theme.onHorizontalBiasChange(bias)
-        },
+        state =
+        RsvpSettingsState(
+            selectedProfileId = profile.selectedProfileId,
+            customProfiles = profile.customProfiles,
+            config = profile.config,
+            tempoMsPerWord = runtime.currentTempoMsPerWord,
+            profileComparisonConfig = profile.config,
+            unlockExtremeSpeed = context.state.uiPrefs.extremeSpeedUnlocked,
+            fontSizeSp = runtime.currentFontSizeSp,
+            textBrightness = runtime.currentTextBrightness,
+            fontFamily = runtime.currentFontFamily,
+            fontWeight = runtime.currentFontWeight,
+            verticalBias = runtime.currentVerticalBias,
+            horizontalBias = runtime.currentHorizontalBias,
+        ),
+        actions =
+        RsvpSettingsActions(
+            onSelectProfile = context.callbacks.preferences.onSelectProfile,
+            onSaveCustomProfile = context.callbacks.preferences.onSaveCustomProfile,
+            onDeleteCustomProfile = context.callbacks.preferences.onDeleteCustomProfile,
+            onTempoMsPerWordChange = { updatedTempoMsPerWord ->
+                runtime.currentTempoMsPerWord = updatedTempoMsPerWord
+                context.callbacks.playback.onTempoChange(updatedTempoMsPerWord)
+            },
+            onConfigChange = context.callbacks.preferences.onRsvpConfigChange,
+            onUnlockExtremeSpeedChange = context.callbacks.preferences.onExtremeSpeedUnlockedChange,
+            onFontSizeChange = { size ->
+                runtime.currentFontSizeSp = size
+                runtime.showFontSizeIndicator = true
+                context.callbacks.ui.onRsvpFontSizeChange(size)
+            },
+            onTextBrightnessChange = { brightness ->
+                runtime.currentTextBrightness = brightness
+                context.callbacks.ui.onRsvpTextBrightnessChange(brightness)
+            },
+            onFontWeightChange = { weight ->
+                runtime.currentFontWeight = weight
+                context.callbacks.ui.onRsvpFontWeightChange(weight)
+            },
+            onFontFamilyChange = { family ->
+                runtime.currentFontFamily = family
+                context.callbacks.ui.onRsvpFontFamilyChange(family)
+            },
+            onVerticalBiasChange = { bias ->
+                runtime.currentVerticalBias = bias
+                context.callbacks.theme.onVerticalBiasChange(bias)
+            },
+            onHorizontalBiasChange = { bias ->
+                runtime.currentHorizontalBias = bias
+                context.callbacks.theme.onHorizontalBiasChange(bias)
+            },
+        ),
     )
 }
 
@@ -512,10 +519,10 @@ private fun BionicQuickSettingsAdvancedContent(context: RsvpUiContext) {
     val runtime = context.runtime
     BionicSettingsContent(
         preferences =
-            context.bionicPreferences.copy(
-                fontSizeSp = runtime.currentFontSizeSp,
-                textBrightness = runtime.currentTextBrightness,
-            ),
+        context.bionicPreferences.copy(
+            fontSizeSp = runtime.currentFontSizeSp,
+            textBrightness = runtime.currentTextBrightness,
+        ),
         onFixationStrengthChange = context.callbacks.bionic.onFixationStrengthChange,
         onHighlightStrengthChange = context.callbacks.bionic.onHighlightStrengthChange,
         onFontSizeChange = { size ->
