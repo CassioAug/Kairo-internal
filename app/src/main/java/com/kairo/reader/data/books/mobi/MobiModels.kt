@@ -26,10 +26,7 @@ internal object MobiLimits {
     const val EXTH_PRESENT_FLAG = 0x40
 }
 
-internal data class PalmDocHeader(
-    val compression: Int,
-    val textRecordCount: Int,
-)
+internal data class PalmDocHeader(val compression: Int, val textRecordCount: Int,)
 
 internal data class MobiHeader(
     val title: String,
@@ -39,19 +36,11 @@ internal data class MobiHeader(
     val coverRecordIndex: Int?,
 )
 
-internal data class MobiHeaders(
-    val primary: MobiHeader,
-    val kf8: MobiHeader?,
-)
+internal data class MobiHeaders(val primary: MobiHeader, val kf8: MobiHeader?,)
 
-internal data class MobiImageType(
-    val extension: String,
-)
+internal data class MobiImageType(val extension: String,)
 
-internal data class MobiImageDimensions(
-    val width: Int,
-    val height: Int,
-) {
+internal data class MobiImageDimensions(val width: Int, val height: Int,) {
     val area: Long = width.toLong() * height.toLong()
     val isPortrait: Boolean = height >= width
 }
@@ -63,14 +52,6 @@ internal data class MobiImageExtraction(
     val recindexBase: Int?,
 )
 
-internal data class MobiChapterSlice(
-    val start: Int,
-    val end: Int,
-    val title: String?,
-    val htmlContent: String,
-)
+internal data class MobiChapterSlice(val start: Int, val end: Int, val title: String?, val htmlContent: String,)
 
-internal data class TocEntry(
-    val filepos: Int,
-    val title: String,
-)
+internal data class TocEntry(val filepos: Int, val title: String,)

@@ -6,214 +6,265 @@ import android.graphics.Color
 import com.kairo.reader.core.model.BookId
 import java.io.File
 
-internal class MobiImageProcessor {
-    fun extractImages(
-        context: Context,
-        bookId: BookId,
-        data: ByteArray,
-        recordOffsets: List<Int>,
-        firstImageIndex: Int,
-        coverRecordIndex: Int?,
-        textRecordCount: Int,
-        coverRecindexCandidates: Set<Int>,
-        referencedImageIndices: Set<Int>,
-    ): MobiImageExtraction {
-        val imagePathByRecordIndex = mutableMapOf<Int, String>()
-        val imageDir = File(context.filesDir, "kairo_mobi_assets/${bookId.value}/images")
-        val canWriteImages = runCatching { imageDir.mkdirs() || imageDir.exists() }.getOrDefault(false)
+internal data class MobiImageExtractionRequest(
+    val context: Context,
+    val bookId: BookId,
+    val data: ByteArray,
+    val recordOffsets: List<Int>,
+    val firstImageIndex: Int,
+    val coverRecordIndex: Int?,
+    val textRecordCount: Int,
+    val coverRecindexCandidates: Set<Int>,
+    val referencedImageIndices: Set<Int>,
+)
 
-        val recordCount = recordOffsets.size
-        val resourceBaseIndex =
-            when {
-                firstImageIndex > 0 && firstImageIndex < recordCount -> firstImageIndex
-                textRecordCount > 0 -> (1 + textRecordCount).takeIf { it in recordOffsets.indices } ?: -1
-                else -> -1
-            }
-        val resolvedFirstImageIndex =
-            when {
-                resourceBaseIndex >= 0 &&
-                    MobiBinary.isImageRecord(data, recordOffsets, resourceBaseIndex) -> resourceBaseIndex
-                else -> MobiBinary.findFirstImageRecordIndex(data, recordOffsets) ?: -1
-            }
-        val hasValidStartIndex = resolvedFirstImageIndex >= 0
-        val startIndex = if (hasValidStartIndex) resolvedFirstImageIndex else 0
+private data class MobiImageScanPlan(
+    val startIndex: Int,
+    val resolvedFirstImageIndex: Int,
+    val recindexBase: Int,
+    val explicitCoverIndices: Set<Int>,
+    val htmlCoverCandidateIndices: Set<Int>,
+    val htmlCoverPreferredIndex: Int?,
+    val coverCandidateIndices: Set<Int>,
+)
 
-        val recindexBase =
-            if (resourceBaseIndex >= 0 &&
-                resourceBaseIndex > 0 &&
-                !MobiBinary.isImageRecord(data, recordOffsets, resourceBaseIndex - 1)
-            ) {
-                resourceBaseIndex - 1
-            } else if (resourceBaseIndex >= 0) {
-                resourceBaseIndex
-            } else if (hasValidStartIndex &&
-                startIndex > 0 &&
-                !MobiBinary.isImageRecord(data, recordOffsets, startIndex - 1)
-            ) {
-                startIndex - 1
-            } else if (hasValidStartIndex) {
-                startIndex
-            } else {
-                -1
-            }
-        val hasValidRecindexBase = recindexBase >= 0
+private data class MobiImageCandidate(
+    val index: Int,
+    val bytes: ByteArray,
+    val type: MobiImageType,
+    val dimensions: MobiImageDimensions?,
+    val score: Long,
+) {
+    val isPortrait: Boolean = dimensions?.isPortrait == true
+}
 
-        val explicitCoverIndices =
-            buildExplicitCoverIndices(
-                coverRecordIndex = coverRecordIndex,
-                recindexBase = recindexBase,
-                firstImageIndex = firstImageIndex,
-                recordCount = recordCount,
-                hasValidRecindexBase = hasValidRecindexBase,
-            )
-        val htmlCoverCandidateIndices =
-            buildHtmlCoverCandidateIndices(
-                coverRecindexCandidates = coverRecindexCandidates,
-                recindexBase = recindexBase,
-                recordCount = recordCount,
-                hasValidRecindexBase = hasValidRecindexBase,
-            )
-        val htmlCoverPreferredIndex =
-            resolveHtmlCoverPreferredIndex(
-                data = data,
-                recordOffsets = recordOffsets,
-                coverRecindexCandidates = coverRecindexCandidates,
-                recindexBase = recindexBase,
-                hasValidRecindexBase = hasValidRecindexBase,
-            )
-        val coverCandidateIndices =
-            buildCoverCandidateIndices(
-                coverRecindexCandidates = coverRecindexCandidates,
-                startIndex = startIndex,
-                recindexBase = recindexBase,
-                firstImageIndex = firstImageIndex,
-                coverRecordIndex = coverRecordIndex,
-                recordCount = recordCount,
-                hasValidStartIndex = hasValidStartIndex,
-            ).toMutableSet().also { it.addAll(explicitCoverIndices) }
-        val filterImages = false
-        val neededIndices =
-            if (filterImages) {
-                buildNeededImageIndices(
-                    referencedImageIndices = referencedImageIndices,
-                    coverCandidateIndices = coverCandidateIndices,
-                    startIndex = startIndex,
-                    recindexBase = recindexBase,
-                    recordCount = recordCount,
-                    hasValidStartIndex = hasValidStartIndex,
-                )
-            } else {
-                emptySet()
-            }
-        val loopStart = if (filterImages) neededIndices.minOrNull() ?: startIndex else startIndex
-        val loopEnd = if (filterImages) neededIndices.maxOrNull() ?: recordOffsets.lastIndex else recordOffsets.lastIndex
+private class MobiCoverSelection {
+    private var totalImageBytes = 0L
+    private var firstImage: ByteArray? = null
+    private var bestOverall: ScoredImage? = null
+    private var bestPortrait: ScoredImage? = null
+    private var explicitCoverImage: ByteArray? = null
+    private var htmlCoverPreferred: ByteArray? = null
+    private var htmlCoverCandidate: ScoredImage? = null
+    private var colorCoverCandidate: ColorScoredImage? = null
+    private var coverCandidate: ScoredImage? = null
+    private var coverPortraitCandidate: ScoredImage? = null
 
-        var totalImageBytes = 0L
-        var firstImage: ByteArray? = null
-        var bestOverall: ByteArray? = null
-        var bestOverallScore = 0L
-        var bestPortrait: ByteArray? = null
-        var bestPortraitScore = 0L
-        var explicitCoverImage: ByteArray? = null
-        var htmlCoverPreferred: ByteArray? = null
-        var htmlCoverCandidate: ByteArray? = null
-        var htmlCoverCandidateScore = 0L
-        var colorCoverCandidate: ByteArray? = null
-        var colorCoverScore = 0f
-        var coverCandidate: ByteArray? = null
-        var coverCandidateScore = 0L
-        var coverPortraitCandidate: ByteArray? = null
-        var coverPortraitScore = 0L
-
-        for (index in loopStart..loopEnd) {
-            if (filterImages && index !in neededIndices) continue
-            val start = recordOffsets[index]
-            val end = if (index + 1 < recordOffsets.size) recordOffsets[index + 1] else data.size
-            if (start < 0 || end > data.size || end <= start) continue
-            val raw = data.copyOfRange(start, end)
-            val type = MobiBinary.detectImageType(raw) ?: continue
-            val maxSize = if (index in explicitCoverIndices) {
-                MobiLimits.MAX_COVER_IMAGE_ENTRY_SIZE
-            } else {
-                MobiLimits.MAX_IMAGE_ENTRY_SIZE
-            }
-            if (raw.size > maxSize) continue
-
-            totalImageBytes += raw.size
-            if (totalImageBytes > MobiLimits.MAX_TOTAL_IMAGE_SIZE) break
-
-            if (firstImage == null) firstImage = raw
-
-            val dimensions = readImageDimensions(type, raw)
-            val score = dimensions?.area ?: raw.size.toLong()
-            val isPortrait = dimensions?.isPortrait == true
-
-            if (dimensions != null && isPortrait && dimensions.area >= MobiLimits.MIN_COLOR_COVER_AREA) {
-                val saturation = estimateColorScore(raw, dimensions)
-                if (saturation != null && saturation > colorCoverScore) {
-                    colorCoverScore = saturation
-                    colorCoverCandidate = raw
-                }
-            }
-            if (explicitCoverImage == null && index in explicitCoverIndices) {
-                explicitCoverImage = raw
-            }
-            if (htmlCoverPreferred == null && index == htmlCoverPreferredIndex) {
-                htmlCoverPreferred = raw
-            }
-            if (index in htmlCoverCandidateIndices && score > htmlCoverCandidateScore) {
-                htmlCoverCandidateScore = score
-                htmlCoverCandidate = raw
-            }
-            if (index in coverCandidateIndices) {
-                if (score > coverCandidateScore) {
-                    coverCandidateScore = score
-                    coverCandidate = raw
-                }
-                if (isPortrait && score > coverPortraitScore) {
-                    coverPortraitScore = score
-                    coverPortraitCandidate = raw
-                }
-            }
-            if (score > bestOverallScore) {
-                bestOverallScore = score
-                bestOverall = raw
-            }
-            if (isPortrait && score > bestPortraitScore) {
-                bestPortraitScore = score
-                bestPortrait = raw
-            }
-
-            if (canWriteImages) {
-                val file = File(imageDir, "img_${index}.${type.extension}")
-                val wrote = runCatching { file.outputStream().use { it.write(raw) }; true }.getOrDefault(false)
-                if (wrote) {
-                    imagePathByRecordIndex[index] =
-                        "kairo_mobi_assets/${bookId.value}/images/${file.name}"
+    fun accept(
+        candidate: MobiImageCandidate,
+        plan: MobiImageScanPlan,
+        colorScore: (ByteArray, MobiImageDimensions) -> Float?,
+    ): Boolean {
+        totalImageBytes += candidate.bytes.size
+        if (totalImageBytes > MobiLimits.MAX_TOTAL_IMAGE_SIZE) return false
+        if (firstImage == null) firstImage = candidate.bytes
+        bestOverall = bestOverall.pick(candidate)
+        if (candidate.isPortrait) bestPortrait = bestPortrait.pick(candidate)
+        if (explicitCoverImage == null && candidate.index in plan.explicitCoverIndices) {
+            explicitCoverImage = candidate.bytes
+        }
+        if (htmlCoverPreferred == null && candidate.index == plan.htmlCoverPreferredIndex) {
+            htmlCoverPreferred = candidate.bytes
+        }
+        if (candidate.index in plan.htmlCoverCandidateIndices) {
+            htmlCoverCandidate = htmlCoverCandidate.pick(candidate)
+        }
+        if (candidate.index in plan.coverCandidateIndices) {
+            coverCandidate = coverCandidate.pick(candidate)
+            if (candidate.isPortrait) coverPortraitCandidate = coverPortraitCandidate.pick(candidate)
+        }
+        val dimensions = candidate.dimensions
+        if (dimensions != null && candidate.isPortrait && dimensions.area >= MobiLimits.MIN_COLOR_COVER_AREA) {
+            colorScore(candidate.bytes, dimensions)?.let { score ->
+                if (score > (colorCoverCandidate?.score ?: 0f)) {
+                    colorCoverCandidate = ColorScoredImage(candidate.bytes, score)
                 }
             }
         }
+        return true
+    }
 
-        val coverImage =
-            if (colorCoverCandidate != null && colorCoverScore >= MobiLimits.MIN_COLOR_SCORE) {
-                colorCoverCandidate
-            } else {
-                explicitCoverImage
-                    ?: htmlCoverPreferred
-                    ?: htmlCoverCandidate
-                    ?: coverPortraitCandidate
-                    ?: coverCandidate
-                    ?: firstImage
-                    ?: bestPortrait
-                    ?: bestOverall
+    fun coverImage(): ByteArray? {
+        val colorful = colorCoverCandidate?.takeIf { it.score >= MobiLimits.MIN_COLOR_SCORE }?.bytes
+        return colorful
+            ?: explicitCoverImage
+            ?: htmlCoverPreferred
+            ?: htmlCoverCandidate?.bytes
+            ?: coverPortraitCandidate?.bytes
+            ?: coverCandidate?.bytes
+            ?: firstImage
+            ?: bestPortrait?.bytes
+            ?: bestOverall?.bytes
+    }
+
+    private fun ScoredImage?.pick(candidate: MobiImageCandidate): ScoredImage =
+        if (this == null || candidate.score > score) ScoredImage(candidate.bytes, candidate.score) else this
+
+    private data class ScoredImage(val bytes: ByteArray, val score: Long,)
+
+    private data class ColorScoredImage(val bytes: ByteArray, val score: Float,)
+}
+
+internal class MobiImageProcessor {
+    private companion object {
+        // Width/height fields defined by each image header format.
+        const val PNG_MIN_HEADER_BYTES = 24
+        const val PNG_WIDTH_OFFSET = 16
+        const val PNG_HEIGHT_OFFSET = 20
+        const val GIF_MIN_HEADER_BYTES = 10
+        const val GIF_WIDTH_OFFSET = 6
+        const val GIF_HEIGHT_OFFSET = 8
+        const val BMP_MIN_HEADER_BYTES = 26
+        const val BMP_WIDTH_OFFSET = 18
+        const val BMP_HEIGHT_OFFSET = 22
+
+        const val COVER_COLOR_SAMPLE_MAX_DIMENSION = 72
+        const val HSV_COMPONENT_COUNT = 3
+        const val LARGE_PIXEL_SAMPLE_THRESHOLD = 4096
+        const val LARGE_PIXEL_SAMPLE_STRIDE = 2
+
+        const val JPEG_MARKER_PREFIX = 0xFF
+        const val JPEG_START_OF_IMAGE = 0xD8
+        const val JPEG_END_OF_IMAGE = 0xD9
+        const val JPEG_SIGNATURE_BYTES = 2
+        const val JPEG_SEGMENT_LENGTH_BYTES = 2
+        const val JPEG_FRAME_HEADER_LAST_OFFSET = 7
+        const val JPEG_FRAME_HEIGHT_OFFSET = 3
+        const val JPEG_FRAME_WIDTH_OFFSET = 5
+        const val BYTE_MASK = 0xFF
+        const val HIGH_BYTE_SHIFT = 8
+
+        // Start-of-frame marker values defined by the JPEG protocol.
+        @Suppress("MagicNumber")
+        val JPEG_START_OF_FRAME_MARKERS =
+            setOf(0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF)
+    }
+
+    fun extractImages(request: MobiImageExtractionRequest): MobiImageExtraction {
+        val imagePathByRecordIndex = mutableMapOf<Int, String>()
+        val imageDir = File(request.context.filesDir, "kairo_mobi_assets/${request.bookId.value}/images")
+        val canWriteImages = runCatching { imageDir.mkdirs() || imageDir.exists() }.getOrDefault(false)
+        val plan = buildImageScanPlan(request)
+        val selection = MobiCoverSelection()
+
+        var index = plan.startIndex
+        var withinTotalSizeLimit = true
+        while (index <= request.recordOffsets.lastIndex && withinTotalSizeLimit) {
+            val candidate = readImageCandidate(request, index, plan.explicitCoverIndices)
+            if (candidate != null) {
+                withinTotalSizeLimit = selection.accept(candidate, plan, ::estimateColorScore)
+                if (withinTotalSizeLimit && canWriteImages) {
+                    writeImage(candidate, request.bookId, imageDir)?.let { path ->
+                        imagePathByRecordIndex[index] = path
+                    }
+                }
             }
+            index += 1
+        }
 
         return MobiImageExtraction(
             imagePathByRecordIndex = imagePathByRecordIndex,
-            coverImage = coverImage,
-            resolvedFirstImageIndex = resolvedFirstImageIndex.takeIf { it >= 0 },
-            recindexBase = recindexBase.takeIf { it >= 0 },
+            coverImage = selection.coverImage(),
+            resolvedFirstImageIndex = plan.resolvedFirstImageIndex.takeIf { it >= 0 },
+            recindexBase = plan.recindexBase.takeIf { it >= 0 },
         )
+    }
+
+    private fun buildImageScanPlan(request: MobiImageExtractionRequest): MobiImageScanPlan {
+        val recordCount = request.recordOffsets.size
+        val resourceBaseIndex =
+            when {
+                request.firstImageIndex in 1 until recordCount -> request.firstImageIndex
+                request.textRecordCount > 0 -> (1 + request.textRecordCount).takeIf { it in request.recordOffsets.indices } ?: -1
+                else -> -1
+            }
+        val resolvedFirstImageIndex =
+            resourceBaseIndex.takeIf {
+                it >= 0 && MobiBinary.isImageRecord(request.data, request.recordOffsets, it)
+            } ?: MobiBinary.findFirstImageRecordIndex(request.data, request.recordOffsets) ?: -1
+        val startIndex = resolvedFirstImageIndex.coerceAtLeast(0)
+        val recindexBase = resolveRecindexBase(request, resourceBaseIndex, resolvedFirstImageIndex)
+        val explicitCoverIndices =
+            buildExplicitCoverIndices(
+                request.coverRecordIndex,
+                recindexBase,
+                request.firstImageIndex,
+                recordCount,
+                recindexBase >= 0,
+            )
+        val coverCandidateIndices =
+            buildCoverCandidateIndices(
+                request.coverRecindexCandidates,
+                startIndex,
+                recindexBase,
+                request.firstImageIndex,
+                request.coverRecordIndex,
+                recordCount,
+                resolvedFirstImageIndex >= 0,
+            ) + explicitCoverIndices
+        return MobiImageScanPlan(
+            startIndex = startIndex,
+            resolvedFirstImageIndex = resolvedFirstImageIndex,
+            recindexBase = recindexBase,
+            explicitCoverIndices = explicitCoverIndices,
+            htmlCoverCandidateIndices =
+            buildHtmlCoverCandidateIndices(request.coverRecindexCandidates, recindexBase, recordCount, recindexBase >= 0),
+            htmlCoverPreferredIndex =
+            resolveHtmlCoverPreferredIndex(
+                request.data,
+                request.recordOffsets,
+                request.coverRecindexCandidates,
+                recindexBase,
+                recindexBase >= 0,
+            ),
+            coverCandidateIndices = coverCandidateIndices,
+        )
+    }
+
+    private fun resolveRecindexBase(
+        request: MobiImageExtractionRequest,
+        resourceBaseIndex: Int,
+        resolvedFirstImageIndex: Int,
+    ): Int =
+        when {
+            resourceBaseIndex > 0 && !MobiBinary.isImageRecord(request.data, request.recordOffsets, resourceBaseIndex - 1) ->
+                resourceBaseIndex - 1
+            resourceBaseIndex >= 0 -> resourceBaseIndex
+            resolvedFirstImageIndex > 0 &&
+                !MobiBinary.isImageRecord(request.data, request.recordOffsets, resolvedFirstImageIndex - 1) ->
+                resolvedFirstImageIndex - 1
+            else -> resolvedFirstImageIndex
+        }
+
+    private fun readImageCandidate(
+        request: MobiImageExtractionRequest,
+        index: Int,
+        explicitCoverIndices: Set<Int>,
+    ): MobiImageCandidate? {
+        val start = request.recordOffsets[index]
+        val end = request.recordOffsets.getOrNull(index + 1) ?: request.data.size
+        if (start < 0 || end > request.data.size || end <= start) return null
+        val bytes = request.data.copyOfRange(start, end)
+        val type = MobiBinary.detectImageType(bytes) ?: return null
+        val maxSize =
+            if (index in explicitCoverIndices) MobiLimits.MAX_COVER_IMAGE_ENTRY_SIZE else MobiLimits.MAX_IMAGE_ENTRY_SIZE
+        if (bytes.size > maxSize) return null
+        val dimensions = readImageDimensions(type, bytes)
+        return MobiImageCandidate(index, bytes, type, dimensions, dimensions?.area ?: bytes.size.toLong())
+    }
+
+    private fun writeImage(
+        candidate: MobiImageCandidate,
+        bookId: BookId,
+        imageDir: File,
+    ): String? {
+        val file = File(imageDir, "img_${candidate.index}.${candidate.type.extension}")
+        val wrote =
+            runCatching {
+                file.outputStream().use { it.write(candidate.bytes) }
+                true
+            }.getOrDefault(false)
+        return if (wrote) "kairo_mobi_assets/${bookId.value}/images/${file.name}" else null
     }
 
     fun rewriteImageSrcs(
@@ -232,7 +283,7 @@ internal class MobiImageProcessor {
             val recindex = match.groupValues[2].toIntOrNull() ?: return@replace match.value
             val path = resolveImagePath(recindex, imagePathByRecordIndex, recindexBase)
                 ?: return@replace match.value
-            "${match.groupValues[1]} src=\"$path\"${match.groupValues[3]}"
+            "${match.groupValues[1]} src=\"$path\"${match.groupValues[REGEX_SUFFIX_GROUP]}"
         }
 
         val embedRegex =
@@ -244,7 +295,7 @@ internal class MobiImageProcessor {
             val embedIndex = match.groupValues[2].toIntOrNull() ?: return@replace match.value
             val path = resolveImagePath(embedIndex, imagePathByRecordIndex, recindexBase)
                 ?: return@replace match.value
-            "${match.groupValues[1]}$path${match.groupValues[3]}"
+            "${match.groupValues[1]}$path${match.groupValues[REGEX_SUFFIX_GROUP]}"
         }
 
         if (imagePathByRecordIndex.isNotEmpty()) {
@@ -269,34 +320,6 @@ internal class MobiImageProcessor {
             }
         }
         return updated
-    }
-
-    private fun buildNeededImageIndices(
-        referencedImageIndices: Set<Int>,
-        coverCandidateIndices: Set<Int>,
-        startIndex: Int,
-        recindexBase: Int,
-        recordCount: Int,
-        hasValidStartIndex: Boolean,
-    ): Set<Int> {
-        val needed = LinkedHashSet<Int>()
-        needed.addAll(coverCandidateIndices)
-        fun addRecindex(recindex: Int) {
-            needed.add(recindex)
-            if (recindexBase >= 0) {
-                needed.addAll(resolveRecindexToRecordIndices(recindex, recindexBase, recordCount))
-            }
-            if (hasValidStartIndex) {
-                needed.add(startIndex + recindex)
-            }
-        }
-        referencedImageIndices.forEach(::addRecindex)
-        if (needed.isEmpty() && hasValidStartIndex) {
-            repeat(MobiLimits.COVER_FALLBACK_IMAGE_SCAN) { offset ->
-                needed.add(startIndex + offset)
-            }
-        }
-        return needed
     }
 
     private fun buildCoverCandidateIndices(
@@ -482,59 +505,73 @@ internal class MobiImageProcessor {
         }
 
     private fun readPngDimensions(bytes: ByteArray): MobiImageDimensions? {
-        if (bytes.size < 24) return null
-        val width = MobiBinary.readInt(bytes, 16)
-        val height = MobiBinary.readInt(bytes, 20)
+        if (bytes.size < PNG_MIN_HEADER_BYTES) return null
+        val width = MobiBinary.readInt(bytes, PNG_WIDTH_OFFSET)
+        val height = MobiBinary.readInt(bytes, PNG_HEIGHT_OFFSET)
         return if (width > 0 && height > 0) MobiImageDimensions(width, height) else null
     }
 
     private fun readGifDimensions(bytes: ByteArray): MobiImageDimensions? {
-        if (bytes.size < 10) return null
-        val width = MobiBinary.readLittleEndianShort(bytes, 6)
-        val height = MobiBinary.readLittleEndianShort(bytes, 8)
+        if (bytes.size < GIF_MIN_HEADER_BYTES) return null
+        val width = MobiBinary.readLittleEndianShort(bytes, GIF_WIDTH_OFFSET)
+        val height = MobiBinary.readLittleEndianShort(bytes, GIF_HEIGHT_OFFSET)
         return if (width > 0 && height > 0) MobiImageDimensions(width, height) else null
     }
 
     private fun readBmpDimensions(bytes: ByteArray): MobiImageDimensions? {
-        if (bytes.size < 26) return null
-        val width = MobiBinary.readLittleEndianInt(bytes, 18)
-        val height = MobiBinary.readLittleEndianInt(bytes, 22)
+        if (bytes.size < BMP_MIN_HEADER_BYTES) return null
+        val width = MobiBinary.readLittleEndianInt(bytes, BMP_WIDTH_OFFSET)
+        val height = MobiBinary.readLittleEndianInt(bytes, BMP_HEIGHT_OFFSET)
         val absoluteHeight = if (height < 0) -height else height
         return if (width > 0 && absoluteHeight > 0) MobiImageDimensions(width, absoluteHeight) else null
     }
 
     private fun readJpegDimensions(bytes: ByteArray): MobiImageDimensions? {
-        if (bytes.size < 4 || bytes[0] != 0xFF.toByte() || bytes[1] != 0xD8.toByte()) return null
-        var index = 2
+        val frameOffset = findJpegFrameHeaderOffset(bytes) ?: return null
+        if (frameOffset + JPEG_FRAME_HEADER_LAST_OFFSET >= bytes.size) return null
+        val height = readBigEndianUnsignedShort(bytes, frameOffset + JPEG_FRAME_HEIGHT_OFFSET)
+        val width = readBigEndianUnsignedShort(bytes, frameOffset + JPEG_FRAME_WIDTH_OFFSET)
+        return MobiImageDimensions(width, height).takeIf { width > 0 && height > 0 }
+    }
+
+    private fun findJpegFrameHeaderOffset(bytes: ByteArray): Int? {
+        if (!hasJpegSignature(bytes)) return null
+        var index = JPEG_SIGNATURE_BYTES
         while (index + 1 < bytes.size) {
-            if (bytes[index] != 0xFF.toByte()) {
-                index++
-                continue
-            }
-            while (index < bytes.size && bytes[index] == 0xFF.toByte()) index++
-            if (index >= bytes.size) break
-            val marker = bytes[index].toInt() and 0xFF
+            index = findNextJpegMarker(bytes, index) ?: return null
+            val marker = bytes[index].toInt() and BYTE_MASK
             index++
-            if (marker == 0xD8 || marker == 0xD9) continue
-            if (index + 1 >= bytes.size) break
-            val length = ((bytes[index].toInt() and 0xFF) shl 8) or (bytes[index + 1].toInt() and 0xFF)
-            if (length < 2) return null
-            if (marker in listOf(0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF)) {
-                if (index + 7 >= bytes.size) return null
-                val height = ((bytes[index + 3].toInt() and 0xFF) shl 8) or (bytes[index + 4].toInt() and 0xFF)
-                val width = ((bytes[index + 5].toInt() and 0xFF) shl 8) or (bytes[index + 6].toInt() and 0xFF)
-                return if (width > 0 && height > 0) MobiImageDimensions(width, height) else null
-            }
+            if (marker == JPEG_START_OF_IMAGE) continue
+            if (marker == JPEG_END_OF_IMAGE || index + 1 >= bytes.size) return null
+            val length = readBigEndianUnsignedShort(bytes, index)
+            if (length < JPEG_SEGMENT_LENGTH_BYTES) return null
+            if (marker in JPEG_START_OF_FRAME_MARKERS) return index
             index += length
         }
         return null
     }
 
+    private fun hasJpegSignature(bytes: ByteArray): Boolean =
+        bytes.size >= JPEG_SIGNATURE_BYTES &&
+            bytes[0] == JPEG_MARKER_PREFIX.toByte() &&
+            bytes[1] == JPEG_START_OF_IMAGE.toByte()
+
+    private fun findNextJpegMarker(bytes: ByteArray, startIndex: Int): Int? {
+        var index = startIndex
+        while (index < bytes.size && bytes[index] != JPEG_MARKER_PREFIX.toByte()) index++
+        while (index < bytes.size && bytes[index] == JPEG_MARKER_PREFIX.toByte()) index++
+        return index.takeIf { it < bytes.size }
+    }
+
+    private fun readBigEndianUnsignedShort(bytes: ByteArray, offset: Int): Int =
+        ((bytes[offset].toInt() and BYTE_MASK) shl HIGH_BYTE_SHIFT) or
+            (bytes[offset + 1].toInt() and BYTE_MASK)
+
     private fun estimateColorScore(
         bytes: ByteArray,
         dimensions: MobiImageDimensions,
     ): Float? {
-        val sampleMax = 72
+        val sampleMax = COVER_COLOR_SAMPLE_MAX_DIMENSION
         val sampleSize =
             if (dimensions.width > sampleMax || dimensions.height > sampleMax) {
                 maxOf(1, minOf(dimensions.width / sampleMax, dimensions.height / sampleMax))
@@ -559,8 +596,13 @@ internal class MobiImageProcessor {
 
         var total = 0f
         var count = 0
-        val hsv = FloatArray(3)
-        val step = if (pixels.size > 4096) 2 else 1
+        val hsv = FloatArray(HSV_COMPONENT_COUNT)
+        val step =
+            if (pixels.size > LARGE_PIXEL_SAMPLE_THRESHOLD) {
+                LARGE_PIXEL_SAMPLE_STRIDE
+            } else {
+                1
+            }
         var index = 0
         while (index < pixels.size) {
             Color.colorToHSV(pixels[index], hsv)
@@ -571,3 +613,5 @@ internal class MobiImageProcessor {
         return if (count > 0) total / count else null
     }
 }
+
+private const val REGEX_SUFFIX_GROUP = 3

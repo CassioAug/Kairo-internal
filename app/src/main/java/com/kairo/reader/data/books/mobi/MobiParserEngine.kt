@@ -18,28 +18,10 @@ internal class MobiParserEngine(
         data: ByteArray,
         fallbackFileName: String,
     ): Book {
-        require(data.size >= MobiLimits.MIN_FILE_SIZE_BYTES) { "File too small to be a valid MOBI" }
-
-        val buffer = ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN)
-        val pdbName = ByteArray(32)
-        buffer.get(pdbName)
-        val parsedBookName =
-            String(pdbName).trim('\u0000').takeIf { it.isNotBlank() }
-                ?: fallbackFileName.substringBeforeLast('.')
-
-        buffer.position(76)
-        val recordCount = buffer.short.toInt() and 0xFFFF
-        require(recordCount >= MobiLimits.MIN_RECORD_COUNT) { "Invalid MOBI: too few records" }
-
-        val recordOffsets = MobiBinary.parseRecordOffsets(data, recordCount)
-        require(recordOffsets.size >= MobiLimits.MIN_RECORD_COUNT) { "Invalid MOBI: malformed record table" }
-
-        val record0Start = recordOffsets[0]
-        val record0End = if (recordOffsets.size > 1) recordOffsets[1] else data.size
-        require(record0Start in 0 until record0End && record0End <= data.size) {
-            "Invalid MOBI: corrupt first record range"
-        }
-        val record0 = data.copyOfRange(record0Start, record0End)
+        val palmDatabase = readPalmDatabase(data, fallbackFileName)
+        val parsedBookName = palmDatabase.bookName
+        val recordOffsets = palmDatabase.recordOffsets
+        val record0 = palmDatabase.firstRecord
 
         val palmDoc = headerParser.parsePalmDocHeader(record0)
         val headers = headerParser.parseHeaders(record0, parsedBookName, fallbackFileName)
@@ -72,51 +54,21 @@ internal class MobiParserEngine(
 
         val imageExtraction =
             imageProcessor.extractImages(
-                context = context,
-                bookId = bookId,
-                data = data,
-                recordOffsets = recordOffsets,
-                firstImageIndex = imageHeader.firstImageIndex,
-                coverRecordIndex = resolvedCoverRecordIndex,
-                textRecordCount = palmDoc.textRecordCount,
-                coverRecindexCandidates = coverRecindexCandidates,
-                referencedImageIndices = referencedImages,
+                MobiImageExtractionRequest(
+                    context = context,
+                    bookId = bookId,
+                    data = data,
+                    recordOffsets = recordOffsets,
+                    firstImageIndex = imageHeader.firstImageIndex,
+                    coverRecordIndex = resolvedCoverRecordIndex,
+                    textRecordCount = palmDoc.textRecordCount,
+                    coverRecindexCandidates = coverRecindexCandidates,
+                    referencedImageIndices = referencedImages,
+                ),
             )
 
         val recindexBase = imageExtraction.recindexBase ?: imageExtraction.resolvedFirstImageIndex ?: -1
-        val chapters = contentProcessor.splitHtmlIntoChapters(textHtml, header.title)
-        val rewrittenChapters =
-            if (chapters.isEmpty()) {
-                val rewrittenHtml =
-                    imageProcessor.rewriteImageSrcs(
-                        html = textHtml,
-                        imagePathByRecordIndex = imageExtraction.imagePathByRecordIndex,
-                        recindexBase = recindexBase,
-                    )
-                val plain = contentProcessor.extractPlainText(rewrittenHtml)
-                listOf(
-                    Chapter(
-                        index = 0,
-                        title = "Content",
-                        htmlContent = rewrittenHtml.ifBlank { "<p>No readable content found.</p>" },
-                        plainText = plain.ifBlank { "No readable content found." },
-                        imagePaths = contentProcessor.extractImagePathsFromHtml(rewrittenHtml),
-                    ),
-                )
-            } else {
-                chapters.map { chapter ->
-                    val rewrittenHtml =
-                        imageProcessor.rewriteImageSrcs(
-                            html = chapter.htmlContent,
-                            imagePathByRecordIndex = imageExtraction.imagePathByRecordIndex,
-                            recindexBase = recindexBase,
-                        )
-                    chapter.copy(
-                        htmlContent = rewrittenHtml,
-                        imagePaths = contentProcessor.extractImagePathsFromHtml(rewrittenHtml),
-                    )
-                }
-            }
+        val chapters = rewriteChapters(textHtml, header.title, imageExtraction, recindexBase)
 
         return Book(
             id = bookId,
@@ -124,7 +76,81 @@ internal class MobiParserEngine(
             authors = header.authors,
             languageTag = null,
             coverImage = imageExtraction.coverImage,
-            chapters = rewrittenChapters,
+            chapters = chapters,
         )
     }
+
+    private fun readPalmDatabase(
+        data: ByteArray,
+        fallbackFileName: String,
+    ): PalmDatabaseRecords {
+        require(data.size >= MobiLimits.MIN_FILE_SIZE_BYTES) { "File too small to be a valid MOBI" }
+        val buffer = ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN)
+        val pdbName = ByteArray(PALM_DATABASE_NAME_BYTES)
+        buffer.get(pdbName)
+        val bookName =
+            String(pdbName).trim('\u0000').takeIf { it.isNotBlank() }
+                ?: fallbackFileName.substringBeforeLast('.')
+        buffer.position(PALM_DATABASE_RECORD_COUNT_OFFSET)
+        val recordCount = buffer.short.toInt() and UNSIGNED_SHORT_MASK
+        require(recordCount >= MobiLimits.MIN_RECORD_COUNT) { "Invalid MOBI: too few records" }
+        val offsets = MobiBinary.parseRecordOffsets(data, recordCount)
+        require(offsets.size >= MobiLimits.MIN_RECORD_COUNT) { "Invalid MOBI: malformed record table" }
+        val firstRecordStart = offsets.first()
+        val firstRecordEnd = offsets.getOrElse(1) { data.size }
+        require(firstRecordStart in 0 until firstRecordEnd && firstRecordEnd <= data.size) {
+            "Invalid MOBI: corrupt first record range"
+        }
+        return PalmDatabaseRecords(
+            bookName = bookName,
+            recordOffsets = offsets,
+            firstRecord = data.copyOfRange(firstRecordStart, firstRecordEnd),
+        )
+    }
+
+    private fun rewriteChapters(
+        textHtml: String,
+        title: String,
+        imageExtraction: MobiImageExtraction,
+        recindexBase: Int,
+    ): List<Chapter> {
+        val chapters = contentProcessor.splitHtmlIntoChapters(textHtml, title)
+        if (chapters.isEmpty()) {
+            val rewrittenHtml = rewriteImages(textHtml, imageExtraction, recindexBase)
+            val plain = contentProcessor.extractPlainText(rewrittenHtml)
+            return listOf(
+                Chapter(
+                    index = 0,
+                    title = "Content",
+                    htmlContent = rewrittenHtml.ifBlank { "<p>No readable content found.</p>" },
+                    plainText = plain.ifBlank { "No readable content found." },
+                    imagePaths = contentProcessor.extractImagePathsFromHtml(rewrittenHtml),
+                ),
+            )
+        }
+        return chapters.map { chapter ->
+            val rewrittenHtml = rewriteImages(chapter.htmlContent, imageExtraction, recindexBase)
+            chapter.copy(
+                htmlContent = rewrittenHtml,
+                imagePaths = contentProcessor.extractImagePathsFromHtml(rewrittenHtml),
+            )
+        }
+    }
+
+    private fun rewriteImages(
+        html: String,
+        imageExtraction: MobiImageExtraction,
+        recindexBase: Int,
+    ): String =
+        imageProcessor.rewriteImageSrcs(
+            html = html,
+            imagePathByRecordIndex = imageExtraction.imagePathByRecordIndex,
+            recindexBase = recindexBase,
+        )
 }
+
+private data class PalmDatabaseRecords(val bookName: String, val recordOffsets: List<Int>, val firstRecord: ByteArray,)
+
+private const val PALM_DATABASE_NAME_BYTES = 32
+private const val PALM_DATABASE_RECORD_COUNT_OFFSET = 76
+private const val UNSIGNED_SHORT_MASK = 0xFFFF
