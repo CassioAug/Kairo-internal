@@ -157,7 +157,6 @@ tasks.withType<Detekt>().configureEach {
 
 ktlint {
     filter {
-        exclude("**/androidTest/**")
         exclude("**/build/**")
         exclude("**/*.gradle.kts")
     }

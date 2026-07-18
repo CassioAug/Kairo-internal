@@ -21,8 +21,6 @@ local.properties
 
 .claude
 
-AGENTS.md
-
 # Local/generated docs
 /docs/main-activity-modularisation-checklist.md
 /docs/reader-image-page-navigation-checklist.md
