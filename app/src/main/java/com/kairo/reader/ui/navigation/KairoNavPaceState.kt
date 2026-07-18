@@ -9,10 +9,7 @@ import com.kairo.reader.core.rsvp.RsvpEffectivePace
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import kotlinx.coroutines.withContext
 
-internal data class KairoNavPaceState(
-    val selectedWpm: Int,
-    val estimatedWpm: Int,
-)
+internal data class KairoNavPaceState(val selectedWpm: Int, val estimatedWpm: Int,)
 
 @Composable
 internal fun rememberKairoNavPaceState(

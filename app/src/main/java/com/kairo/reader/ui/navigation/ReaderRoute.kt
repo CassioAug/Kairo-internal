@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.navigation
 
 import androidx.activity.compose.BackHandler
@@ -28,6 +30,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,329 +41,397 @@ import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
 import com.kairo.reader.ui.reader.ReaderScreen
+import com.kairo.reader.ui.reader.ReaderUiState
 import com.kairo.reader.ui.reader.ReaderViewModel
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 
+internal data class ReaderRouteInput(
+    val backStackEntry: NavBackStackEntry,
+    val container: KairoApplication,
+    val navController: NavHostController,
+    val prefs: UserPreferences,
+    val estimatedWpm: Int,
+    val tutorialActive: Boolean,
+    val tutorialState: StartingTutorialOverlayState?,
+    val initialChapterIndex: Int? = null,
+    val initialTokenIndex: Int? = null,
+    val onShowUserMessage: (String) -> Unit,
+    val onTutorialNext: () -> Unit,
+    val onTutorialPrevious: () -> Unit,
+    val onTutorialSkip: () -> Unit,
+)
+
 @Composable
-internal fun ReaderRoute(
-    backStackEntry: NavBackStackEntry,
-    container: KairoApplication,
-    navController: NavHostController,
-    prefs: UserPreferences,
-    estimatedWpm: Int,
-    tutorialActive: Boolean,
-    tutorialState: StartingTutorialOverlayState?,
-    initialChapterIndex: Int? = null,
-    initialTokenIndex: Int? = null,
-    onShowUserMessage: (String) -> Unit,
-    onTutorialNext: () -> Unit,
-    onTutorialPrevious: () -> Unit,
-    onTutorialSkip: () -> Unit,
-) {
-    val bookId = backStackEntry.arguments?.getString(KairoRoutes.ARG_BOOK_ID) ?: return
-    val dispatcherProvider = container.dispatcherProvider
-    val coroutineScope = rememberCoroutineScope()
-    val resources = LocalResources.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val readerPositionSaver =
-        remember(bookId, lifecycleOwner) {
-            ReaderPositionSaver(
-                scope = lifecycleOwner.lifecycleScope,
-                repository = container.readingPositionRepository,
-                saveDispatcher = dispatcherProvider.io,
-            )
-        }
-
-    val bookState =
-        produceState<ReaderBookLoadState>(
-            initialValue = ReaderBookLoadState.Loading,
-            bookId,
-        ) {
-            value =
-                runCatching { container.bookRepository.getBook(BookId(bookId)) }
-                    .fold(
-                        onSuccess = { book -> ReaderBookLoadState.Loaded(book) },
-                        onFailure = { ReaderBookLoadState.Missing },
-                    )
-        }
-    val book =
-        when (val state = bookState.value) {
-            is ReaderBookLoadState.Loaded -> state.book
-            ReaderBookLoadState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                return
-            }
-            ReaderBookLoadState.Missing -> {
-                ReaderMissingBookState(
-                    onOpenLibrary = {
-                        navController.navigate(KairoRoutes.LIBRARY) {
-                            popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
-                            launchSingleTop = true
-                        }
-                    }
+internal fun ReaderRoute(input: ReaderRouteInput) =
+    with(input) {
+        val bookId = backStackEntry.arguments?.getString(KairoRoutes.ARG_BOOK_ID) ?: return
+        val dispatcherProvider = container.dispatcherProvider
+        val coroutineScope = rememberCoroutineScope()
+        val resources = LocalResources.current
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val readerPositionSaver =
+            remember(bookId, lifecycleOwner) {
+                ReaderPositionSaver(
+                    scope = lifecycleOwner.lifecycleScope,
+                    repository = container.readingPositionRepository,
+                    saveDispatcher = dispatcherProvider.io,
                 )
-                return
             }
-        }
 
-    val readerViewModel: ReaderViewModel =
-        viewModel(
-            factory =
+        val bookState =
+            produceState<ReaderBookLoadState>(
+                initialValue = ReaderBookLoadState.Loading,
+                bookId,
+            ) {
+                value =
+                    runCatching { container.bookRepository.getBook(BookId(bookId)) }
+                        .fold(
+                            onSuccess = { book -> ReaderBookLoadState.Loaded(book) },
+                            onFailure = { ReaderBookLoadState.Missing },
+                        )
+            }
+        val book =
+            when (val state = bookState.value) {
+                is ReaderBookLoadState.Loaded -> state.book
+                ReaderBookLoadState.Loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                    return
+                }
+                ReaderBookLoadState.Missing -> {
+                    ReaderMissingBookState(
+                        onOpenLibrary = {
+                            navController.navigate(KairoRoutes.LIBRARY) {
+                                popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                    return
+                }
+            }
+
+        val readerViewModel: ReaderViewModel =
+            viewModel(
+                factory =
                 ReaderViewModel.factory(
                     container.bookRepository,
                     container.tokenRepository,
                     dispatcherProvider,
                 ),
+            )
+        val uiState by readerViewModel.uiState.collectAsState()
+
+        val rsvpResult = rememberReaderRsvpResult(backStackEntry, bookId, uiState)
+        ApplyReaderRsvpResult(
+            result = rsvpResult,
+            uiState = uiState,
+            bookId = bookId,
+            readerViewModel = readerViewModel,
+            readerPositionSaver = readerPositionSaver,
+            backStackEntry = backStackEntry,
         )
-    val uiState by readerViewModel.uiState.collectAsState()
 
-    val rsvpResultFlow =
-        remember(backStackEntry) {
-            backStackEntry.savedStateHandle.getStateFlow(
-                KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX,
-                -1,
+        val hasInitialized =
+            rememberReaderInitialization(
+                book = book,
+                bookId = bookId,
+                initialChapterIndex = initialChapterIndex,
+                initialTokenIndex = initialTokenIndex,
+                container = container,
+                uiState = uiState,
+                readerViewModel = readerViewModel,
             )
-        }
-    val rsvpResultIndex by rsvpResultFlow.collectAsState(initial = -1)
-    val rsvpResultChapterFlow =
-        remember(backStackEntry) {
-            backStackEntry.savedStateHandle.getStateFlow(
-                KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX,
-                -1,
+        ReaderPositionEffects(
+            hasInitialized = hasInitialized,
+            rsvpResult = rsvpResult,
+            bookId = bookId,
+            container = container,
+            uiState = uiState,
+            readerViewModel = readerViewModel,
+            readerPositionSaver = readerPositionSaver,
+            lifecycleOwner = lifecycleOwner,
+        )
+
+        val resolvedRsvpConfig = RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
+        val readerEstimatedWpm =
+            rememberReaderEstimatedWpm(
+                baseConfig = resolvedRsvpConfig,
+                fallbackEstimatedWpm = estimatedWpm,
+                dispatcherProvider = dispatcherProvider,
+                languageTag = book.languageTag,
             )
-        }
-    val rsvpResultChapterIndex by rsvpResultChapterFlow.collectAsState(initial = -1)
-    val rsvpResumeCursorFlow =
-        remember(backStackEntry) {
-            backStackEntry.savedStateHandle.getStateFlow(
-                KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR,
-                -1,
+        PrefetchReaderFrames(hasInitialized, uiState, resolvedRsvpConfig, container, bookId)
+
+        val focusEnabledInReader = prefs.focusModeEnabled && prefs.focusApplyInReader
+        var lastExplicitFocusIndex by remember(bookId) { mutableIntStateOf(-1) }
+        val readerCallbacks =
+            buildReaderRouteCallbacks(
+                ReaderRouteCallbackDependencies(
+                    container = container,
+                    navController = navController,
+                    prefs = prefs,
+                    bookId = bookId,
+                    bookIdValue = BookId(bookId),
+                    dispatcherProvider = dispatcherProvider,
+                    coroutineScope = coroutineScope,
+                    lifecycleScope = lifecycleOwner.lifecycleScope,
+                    resources = resources,
+                    uiState = uiState,
+                    effectiveUiState = rsvpResult.effectiveUiState,
+                    readerViewModel = readerViewModel,
+                    readerPositionSaver = readerPositionSaver,
+                    getLastExplicitFocusIndex = { lastExplicitFocusIndex },
+                    setLastExplicitFocusIndex = { lastExplicitFocusIndex = it },
+                    getPendingRsvpLaunchTempoMsPerWord = { rsvpResult.pendingLaunchTempoMs },
+                    clearPendingRsvpLaunchTempoMsPerWord = rsvpResult.clearPendingLaunchTempo,
+                    onShowUserMessage = onShowUserMessage,
+                )
             )
-        }
-    val rsvpResultResumeCursor by rsvpResumeCursorFlow.collectAsState(initial = -1)
-    val rsvpResultTempoFlow =
-        remember(backStackEntry) {
-            backStackEntry.savedStateHandle.getStateFlow(
-                KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS,
-                -1L,
-            )
-        }
-    val rsvpResultTempoMs by rsvpResultTempoFlow.collectAsState(initial = -1L)
-    var pendingRsvpLaunchTempoMs by rememberSaveable(bookId) { mutableLongStateOf(-1L) }
-    LaunchedEffect(rsvpResultTempoMs) {
-        if (rsvpResultTempoMs > 0L) {
-            pendingRsvpLaunchTempoMs = rsvpResultTempoMs
-            backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS] = -1L
-        }
-    }
-    val safeRsvpResultIndex =
-        if (rsvpResultIndex >= 0) {
-            val tokens = uiState.chapterData?.tokens
-            if (rsvpResultChapterIndex == uiState.chapterIndex &&
-                tokens != null &&
-                tokens.isNotEmpty()
-            ) {
-                tokens.nearestWordIndex(rsvpResultIndex)
-            } else {
-                rsvpResultIndex.coerceAtLeast(0)
-            }
-        } else {
-            rsvpResultIndex
-        }
-    val effectiveUiState =
-        if (safeRsvpResultIndex >= 0 &&
-            rsvpResultChapterIndex == uiState.chapterIndex
-        ) {
-            uiState.copy(focusIndex = safeRsvpResultIndex)
-        } else {
-            uiState
+
+        BackHandler(enabled = !tutorialActive) {
+            readerCallbacks.onOpenLibrary()
         }
 
-    LaunchedEffect(
-        rsvpResultChapterIndex,
-        safeRsvpResultIndex,
-        rsvpResultResumeCursor,
-        uiState.chapterIndex,
-        uiState.chapterData,
-    ) {
-        if (rsvpResultChapterIndex >= 0 && safeRsvpResultIndex >= 0) {
-            if (rsvpResultChapterIndex != uiState.chapterIndex) {
-                readerViewModel.loadChapter(rsvpResultChapterIndex, safeRsvpResultIndex)
-                return@LaunchedEffect
-            }
-            val chapterData = uiState.chapterData ?: return@LaunchedEffect
-            val safeTargetIndex =
-                if (chapterData.tokens.isNotEmpty()) {
-                    chapterData.tokens.nearestWordIndex(safeRsvpResultIndex)
-                        .coerceIn(0, chapterData.tokens.lastIndex)
-                } else {
-                    safeRsvpResultIndex
-                }
-            if (safeTargetIndex != uiState.focusIndex) {
-                readerViewModel.applyFocusIndex(safeTargetIndex)
-            }
-            val wordIndex = resolveWordIndex(chapterData.wordCountByToken, safeTargetIndex)
-            readerPositionSaver.saveImmediate(
-                ReadingPosition(
-                    BookId(bookId),
-                    rsvpResultChapterIndex,
-                    safeTargetIndex,
-                    wordIndex,
-                    rsvpResumeCursor = rsvpResultResumeCursor,
-                ),
-            )
-            backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX] = -1
-            backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX] = -1
-            backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR] = -1
-        }
+        ReaderScreen(
+            book = book,
+            uiState = rsvpResult.effectiveUiState,
+            fontSizeSp = prefs.readerFontSizeSp,
+            invertedScroll = prefs.invertedScroll,
+            readerTheme = prefs.readerTheme,
+            textBrightness = prefs.readerTextBrightness,
+            estimatedWpm = readerEstimatedWpm,
+            onFontSizeChange = readerCallbacks.onFontSizeChange,
+            onThemeChange = readerCallbacks.onThemeChange,
+            onTextBrightnessChange = readerCallbacks.onTextBrightnessChange,
+            onInvertedScrollChange = readerCallbacks.onInvertedScrollChange,
+            focusModeEnabled = focusEnabledInReader,
+            onFocusModeEnabledChange = readerCallbacks.onFocusModeEnabledChange,
+            onAddBookmark = readerCallbacks.onAddBookmark,
+            onOpenBookmarks = readerCallbacks.onOpenBookmarks,
+            onOpenLibrary = readerCallbacks.onOpenLibrary,
+            onFocusChange = readerCallbacks.onFocusChange,
+            onPageChange = readerCallbacks.onPageChange,
+            timedReadingMode = prefs.timedReadingMode,
+            onStartTimedReading = readerCallbacks.onStartTimedReading,
+            onSelectTimedReadingMode = readerCallbacks.onSelectTimedReadingMode,
+            onChapterChange = readerCallbacks.onChapterChange,
+            onViewportMetricsChanged = readerCallbacks.onViewportMetricsChanged,
+            tutorialState = tutorialState,
+            onTutorialNext = onTutorialNext,
+            onTutorialPrevious = onTutorialPrevious,
+            onTutorialSkip = onTutorialSkip,
+        )
     }
 
+@Composable
+private fun rememberReaderInitialization(
+    book: Book,
+    bookId: String,
+    initialChapterIndex: Int?,
+    initialTokenIndex: Int?,
+    container: KairoApplication,
+    uiState: ReaderUiState,
+    readerViewModel: ReaderViewModel,
+): Boolean {
     var hasInitialized by rememberSaveable { mutableStateOf(false) }
-    val restoresSavedPositionOnInitialLoad = initialChapterIndex == null || initialTokenIndex == null
-
+    val restoresSavedPosition = initialChapterIndex == null || initialTokenIndex == null
     LaunchedEffect(book) {
         if (!hasInitialized || uiState.chapterData == null) {
             val savedPosition =
-                if (restoresSavedPositionOnInitialLoad || hasInitialized) {
+                if (restoresSavedPosition || hasInitialized) {
                     container.readingPositionRepository.getPosition(BookId(bookId))
                 } else {
                     null
                 }
-            val initialChapter = savedPosition?.chapterIndex ?: initialChapterIndex ?: 0
-            val initialFocus = savedPosition?.tokenIndex ?: initialTokenIndex ?: 0
-            readerViewModel.loadBook(book, initialChapter, initialFocus)
+            readerViewModel.loadBook(
+                book,
+                savedPosition?.chapterIndex ?: initialChapterIndex ?: 0,
+                savedPosition?.tokenIndex ?: initialTokenIndex ?: 0,
+            )
             hasInitialized = true
         }
     }
+    return hasInitialized
+}
 
+@Composable
+private fun ReaderPositionEffects(
+    hasInitialized: Boolean,
+    rsvpResult: ReaderRsvpResult,
+    bookId: String,
+    container: KairoApplication,
+    uiState: ReaderUiState,
+    readerViewModel: ReaderViewModel,
+    readerPositionSaver: ReaderPositionSaver,
+    lifecycleOwner: LifecycleOwner,
+) {
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
-
     LaunchedEffect(lifecycleState) {
-        if (lifecycleState == Lifecycle.State.RESUMED && hasInitialized) {
-            if (rsvpResultChapterIndex >= 0 && safeRsvpResultIndex >= 0) {
-                return@LaunchedEffect
-            }
-            val savedPosition = container.readingPositionRepository.getPosition(BookId(bookId))
-            if (savedPosition != null && savedPosition.chapterIndex == uiState.chapterIndex) {
-                val tokens = uiState.chapterData?.tokens
-                if (tokens != null && savedPosition.tokenIndex != uiState.focusIndex) {
-                    readerViewModel.applyFocusIndex(
-                        savedPosition.tokenIndex.coerceIn(0, tokens.lastIndex)
-                    )
-                }
-            }
+        if (lifecycleState != Lifecycle.State.RESUMED || !hasInitialized) return@LaunchedEffect
+        if (rsvpResult.chapterIndex >= 0 && rsvpResult.safeTokenIndex >= 0) return@LaunchedEffect
+        val savedPosition = container.readingPositionRepository.getPosition(BookId(bookId))
+        val tokens = uiState.chapterData?.tokens
+        if (savedPosition?.chapterIndex == uiState.chapterIndex &&
+            !tokens.isNullOrEmpty() &&
+            savedPosition.tokenIndex != uiState.focusIndex
+        ) {
+            readerViewModel.applyFocusIndex(savedPosition.tokenIndex.coerceIn(0, tokens.lastIndex))
         }
     }
-
     LaunchedEffect(uiState.chapterIndex, uiState.chapterData) {
         if (!hasInitialized) return@LaunchedEffect
-        val tokens = uiState.chapterData?.tokens ?: return@LaunchedEffect
-        if (tokens.isEmpty()) return@LaunchedEffect
+        val tokens = uiState.chapterData?.tokens?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
         val safeIndex = tokens.nearestWordIndex(uiState.focusIndex).coerceIn(0, tokens.lastIndex)
-        val wordIndex = resolveWordIndex(uiState.chapterData?.wordCountByToken, safeIndex)
         readerPositionSaver.saveDebounced(
             ReadingPosition(
                 BookId(bookId),
                 uiState.chapterIndex,
                 safeIndex,
-                wordIndex,
+                resolveWordIndex(uiState.chapterData?.wordCountByToken, safeIndex),
             ),
         )
     }
+}
 
-    val resolvedRsvpConfig = RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
-    val readerEstimatedWpm =
-        rememberReaderEstimatedWpm(
-            baseConfig = resolvedRsvpConfig,
-            fallbackEstimatedWpm = estimatedWpm,
-            dispatcherProvider = dispatcherProvider,
-            languageTag = book.languageTag,
-        )
-    LaunchedEffect(
-        uiState.chapterIndex,
-        uiState.chapterData,
-        uiState.focusIndex,
-        resolvedRsvpConfig,
-    ) {
+@Composable
+private fun PrefetchReaderFrames(
+    hasInitialized: Boolean,
+    uiState: ReaderUiState,
+    config: RsvpConfig,
+    container: KairoApplication,
+    bookId: String,
+) {
+    LaunchedEffect(uiState.chapterIndex, uiState.chapterData, uiState.focusIndex, config) {
         if (!hasInitialized) return@LaunchedEffect
-        val chapterData = uiState.chapterData ?: return@LaunchedEffect
-        if (chapterData.tokens.isEmpty()) return@LaunchedEffect
-        val safeStartIndex =
-            chapterData.tokens.nearestWordIndex(uiState.focusIndex)
-                .coerceIn(0, chapterData.tokens.lastIndex)
+        val tokens = uiState.chapterData?.tokens?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
+        val safeStartIndex = tokens.nearestWordIndex(uiState.focusIndex).coerceIn(0, tokens.lastIndex)
         container.rsvpFrameRepository.prefetchFrames(
             BookId(bookId),
             uiState.chapterIndex,
-            resolvedRsvpConfig,
+            config,
             startIndex = safeStartIndex,
         )
     }
+}
 
-    val focusEnabledInReader = prefs.focusModeEnabled && prefs.focusApplyInReader
-    var lastExplicitFocusIndex by remember(bookId) { mutableIntStateOf(-1) }
-    val readerCallbacks =
-        buildReaderRouteCallbacks(
-            ReaderRouteCallbackDependencies(
-                container = container,
-                navController = navController,
-                prefs = prefs,
-                bookId = bookId,
-                bookIdValue = BookId(bookId),
-                dispatcherProvider = dispatcherProvider,
-                coroutineScope = coroutineScope,
-                lifecycleScope = lifecycleOwner.lifecycleScope,
-                resources = resources,
-                uiState = uiState,
-                effectiveUiState = effectiveUiState,
-                readerViewModel = readerViewModel,
-                readerPositionSaver = readerPositionSaver,
-                getLastExplicitFocusIndex = { lastExplicitFocusIndex },
-                setLastExplicitFocusIndex = { lastExplicitFocusIndex = it },
-                getPendingRsvpLaunchTempoMsPerWord = { pendingRsvpLaunchTempoMs },
-                clearPendingRsvpLaunchTempoMsPerWord = { pendingRsvpLaunchTempoMs = -1L },
-                onShowUserMessage = onShowUserMessage,
-            )
-        )
+private data class ReaderRsvpResult(
+    val chapterIndex: Int,
+    val safeTokenIndex: Int,
+    val resumeCursor: Int,
+    val pendingLaunchTempoMs: Long,
+    val effectiveUiState: ReaderUiState,
+    val clearPendingLaunchTempo: () -> Unit,
+)
 
-    BackHandler(enabled = !tutorialActive) {
-        readerCallbacks.onOpenLibrary()
+@Composable
+private fun rememberReaderRsvpResult(
+    backStackEntry: NavBackStackEntry,
+    bookId: String,
+    uiState: ReaderUiState,
+): ReaderRsvpResult {
+    val resultTokenIndex by
+        remember(backStackEntry) {
+            backStackEntry.savedStateHandle.getStateFlow(KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX, -1)
+        }.collectAsState(initial = -1)
+    val resultChapterIndex by
+        remember(backStackEntry) {
+            backStackEntry.savedStateHandle.getStateFlow(KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX, -1)
+        }.collectAsState(initial = -1)
+    val resultResumeCursor by
+        remember(backStackEntry) {
+            backStackEntry.savedStateHandle.getStateFlow(KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR, -1)
+        }.collectAsState(initial = -1)
+    val resultTempoMs by
+        remember(backStackEntry) {
+            backStackEntry.savedStateHandle.getStateFlow(KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS, -1L)
+        }.collectAsState(initial = -1L)
+    var pendingLaunchTempoMs by rememberSaveable(bookId) { mutableLongStateOf(-1L) }
+    LaunchedEffect(resultTempoMs) {
+        if (resultTempoMs > 0L) {
+            pendingLaunchTempoMs = resultTempoMs
+            backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_TEMPO_MS] = -1L
+        }
     }
-
-    ReaderScreen(
-        book = book,
-        uiState = effectiveUiState,
-        fontSizeSp = prefs.readerFontSizeSp,
-        invertedScroll = prefs.invertedScroll,
-        readerTheme = prefs.readerTheme,
-        textBrightness = prefs.readerTextBrightness,
-        estimatedWpm = readerEstimatedWpm,
-        onFontSizeChange = readerCallbacks.onFontSizeChange,
-        onThemeChange = readerCallbacks.onThemeChange,
-        onTextBrightnessChange = readerCallbacks.onTextBrightnessChange,
-        onInvertedScrollChange = readerCallbacks.onInvertedScrollChange,
-        focusModeEnabled = focusEnabledInReader,
-        onFocusModeEnabledChange = readerCallbacks.onFocusModeEnabledChange,
-        onAddBookmark = readerCallbacks.onAddBookmark,
-        onOpenBookmarks = readerCallbacks.onOpenBookmarks,
-        onOpenLibrary = readerCallbacks.onOpenLibrary,
-        onFocusChange = readerCallbacks.onFocusChange,
-        onPageChange = readerCallbacks.onPageChange,
-        timedReadingMode = prefs.timedReadingMode,
-        onStartTimedReading = readerCallbacks.onStartTimedReading,
-        onSelectTimedReadingMode = readerCallbacks.onSelectTimedReadingMode,
-        onChapterChange = readerCallbacks.onChapterChange,
-        onViewportMetricsChanged = readerCallbacks.onViewportMetricsChanged,
-        tutorialState = tutorialState,
-        onTutorialNext = onTutorialNext,
-        onTutorialPrevious = onTutorialPrevious,
-        onTutorialSkip = onTutorialSkip,
+    val safeTokenIndex = safeRsvpResultTokenIndex(resultTokenIndex, resultChapterIndex, uiState)
+    val effectiveUiState =
+        if (safeTokenIndex >= 0 && resultChapterIndex == uiState.chapterIndex) {
+            uiState.copy(focusIndex = safeTokenIndex)
+        } else {
+            uiState
+        }
+    return ReaderRsvpResult(
+        chapterIndex = resultChapterIndex,
+        safeTokenIndex = safeTokenIndex,
+        resumeCursor = resultResumeCursor,
+        pendingLaunchTempoMs = pendingLaunchTempoMs,
+        effectiveUiState = effectiveUiState,
+        clearPendingLaunchTempo = { pendingLaunchTempoMs = -1L },
     )
+}
+
+private fun safeRsvpResultTokenIndex(
+    resultTokenIndex: Int,
+    resultChapterIndex: Int,
+    uiState: ReaderUiState,
+): Int {
+    if (resultTokenIndex < 0) return resultTokenIndex
+    val tokens = uiState.chapterData?.tokens
+    return if (resultChapterIndex == uiState.chapterIndex && !tokens.isNullOrEmpty()) {
+        tokens.nearestWordIndex(resultTokenIndex)
+    } else {
+        resultTokenIndex.coerceAtLeast(0)
+    }
+}
+
+@Composable
+private fun ApplyReaderRsvpResult(
+    result: ReaderRsvpResult,
+    uiState: ReaderUiState,
+    bookId: String,
+    readerViewModel: ReaderViewModel,
+    readerPositionSaver: ReaderPositionSaver,
+    backStackEntry: NavBackStackEntry,
+) {
+    LaunchedEffect(
+        result.chapterIndex,
+        result.safeTokenIndex,
+        result.resumeCursor,
+        uiState.chapterIndex,
+        uiState.chapterData,
+    ) {
+        if (result.chapterIndex < 0 || result.safeTokenIndex < 0) return@LaunchedEffect
+        if (result.chapterIndex != uiState.chapterIndex) {
+            readerViewModel.loadChapter(result.chapterIndex, result.safeTokenIndex)
+            return@LaunchedEffect
+        }
+        val chapterData = uiState.chapterData ?: return@LaunchedEffect
+        val safeTargetIndex =
+            if (chapterData.tokens.isNotEmpty()) {
+                chapterData.tokens.nearestWordIndex(result.safeTokenIndex).coerceIn(0, chapterData.tokens.lastIndex)
+            } else {
+                result.safeTokenIndex
+            }
+        if (safeTargetIndex != uiState.focusIndex) readerViewModel.applyFocusIndex(safeTargetIndex)
+        readerPositionSaver.saveImmediate(
+            ReadingPosition(
+                BookId(bookId),
+                result.chapterIndex,
+                safeTargetIndex,
+                resolveWordIndex(chapterData.wordCountByToken, safeTargetIndex),
+                rsvpResumeCursor = result.resumeCursor,
+            ),
+        )
+        backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_CHAPTER_INDEX] = -1
+        backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_TOKEN_INDEX] = -1
+        backStackEntry.savedStateHandle[KairoSavedStateKeys.RSVP_RESULT_RESUME_CURSOR] = -1
+    }
 }
 
 private sealed interface ReaderBookLoadState {
@@ -373,9 +444,9 @@ private sealed interface ReaderBookLoadState {
 private fun ReaderMissingBookState(onOpenLibrary: () -> Unit) {
     Box(
         modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(

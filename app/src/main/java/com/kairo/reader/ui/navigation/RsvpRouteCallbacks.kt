@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.navigation
 
 import android.content.res.Resources
@@ -20,7 +22,7 @@ import com.kairo.reader.ui.rsvp.RsvpUiCallbacks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-internal class RsvpRouteCallbackDependencies(
+internal data class RsvpRouteCallbackDependencies(
     val container: KairoApplication,
     val navController: NavHostController,
     val backStackEntry: NavBackStackEntry,

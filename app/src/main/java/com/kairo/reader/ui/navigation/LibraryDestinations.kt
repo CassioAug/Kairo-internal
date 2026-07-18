@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.navigation
 
 import android.net.Uri
@@ -36,18 +38,18 @@ internal fun NavGraphBuilder.libraryDestinations(dependencies: LibraryDestinatio
     composable(
         route = KairoRoutes.LIBRARY_WITH_TAB,
         arguments =
-            listOf(
-                navArgument(KairoRoutes.ARG_LIBRARY_TAB) {
-                    type = NavType.StringType
-                    defaultValue = KairoRoutes.TAB_LIBRARY
-                },
-            ),
+        listOf(
+            navArgument(KairoRoutes.ARG_LIBRARY_TAB) {
+                type = NavType.StringType
+                defaultValue = KairoRoutes.TAB_LIBRARY
+            },
+        ),
     ) { backStackEntry ->
         KairoLibraryDestination(
             dependencies = dependencies,
             initialTabRouteValue =
-                backStackEntry.arguments?.getString(KairoRoutes.ARG_LIBRARY_TAB)
-                    ?: KairoRoutes.TAB_LIBRARY,
+            backStackEntry.arguments?.getString(KairoRoutes.ARG_LIBRARY_TAB)
+                ?: KairoRoutes.TAB_LIBRARY,
         )
     }
 }
@@ -58,18 +60,20 @@ private fun KairoLibraryDestination(
     initialTabRouteValue: String? = null,
 ) {
     LibraryRoute(
-        container = dependencies.container,
-        navController = dependencies.navController,
-        prefs = dependencies.prefs,
-        selectedWpm = dependencies.selectedWpm,
-        importState = dependencies.importState,
-        initialTabRouteValue = initialTabRouteValue,
-        onImportFile = dependencies.onImportFile,
-        onImportUrl = dependencies.onImportUrl,
-        onImportText = dependencies.onImportText,
-        tutorialState = dependencies.tutorialState,
-        onTutorialNext = dependencies.onTutorialNext,
-        onTutorialPrevious = dependencies.onTutorialPrevious,
-        onTutorialSkip = dependencies.onTutorialSkip,
+        LibraryRouteInput(
+            container = dependencies.container,
+            navController = dependencies.navController,
+            prefs = dependencies.prefs,
+            selectedWpm = dependencies.selectedWpm,
+            importState = dependencies.importState,
+            initialTabRouteValue = initialTabRouteValue,
+            onImportFile = dependencies.onImportFile,
+            onImportUrl = dependencies.onImportUrl,
+            onImportText = dependencies.onImportText,
+            tutorialState = dependencies.tutorialState,
+            onTutorialNext = dependencies.onTutorialNext,
+            onTutorialPrevious = dependencies.onTutorialPrevious,
+            onTutorialSkip = dependencies.onTutorialSkip,
+        ),
     )
 }
