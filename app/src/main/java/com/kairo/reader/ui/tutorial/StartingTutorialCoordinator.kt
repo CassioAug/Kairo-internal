@@ -213,14 +213,15 @@ internal fun rememberStartingTutorialCoordinator(
         isImporting,
         availableTutorialLaunchContext,
     ) {
-        if (!prefs.hasSeenStartingTutorial &&
-            !tutorialAutoStarted &&
-            externalImportUri == null &&
-            externalArticleUrl == null &&
-            externalSharedText == null &&
-            !isImporting &&
-            availableTutorialLaunchContext != null
-        ) {
+        val hasNoPendingExternalImport =
+            externalImportUri == null && externalArticleUrl == null && externalSharedText == null
+        val shouldAutoStart =
+            !prefs.hasSeenStartingTutorial &&
+                !tutorialAutoStarted &&
+                hasNoPendingExternalImport &&
+                !isImporting &&
+                availableTutorialLaunchContext != null
+        if (shouldAutoStart) {
             startStartingTutorial()
         }
     }
@@ -228,13 +229,13 @@ internal fun rememberStartingTutorialCoordinator(
     return StartingTutorialCoordinator(
         active = tutorialActive,
         libraryState =
-            tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.LIBRARY },
+        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.LIBRARY },
         settingsState =
-            tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.SETTINGS },
+        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.SETTINGS },
         readerState =
-            tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.READER },
+        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.READER },
         rsvpState =
-            tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.RSVP },
+        tutorialOverlayState?.takeIf { it.step.route == StartingTutorialRoute.RSVP },
         start = ::startStartingTutorial,
         next = { moveStartingTutorial(1) },
         previous = { moveStartingTutorial(-1) },

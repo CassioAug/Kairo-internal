@@ -9,11 +9,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -49,7 +50,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.kairo.reader.R
 
 enum class StartingTutorialRoute { LIBRARY, SETTINGS, READER, RSVP }
@@ -82,11 +82,7 @@ data class StartingTutorialStep(
     @StringRes val bodyRes: Int,
 )
 
-data class StartingTutorialOverlayState(
-    val step: StartingTutorialStep,
-    val index: Int,
-    val totalSteps: Int,
-) {
+data class StartingTutorialOverlayState(val step: StartingTutorialStep, val index: Int, val totalSteps: Int,) {
     val isFirstStep: Boolean = index == 0
     val isLastStep: Boolean = index == totalSteps - 1
 }
@@ -271,7 +267,7 @@ fun StartingTutorialOverlay(
     val screenHeightPx = windowInfo.containerSize.height.toFloat()
     val highlightColor = MaterialTheme.colorScheme.primary
     val cardPlacementPrefersTop =
-        targetBounds != null && targetBounds.center.y > (screenHeightPx * 0.58f)
+        targetBounds != null && targetBounds.center.y > (screenHeightPx * TOP_CARD_PLACEMENT_THRESHOLD)
     val highlightRect =
         targetBounds?.expand(highlightPaddingPx)
             ?.coerceInside(screenWidthPx, screenHeightPx)
@@ -279,13 +275,13 @@ fun StartingTutorialOverlay(
 
     Box(
         modifier =
-            modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = {},
-                ),
+        modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {},
+            ),
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             if (highlightRect == null) {
@@ -331,15 +327,15 @@ fun StartingTutorialOverlay(
 
         Surface(
             modifier =
-                Modifier
-                    .align(
-                        if (cardPlacementPrefersTop) {
-                            Alignment.TopCenter
-                        } else {
-                            Alignment.BottomCenter
-                        },
-                    ).padding(horizontal = 16.dp, vertical = 24.dp)
-                    .fillMaxWidth(),
+            Modifier
+                .align(
+                    if (cardPlacementPrefersTop) {
+                        Alignment.TopCenter
+                    } else {
+                        Alignment.BottomCenter
+                    },
+                ).padding(horizontal = 16.dp, vertical = 24.dp)
+                .fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
             tonalElevation = 6.dp,
@@ -351,11 +347,11 @@ fun StartingTutorialOverlay(
             ) {
                 Text(
                     text =
-                        stringResource(
-                            R.string.starting_tutorial_progress,
-                            state.index + 1,
-                            state.totalSteps,
-                        ),
+                    stringResource(
+                        R.string.starting_tutorial_progress,
+                        state.index + 1,
+                        state.totalSteps,
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -400,6 +396,8 @@ fun StartingTutorialOverlay(
         }
     }
 }
+
+private const val TOP_CARD_PLACEMENT_THRESHOLD = 0.58f
 
 private fun Rect.expand(padding: Float): Rect =
     Rect(
@@ -469,10 +467,10 @@ private fun AnimatedSwipeHint(
             initialValue = -1f,
             targetValue = 1f,
             animationSpec =
-                infiniteRepeatable(
-                    animation = tween(durationMillis = 1150, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
+            infiniteRepeatable(
+                animation = tween(durationMillis = 1150, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
             label = "swipe_offset",
         )
     val offsetDp = 10.dp * offsetProgress.value
@@ -483,8 +481,8 @@ private fun AnimatedSwipeHint(
     ) {
         Box(
             modifier =
-                Modifier
-                    .size(width = 96.dp, height = 52.dp),
+            Modifier
+                .size(width = 96.dp, height = 52.dp),
             contentAlignment = Alignment.Center,
         ) {
             if (axis == TutorialHintAxis.Horizontal) {
@@ -540,10 +538,10 @@ private fun PulsingHoldHint(label: String) {
             initialValue = 0.7f,
             targetValue = 1.25f,
             animationSpec =
-                infiniteRepeatable(
-                    animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Restart,
-                ),
+            infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
             label = "hold_ring_scale",
         )
     val ringAlpha =
@@ -551,10 +549,10 @@ private fun PulsingHoldHint(label: String) {
             initialValue = 0.65f,
             targetValue = 0.05f,
             animationSpec =
-                infiniteRepeatable(
-                    animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Restart,
-                ),
+            infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
             label = "hold_ring_alpha",
         )
     Column(
@@ -567,13 +565,13 @@ private fun PulsingHoldHint(label: String) {
         ) {
             Canvas(
                 modifier =
-                    Modifier
-                        .size(56.dp)
-                        .graphicsLayer {
-                            scaleX = ringScale.value
-                            scaleY = ringScale.value
-                            alpha = ringAlpha.value
-                        },
+                Modifier
+                    .size(56.dp)
+                    .graphicsLayer {
+                        scaleX = ringScale.value
+                        scaleY = ringScale.value
+                        alpha = ringAlpha.value
+                    },
             ) {
                 drawCircle(
                     color = primaryColor,
@@ -601,10 +599,10 @@ private fun AnimatedCloseHint(label: String) {
             initialValue = 0.45f,
             targetValue = 1f,
             animationSpec =
-                infiniteRepeatable(
-                    animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
+            infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
             label = "close_alpha",
         )
     Column(
@@ -620,9 +618,9 @@ private fun AnimatedCloseHint(label: String) {
                 imageVector = Icons.Default.Close,
                 contentDescription = null,
                 modifier =
-                    Modifier
-                        .padding(12.dp)
-                        .graphicsLayer { this.alpha = alpha.value },
+                Modifier
+                    .padding(12.dp)
+                    .graphicsLayer { this.alpha = alpha.value },
                 tint = primaryColor,
             )
         }

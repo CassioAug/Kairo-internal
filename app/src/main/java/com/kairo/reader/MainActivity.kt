@@ -35,11 +35,11 @@ private fun rememberSystemDefaultPreferences(): UserPreferences {
     return remember(isDark) {
         UserPreferences(
             readerTheme =
-                if (isDark) {
-                    ReaderTheme.DARK
-                } else {
-                    ReaderTheme.LIGHT
-                },
+            if (isDark) {
+                ReaderTheme.DARK
+            } else {
+                ReaderTheme.LIGHT
+            },
         )
     }
 }
