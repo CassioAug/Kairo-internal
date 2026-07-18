@@ -19,13 +19,42 @@ internal class EpubContentRewriter {
         val HORIZONTAL_WHITESPACE_REGEX = Regex("[ \\t]+")
         val MULTIPLE_NEWLINES_REGEX = Regex("\\n\\s*\\n+")
         val WHITESPACE_REGEX = Regex("\\s+")
-        val IMG_SRC_REWRITE_REGEX = Regex("(<img\\b[^>]*?\\bsrc\\s*=\\s*['\"])([^'\"]+)(['\"][^>]*>)", RegexOption.IGNORE_CASE)
+        val IMG_SRC_REWRITE_REGEX =
+            Regex(
+                "(<img\\b[^>]*?\\bsrc\\s*=\\s*['\"])" +
+                    "([^'\"]+)(['\"][^>]*>)",
+                RegexOption.IGNORE_CASE,
+            )
         val SVG_IMAGE_REWRITE_REGEX =
-            Regex("(<image\\b[^>]*?\\b(?:xlink:href|href)\\s*=\\s*['\"])([^'\"]+)(['\"][^>]*>)", RegexOption.IGNORE_CASE)
-        val SRCSET_REWRITE_REGEX = Regex("(<(?:img|source)\\b[^>]*?\\bsrcset\\s*=\\s*['\"])([^'\"]+)(['\"][^>]*>)", RegexOption.IGNORE_CASE)
-        val IMAGE_SOURCE_SRC_REGEX = Regex("""<(?:img|source)\b[^>]*?\bsrc\s*=\s*(['"])(.*?)\1""", RegexOption.IGNORE_CASE)
-        val IMAGE_SOURCE_SRCSET_REGEX = Regex("""<(?:img|source)\b[^>]*?\bsrcset\s*=\s*(['"])(.*?)\1""", RegexOption.IGNORE_CASE)
-        val SVG_IMAGE_HREF_REGEX = Regex("""<image\b[^>]*?\b(?:xlink:href|href)\s*=\s*(['"])(.*?)\1""", RegexOption.IGNORE_CASE)
+            Regex(
+                "(<image\\b[^>]*?\\b(?:xlink:href|href)\\s*=\\s*['\"])" +
+                    "([^'\"]+)(['\"][^>]*>)",
+                RegexOption.IGNORE_CASE,
+            )
+        val SRCSET_REWRITE_REGEX =
+            Regex(
+                "(<(?:img|source)\\b[^>]*?\\bsrcset\\s*=\\s*['\"])" +
+                    "([^'\"]+)(['\"][^>]*>)",
+                RegexOption.IGNORE_CASE,
+            )
+        val IMAGE_SOURCE_SRC_REGEX =
+            Regex(
+                """<(?:img|source)\b[^>]*?\bsrc\s*=""" +
+                    """\s*(['"])(.*?)\1""",
+                RegexOption.IGNORE_CASE,
+            )
+        val IMAGE_SOURCE_SRCSET_REGEX =
+            Regex(
+                """<(?:img|source)\b[^>]*?\bsrcset\s*=""" +
+                    """\s*(['"])(.*?)\1""",
+                RegexOption.IGNORE_CASE,
+            )
+        val SVG_IMAGE_HREF_REGEX =
+            Regex(
+                """<image\b[^>]*?\b(?:xlink:href|href)\s*=""" +
+                    """\s*(['"])(.*?)\1""",
+                RegexOption.IGNORE_CASE,
+            )
         val ANCHOR_TAG_REGEX = Regex("<a\\b", RegexOption.IGNORE_CASE)
         val ANCHOR_HREF_REGEX = Regex("(<a\\b[^>]*href\\s*=\\s*['\"])([^'\"]+)(['\"][^>]*>)", RegexOption.IGNORE_CASE)
         val BLOCK_ELEMENT_REGEX = Regex("(?is)<(h[1-6]|p|div)[^>]*>([\\s\\S]*?)</\\1>")
@@ -42,26 +71,12 @@ internal class EpubContentRewriter {
         imageRelativePathByEpubPathLower: Map<String, String>,
         chapterSrcs: List<String>? = null,
     ): List<String> {
-        val unique = LinkedHashSet<String>()
         val srcs = chapterSrcs ?: extractImageSrcs(html)
-        for (rawSrc in srcs) {
-            val hrefParts = splitHrefParts(rawSrc)
-            val src = sanitizeSrc(hrefParts.path)
-            if (src.isBlank()) continue
-            if (src.startsWith("data:", ignoreCase = true)) continue
-            if (src.startsWith("http://", ignoreCase = true) ||
-                src.startsWith("https://", ignoreCase = true)
-            ) {
-                continue
-            }
-
-            val resolvedLower =
-                resolveZipEntryKey(baseDir, src, imageRelativePathByEpubPathLower.keys)
-                    ?: continue
-            val relativePath = imageRelativePathByEpubPathLower[resolvedLower] ?: continue
-            unique.add(relativePath)
-        }
-        return unique.toList()
+        return srcs.mapNotNull { rawSrc ->
+            rewriteImageReference(rawSrc, baseDir, imageRelativePathByEpubPathLower)
+                ?.substringBefore('#')
+                ?.substringBefore('?')
+        }.distinct()
     }
 
     data class HrefParts(val path: String, val suffix: String, val fragment: String,)
@@ -140,12 +155,20 @@ internal class EpubContentRewriter {
         val rewrittenImgSrc =
             IMG_SRC_REWRITE_REGEX.replace(html) { match ->
                 val rewritten = rewriteImageReference(match.groupValues[2], baseDir, imageRelativePathByEpubPathLower)
-                if (rewritten == null) match.value else "${match.groupValues[1]}$rewritten${match.groupValues[3]}"
+                if (rewritten == null) {
+                    match.value
+                } else {
+                    "${match.groupValues[1]}$rewritten${match.groupValues[REGEX_SUFFIX_GROUP]}"
+                }
             }
         val rewrittenSvgHref =
             SVG_IMAGE_REWRITE_REGEX.replace(rewrittenImgSrc) { match ->
                 val rewritten = rewriteImageReference(match.groupValues[2], baseDir, imageRelativePathByEpubPathLower)
-                if (rewritten == null) match.value else "${match.groupValues[1]}$rewritten${match.groupValues[3]}"
+                if (rewritten == null) {
+                    match.value
+                } else {
+                    "${match.groupValues[1]}$rewritten${match.groupValues[REGEX_SUFFIX_GROUP]}"
+                }
             }
         return SRCSET_REWRITE_REGEX.replace(rewrittenSvgHref) { match ->
             val rewrittenSrcset =
@@ -154,7 +177,7 @@ internal class EpubContentRewriter {
                     baseDir = baseDir,
                     imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
                 )
-            "${match.groupValues[1]}$rewrittenSrcset${match.groupValues[3]}"
+            "${match.groupValues[1]}$rewrittenSrcset${match.groupValues[REGEX_SUFFIX_GROUP]}"
         }
     }
 
@@ -165,21 +188,18 @@ internal class EpubContentRewriter {
     ): String? {
         val hrefParts = splitHrefParts(rawSrc)
         val src = sanitizeSrc(hrefParts.path)
-        if (src.isBlank()) return null
-        if (src.startsWith("data:", ignoreCase = true)) return null
-        if (src.startsWith("http://", ignoreCase = true) ||
-            src.startsWith("https://", ignoreCase = true)
-        ) {
-            return null
-        }
-        if (src.startsWith("kairo_epub_assets/")) return null
-
-        val resolvedLower =
+        val isExternal =
+            src.startsWith("data:", ignoreCase = true) ||
+                src.startsWith("http://", ignoreCase = true) ||
+                src.startsWith("https://", ignoreCase = true) ||
+                src.startsWith("kairo_epub_assets/")
+        return if (src.isBlank() || isExternal) {
+            null
+        } else {
             resolveZipEntryKey(baseDir, src, imageRelativePathByEpubPathLower.keys)
-                ?: return null
-        val relativePath =
-            imageRelativePathByEpubPathLower[resolvedLower] ?: return null
-        return relativePath + hrefParts.suffix
+                ?.let(imageRelativePathByEpubPathLower::get)
+                ?.plus(hrefParts.suffix)
+        }
     }
 
     private fun rewriteSrcset(
@@ -264,7 +284,7 @@ internal class EpubContentRewriter {
                     .replace(WHITESPACE_REGEX, " ")
                     .trim()
             if (heading.isNotBlank()) {
-                return heading.take(100) // Limit title length
+                return heading.take(MAX_CHAPTER_TITLE_LENGTH)
             }
         }
 
@@ -343,8 +363,8 @@ internal class EpubContentRewriter {
         val numberedMatch = FILE_LABEL_WITH_NUMBER_REGEX.matchEntire(compact)
         if (numberedMatch != null) {
             val zeros = numberedMatch.groupValues[2]
-            val digits = numberedMatch.groupValues[3]
-            if (zeros.isNotEmpty() || digits.length >= 3) return true
+            val digits = numberedMatch.groupValues[REGEX_SUFFIX_GROUP]
+            if (zeros.isNotEmpty() || digits.length >= MIN_UNPADDED_FILE_NUMBER_DIGITS) return true
         }
         return GENERIC_FILE_LABEL_REGEX.matches(compact)
     }
@@ -368,7 +388,7 @@ internal class EpubContentRewriter {
         return ANCHOR_HREF_REGEX.replace(html) { match ->
             val prefix = match.groupValues[1]
             val href = decodeHtmlEntities(match.groupValues[2]).trim()
-            val suffix = match.groupValues[3]
+            val suffix = match.groupValues[REGEX_SUFFIX_GROUP]
 
             // Skip external links and data URIs
             if (href.startsWith("http://", true) ||
@@ -429,3 +449,7 @@ internal class EpubContentRewriter {
     private fun resolveZipEntryKey(baseDir: String, rawHref: String, available: Set<String>): String? =
         EpubPathResolver.resolveZipEntryKey(baseDir, rawHref, available)
 }
+
+private const val REGEX_SUFFIX_GROUP = 3
+private const val MAX_CHAPTER_TITLE_LENGTH = 100
+private const val MIN_UNPADDED_FILE_NUMBER_DIGITS = 3

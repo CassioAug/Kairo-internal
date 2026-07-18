@@ -79,6 +79,11 @@ internal class EpubMarkupTest : EpubParserTestBase() {
 
     @Test
     fun extractPlainTextPreservesLeadingWordsAfterAnchorImageAndDropCap() {
+        val openingParagraph =
+            "<p class=\"para-pf\"><span class=\"char-first\">T" +
+                "<span class=\"smallcaps\">HE WOMAN WHO DISCOVERED THE </span>" +
+                "</span>comet, Yumiko Sakamoto, age twenty-eight, " +
+                "was an amateur astronomer.</p>"
         val html =
             """
             <html xmlns="http://www.w3.org/1999/xhtml">
@@ -91,7 +96,7 @@ internal class EpubMarkupTest : EpubParserTestBase() {
                       <img alt="Prelude The Comet" class="image" src="../images/chapter.jpg"/>
                     </div>
                   </div>
-                  <p class="para-pf"><span class="char-first">T<span class="smallcaps">HE WOMAN WHO DISCOVERED THE </span></span>comet, Yumiko Sakamoto, age twenty-eight, was an amateur astronomer.</p>
+                  $openingParagraph
                   <p class="para-p">The discovery changed her life.</p>
                 </div>
               </body>
@@ -110,9 +115,9 @@ internal class EpubMarkupTest : EpubParserTestBase() {
     @Test
     fun extractPlainTextPreservesLeadingWordsAfterSelfClosingClassPageBreak() {
         val html =
-            """
-            <p><span class="pagebreak" id="page_3"/><span class="char-first">T<span class="smallcaps">HE OPENING WORDS </span></span>remain intact.</p>
-            """.trimIndent()
+            "<p><span class=\"pagebreak\" id=\"page_3\"/>" +
+                "<span class=\"char-first\">T<span class=\"smallcaps\">" +
+                "HE OPENING WORDS </span></span>remain intact.</p>"
 
         val text = contentRewriter.extractPlainText(html)
 

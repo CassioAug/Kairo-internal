@@ -1,8 +1,6 @@
 package com.kairo.reader.data.books
 
-internal class EpubMarkupParser(
-    private val tokenizer: EpubMarkupTokenizer = EpubMarkupTokenizer(),
-) {
+internal class EpubMarkupParser(private val tokenizer: EpubMarkupTokenizer = EpubMarkupTokenizer(),) {
     companion object {
         private val VOID_ELEMENTS =
             setOf(

@@ -14,6 +14,13 @@ internal class EpubNavigationClassifier(private val contentRewriter: EpubContent
         const val MIN_SUBSTANTIAL_CHAPTER_WORDS = 80
         const val NAVIGATION_TITLE_SCAN_CHARS = 400
         const val NAVIGATION_WORD_SCAN_LIMIT = 601
+        const val PATH_NAV_MIN_ANCHORS = 6
+        const val PATH_NAV_MAX_WORDS = 600
+        const val DENSE_NAV_MIN_ANCHORS = 20
+        const val DENSE_NAV_MAX_WORDS = 220
+        const val LINK_HEAVY_NAV_MIN_ANCHORS = 12
+        const val LINK_HEAVY_NAV_MIN_DENSITY = 0.18
+        const val LINK_HEAVY_NAV_MAX_WORDS = 420
         val TOC_TITLE_PATTERNS =
             listOf(
                 Regex("\\btable\\s+of\\s+contents\\b", RegexOption.IGNORE_CASE),
@@ -85,13 +92,19 @@ internal class EpubNavigationClassifier(private val contentRewriter: EpubContent
                 anchorCount.toDouble()
             }
 
-        if ((fileLooksLikeNav || looksLikeTocTitle) && anchorCount >= 6 && estimatedWords <= 600) {
+        if ((fileLooksLikeNav || looksLikeTocTitle) &&
+            anchorCount >= PATH_NAV_MIN_ANCHORS &&
+            estimatedWords <= PATH_NAV_MAX_WORDS
+        ) {
             return true
         }
-        if (anchorCount >= 20 && estimatedWords <= 220) {
+        if (anchorCount >= DENSE_NAV_MIN_ANCHORS && estimatedWords <= DENSE_NAV_MAX_WORDS) {
             return true
         }
-        if (anchorCount >= 12 && anchorDensity >= 0.18 && estimatedWords <= 420) {
+        if (anchorCount >= LINK_HEAVY_NAV_MIN_ANCHORS &&
+            anchorDensity >= LINK_HEAVY_NAV_MIN_DENSITY &&
+            estimatedWords <= LINK_HEAVY_NAV_MAX_WORDS
+        ) {
             return true
         }
         return false

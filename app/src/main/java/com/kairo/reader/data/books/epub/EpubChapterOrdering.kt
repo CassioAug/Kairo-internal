@@ -9,11 +9,7 @@ internal enum class ChapterOrderSource {
     ZIP_FALLBACK,
 }
 
-internal data class ChapterOrderResolution(
-    val paths: List<String>,
-    val source: ChapterOrderSource,
-    val unresolvedSpineCount: Int,
-)
+internal data class ChapterOrderResolution(val paths: List<String>, val source: ChapterOrderSource, val unresolvedSpineCount: Int,)
 
 internal object EpubChapterOrdering {
     private val navigationFileBasenames =

@@ -4,24 +4,21 @@ import java.util.Locale
 
 internal sealed interface EpubMarkupToken
 
-internal data class EpubStartTagToken(
-    val name: String,
-    val attributes: Map<String, String>,
-    val selfClosing: Boolean,
-) : EpubMarkupToken
+internal data class EpubStartTagToken(val name: String, val attributes: Map<String, String>, val selfClosing: Boolean,) : EpubMarkupToken
 
-internal data class EpubEndTagToken(
-    val name: String,
-) : EpubMarkupToken
+internal data class EpubEndTagToken(val name: String,) : EpubMarkupToken
 
-internal data class EpubTextToken(
-    val text: String,
-) : EpubMarkupToken
+internal data class EpubTextToken(val text: String,) : EpubMarkupToken
 
 internal class EpubMarkupTokenizer {
     companion object {
         private val ATTRIBUTE_REGEX =
             Regex("""([A-Za-z_:][A-Za-z0-9_:\-\.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?""")
+        private const val COMMENT_OPEN_LENGTH = 4
+        private const val COMMENT_CLOSE_LENGTH = 3
+        private const val DOUBLE_QUOTED_VALUE_GROUP = 2
+        private const val SINGLE_QUOTED_VALUE_GROUP = 3
+        private const val UNQUOTED_VALUE_GROUP = 4
     }
 
     fun tokenize(input: String): List<EpubMarkupToken> {
@@ -42,8 +39,8 @@ internal class EpubMarkupTokenizer {
             }
 
             if (input.startsWith("<!--", openIndex)) {
-                val closeComment = input.indexOf("-->", openIndex + 4)
-                index = if (closeComment == -1) input.length else closeComment + 3
+                val closeComment = input.indexOf("-->", openIndex + COMMENT_OPEN_LENGTH)
+                index = if (closeComment == -1) input.length else closeComment + COMMENT_CLOSE_LENGTH
                 continue
             }
 
@@ -118,9 +115,12 @@ internal class EpubMarkupTokenizer {
 
             val value =
                 when {
-                    match.groupValues[2].isNotEmpty() -> match.groupValues[2]
-                    match.groupValues[3].isNotEmpty() -> match.groupValues[3]
-                    match.groupValues[4].isNotEmpty() -> match.groupValues[4]
+                    match.groupValues[DOUBLE_QUOTED_VALUE_GROUP].isNotEmpty() ->
+                        match.groupValues[DOUBLE_QUOTED_VALUE_GROUP]
+                    match.groupValues[SINGLE_QUOTED_VALUE_GROUP].isNotEmpty() ->
+                        match.groupValues[SINGLE_QUOTED_VALUE_GROUP]
+                    match.groupValues[UNQUOTED_VALUE_GROUP].isNotEmpty() ->
+                        match.groupValues[UNQUOTED_VALUE_GROUP]
                     else -> ""
                 }
 

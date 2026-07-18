@@ -174,7 +174,7 @@ internal object EpubPathResolver {
             "content.opf" -> 0
             "package.opf" -> 1
             "book.opf" -> 2
-            else -> 3
+            else -> DEFAULT_PACKAGE_PRIORITY
         }
     }
 
@@ -202,11 +202,11 @@ internal object EpubPathResolver {
                 val decodedBytes = ArrayList<Byte>()
                 var cursor = index
                 while (cursor + 2 < input.length && input[cursor] == '%') {
-                    val hi = input[cursor + 1].digitToIntOrNull(16)
-                    val lo = input[cursor + 2].digitToIntOrNull(16)
+                    val hi = input[cursor + 1].digitToIntOrNull(HEX_RADIX)
+                    val lo = input[cursor + 2].digitToIntOrNull(HEX_RADIX)
                     if (hi == null || lo == null) break
-                    decodedBytes.add(((hi shl 4) + lo).toByte())
-                    cursor += 3
+                    decodedBytes.add(((hi shl HEX_NIBBLE_BITS) + lo).toByte())
+                    cursor += URL_ESCAPE_LENGTH
                 }
                 if (decodedBytes.isNotEmpty()) {
                     out.append(decodedBytes.toByteArray().toString(Charsets.UTF_8))
@@ -224,12 +224,12 @@ internal object EpubPathResolver {
         val bytes = input.toByteArray(Charsets.UTF_8)
         val sb = StringBuilder(bytes.size * 2)
         bytes.forEach { byte ->
-            val intVal = byte.toInt() and 0xFF
+            val intVal = byte.toInt() and BYTE_MASK
             if (isUnreservedAscii(intVal)) {
                 sb.append(intVal.toChar())
             } else {
                 sb.append('%')
-                sb.append(intVal.toString(16).uppercase(Locale.ROOT).padStart(2, '0'))
+                sb.append(intVal.toString(HEX_RADIX).uppercase(Locale.ROOT).padStart(2, '0'))
             }
         }
         return sb.toString()
@@ -245,4 +245,10 @@ internal object EpubPathResolver {
             codePoint == '~'.code ||
             codePoint == '/'.code
     }
+
+    private const val BYTE_MASK = 0xFF
+    private const val HEX_RADIX = 16
+    private const val HEX_NIBBLE_BITS = 4
+    private const val URL_ESCAPE_LENGTH = 3
+    private const val DEFAULT_PACKAGE_PRIORITY = 3
 }

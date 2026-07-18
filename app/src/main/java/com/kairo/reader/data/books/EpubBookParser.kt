@@ -55,7 +55,6 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
         // Buffer size for reading entries
         private const val BUFFER_SIZE = 8192
-
     }
 
     private val contentRewriter = EpubContentRewriter()
@@ -491,23 +490,30 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
         val entries = mutableMapOf<String, ByteArray>()
         context.contentResolver.openInputStream(uri)?.use { inputStream ->
             ZipInputStream(inputStream).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    if (!entry.isDirectory) {
-                        val nameLower = normalizeZipEntryNameLower(entry.name)
-                        if (isChapterCandidateEntry(nameLower) && !skippedEntriesLower.contains(nameLower)) {
-                            val bytes = readEntryWithLimit(zip, MAX_ENTRY_SIZE)
-                            if (bytes != null) {
-                                entries[nameLower] = bytes
-                            }
-                        }
-                    }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
-                }
+                readChapterEntries(zip, skippedEntriesLower, entries)
             }
         }
         return entries
+    }
+
+    private fun readChapterEntries(
+        zip: ZipInputStream,
+        skippedEntriesLower: Set<String>,
+        entries: MutableMap<String, ByteArray>,
+    ) {
+        var entry = zip.nextEntry
+        while (entry != null) {
+            val nameLower = normalizeZipEntryNameLower(entry.name)
+            val shouldRead =
+                !entry.isDirectory &&
+                    isChapterCandidateEntry(nameLower) &&
+                    nameLower !in skippedEntriesLower
+            if (shouldRead) {
+                readEntryWithLimit(zip, MAX_ENTRY_SIZE)?.let { entries[nameLower] = it }
+            }
+            zip.closeEntry()
+            entry = zip.nextEntry
+        }
     }
 
     private fun resolveCoverFallbackImage(
@@ -556,18 +562,23 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
     ): ByteArray? {
         context.contentResolver.openInputStream(uri)?.use { inputStream ->
             ZipInputStream(inputStream).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    if (!entry.isDirectory) {
-                        val nameLower = normalizeZipEntryNameLower(entry.name)
-                        if (nameLower == targetLower) {
-                            return readEntryWithLimit(zip, MAX_COVER_IMAGE_ENTRY_SIZE)
-                        }
-                    }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
-                }
+                return findZipEntryBytes(zip, targetLower)
             }
+        }
+        return null
+    }
+
+    private fun findZipEntryBytes(
+        zip: ZipInputStream,
+        targetLower: String,
+    ): ByteArray? {
+        var entry = zip.nextEntry
+        while (entry != null) {
+            if (!entry.isDirectory && normalizeZipEntryNameLower(entry.name) == targetLower) {
+                return readEntryWithLimit(zip, MAX_COVER_IMAGE_ENTRY_SIZE)
+            }
+            zip.closeEntry()
+            entry = zip.nextEntry
         }
         return null
     }
@@ -583,7 +594,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
     private fun buildImageFileName(epubPathLower: String): String {
         val extRaw = epubPathLower.substringAfterLast('.', missingDelimiterValue = "")
-        val ext = extRaw.take(10).filter { it.isLetterOrDigit() }
+        val ext = extRaw.take(MAX_SAFE_EXTENSION_LENGTH).filter { it.isLetterOrDigit() }
         val base = UUID.nameUUIDFromBytes(epubPathLower.toByteArray(Charsets.UTF_8)).toString()
         return if (ext.isNotEmpty()) "img_$base.$ext" else "img_$base"
     }
@@ -640,3 +651,5 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
     private fun decodeTextEntry(bytes: ByteArray): String = EpubTextDecoder.decodeTextEntry(bytes)
 }
+
+private const val MAX_SAFE_EXTENSION_LENGTH = 10
