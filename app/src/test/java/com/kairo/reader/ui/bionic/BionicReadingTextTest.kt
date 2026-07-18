@@ -229,12 +229,12 @@ class BionicReadingTextTest {
             BoundaryBefore.SENTENCE,
             bionicBoundaryBefore(
                 tokens =
-                    listOf(
-                        word("Done"),
-                        punctuation("."),
-                        punctuation("\u201D"),
-                        word("Next"),
-                    ),
+                listOf(
+                    word("Done"),
+                    punctuation("."),
+                    punctuation("\u201D"),
+                    word("Next"),
+                ),
                 endTokenIndexExclusive = 3,
             ),
         )

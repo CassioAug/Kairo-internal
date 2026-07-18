@@ -36,16 +36,9 @@ private data class BionicChunkSplit(
     val boundary: BoundaryBefore,
 )
 
-private data class BionicMeasuredSplit(
-    val split: BionicChunkSplit,
-    val wordCount: Int,
-    val characterCount: Int,
-)
+private data class BionicMeasuredSplit(val split: BionicChunkSplit, val wordCount: Int, val characterCount: Int,)
 
-private data class BionicTokenMetrics(
-    val wordPrefix: IntArray,
-    val characterPrefix: IntArray,
-)
+private data class BionicTokenMetrics(val wordPrefix: IntArray, val characterPrefix: IntArray,)
 
 private data class BionicChunkSelectionContext(
     val metrics: BionicTokenMetrics,
@@ -90,13 +83,13 @@ internal fun buildBionicTextChunks(
                 splits = splits,
                 startSplitIndex = splitCursor,
                 context =
-                    BionicChunkSelectionContext(
-                        metrics = tokenMetrics,
-                        startTokenIndex = chunkStartToken,
-                        targetWordCount = target,
-                        maximumWordCount = visualMaximum,
-                        maximumCharacterCount = visualCharacterMaximum,
-                    ),
+                BionicChunkSelectionContext(
+                    metrics = tokenMetrics,
+                    startTokenIndex = chunkStartToken,
+                    targetWordCount = target,
+                    maximumWordCount = visualMaximum,
+                    maximumCharacterCount = visualCharacterMaximum,
+                ),
             )
         val safeStartToken = chunkStartToken.coerceIn(0, tokens.size)
         val safeEndToken =
@@ -137,9 +130,9 @@ private fun buildBionicTokenMetrics(tokens: List<Token>): BionicTokenMetrics {
             }
         characterPrefix[index + 1] =
             characterPrefix[index] +
-                token.text.codePointCount(0, token.text.length) +
-                spacingWeight +
-                breakWeight
+            token.text.codePointCount(0, token.text.length) +
+            spacingWeight +
+            breakWeight
     }
     return BionicTokenMetrics(wordPrefix = wordPrefix, characterPrefix = characterPrefix)
 }
@@ -182,11 +175,11 @@ private fun buildBionicChunkSplits(
                     nextStartFrameIndex = nextFrameIndex,
                     nextStartTokenIndex = nextReadableFrame.safeDisplayStart(tokens.size),
                     boundary =
-                        if (nextFrame.tokens.any { it.type == TokenType.PAGE_BREAK }) {
-                            BoundaryBefore.PAGE
-                        } else {
-                            BoundaryBefore.PARAGRAPH
-                        },
+                    if (nextFrame.tokens.any { it.type == TokenType.PAGE_BREAK }) {
+                        BoundaryBefore.PAGE
+                    } else {
+                        BoundaryBefore.PARAGRAPH
+                    },
                 )
             return@forEachIndexed
         }
@@ -258,8 +251,10 @@ private fun chooseBionicChunkSplit(
         closest(
             fittingCandidates.filter { candidate ->
                 candidate.wordCount >= paragraphMinimum &&
-                    (candidate.split.boundary == BoundaryBefore.PAGE ||
-                        candidate.split.boundary == BoundaryBefore.PARAGRAPH)
+                    (
+                        candidate.split.boundary == BoundaryBefore.PAGE ||
+                            candidate.split.boundary == BoundaryBefore.PARAGRAPH
+                        )
             },
         )
     val sentence =
