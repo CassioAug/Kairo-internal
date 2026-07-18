@@ -4,11 +4,13 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpConfigConstraints as Constraints
 import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.model.RsvpCustomProfile
 import com.kairo.reader.core.model.RsvpProfile
 import com.kairo.reader.core.model.RsvpProfileIds
 import com.kairo.reader.core.model.defaultConfig
+import com.kairo.reader.core.rsvp.MILLISECONDS_PER_MINUTE
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 
 internal class RsvpConfigPreferenceCodec(private val keys: PrefKeys, private val profileJsonCodec: RsvpProfileJsonCodec,) {
@@ -175,7 +177,8 @@ internal class RsvpConfigPreferenceCodec(private val keys: PrefKeys, private val
                         defaultTempoMs = defaults.tempoMsPerWord,
                     )
                 ).coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
-        val baseWpm = (60_000.0 / tempoMsPerWord.toDouble()).toInt().coerceAtLeast(1)
+        val baseWpm =
+            (MILLISECONDS_PER_MINUTE / tempoMsPerWord.toDouble()).toInt().coerceAtLeast(1)
         return TimingInfo(tempoMsPerWord = tempoMsPerWord, baseWpm = baseWpm)
     }
 
@@ -501,30 +504,20 @@ internal class RsvpConfigPreferenceCodec(private val keys: PrefKeys, private val
     }
 
     private fun normalizeClausePauseFactor(value: Double?, fallback: Double): Double =
-        (value?.takeIf { it.isFinite() } ?: fallback).coerceIn(1.0, 1.6)
+        (value?.takeIf { it.isFinite() } ?: fallback).coerceIn(
+            Constraints.MIN_CLAUSE_PAUSE_FACTOR,
+            Constraints.MAX_CLAUSE_PAUSE_FACTOR,
+        )
 
     private fun normalizeClausePauseFactor(value: Double, fallback: Double): Double =
         normalizeClausePauseFactor(value.takeIf { it.isFinite() }, fallback)
 
     private fun normalizeProsodyStrength(value: Double?, fallback: Double): Double =
-        (value?.takeIf { it.isFinite() } ?: fallback).coerceIn(0.0, 1.6)
+        (value?.takeIf { it.isFinite() } ?: fallback).coerceIn(
+            Constraints.MIN_PROSODY_STRENGTH,
+            Constraints.MAX_PROSODY_STRENGTH,
+        )
 
     private fun normalizeProsodyStrength(value: Double, fallback: Double): Double =
         normalizeProsodyStrength(value.takeIf { it.isFinite() }, fallback)
-
-    private fun normalizeProfileId(raw: String): String {
-        val trimmed = raw.trim()
-        if (trimmed.isBlank() || trimmed == "CUSTOM") return RsvpProfileIds.CUSTOM_UNSAVED
-        runCatching { RsvpProfile.valueOf(trimmed) }.getOrNull()?.let { parsed ->
-            return RsvpProfileIds.builtIn(parsed)
-        }
-        return if (trimmed.startsWith("builtin:") ||
-            trimmed.startsWith("user:") ||
-            trimmed == RsvpProfileIds.CUSTOM_UNSAVED
-        ) {
-            trimmed
-        } else {
-            RsvpProfileIds.CUSTOM_UNSAVED
-        }
-    }
 }

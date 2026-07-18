@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.Preferences
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpProfile
 import com.kairo.reader.core.model.RsvpProfileIds
+import com.kairo.reader.core.rsvp.MILLISECONDS_PER_MINUTE
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 
 internal fun <T> Preferences.readOrDefault(
@@ -16,7 +17,7 @@ internal fun legacyWpmToTempoMs(legacyWpm: Int?, defaultTempoMs: Long): Long =
         legacyWpm == null -> defaultTempoMs
         legacyWpm <= 0 -> defaultTempoMs
         else ->
-            (60_000.0 / legacyWpm.toDouble())
+            (MILLISECONDS_PER_MINUTE / legacyWpm.toDouble())
                 .toLong()
                 .coerceAtLeast(RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD)
     }
