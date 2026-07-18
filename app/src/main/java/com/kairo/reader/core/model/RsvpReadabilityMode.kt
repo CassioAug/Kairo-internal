@@ -21,24 +21,25 @@ fun RsvpConfig.effectiveBlinkMode(tempoMs: Long = this.tempoMsPerWord): BlinkMod
         else -> blinkMode
     }
 
-fun RsvpConfig.prefersSimplifiedOrpDisplay(tempoMs: Long = this.tempoMsPerWord): Boolean =
-    false
-
 fun RsvpConfig.speedNarrowingFactor(tempoMs: Long = this.tempoMsPerWord): Double {
     val normalizedTempo = tempoMs.coerceAtLeast(MIN_SPEED_TEMPO_MS_PER_WORD)
     return when (readabilityMode(normalizedTempo)) {
         RsvpReadabilityMode.STANDARD -> 1.0
         RsvpReadabilityMode.HIGH_SPEED -> {
             val fraction =
-                ((HIGH_SPEED_TEMPO_MS - normalizedTempo).toDouble() /
-                    (HIGH_SPEED_TEMPO_MS - EXTREME_SPEED_TEMPO_MS).toDouble())
+                (
+                    (HIGH_SPEED_TEMPO_MS - normalizedTempo).toDouble() /
+                        (HIGH_SPEED_TEMPO_MS - EXTREME_SPEED_TEMPO_MS).toDouble()
+                    )
                     .coerceIn(0.0, 1.0)
             lerp(1.0, HIGH_SPEED_NARROWING_FACTOR, fraction)
         }
         RsvpReadabilityMode.EXTREME -> {
             val fraction =
-                ((EXTREME_SPEED_TEMPO_MS - normalizedTempo).toDouble() /
-                    (EXTREME_SPEED_TEMPO_MS - MIN_SPEED_TEMPO_MS_PER_WORD).toDouble())
+                (
+                    (EXTREME_SPEED_TEMPO_MS - normalizedTempo).toDouble() /
+                        (EXTREME_SPEED_TEMPO_MS - MIN_SPEED_TEMPO_MS_PER_WORD).toDouble()
+                    )
                     .coerceIn(0.0, 1.0)
             lerp(HIGH_SPEED_NARROWING_FACTOR, EXTREME_NARROWING_FACTOR, fraction)
         }
@@ -62,8 +63,8 @@ fun RsvpConfig.wordFloorMsForReadability(
     val scaledBase = (base.toDouble() * speedNarrowingFactor(tempoMs)).roundToLong()
     val bonus =
         when (readabilityMode(tempoMs)) {
-            RsvpReadabilityMode.EXTREME -> if (word.isSubwordChunk) 6L else 2L
-            RsvpReadabilityMode.HIGH_SPEED -> if (word.isSubwordChunk) 4L else 1L
+            RsvpReadabilityMode.EXTREME -> if (word.isSubwordChunk) EXTREME_SUBWORD_BONUS_MS else 2L
+            RsvpReadabilityMode.HIGH_SPEED -> if (word.isSubwordChunk) HIGH_SPEED_SUBWORD_BONUS_MS else 1L
             RsvpReadabilityMode.STANDARD -> 0L
         }
     return scaledBase + bonus
@@ -74,6 +75,8 @@ private const val EXTREME_SPEED_TEMPO_MS = 62L
 private const val MIN_SPEED_TEMPO_MS_PER_WORD = 3L
 private const val HIGH_SPEED_NARROWING_FACTOR = 0.82
 private const val EXTREME_NARROWING_FACTOR = 0.64
+private const val EXTREME_SUBWORD_BONUS_MS = 6L
+private const val HIGH_SPEED_SUBWORD_BONUS_MS = 4L
 
 private fun lerp(start: Double, end: Double, fraction: Double): Double =
     start + ((end - start) * fraction)

@@ -56,7 +56,8 @@ fun isSentenceEndingPunctuation(char: Char): Boolean =
     char == '.' ||
         char == '!' ||
         char == '?' ||
-        char == '\u2026' || // Include ellipsis …
+        char == '\u2026' ||
+        // Include ellipsis …
         char == '。' ||
         char == '！' ||
         char == '？' ||
@@ -155,9 +156,11 @@ fun calculatePause(
             )
         TokenType.PAGE_BREAK -> max(
             (config.paragraphPauseMs * config.pageBreakPauseMultiplier).toLong(),
-            (max(config.sentenceEndPauseMs, config.periodPauseMs) *
-                config.pageBreakPauseMultiplier *
-                0.85).toLong(),
+            (
+                max(config.sentenceEndPauseMs, config.periodPauseMs) *
+                    config.pageBreakPauseMultiplier *
+                    0.85
+                ).toLong(),
         )
         TokenType.PUNCTUATION -> max(60L, (config.paragraphPauseMs * 0.4).toLong())
         TokenType.WORD -> 0L
