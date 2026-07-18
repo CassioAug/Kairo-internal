@@ -148,23 +148,20 @@ internal fun InlineImageBlock(
                 intrinsicSize = state.painter.intrinsicSize
             },
             modifier =
-                imageModifier
-                    .align(Alignment.Center)
-                    .then(longPressModifier),
+            imageModifier
+                .align(Alignment.Center)
+                .then(longPressModifier),
         )
         ReaderImageOpenHint(
             modifier =
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(12.dp),
+            Modifier
+                .align(Alignment.TopCenter)
+                .padding(12.dp),
         )
     }
 }
 
-private data class InlineImageDisplaySize(
-    val width: Dp,
-    val aspectRatio: Float,
-)
+private data class InlineImageDisplaySize(val width: Dp, val aspectRatio: Float,)
 
 private fun resolveInlineImageDisplaySize(
     imageSize: ReaderImageSize?,

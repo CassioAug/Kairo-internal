@@ -2,10 +2,7 @@ package com.kairo.reader.ui.reader
 
 import com.kairo.reader.core.model.Chapter
 
-internal data class ReaderChapterProgress(
-    val currentNumber: Int,
-    val totalNumber: Int,
-)
+internal data class ReaderChapterProgress(val currentNumber: Int, val totalNumber: Int,)
 
 internal fun resolveReaderChapterProgress(
     chapters: List<Chapter>,

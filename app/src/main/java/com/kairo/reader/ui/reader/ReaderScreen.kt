@@ -156,7 +156,6 @@ fun ReaderScreen(
             listStateKey = renderState.listStateKey,
             focusListIndex = renderState.focusListIndex,
             listItemCount = renderState.listItemCount,
-            displayBlocks = renderState.displayBlocks,
             invertedScroll = invertedScroll,
         )
     val chromeCollapsed by remember(listStateHolder.listState) {
@@ -215,16 +214,18 @@ fun ReaderScreen(
         }
     val progressState =
         rememberReaderProgressState(
-            safeFocusIndex = renderState.safeFocusIndex,
-            totalChapterWords = renderState.totalChapterWords,
-            wordCountByToken = renderState.wordCountByToken,
-            resolvedPageIndex = renderState.resolvedPageIndex,
-            pages = renderState.pages,
-            currentPage = renderState.currentPage,
-            estimatedWpm = estimatedWpm,
-            bookWordCounts = uiState.bookWordCounts,
-            chapterIndex = chapterIndex,
-            chapterCount = book.chapters.size,
+            ReaderProgressInput(
+                safeFocusIndex = renderState.safeFocusIndex,
+                totalChapterWords = renderState.totalChapterWords,
+                wordCountByToken = renderState.wordCountByToken,
+                resolvedPageIndex = renderState.resolvedPageIndex,
+                pages = renderState.pages,
+                currentPage = renderState.currentPage,
+                estimatedWpm = estimatedWpm,
+                bookWordCounts = uiState.bookWordCounts,
+                chapterIndex = chapterIndex,
+                chapterCount = book.chapters.size,
+            ),
         )
     val navigationState =
         buildReaderNavigationState(
@@ -277,96 +278,108 @@ fun ReaderScreen(
                     start = if (compactLandscape) 12.dp else 16.dp,
                     end = if (compactLandscape) 12.dp else 16.dp,
                     top =
-                        when {
-                            compactLandscape -> if (focusModeEnabled) 4.dp else 8.dp
-                            focusModeEnabled -> 8.dp
-                            else -> 16.dp
-                        },
+                    when {
+                        compactLandscape -> if (focusModeEnabled) 4.dp else 8.dp
+                        focusModeEnabled -> 8.dp
+                        else -> 16.dp
+                    },
                 ),
         ) {
             ReaderHeader(
-                book = book,
-                chapterIndex = chapterIndex,
-                chapterTitle = sanitizeChapterTitleForDisplay(chapter?.title),
-                coverImage = coverImage,
-                canGoPrev = navigationState.canGoPrevPage,
-                canGoNext = navigationState.canGoNextPage,
-                onPrev = navigationState.onPrevPage,
-                onNext = navigationState.onNextPage,
-                onOpenLibrary = onOpenLibrary,
-                onShowMenu = { showReaderMenu = !showReaderMenu },
-                compactMode = chromeCollapsed,
-                landscapeCompact = compactLandscape,
-                detailsExpanded = showReaderDetails,
-                onToggleDetails = { showReaderDetails = !showReaderDetails },
-                pageLabel = progressState.pageLabel,
-                progressPercent =
+                state =
+                ReaderHeaderState(
+                    book = book,
+                    chapterIndex = chapterIndex,
+                    chapterTitle = sanitizeChapterTitleForDisplay(chapter?.title),
+                    coverImage = coverImage,
+                    canGoPrev = navigationState.canGoPrevPage,
+                    canGoNext = navigationState.canGoNextPage,
+                    compactMode = chromeCollapsed,
+                    landscapeCompact = compactLandscape,
+                    detailsExpanded = showReaderDetails,
+                    pageLabel = progressState.pageLabel,
+                    progressPercent =
                     if (renderState.totalChapterWords > 0) progressState.progressPercent else null,
-                progressFraction = progressState.progressFraction,
-                etaLabel = progressState.etaLabel,
-                navigationModifier =
+                    progressFraction = progressState.progressFraction,
+                    etaLabel = progressState.etaLabel,
+                    navigationModifier =
                     Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_NAVIGATION) {
-                        targetId,
-                        bounds,
+                            targetId,
+                            bounds,
                         ->
                         tutorialTargets[targetId] = bounds
                     },
-                menuModifier =
+                    menuModifier =
                     Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_MENU) {
-                        targetId,
-                        bounds,
+                            targetId,
+                            bounds,
                         ->
                         tutorialTargets[targetId] = bounds
                     },
+                ),
+                actions =
+                ReaderHeaderActions(
+                    onPrev = navigationState.onPrevPage,
+                    onNext = navigationState.onNextPage,
+                    onOpenLibrary = onOpenLibrary,
+                    onShowMenu = { showReaderMenu = !showReaderMenu },
+                    onToggleDetails = { showReaderDetails = !showReaderDetails },
+                ),
             )
             Spacer(
                 modifier =
-                    Modifier.height(
-                        when {
-                            showReaderDetails && compactLandscape -> 6.dp
-                            showReaderDetails -> 12.dp
-                            compactLandscape -> 4.dp
-                            else -> 8.dp
-                        },
-                    ),
+                Modifier.height(
+                    when {
+                        showReaderDetails && compactLandscape -> 6.dp
+                        showReaderDetails -> 12.dp
+                        compactLandscape -> 4.dp
+                        else -> 8.dp
+                    },
+                ),
             )
 
             CompositionLocalProvider(LocalLayoutDirection provides contentLayoutDirection) {
                 ReaderContent(
                     modifier = Modifier.weight(1f),
-                    book = book,
-                    chapterIndex = chapterIndex,
-                    coverImage = coverImage,
-                    isLoading = uiState.isLoading,
-                    loadErrorMessage = uiState.chapterLoadError,
-                    isCoverChapter = renderState.isCoverChapter,
-                    isPagedChapter = renderState.isPagedChapter,
-                    resolvedPageIndex = renderState.resolvedPageIndex,
-                    fullScreenTitlePageImagePath = renderState.fullScreenTitlePageImagePath,
-                    headerCarouselImages = renderState.headerCarouselImages,
-                    showHeaderCarousel = renderState.showHeaderCarousel,
-                    isBlankPage = renderState.currentPage?.kind == ChapterPageKind.BLANK,
-                    displayBlocks = renderState.displayBlocks,
-                    listState = listStateHolder.listState,
-                    listStateKey = renderState.listStateKey,
-                    invertedScroll = invertedScroll,
-                    bottomInset = bottomInset,
-                    overlayBottomPadding = overlayBottomPadding,
-                    focusIndex = focusIndex,
-                    fontSizeSp = fontSizeSp,
-                    textBrightness = textBrightness,
-                    timedReadingMode = effectiveTimedReadingMode,
-                    onSafeFocusChange = onSafeFocusChange,
-                    onStartTimedReadingForToken = onStartTimedReadingForToken,
-                    onPrevPage = navigationState.onPrevPage,
-                    onNextPage = navigationState.onNextPage,
-                    onSwipePreviewChange = { direction, progress ->
-                        swipeDirection = direction
-                        swipeProgress = progress
-                    },
-                    onOpenFullScreenImage = { fullScreenImagePath = it },
-                    invertedScrollCommands = listStateHolder.invertedScrollCommands,
-                    onChapterSelected = { index -> onChapterChange(index, 0) },
+                    state =
+                    ReaderContentState(
+                        book = book,
+                        chapterIndex = chapterIndex,
+                        coverImage = coverImage,
+                        isLoading = uiState.isLoading,
+                        loadErrorMessage = uiState.chapterLoadError,
+                        isCoverChapter = renderState.isCoverChapter,
+                        isPagedChapter = renderState.isPagedChapter,
+                        resolvedPageIndex = renderState.resolvedPageIndex,
+                        fullScreenTitlePageImagePath = renderState.fullScreenTitlePageImagePath,
+                        headerCarouselImages = renderState.headerCarouselImages,
+                        showHeaderCarousel = renderState.showHeaderCarousel,
+                        isBlankPage = renderState.currentPage?.kind == ChapterPageKind.BLANK,
+                        displayBlocks = renderState.displayBlocks,
+                        listState = listStateHolder.listState,
+                        listStateKey = renderState.listStateKey,
+                        invertedScroll = invertedScroll,
+                        bottomInset = bottomInset,
+                        overlayBottomPadding = overlayBottomPadding,
+                        focusIndex = focusIndex,
+                        fontSizeSp = fontSizeSp,
+                        textBrightness = textBrightness,
+                        timedReadingMode = effectiveTimedReadingMode,
+                        invertedScrollCommands = listStateHolder.invertedScrollCommands,
+                    ),
+                    actions =
+                    ReaderContentActions(
+                        onSafeFocusChange = onSafeFocusChange,
+                        onStartTimedReadingForToken = onStartTimedReadingForToken,
+                        onPrevPage = navigationState.onPrevPage,
+                        onNextPage = navigationState.onNextPage,
+                        onSwipePreviewChange = { direction, progress ->
+                            swipeDirection = direction
+                            swipeProgress = progress
+                        },
+                        onOpenFullScreenImage = { fullScreenImagePath = it },
+                        onChapterSelected = { index -> onChapterChange(index, 0) },
+                    ),
                 )
             }
         }
@@ -395,41 +408,47 @@ fun ReaderScreen(
         if (showReaderMenu) {
             BackHandler { showReaderMenu = false }
             ReaderMenuOverlay(
-                fontSizeSp = fontSizeSp,
-                readerTheme = readerTheme,
-                textBrightness = textBrightness,
-                invertedScroll = invertedScroll,
-                onFontSizeChange = onFontSizeChange,
-                onThemeChange = onThemeChange,
-                onTextBrightnessChange = onTextBrightnessChange,
-                onInvertedScrollChange = onInvertedScrollChange,
-                focusModeEnabled = focusModeEnabled,
-                onFocusModeEnabledChange = onFocusModeEnabledChange,
-                onAddBookmark = {
-                    if (renderState.tokens.isEmpty()) return@ReaderMenuOverlay
-                    val safeTokenIndex = renderState.tokens.nearestWordIndex(
-                        focusIndex
-                    ).coerceIn(0, renderState.tokens.lastIndex)
-                    val preview = renderState.tokens.getOrNull(safeTokenIndex)?.text.orEmpty()
-                    onAddBookmark(chapterIndex, safeTokenIndex, preview)
-                    showReaderMenu = false
-                },
-                onOpenBookmarks = {
-                    showReaderMenu = false
-                    onOpenBookmarks()
-                },
-                onShowToc = {
-                    showReaderMenu = false
-                    showChapterList.value = true
-                },
-                onDismiss = { showReaderMenu = false },
-                readerSettingsRowModifier =
+                state =
+                ReaderMenuState(
+                    fontSizeSp = fontSizeSp,
+                    readerTheme = readerTheme,
+                    textBrightness = textBrightness,
+                    invertedScroll = invertedScroll,
+                    focusModeEnabled = focusModeEnabled,
+                    readerSettingsRowModifier =
                     Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_MENU_SETTINGS) {
-                        targetId,
-                        bounds,
+                            targetId,
+                            bounds,
                         ->
                         tutorialTargets[targetId] = bounds
                     },
+                ),
+                actions =
+                ReaderMenuActions(
+                    onFontSizeChange = onFontSizeChange,
+                    onThemeChange = onThemeChange,
+                    onTextBrightnessChange = onTextBrightnessChange,
+                    onInvertedScrollChange = onInvertedScrollChange,
+                    onFocusModeEnabledChange = onFocusModeEnabledChange,
+                    onAddBookmark = {
+                        if (renderState.tokens.isNotEmpty()) {
+                            val safeTokenIndex = renderState.tokens.nearestWordIndex(focusIndex)
+                                .coerceIn(0, renderState.tokens.lastIndex)
+                            val preview = renderState.tokens.getOrNull(safeTokenIndex)?.text.orEmpty()
+                            onAddBookmark(chapterIndex, safeTokenIndex, preview)
+                            showReaderMenu = false
+                        }
+                    },
+                    onOpenBookmarks = {
+                        showReaderMenu = false
+                        onOpenBookmarks()
+                    },
+                    onShowToc = {
+                        showReaderMenu = false
+                        showChapterList.value = true
+                    },
+                    onDismiss = { showReaderMenu = false },
+                ),
             )
         }
 
@@ -443,24 +462,30 @@ fun ReaderScreen(
                 .padding(end = 16.dp, bottom = 16.dp + bottomInset),
         ) {
             ReaderTimedReadingLauncher(
-                tokens = renderState.tokens,
-                focusIndex = focusIndex,
-                invertedScroll = invertedScroll,
-                listState = listStateHolder.listState,
-                focusListIndex = renderState.focusListIndex,
-                progressFraction = progressState.progressFraction,
-                selectedMode = effectiveTimedReadingMode,
-                modeSelectionEnabled = tutorialState == null,
-                onFocusChange = onFocusChange,
-                onStartTimedReading = onStartTimedReading,
-                onSelectTimedReadingMode = onSelectTimedReadingMode,
+                state =
+                ReaderTimedReadingLauncherState(
+                    tokens = renderState.tokens,
+                    focusIndex = focusIndex,
+                    invertedScroll = invertedScroll,
+                    listState = listStateHolder.listState,
+                    focusListIndex = renderState.focusListIndex,
+                    progressFraction = progressState.progressFraction,
+                    selectedMode = effectiveTimedReadingMode,
+                    modeSelectionEnabled = tutorialState == null,
+                ),
+                actions =
+                ReaderTimedReadingLauncherActions(
+                    onFocusChange = onFocusChange,
+                    onStartTimedReading = onStartTimedReading,
+                    onSelectTimedReadingMode = onSelectTimedReadingMode,
+                ),
                 modifier =
-                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_RSVP_LAUNCHER) {
+                Modifier.startingTutorialTarget(StartingTutorialTargetIds.READER_RSVP_LAUNCHER) {
                         targetId,
                         bounds,
-                        ->
-                        tutorialTargets[targetId] = bounds
-                    },
+                    ->
+                    tutorialTargets[targetId] = bounds
+                },
             )
         }
 

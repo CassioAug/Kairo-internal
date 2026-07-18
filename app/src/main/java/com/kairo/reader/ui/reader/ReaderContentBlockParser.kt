@@ -102,7 +102,8 @@ private fun extractHtmlBlockMarkers(
     val blockSeparated =
         cleaned.replace(
             Regex(
-                "</?(p|div|br|h[1-6]|li|tr|blockquote|pre|ul|ol|table|thead|tbody|tfoot|td|th|section|article|figure|figcaption|hr)[^>]*>",
+                "</?(p|div|br|h[1-6]|li|tr|blockquote|pre|ul|ol|table|" +
+                    "thead|tbody|tfoot|td|th|section|article|figure|figcaption|hr)[^>]*>",
                 RegexOption.IGNORE_CASE,
             ),
             "\n\n",

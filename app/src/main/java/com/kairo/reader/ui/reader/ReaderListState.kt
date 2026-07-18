@@ -12,17 +12,13 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
-internal data class ReaderListState(
-    val listState: LazyListState,
-    val invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,
-)
+internal data class ReaderListState(val listState: LazyListState, val invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,)
 
 @Composable
 internal fun rememberReaderListState(
     listStateKey: String,
     focusListIndex: Int,
     listItemCount: Int,
-    displayBlocks: List<ReaderBlock>,
     invertedScroll: Boolean,
 ): ReaderListState {
     val safeIndex =

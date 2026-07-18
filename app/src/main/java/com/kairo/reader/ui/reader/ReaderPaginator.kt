@@ -26,118 +26,21 @@ internal fun buildChapterPages(
     wordsPerPage: Int,
 ): List<ChapterPage> {
     if (tokens.isEmpty() || wordsPerPage <= 0) return emptyList()
-
-    val minWords =
-        (wordsPerPage * PAGE_MIN_WORD_FRACTION)
-            .roundToInt()
-            .coerceAtLeast(1)
-    val maxWords =
-        (wordsPerPage * PAGE_MAX_WORD_FRACTION)
-            .roundToInt()
-            .coerceAtLeast(minWords)
-    val targetWords = wordsPerPage.coerceAtLeast(1)
-    val minTargetWords = (targetWords * PAGE_TARGET_FRACTION).roundToInt()
-    val maxExtraWords =
-        (wordsPerPage * PAGE_EXTRA_WORD_FRACTION)
-            .roundToInt()
-            .coerceIn(PAGE_EXTRA_WORDS_MIN, PAGE_EXTRA_WORDS_MAX)
-
+    val limits = paginationLimits(wordsPerPage)
     val pages = mutableListOf<ChapterPage>()
     var cursor = 0
 
-    outer@ while (cursor < tokens.size) {
+    while (cursor < tokens.size) {
         val pageStartTokenIndex = nextWordTokenIndex(tokens, cursor) ?: break
-        var wordCount = 0
-        var endWordTokenIndex = pageStartTokenIndex
-        var fallbackBoundary: PageBoundary? = null
-        var preferredBoundary: PageBoundary? = null
-        var parenDepth = 0
-
-        var i = pageStartTokenIndex
-        while (i < tokens.size) {
-            val token = tokens[i]
-            when (token.type) {
-                TokenType.WORD -> {
-                    wordCount += 1
-                    endWordTokenIndex = i
-                }
-                TokenType.PAGE_BREAK -> {
-                    if (wordCount > 0 && isHardReaderPageBreak(tokens, i)) {
-                        val endTokenIndex = extendTrailingPunctuation(tokens, endWordTokenIndex)
-                        pages.add(
-                            ChapterPage(
-                                index = pages.size,
-                                startTokenIndex = pageStartTokenIndex,
-                                endTokenIndex = endTokenIndex,
-                                wordCount = wordCount,
-                            ),
-                        )
-                        cursor = i + 1
-                        continue@outer
-                    }
-                }
-                TokenType.PARAGRAPH_BREAK -> {
-                    if (wordCount > 0 && parenDepth == 0) {
-                        val boundary = PageBoundary(endWordTokenIndex, wordCount)
-                        fallbackBoundary = boundary
-                        if (wordCount >= minWords) {
-                            preferredBoundary = boundary
-                        }
-                    }
-                }
-                TokenType.PUNCTUATION -> {
-                    if (isOpeningBracket(token)) {
-                        parenDepth += 1
-                    } else if (isClosingBracket(token)) {
-                        parenDepth = (parenDepth - 1).coerceAtLeast(0)
-                    }
-                    if (wordCount > 0 && parenDepth == 0 && isSentenceEnding(token)) {
-                        val boundary = PageBoundary(endWordTokenIndex, wordCount)
-                        fallbackBoundary = boundary
-                        if (wordCount >= minWords) {
-                            preferredBoundary = boundary
-                        }
-                    }
-                }
-            }
-
-            val hasNearBoundary =
-                preferredBoundary != null && preferredBoundary.wordCount >= minTargetWords
-            if (wordCount >= maxWords || (wordCount >= targetWords && hasNearBoundary)) {
-                break
-            }
-            i += 1
-        }
-
-        if (wordCount <= 0) {
+        val scan = scanPage(tokens, pageStartTokenIndex, limits)
+        if (scan.wordCount <= 0) {
             cursor = pageStartTokenIndex + 1
             continue
         }
-
-        var chosenBoundary =
-            preferredBoundary?.takeIf { boundary ->
-                boundary.wordCount >= minTargetWords || wordCount >= maxWords
-            }
-
-        if (chosenBoundary == null && maxExtraWords > 0) {
-            val forward =
-                findForwardBoundary(
-                    tokens = tokens,
-                    startIndex = endWordTokenIndex + 1,
-                    initialWordCount = wordCount,
-                    maxExtraWords = maxExtraWords,
-                    startingParenDepth = parenDepth,
-                )
-            if (forward != null) {
-                chosenBoundary = PageBoundary(forward.endWordIndex, forward.wordCount)
-            }
-        }
-
-        val boundary = chosenBoundary ?: fallbackBoundary
-        val chosenWordIndex = boundary?.endWordIndex ?: endWordTokenIndex
-        val chosenWordCount = boundary?.wordCount ?: wordCount
+        val boundary = choosePageBoundary(tokens, scan, limits)
+        val chosenWordIndex = boundary?.endWordIndex ?: scan.endWordTokenIndex
+        val chosenWordCount = boundary?.wordCount ?: scan.wordCount
         val endTokenIndex = extendTrailingPunctuation(tokens, chosenWordIndex)
-
         pages.add(
             ChapterPage(
                 index = pages.size,
@@ -146,11 +49,127 @@ internal fun buildChapterPages(
                 wordCount = chosenWordCount,
             ),
         )
-        cursor = endTokenIndex + 1
+        cursor = scan.nextCursorAfterHardBreak ?: (endTokenIndex + 1)
     }
 
     return mergeTrailingSparsePage(tokens, pages, wordsPerPage)
 }
+
+private fun paginationLimits(wordsPerPage: Int): PaginationLimits {
+    val minWords = (wordsPerPage * PAGE_MIN_WORD_FRACTION).roundToInt().coerceAtLeast(1)
+    val maxWords = (wordsPerPage * PAGE_MAX_WORD_FRACTION).roundToInt().coerceAtLeast(minWords)
+    val targetWords = wordsPerPage.coerceAtLeast(1)
+    return PaginationLimits(
+        minWords = minWords,
+        maxWords = maxWords,
+        targetWords = targetWords,
+        minTargetWords = (targetWords * PAGE_TARGET_FRACTION).roundToInt(),
+        maxExtraWords =
+        (wordsPerPage * PAGE_EXTRA_WORD_FRACTION)
+            .roundToInt()
+            .coerceIn(PAGE_EXTRA_WORDS_MIN, PAGE_EXTRA_WORDS_MAX),
+    )
+}
+
+private fun scanPage(
+    tokens: List<Token>,
+    startIndex: Int,
+    limits: PaginationLimits,
+): PageScan {
+    var scan = PageScan(endWordTokenIndex = startIndex)
+    var index = startIndex
+    while (index < tokens.size && scan.nextCursorAfterHardBreak == null) {
+        scan = scan.accept(tokens, index, limits)
+        val hasNearBoundary = scan.preferredBoundary?.wordCount?.let { it >= limits.minTargetWords } == true
+        val targetReached = scan.wordCount >= limits.targetWords && hasNearBoundary
+        if (scan.wordCount >= limits.maxWords || targetReached) break
+        index += 1
+    }
+    return scan
+}
+
+private fun PageScan.accept(
+    tokens: List<Token>,
+    index: Int,
+    limits: PaginationLimits,
+): PageScan {
+    val token = tokens[index]
+    return when (token.type) {
+        TokenType.WORD -> copy(wordCount = wordCount + 1, endWordTokenIndex = index)
+        TokenType.PAGE_BREAK ->
+            if (wordCount > 0 && isHardReaderPageBreak(tokens, index)) {
+                copy(nextCursorAfterHardBreak = index + 1)
+            } else {
+                this
+            }
+        TokenType.PARAGRAPH_BREAK -> recordBoundary(limits)
+        TokenType.PUNCTUATION -> acceptPunctuation(token, limits)
+    }
+}
+
+private fun PageScan.acceptPunctuation(
+    token: Token,
+    limits: PaginationLimits,
+): PageScan {
+    val nextParenDepth =
+        when {
+            isOpeningBracket(token) -> parenDepth + 1
+            isClosingBracket(token) -> (parenDepth - 1).coerceAtLeast(0)
+            else -> parenDepth
+        }
+    val updated = copy(parenDepth = nextParenDepth)
+    return if (nextParenDepth == 0 && isSentenceEnding(token)) updated.recordBoundary(limits) else updated
+}
+
+private fun PageScan.recordBoundary(limits: PaginationLimits): PageScan {
+    if (wordCount <= 0 || parenDepth != 0) return this
+    val boundary = PageBoundary(endWordTokenIndex, wordCount)
+    return copy(
+        fallbackBoundary = boundary,
+        preferredBoundary = boundary.takeIf { wordCount >= limits.minWords } ?: preferredBoundary,
+    )
+}
+
+private fun choosePageBoundary(
+    tokens: List<Token>,
+    scan: PageScan,
+    limits: PaginationLimits,
+): PageBoundary? {
+    if (scan.nextCursorAfterHardBreak != null) {
+        return PageBoundary(scan.endWordTokenIndex, scan.wordCount)
+    }
+    val preferred =
+        scan.preferredBoundary?.takeIf {
+            it.wordCount >= limits.minTargetWords || scan.wordCount >= limits.maxWords
+        }
+    if (preferred != null || limits.maxExtraWords <= 0) return preferred ?: scan.fallbackBoundary
+    val forward =
+        findForwardBoundary(
+            tokens = tokens,
+            startIndex = scan.endWordTokenIndex + 1,
+            initialWordCount = scan.wordCount,
+            maxExtraWords = limits.maxExtraWords,
+            startingParenDepth = scan.parenDepth,
+        )
+    return forward?.let { PageBoundary(it.endWordIndex, it.wordCount) } ?: scan.fallbackBoundary
+}
+
+private data class PaginationLimits(
+    val minWords: Int,
+    val maxWords: Int,
+    val targetWords: Int,
+    val minTargetWords: Int,
+    val maxExtraWords: Int,
+)
+
+private data class PageScan(
+    val wordCount: Int = 0,
+    val endWordTokenIndex: Int,
+    val fallbackBoundary: PageBoundary? = null,
+    val preferredBoundary: PageBoundary? = null,
+    val parenDepth: Int = 0,
+    val nextCursorAfterHardBreak: Int? = null,
+)
 
 private fun nextWordTokenIndex(
     tokens: List<Token>,
@@ -316,14 +335,18 @@ internal fun estimateWordsPerPage(
     fontSizeSp: Float,
     viewportHeightDp: Int,
 ): Int {
-    val safeFontSp = fontSizeSp.coerceIn(12f, 36f)
-    val safeViewportDp = viewportHeightDp.coerceAtLeast(480)
+    val safeFontSp = fontSizeSp.coerceIn(PAGINATION_FONT_SIZE_MIN_SP, PAGINATION_FONT_SIZE_MAX_SP)
+    val safeViewportDp = viewportHeightDp.coerceAtLeast(PAGINATION_VIEWPORT_MIN_DP)
     val viewportFactor = safeViewportDp / PAGINATION_VIEWPORT_BASE_DP
     val fontFactor = PAGINATION_FONT_BASE_SP / safeFontSp
     return (DEFAULT_WORDS_PER_PAGE * viewportFactor * fontFactor)
         .roundToInt()
         .coerceIn(PAGINATION_WORDS_MIN, PAGINATION_WORDS_MAX)
 }
+
+private const val PAGINATION_FONT_SIZE_MIN_SP = 12f
+private const val PAGINATION_FONT_SIZE_MAX_SP = 36f
+private const val PAGINATION_VIEWPORT_MIN_DP = 480
 
 internal fun rePageChapterData(
     chapterData: ChapterData,

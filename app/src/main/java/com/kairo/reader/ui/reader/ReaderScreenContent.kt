@@ -1,16 +1,13 @@
 package com.kairo.reader.ui.reader
 
-import android.os.SystemClock
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -18,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -39,8 +37,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -54,306 +51,222 @@ import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.TimedReadingMode
 import java.io.File
-import kotlin.math.abs
 import kotlinx.coroutines.flow.MutableSharedFlow
+
+internal data class ReaderContentState(
+    val book: Book,
+    val chapterIndex: Int,
+    val coverImage: ByteArray?,
+    val isLoading: Boolean,
+    val loadErrorMessage: String?,
+    val isCoverChapter: Boolean,
+    val isPagedChapter: Boolean,
+    val resolvedPageIndex: Int,
+    val fullScreenTitlePageImagePath: String?,
+    val headerCarouselImages: List<String>,
+    val showHeaderCarousel: Boolean,
+    val isBlankPage: Boolean,
+    val displayBlocks: List<ReaderBlock>,
+    val listState: LazyListState,
+    val listStateKey: String,
+    val invertedScroll: Boolean,
+    val bottomInset: Dp,
+    val overlayBottomPadding: Dp,
+    val focusIndex: Int,
+    val fontSizeSp: Float,
+    val textBrightness: Float,
+    val timedReadingMode: TimedReadingMode,
+    val invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,
+)
+
+internal data class ReaderContentActions(
+    val onSafeFocusChange: (Int) -> Unit,
+    val onStartTimedReadingForToken: (Int) -> Unit,
+    val onPrevPage: () -> Unit,
+    val onNextPage: () -> Unit,
+    val onSwipePreviewChange: (ReaderSwipeDirection?, Float) -> Unit,
+    val onOpenFullScreenImage: (String) -> Unit,
+    val onChapterSelected: ((Int) -> Unit)? = null,
+)
 
 @Composable
 internal fun ReaderContent(
     modifier: Modifier = Modifier,
-    book: Book,
-    chapterIndex: Int,
-    coverImage: ByteArray?,
-    isLoading: Boolean,
-    loadErrorMessage: String?,
-    isCoverChapter: Boolean,
-    isPagedChapter: Boolean,
-    resolvedPageIndex: Int,
-    fullScreenTitlePageImagePath: String?,
-    headerCarouselImages: List<String>,
-    showHeaderCarousel: Boolean,
-    isBlankPage: Boolean,
-    displayBlocks: List<ReaderBlock>,
-    listState: LazyListState,
-    listStateKey: String,
-    invertedScroll: Boolean,
-    bottomInset: Dp,
-    overlayBottomPadding: Dp,
-    focusIndex: Int,
-    fontSizeSp: Float,
-    textBrightness: Float,
-    timedReadingMode: TimedReadingMode,
-    onSafeFocusChange: (Int) -> Unit,
-    onStartTimedReadingForToken: (Int) -> Unit,
-    onPrevPage: () -> Unit,
-    onNextPage: () -> Unit,
-    onSwipePreviewChange: (ReaderSwipeDirection?, Float) -> Unit,
-    onOpenFullScreenImage: (String) -> Unit,
-    invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,
-    onChapterSelected: ((Int) -> Unit)? = null,
+    state: ReaderContentState,
+    actions: ReaderContentActions,
 ) {
-    if (isLoading) {
-        ReaderLoadingState(
-            modifier = modifier,
-            book = book,
-            coverImage = coverImage,
-            isCoverChapter = isCoverChapter,
-        )
-        return
+    when {
+        state.isLoading ->
+            ReaderLoadingState(
+                modifier = modifier,
+                book = state.book,
+                coverImage = state.coverImage,
+                isCoverChapter = state.isCoverChapter,
+            )
+        state.loadErrorMessage != null ->
+            ReaderErrorState(modifier = modifier, message = state.loadErrorMessage)
+        state.hasNoDisplayContent() -> ReaderEmptyState(modifier = modifier)
+        else -> ReaderLoadedContent(modifier = modifier, state = state, actions = actions)
     }
+}
 
-    if (loadErrorMessage != null) {
-        ReaderErrorState(modifier = modifier, message = loadErrorMessage)
-        return
-    }
-
-    if (displayBlocks.isEmpty() &&
+private fun ReaderContentState.hasNoDisplayContent(): Boolean =
+    displayBlocks.isEmpty() &&
         !isBlankPage &&
         !isCoverChapter &&
         fullScreenTitlePageImagePath == null &&
         headerCarouselImages.isEmpty()
-    ) {
-        ReaderEmptyState(modifier = modifier)
-        return
-    }
 
+@Composable
+private fun ReaderLoadedContent(
+    modifier: Modifier,
+    state: ReaderContentState,
+    actions: ReaderContentActions,
+) {
+    val configuration = LocalConfiguration.current
+    val compactLandscape =
+        configuration.screenWidthDp > configuration.screenHeightDp &&
+            configuration.screenHeightDp <= COMPACT_LANDSCAPE_MAX_HEIGHT_DP
+    val paragraphSpacing =
+        if (compactLandscape) {
+            (state.fontSizeSp * COMPACT_PARAGRAPH_SPACING_FACTOR).dp.coerceIn(6.dp, 10.dp)
+        } else {
+            (state.fontSizeSp * STANDARD_PARAGRAPH_SPACING_FACTOR).dp.coerceIn(10.dp, 14.dp)
+        }
     val gestureModifier =
-        Modifier.pointerInput(listStateKey, invertedScroll, chapterIndex) {
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                val pointerId = down.id
-                onSwipePreviewChange(null, 0f)
+        Modifier.readerPageGestures(
+            state =
+            ReaderGestureState(
+                listStateKey = state.listStateKey,
+                invertedScroll = state.invertedScroll,
+                chapterIndex = state.chapterIndex,
+                invertedScrollCommands = state.invertedScrollCommands,
+            ),
+            actions =
+            ReaderGestureActions(
+                onPreviousPage = actions.onPrevPage,
+                onNextPage = actions.onNextPage,
+                onSwipePreviewChange = actions.onSwipePreviewChange,
+            ),
+        )
 
-                val touchSlop = viewConfiguration.touchSlop
-                val swipeThreshold = touchSlop * 4f
-
-                var totalX = 0f
-                var totalY = 0f
-                var axis = Axis.Horizontal
-                var axisResolved = false
-
-                val tracker = VelocityTracker()
-                tracker.addPosition(SystemClock.uptimeMillis(), down.position)
-
-                while (true) {
-                    val event = awaitPointerEvent()
-                    val change =
-                        event.changes.firstOrNull { it.id == pointerId } ?: break
-                    if (!change.pressed) break
-
-                    val dx = change.position.x - change.previousPosition.x
-                    val dy = change.position.y - change.previousPosition.y
-                    totalX += dx
-                    totalY += dy
-
-                    if (!axisResolved) {
-                        val absX = abs(totalX)
-                        val absY = abs(totalY)
-                        if (absX > touchSlop || absY > touchSlop) {
-                            axis = if (absX > absY) Axis.Horizontal else Axis.Vertical
-                            axisResolved = true
-                        } else {
-                            continue
-                        }
-                    }
-
-                    when (axis) {
-                        Axis.Horizontal -> {
-                            val direction =
-                                when {
-                                    totalX > 0f -> ReaderSwipeDirection.Previous
-                                    totalX < 0f -> ReaderSwipeDirection.Next
-                                    else -> null
-                                }
-                            onSwipePreviewChange(
-                                direction,
-                                (abs(totalX) / swipeThreshold).coerceIn(0f, 1f),
-                            )
-                        }
-                        Axis.Vertical -> {
-                            onSwipePreviewChange(null, 0f)
-                            if (!invertedScroll) {
-                                // Let LazyColumn handle normal vertical scrolling.
-                                break
-                            }
-                            tracker.addPosition(
-                                SystemClock.uptimeMillis(),
-                                change.position
-                            )
-                            invertedScrollCommands.tryEmit(
-                                InvertedScrollCommand.Drag(dy)
-                            )
-                        }
-                    }
-                }
-
-                if (axisResolved) {
-                    when (axis) {
-                        Axis.Horizontal -> {
-                            when {
-                                totalX <= -swipeThreshold -> onNextPage()
-                                totalX >= swipeThreshold -> onPrevPage()
-                            }
-                            onSwipePreviewChange(null, 0f)
-                        }
-                        Axis.Vertical -> {
-                            onSwipePreviewChange(null, 0f)
-                            if (invertedScroll) {
-                                val velocity = tracker.calculateVelocity().y
-                                if (abs(velocity) > 200f) {
-                                    invertedScrollCommands.tryEmit(
-                                        InvertedScrollCommand.Fling(velocity)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-    Box(
-        modifier =
-        modifier
-            .fillMaxWidth()
-            .then(gestureModifier),
-    ) {
-        val configuration = LocalConfiguration.current
-        val compactLandscape =
-            configuration.screenWidthDp > configuration.screenHeightDp &&
-                configuration.screenHeightDp <= 480
-        val viewportHeight = configuration.screenHeightDp.dp
-        val paragraphSpacing =
-            if (compactLandscape) {
-                (fontSizeSp * 0.32f).dp.coerceIn(6.dp, 10.dp)
-            } else {
-                (fontSizeSp * 0.45f).dp.coerceIn(10.dp, 14.dp)
-            }
-
-        // LAZY block-based rendering (text + images)
+    Box(modifier = modifier.fillMaxWidth().then(gestureModifier)) {
         LazyColumn(
-            state = listState,
+            state = state.listState,
             modifier = Modifier.fillMaxSize(),
-            userScrollEnabled = !invertedScroll,
+            userScrollEnabled = !state.invertedScroll,
             verticalArrangement = Arrangement.spacedBy(paragraphSpacing),
-            contentPadding = PaddingValues(bottom = bottomInset + overlayBottomPadding),
+            contentPadding = PaddingValues(bottom = state.bottomInset + state.overlayBottomPadding),
         ) {
-            if (isCoverChapter && (!isPagedChapter || resolvedPageIndex <= 0)) {
-                item(key = "book_cover_full_${book.id.value}") {
-                    val context = LocalContext.current
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        tonalElevation = 2.dp,
-                        modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(viewportHeight)
-                            .clip(RoundedCornerShape(14.dp)),
-                    ) {
-                        AsyncImage(
-                            model =
-                            remember(coverImage, book.id.value) {
-                                ImageRequest
-                                    .Builder(context)
-                                    .data(coverImage)
-                                    .memoryCacheKey(
-                                        "book_cover_full_${book.id.value}"
-                                    )
-                                    .crossfade(false)
-                                    .build()
-                            },
-                            contentDescription =
-                            stringResource(R.string.content_desc_cover_of_title, book.title),
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit,
-                        )
-                    }
-                }
-            }
-            if (fullScreenTitlePageImagePath != null &&
-                (!isPagedChapter || resolvedPageIndex <= 0)
+            readerCoverItem(state, configuration.screenHeightDp.dp)
+            readerTitlePageItem(state, actions, configuration.screenHeightDp.dp)
+            readerHeaderCarouselItem(state, actions)
+            readerBlockItems(state, actions)
+        }
+    }
+}
+
+private fun LazyListScope.readerCoverItem(
+    state: ReaderContentState,
+    viewportHeight: Dp,
+) {
+    if (!state.isCoverChapter || (state.isPagedChapter && state.resolvedPageIndex > 0)) return
+    item(key = "book_cover_full_${state.book.id.value}") {
+        val context = LocalContext.current
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth().height(viewportHeight).clip(RoundedCornerShape(14.dp)),
+        ) {
+            AsyncImage(
+                model =
+                remember(state.coverImage, state.book.id.value) {
+                    ImageRequest.Builder(context)
+                        .data(state.coverImage)
+                        .memoryCacheKey("book_cover_full_${state.book.id.value}")
+                        .crossfade(false)
+                        .build()
+                },
+                contentDescription = stringResource(R.string.content_desc_cover_of_title, state.book.title),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+            )
+        }
+    }
+}
+
+private fun LazyListScope.readerTitlePageItem(
+    state: ReaderContentState,
+    actions: ReaderContentActions,
+    viewportHeight: Dp,
+) {
+    val imagePath = state.fullScreenTitlePageImagePath ?: return
+    if (state.isPagedChapter && state.resolvedPageIndex > 0) return
+    item(key = "title_page_full_${state.book.id.value}_$imagePath") {
+        val context = LocalContext.current
+        val file = remember(imagePath) { File(context.filesDir, imagePath) }
+        if (file.exists()) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                tonalElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth().height(viewportHeight).clip(RoundedCornerShape(14.dp)),
             ) {
-                item(
-                    key = "title_page_full_${book.id.value}_$fullScreenTitlePageImagePath"
-                ) {
-                    val context = LocalContext.current
-                    val file =
-                        remember(fullScreenTitlePageImagePath) {
-                            File(context.filesDir, fullScreenTitlePageImagePath)
-                        }
-                    if (file.exists()) {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            tonalElevation = 2.dp,
-                            modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(viewportHeight)
-                                .clip(RoundedCornerShape(14.dp)),
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                AsyncImage(
-                                    model = file,
-                                    contentDescription =
-                                    stringResource(
-                                        R.string.content_desc_title_page_of_title,
-                                        book.title,
-                                    ),
-                                    modifier =
-                                    Modifier
-                                        .fillMaxSize()
-                                        .openReaderImageOnLongPress(
-                                            imagePath = fullScreenTitlePageImagePath,
-                                            onOpen = onOpenFullScreenImage,
-                                        ),
-                                    contentScale = ContentScale.Fit,
-                                )
-                                ReaderImageOpenHint(
-                                    modifier =
-                                    Modifier
-                                        .align(Alignment.TopCenter)
-                                        .padding(12.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            if (showHeaderCarousel) {
-                item(key = "chapter_images_$chapterIndex") {
-                    ChapterImages(
-                        imagePaths = headerCarouselImages,
-                        onImageOpen = onOpenFullScreenImage,
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AsyncImage(
+                        model = file,
+                        contentDescription =
+                        stringResource(R.string.content_desc_title_page_of_title, state.book.title),
+                        modifier =
+                        Modifier.fillMaxSize().openReaderImageOnLongPress(
+                            imagePath = imagePath,
+                            onOpen = actions.onOpenFullScreenImage,
+                        ),
+                        contentScale = ContentScale.Fit,
                     )
-                }
-            }
-            items(
-                items = displayBlocks,
-                key = { it.key },
-            ) { block ->
-                when (block) {
-                    is ReaderParagraphBlock -> {
-                        ParagraphText(
-                            paragraph = block.paragraph,
-                            focusIndex = block.paragraph.focusIndexOrNone(focusIndex),
-                            fontSizeSp = fontSizeSp,
-                            textBrightness = textBrightness,
-                            timedReadingMode = timedReadingMode,
-                            onFocusChange = onSafeFocusChange,
-                            onStartTimedReading = onStartTimedReadingForToken,
-                            onChapterSelected = onChapterSelected,
-                        )
-                    }
-                    is ReaderImageBlock -> {
-                        InlineImageBlock(
-                            imagePath = block.imagePath,
-                            imageSize = block.imageSize,
-                            onOpen = onOpenFullScreenImage,
-                        )
-                    }
+                    ReaderImageOpenHint(modifier = Modifier.align(Alignment.TopCenter).padding(12.dp))
                 }
             }
         }
+    }
+}
 
+private fun LazyListScope.readerHeaderCarouselItem(
+    state: ReaderContentState,
+    actions: ReaderContentActions,
+) {
+    if (!state.showHeaderCarousel) return
+    item(key = "chapter_images_${state.chapterIndex}") {
+        ChapterImages(
+            imagePaths = state.headerCarouselImages,
+            onImageOpen = actions.onOpenFullScreenImage,
+        )
+    }
+}
+
+private fun LazyListScope.readerBlockItems(
+    state: ReaderContentState,
+    actions: ReaderContentActions,
+) {
+    items(items = state.displayBlocks, key = { it.key }) { block ->
+        when (block) {
+            is ReaderParagraphBlock ->
+                ParagraphText(
+                    paragraph = block.paragraph,
+                    focusIndex = block.paragraph.focusIndexOrNone(state.focusIndex),
+                    fontSizeSp = state.fontSizeSp,
+                    textBrightness = state.textBrightness,
+                    timedReadingMode = state.timedReadingMode,
+                    onFocusChange = actions.onSafeFocusChange,
+                    onStartTimedReading = actions.onStartTimedReadingForToken,
+                    onChapterSelected = actions.onChapterSelected,
+                )
+            is ReaderImageBlock ->
+                InlineImageBlock(
+                    imagePath = block.imagePath,
+                    imageSize = block.imageSize,
+                    onOpen = actions.onOpenFullScreenImage,
+                )
+        }
     }
 }
 
@@ -371,22 +284,33 @@ internal fun ReaderSwipePageChrome(
         label = "readerSwipePageChromeProgress",
     )
     val activeDirection = direction ?: return
+    val style = readerSwipeChromeStyle(activeDirection, animatedProgress, canGoPrev, canGoNext)
+
+    ReaderSwipeChromeBody(modifier, animatedProgress, style)
+}
+
+private data class ReaderSwipeChromeStyle(
+    val canNavigate: Boolean,
+    val alignment: Alignment,
+    val railShape: RoundedCornerShape,
+    val railBrush: Brush,
+    val accentColor: Color,
+    val icon: ImageVector,
+    val iconDescription: String,
+    val iconOffset: Dp,
+)
+
+@Composable
+private fun readerSwipeChromeStyle(
+    direction: ReaderSwipeDirection,
+    progress: Float,
+    canGoPrev: Boolean,
+    canGoNext: Boolean,
+): ReaderSwipeChromeStyle {
     val canNavigate =
-        when (activeDirection) {
+        when (direction) {
             ReaderSwipeDirection.Previous -> canGoPrev
             ReaderSwipeDirection.Next -> canGoNext
-        }
-    val alignment =
-        when (activeDirection) {
-            ReaderSwipeDirection.Previous -> Alignment.CenterStart
-            ReaderSwipeDirection.Next -> Alignment.CenterEnd
-        }
-    val railShape =
-        when (activeDirection) {
-            ReaderSwipeDirection.Previous ->
-                RoundedCornerShape(topEnd = 48.dp, bottomEnd = 48.dp)
-            ReaderSwipeDirection.Next ->
-                RoundedCornerShape(topStart = 48.dp, bottomStart = 48.dp)
         }
     val accentColor =
         if (canNavigate) {
@@ -394,83 +318,80 @@ internal fun ReaderSwipePageChrome(
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         }
-    val railBrush =
-        when (activeDirection) {
-            ReaderSwipeDirection.Previous ->
+    return when (direction) {
+        ReaderSwipeDirection.Previous ->
+            ReaderSwipeChromeStyle(
+                canNavigate = canNavigate,
+                alignment = Alignment.CenterStart,
+                railShape = RoundedCornerShape(topEnd = 48.dp, bottomEnd = 48.dp),
+                railBrush =
                 Brush.horizontalGradient(
                     listOf(
                         accentColor.copy(alpha = 0.24f),
                         accentColor.copy(alpha = 0.08f),
                         Color.Transparent,
                     ),
-                )
-            ReaderSwipeDirection.Next ->
+                ),
+                accentColor = accentColor,
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                iconDescription = stringResource(R.string.content_desc_reader_swipe_previous_page),
+                iconOffset = (-18).dp + (14.dp * progress),
+            )
+        ReaderSwipeDirection.Next ->
+            ReaderSwipeChromeStyle(
+                canNavigate = canNavigate,
+                alignment = Alignment.CenterEnd,
+                railShape = RoundedCornerShape(topStart = 48.dp, bottomStart = 48.dp),
+                railBrush =
                 Brush.horizontalGradient(
                     listOf(
                         Color.Transparent,
                         accentColor.copy(alpha = 0.08f),
                         accentColor.copy(alpha = 0.24f),
                     ),
-                )
-        }
-    val icon =
-        when (activeDirection) {
-            ReaderSwipeDirection.Previous -> Icons.AutoMirrored.Filled.ArrowBack
-            ReaderSwipeDirection.Next -> Icons.AutoMirrored.Filled.ArrowForward
-        }
-    val iconDescription =
-        when (activeDirection) {
-            ReaderSwipeDirection.Previous ->
-                stringResource(R.string.content_desc_reader_swipe_previous_page)
-            ReaderSwipeDirection.Next ->
-                stringResource(R.string.content_desc_reader_swipe_next_page)
-        }
-    val iconOffset =
-        when (activeDirection) {
-            ReaderSwipeDirection.Previous -> (-18).dp + (14.dp * animatedProgress)
-            ReaderSwipeDirection.Next -> 18.dp - (14.dp * animatedProgress)
-        }
+                ),
+                accentColor = accentColor,
+                icon = Icons.AutoMirrored.Filled.ArrowForward,
+                iconDescription = stringResource(R.string.content_desc_reader_swipe_next_page),
+                iconOffset = 18.dp - (14.dp * progress),
+            )
+    }
+}
 
-    Box(
-        modifier =
-        modifier
-            .alpha(animatedProgress),
-    ) {
+@Composable
+private fun ReaderSwipeChromeBody(
+    modifier: Modifier,
+    progress: Float,
+    style: ReaderSwipeChromeStyle,
+) {
+    Box(modifier = modifier.alpha(progress)) {
         Box(
             modifier =
             Modifier
-                .align(alignment)
+                .align(style.alignment)
                 .fillMaxHeight()
                 .width(86.dp)
-                .background(brush = railBrush, shape = railShape),
+                .background(brush = style.railBrush, shape = style.railShape),
         )
         Surface(
             modifier =
             Modifier
-                .align(alignment)
+                .align(style.alignment)
                 .padding(horizontal = 8.dp)
-                .offset(x = iconOffset),
+                .offset(x = style.iconOffset),
             shape = CircleShape,
             color =
-            accentColor.copy(
-                alpha =
-                if (canNavigate) {
-                    0.92f
-                } else {
-                    0.44f
-                },
+            style.accentColor.copy(
+                alpha = if (style.canNavigate) 0.92f else 0.44f,
             ),
             contentColor = MaterialTheme.colorScheme.onPrimary,
             tonalElevation = 6.dp,
             shadowElevation = 8.dp,
         ) {
             Icon(
-                imageVector = icon,
-                contentDescription = iconDescription,
-                modifier =
-                Modifier
-                    .size(48.dp)
-                    .padding(12.dp),
+                imageVector = style.icon,
+                contentDescription = style.iconDescription,
+                modifier = Modifier.size(48.dp).padding(12.dp),
             )
         }
     }
@@ -487,6 +408,9 @@ private fun Paragraph.focusIndexOrNone(focusIndex: Int): Int {
 }
 
 private const val NO_PARAGRAPH_FOCUS_INDEX = -1
+private const val COMPACT_LANDSCAPE_MAX_HEIGHT_DP = 480
+private const val COMPACT_PARAGRAPH_SPACING_FACTOR = 0.32f
+private const val STANDARD_PARAGRAPH_SPACING_FACTOR = 0.45f
 
 @Composable
 private fun ReaderLoadingState(
@@ -563,8 +487,8 @@ private fun ReaderErrorState(
 ) {
     Box(
         modifier =
-            modifier
-                .fillMaxWidth(),
+        modifier
+            .fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
         Text(

@@ -12,8 +12,8 @@ private fun isLikelyFileLabel(text: String): Boolean {
     val numberedMatch = FILE_LABEL_WITH_NUMBER_REGEX.matchEntire(compact)
     if (numberedMatch != null) {
         val zeros = numberedMatch.groupValues[2]
-        val digits = numberedMatch.groupValues[3]
-        if (zeros.isNotEmpty() || digits.length >= 3) return true
+        val digits = numberedMatch.groupValues[FILE_NUMBER_GROUP]
+        if (zeros.isNotEmpty() || digits.length >= MIN_UNPADDED_FILE_NUMBER_DIGITS) return true
     }
     return GENERIC_FILE_LABEL_REGEX.matches(compact)
 }
@@ -28,3 +28,6 @@ private val FILE_LABEL_WITH_NUMBER_REGEX =
     Regex("(?i)^(part|chapter|section|book)(0*)(\\d{1,6})$")
 private val GENERIC_FILE_LABEL_REGEX =
     Regex("(?i)^[a-z]{2,}\\d{3,}$")
+
+private const val FILE_NUMBER_GROUP = 3
+private const val MIN_UNPADDED_FILE_NUMBER_DIGITS = 3

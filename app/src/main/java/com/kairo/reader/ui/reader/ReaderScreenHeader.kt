@@ -19,9 +19,9 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,185 +39,160 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.kairo.reader.core.model.Book
 import com.kairo.reader.R
+import com.kairo.reader.core.model.Book
+
+internal data class ReaderHeaderState(
+    val book: Book,
+    val chapterIndex: Int,
+    val chapterTitle: String?,
+    val coverImage: ByteArray?,
+    val canGoPrev: Boolean,
+    val canGoNext: Boolean,
+    val compactMode: Boolean,
+    val landscapeCompact: Boolean,
+    val detailsExpanded: Boolean,
+    val pageLabel: String?,
+    val progressPercent: Int?,
+    val progressFraction: Float,
+    val etaLabel: String?,
+    val navigationModifier: Modifier = Modifier,
+    val menuModifier: Modifier = Modifier,
+)
+
+internal data class ReaderHeaderActions(
+    val onPrev: () -> Unit,
+    val onNext: () -> Unit,
+    val onOpenLibrary: () -> Unit,
+    val onShowMenu: () -> Unit,
+    val onToggleDetails: () -> Unit,
+)
 
 @Composable
 internal fun ReaderHeader(
-    book: Book,
-    chapterIndex: Int,
-    chapterTitle: String?,
-    coverImage: ByteArray?,
-    canGoPrev: Boolean,
-    canGoNext: Boolean,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onOpenLibrary: () -> Unit,
-    onShowMenu: () -> Unit,
-    compactMode: Boolean,
-    landscapeCompact: Boolean,
-    detailsExpanded: Boolean,
-    onToggleDetails: () -> Unit,
-    pageLabel: String?,
-    progressPercent: Int?,
-    progressFraction: Float,
-    etaLabel: String?,
-    navigationModifier: Modifier = Modifier,
-    menuModifier: Modifier = Modifier,
+    state: ReaderHeaderState,
+    actions: ReaderHeaderActions,
 ) {
     val context = LocalContext.current
     val chapterProgress =
-        remember(book.chapters, chapterIndex) {
-            resolveReaderChapterProgress(book.chapters, chapterIndex)
+        remember(state.book.chapters, state.chapterIndex) {
+            resolveReaderChapterProgress(state.book.chapters, state.chapterIndex)
         }
-    val compressedChrome = compactMode || landscapeCompact
-    val iconButtonSize = if (landscapeCompact) 40.dp else 48.dp
-    Column(verticalArrangement = Arrangement.spacedBy(if (landscapeCompact) 6.dp else 10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = book.title,
-                    style =
-                    if (compressedChrome) {
-                        MaterialTheme.typography.titleSmall
-                    } else {
-                        MaterialTheme.typography.titleMedium
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text =
-                    chapterTitle
-                        ?: stringResource(
-                            R.string.reader_chapter_title,
-                            chapterIndex + 1,
-                        ),
-                    style =
-                        if (landscapeCompact) {
-                            MaterialTheme.typography.bodySmall
-                        } else {
-                            MaterialTheme.typography.bodyMedium
-                        },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(
-                    modifier = navigationModifier,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    IconButton(
-                        onClick = onPrev,
-                        enabled = canGoPrev,
-                        modifier = Modifier.size(iconButtonSize),
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.content_desc_previous_page),
-                            tint =
-                            if (canGoPrev) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            },
-                        )
-                    }
-                    IconButton(
-                        onClick = onNext,
-                        enabled = canGoNext,
-                        modifier = Modifier.size(iconButtonSize),
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = stringResource(R.string.content_desc_next_page),
-                            tint =
-                            if (canGoNext) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            },
-                        )
-                    }
-                }
-                IconButton(
-                    onClick = onToggleDetails,
-                    modifier = Modifier.size(iconButtonSize),
-                ) {
-                    Icon(
-                        imageVector =
-                        if (detailsExpanded) {
-                            Icons.Default.ExpandLess
-                        } else {
-                            Icons.Default.ExpandMore
-                        },
-                        contentDescription = stringResource(R.string.content_desc_reader_details),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                IconButton(
-                    onClick = onOpenLibrary,
-                    modifier = Modifier.size(iconButtonSize),
-                ) {
-                    Icon(
-                        Icons.Default.Home,
-                        contentDescription = stringResource(R.string.content_desc_go_to_library),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    )
-                }
-                IconButton(
-                    onClick = onShowMenu,
-                    modifier = menuModifier.size(iconButtonSize),
-                ) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = stringResource(R.string.content_desc_reader_menu),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    )
-                }
-            }
-        }
-
-        AnimatedVisibility(visible = detailsExpanded) {
+    Column(verticalArrangement = Arrangement.spacedBy(if (state.landscapeCompact) 6.dp else 10.dp)) {
+        ReaderHeaderTopRow(state, actions)
+        AnimatedVisibility(visible = state.detailsExpanded) {
             val chapterProgressLabel =
                 stringResource(
                     R.string.reader_chapter_of_total,
                     chapterProgress.currentNumber,
                     chapterProgress.totalNumber,
                 )
-            if (landscapeCompact) {
+            if (state.landscapeCompact) {
                 ReaderHeaderDetailsCompact(
                     chapterProgressLabel = chapterProgressLabel,
-                    pageLabel = pageLabel,
-                    progressPercent = progressPercent,
-                    progressFraction = progressFraction,
-                    etaLabel = etaLabel,
+                    pageLabel = state.pageLabel,
+                    progressPercent = state.progressPercent,
+                    progressFraction = state.progressFraction,
+                    etaLabel = state.etaLabel,
                 )
             } else {
                 ReaderHeaderDetails(
-                    book = book,
-                    coverImage = coverImage,
+                    book = state.book,
+                    coverImage = state.coverImage,
                     chapterProgressLabel = chapterProgressLabel,
-                    pageLabel = pageLabel,
-                    progressPercent = progressPercent,
-                    progressFraction = progressFraction,
-                    etaLabel = etaLabel,
+                    pageLabel = state.pageLabel,
+                    progressPercent = state.progressPercent,
+                    progressFraction = state.progressFraction,
+                    etaLabel = state.etaLabel,
                     context = context,
                 )
             }
         }
     }
 }
+
+@Composable
+private fun ReaderHeaderTopRow(
+    state: ReaderHeaderState,
+    actions: ReaderHeaderActions,
+) {
+    val compressedChrome = state.compactMode || state.landscapeCompact
+    val iconButtonSize = if (state.landscapeCompact) 40.dp else 48.dp
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = state.book.title,
+                style = if (compressedChrome) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = state.chapterTitle ?: stringResource(R.string.reader_chapter_title, state.chapterIndex + 1),
+                style = if (state.landscapeCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        ReaderHeaderActionButtons(state, actions, iconButtonSize)
+    }
+}
+
+@Composable
+private fun ReaderHeaderActionButtons(
+    state: ReaderHeaderState,
+    actions: ReaderHeaderActions,
+    iconButtonSize: androidx.compose.ui.unit.Dp,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(modifier = state.navigationModifier, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            IconButton(onClick = actions.onPrev, enabled = state.canGoPrev, modifier = Modifier.size(iconButtonSize)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.content_desc_previous_page),
+                    tint = navigationIconTint(state.canGoPrev),
+                )
+            }
+            IconButton(onClick = actions.onNext, enabled = state.canGoNext, modifier = Modifier.size(iconButtonSize)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = stringResource(R.string.content_desc_next_page),
+                    tint = navigationIconTint(state.canGoNext),
+                )
+            }
+        }
+        IconButton(onClick = actions.onToggleDetails, modifier = Modifier.size(iconButtonSize)) {
+            Icon(
+                imageVector = if (state.detailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = stringResource(R.string.content_desc_reader_details),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        IconButton(onClick = actions.onOpenLibrary, modifier = Modifier.size(iconButtonSize)) {
+            Icon(
+                Icons.Default.Home,
+                contentDescription = stringResource(R.string.content_desc_go_to_library),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            )
+        }
+        IconButton(onClick = actions.onShowMenu, modifier = state.menuModifier.size(iconButtonSize)) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = stringResource(R.string.content_desc_reader_menu),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun navigationIconTint(enabled: Boolean) =
+    if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
 
 @Composable
 private fun ReaderHeaderDetailsCompact(
@@ -235,9 +210,9 @@ private fun ReaderHeaderDetailsCompact(
     ) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 7.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Row(
@@ -255,10 +230,10 @@ private fun ReaderHeaderDetailsCompact(
                 LinearProgressIndicator(
                     progress = { progressFraction },
                     modifier =
-                        Modifier
-                            .weight(1f)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(999.dp)),
+                    Modifier
+                        .weight(1f)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(999.dp)),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
                 )
