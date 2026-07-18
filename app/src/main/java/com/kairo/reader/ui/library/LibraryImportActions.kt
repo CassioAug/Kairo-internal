@@ -1,0 +1,222 @@
+package com.kairo.reader.ui.library
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.kairo.reader.R
+
+@Composable
+internal fun ImportBookButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (compact) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = stringResource(R.string.library_import_button),
+            )
+        }
+        return
+    }
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+    ) {
+        Icon(
+            Icons.Default.Add,
+            contentDescription = null,
+            modifier = Modifier.size(if (compact) 18.dp else 24.dp),
+        )
+        Spacer(modifier = Modifier.width(if (compact) 6.dp else 8.dp))
+        Text(
+            stringResource(R.string.library_import_button),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+internal fun ReadFromLinkButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (compact) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(
+                Icons.Default.Link,
+                contentDescription = stringResource(R.string.library_read_from_link_button),
+            )
+        }
+        return
+    }
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+    ) {
+        Icon(
+            Icons.Default.Link,
+            contentDescription = null,
+            modifier = Modifier.size(if (compact) 18.dp else 24.dp),
+        )
+        Spacer(modifier = Modifier.width(if (compact) 6.dp else 8.dp))
+        Text(
+            stringResource(R.string.library_read_from_link_button),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+internal fun AddTextButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (compact) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(
+                Icons.AutoMirrored.Filled.TextSnippet,
+                contentDescription = stringResource(R.string.library_text_import_button),
+            )
+        }
+        return
+    }
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.TextSnippet,
+            contentDescription = null,
+            modifier = Modifier.size(if (compact) 18.dp else 24.dp),
+        )
+        Spacer(modifier = Modifier.width(if (compact) 6.dp else 8.dp))
+        Text(
+            stringResource(R.string.library_text_import_button),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+internal fun ImportSourceCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    supportingText: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 92.dp),
+        colors =
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun ReadFromLinkDialog(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.library_read_from_link_title)) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text(stringResource(R.string.library_read_from_link_label)) },
+                placeholder = {
+                    Text(stringResource(R.string.library_read_from_link_placeholder))
+                },
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onSubmit,
+                enabled = value.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.library_read_from_link_submit))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}

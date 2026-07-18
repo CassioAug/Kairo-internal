@@ -5,9 +5,3 @@ config:
 
 style:
   active: true
-  UnusedImport:
-    active: true
-
-  UnusedVariable:
-    active: true
-    allowedNames: 'ignored|_'
