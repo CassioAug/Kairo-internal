@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookmarkItem
+import com.kairo.reader.data.books.BookImportFormats
 import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
@@ -75,7 +76,7 @@ fun LibraryScreen(
     onTutorialPrevious: () -> Unit = {},
     onTutorialSkip: () -> Unit = {},
 ) {
-    // File picker launcher for EPUB/MOBI files
+    // File picker launcher for supported ebook and document files.
     val filePickerLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.OpenDocument(),
@@ -102,14 +103,7 @@ fun LibraryScreen(
     val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
     val completedBooks = remember(books) { books.filter { it.isCompleted } }
     val launchBookImport = {
-        filePickerLauncher.launch(
-            arrayOf(
-                "application/epub+zip",
-                "application/x-mobipocket-ebook",
-                "application/octet-stream",
-                "*/*",
-            ),
-        )
+        filePickerLauncher.launch(BookImportFormats.pickerMimeTypes.toTypedArray())
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

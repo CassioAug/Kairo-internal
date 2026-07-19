@@ -49,7 +49,7 @@
     <string name="import_parsing_chapters">章とアセットを解析しています</string>
 
     <string name="library_title">ライブラリ</string>
-    <string name="library_subtitle">EPUB または MOBI をインポートして開始します。</string>
+    <string name="library_subtitle">対応ファイルをインポートして開始します。</string>
     <string name="library_tab_library">ライブラリ</string>
     <string name="library_tab_completed">読了</string>
     <string name="library_tab_bookmarks">ブックマーク</string>
@@ -267,7 +267,7 @@
     <string name="library_read_from_link_submit">読む</string>
     <string name="library_add_content_title">読むものを追加</string>
     <string name="library_source_book">本</string>
-    <string name="library_source_book_hint">EPUB または MOBI</string>
+    <string name="library_source_book_hint">EPUB、MOBI、AZW、PRC、TXT、MD、HTML、FB2、DOCX、PDF</string>
     <string name="library_source_link">リンク</string>
     <string name="library_source_link_hint">ウェブ記事</string>
     <string name="library_source_text">テキスト</string>
@@ -363,7 +363,7 @@
     <string name="starting_tutorial_intro_title">Kairoへようこそ</string>
     <string name="starting_tutorial_intro_body">Kairoはライブラリから始まります。本をインポートして開き、リーダーでフォーカス語をタップするとRSVP再生に移動します。</string>
     <string name="starting_tutorial_import_title">最初の本をインポート</string>
-    <string name="starting_tutorial_import_body">このボタンで、端末ストレージからDRMなしのEPUBまたはMOBIファイルを取り込みます。</string>
+    <string name="starting_tutorial_import_body">このボタンで、端末ストレージから対応するDRMなしのファイルを取り込みます。</string>
     <string name="starting_tutorial_tabs_title">ライブラリとブックマークを切り替え</string>
     <string name="starting_tutorial_tabs_body">2つ目のタブには保存済みブックマークが集まり、重要な箇所へすばやく戻れます。</string>
     <string name="starting_tutorial_library_settings_title">アプリ設定を開く</string>

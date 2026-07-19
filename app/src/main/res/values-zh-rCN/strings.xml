@@ -49,7 +49,7 @@
     <string name="import_parsing_chapters">正在解析章节和资源</string>
 
     <string name="library_title">你的书库</string>
-    <string name="library_subtitle">导入 EPUB 或 MOBI 文件以开始。</string>
+    <string name="library_subtitle">导入支持的文件以开始。</string>
     <string name="library_tab_library">书库</string>
     <string name="library_tab_completed">已完成</string>
     <string name="library_tab_bookmarks">书签</string>
@@ -267,7 +267,7 @@
     <string name="library_read_from_link_submit">阅读</string>
     <string name="library_add_content_title">添加阅读内容</string>
     <string name="library_source_book">图书</string>
-    <string name="library_source_book_hint">EPUB 或 MOBI</string>
+    <string name="library_source_book_hint">EPUB、MOBI、AZW、PRC、TXT、MD、HTML、FB2、DOCX 或 PDF</string>
     <string name="library_source_link">链接</string>
     <string name="library_source_link_hint">网页文章</string>
     <string name="library_source_text">文本</string>
@@ -363,7 +363,7 @@
     <string name="starting_tutorial_intro_title">欢迎使用 Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo 从书库开始。导入一本书，打开它，然后在阅读器中点按焦点词即可进入 RSVP 播放。</string>
     <string name="starting_tutorial_import_title">导入第一本书</string>
-    <string name="starting_tutorial_import_body">使用此按钮从设备存储导入无 DRM 的 EPUB 或 MOBI 文件。</string>
+    <string name="starting_tutorial_import_body">使用此按钮从设备存储导入支持的无 DRM 文件。</string>
     <string name="starting_tutorial_tabs_title">在书库和书签间切换</string>
     <string name="starting_tutorial_tabs_body">第二个标签页会收集已保存书签，方便快速回到重要段落。</string>
     <string name="starting_tutorial_library_settings_title">打开应用设置</string>

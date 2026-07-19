@@ -69,7 +69,7 @@ object SampleBooks {
                             "replay entry.",
                         "Inside Reader and RSVP, the local settings surfaces let you change " +
                             "the view without backing out of the current book.",
-                        "Once you are comfortable, import your own EPUB or MOBI files. " +
+                        "Once you are comfortable, import your own supported ebook or document files. " +
                             "If you no longer need this guide, delete Kairo Starter Book " +
                             "from the library.",
                     ),

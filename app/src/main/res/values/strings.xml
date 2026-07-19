@@ -71,7 +71,7 @@
     <string name="library_read_from_link_submit">Read</string>
     <string name="library_add_content_title">Add something to read</string>
     <string name="library_source_book">Book</string>
-    <string name="library_source_book_hint">EPUB or MOBI</string>
+    <string name="library_source_book_hint">EPUB, MOBI, AZW, PRC, TXT, MD, HTML, FB2, DOCX or PDF</string>
     <string name="library_source_link">Link</string>
     <string name="library_source_link_hint">Web article</string>
     <string name="library_source_text">Text</string>
@@ -410,7 +410,7 @@
     <string name="starting_tutorial_intro_title">Welcome to Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo starts in your library. Import a book, open it, then tap the focus word in Reader to jump into RSVP playback.</string>
     <string name="starting_tutorial_import_title">Import your first book</string>
-    <string name="starting_tutorial_import_body">Use this button to bring in DRM-free EPUB or MOBI files from device storage.</string>
+    <string name="starting_tutorial_import_body">Use this button to import supported DRM-free files from device storage.</string>
     <string name="starting_tutorial_tabs_title">Switch between library and bookmarks</string>
     <string name="starting_tutorial_tabs_body">The second tab collects saved bookmarks so you can jump back into important passages fast.</string>
     <string name="starting_tutorial_library_settings_title">Open app settings</string>

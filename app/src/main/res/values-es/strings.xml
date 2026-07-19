@@ -49,7 +49,7 @@
     <string name="import_parsing_chapters">Analizando capítulos y recursos</string>
 
     <string name="library_title">Tu biblioteca</string>
-    <string name="library_subtitle">Importa archivos EPUB o MOBI para empezar.</string>
+    <string name="library_subtitle">Importa archivos compatibles para empezar.</string>
     <string name="library_tab_library">Biblioteca</string>
     <string name="library_tab_completed">Completados</string>
     <string name="library_tab_bookmarks">Marcadores</string>
@@ -267,7 +267,7 @@
     <string name="library_read_from_link_submit">Leer</string>
     <string name="library_add_content_title">Añade algo para leer</string>
     <string name="library_source_book">Libro</string>
-    <string name="library_source_book_hint">EPUB o MOBI</string>
+    <string name="library_source_book_hint">EPUB, MOBI, AZW, PRC, TXT, MD, HTML, FB2, DOCX o PDF</string>
     <string name="library_source_link">Enlace</string>
     <string name="library_source_link_hint">Artículo web</string>
     <string name="library_source_text">Texto</string>
@@ -363,7 +363,7 @@
     <string name="starting_tutorial_intro_title">Bienvenido a Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo empieza en tu biblioteca. Importa un libro, ábrelo y toca la palabra enfocada en el lector para pasar a la reproducción RSVP.</string>
     <string name="starting_tutorial_import_title">Importa tu primer libro</string>
-    <string name="starting_tutorial_import_body">Usa este botón para traer archivos EPUB o MOBI sin DRM desde el almacenamiento del dispositivo.</string>
+    <string name="starting_tutorial_import_body">Usa este botón para importar archivos compatibles sin DRM desde el almacenamiento del dispositivo.</string>
     <string name="starting_tutorial_tabs_title">Cambia entre biblioteca y marcadores</string>
     <string name="starting_tutorial_tabs_body">La segunda pestaña reúne los marcadores guardados para volver rápido a pasajes importantes.</string>
     <string name="starting_tutorial_library_settings_title">Abre los ajustes de la app</string>

@@ -49,7 +49,7 @@
     <string name="import_parsing_chapters">Analyse des chapitres et des ressources</string>
 
     <string name="library_title">Votre bibliothèque</string>
-    <string name="library_subtitle">Importez des fichiers EPUB ou MOBI pour commencer.</string>
+    <string name="library_subtitle">Importez des fichiers compatibles pour commencer.</string>
     <string name="library_tab_library">Bibliothèque</string>
     <string name="library_tab_completed">Terminés</string>
     <string name="library_tab_bookmarks">Marque-pages</string>
@@ -267,7 +267,7 @@
     <string name="library_read_from_link_submit">Lire</string>
     <string name="library_add_content_title">Ajouter quelque chose à lire</string>
     <string name="library_source_book">Livre</string>
-    <string name="library_source_book_hint">EPUB ou MOBI</string>
+    <string name="library_source_book_hint">EPUB, MOBI, AZW, PRC, TXT, MD, HTML, FB2, DOCX ou PDF</string>
     <string name="library_source_link">Lien</string>
     <string name="library_source_link_hint">Article web</string>
     <string name="library_source_text">Texte</string>
@@ -363,7 +363,7 @@
     <string name="starting_tutorial_intro_title">Bienvenue dans Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo démarre dans votre bibliothèque. Importez un livre, ouvrez-le, puis touchez le mot cible dans le lecteur pour passer à RSVP.</string>
     <string name="starting_tutorial_import_title">Importez votre premier livre</string>
-    <string name="starting_tutorial_import_body">Utilisez ce bouton pour importer des fichiers EPUB ou MOBI sans DRM depuis le stockage de l’appareil.</string>
+    <string name="starting_tutorial_import_body">Utilisez ce bouton pour importer des fichiers compatibles sans DRM depuis le stockage de l’appareil.</string>
     <string name="starting_tutorial_tabs_title">Basculer entre bibliothèque et marque-pages</string>
     <string name="starting_tutorial_tabs_body">Le deuxième onglet regroupe les marque-pages enregistrés pour revenir rapidement aux passages importants.</string>
     <string name="starting_tutorial_library_settings_title">Ouvrir les réglages de l’app</string>

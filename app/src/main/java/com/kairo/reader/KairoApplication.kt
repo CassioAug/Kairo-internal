@@ -9,8 +9,12 @@ import com.kairo.reader.data.bookmarks.BookmarkRepository
 import com.kairo.reader.data.bookmarks.BookmarkRepositoryImpl
 import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.books.BookRepositoryImpl
+import com.kairo.reader.data.books.DocxBookParser
 import com.kairo.reader.data.books.EpubBookParser
+import com.kairo.reader.data.books.Fb2BookParser
 import com.kairo.reader.data.books.MobiBookParser
+import com.kairo.reader.data.books.PdfBookParser
+import com.kairo.reader.data.books.TextFileBookParser
 import com.kairo.reader.data.books.WebArticleExtractor
 import com.kairo.reader.data.library.LibraryRepository
 import com.kairo.reader.data.library.LibraryRepositoryImpl
@@ -85,6 +89,10 @@ class KairoApplication : Application() {
             listOf(
                 EpubBookParser(dispatcherProvider),
                 MobiBookParser(dispatcherProvider),
+                TextFileBookParser(dispatcherProvider),
+                Fb2BookParser(dispatcherProvider),
+                DocxBookParser(dispatcherProvider),
+                PdfBookParser(dispatcherProvider),
             )
 
         bookRepository =
