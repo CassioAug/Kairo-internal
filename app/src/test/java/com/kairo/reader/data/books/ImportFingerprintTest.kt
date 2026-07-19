@@ -36,6 +36,20 @@ class ImportFingerprintTest {
     }
 
     @Test
+    fun detectedExtensionCanReplaceFingerprintExtensionWithoutRehashing() {
+        val original =
+            ImportFingerprint.sourceFingerprint(
+                extension = "pdf",
+                input = ByteArrayInputStream("docx package bytes".toByteArray()),
+            )
+
+        val corrected = ImportFingerprint.withSourceExtension(original, "DOCX")
+
+        assertEquals(original.substringAfterLast(':'), corrected.substringAfterLast(':'))
+        assertTrue(corrected.startsWith("source:docx:"))
+    }
+
+    @Test
     fun stableBookIdIsDerivedFromFingerprint() {
         val first = ImportFingerprint.bookIdForFingerprint("source:epub:abc")
         val second = ImportFingerprint.bookIdForFingerprint("source:epub:abc")

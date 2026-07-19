@@ -37,18 +37,24 @@ class BookRepositoryImpl(
         importMutex.withLock {
             val extensionCandidates = resolveExtensionCandidates(uri)
             val supportedExtensionList = extensionCandidates.joinToString { extension -> ".$extension" }
-            val parserMatch =
-                extensionCandidates.firstNotNullOfOrNull { extension ->
-                    parsers.firstOrNull { parser -> parser.supports(extension) }
-                        ?.let { parser -> parser to extension }
-                } ?: throw IllegalArgumentException(
+            val provisionalExtension =
+                findParserMatch(extensionCandidates)?.second ?: throw IllegalArgumentException(
                     "No parser found for $supportedExtensionList files"
                 )
-            val (parser, extension) = parserMatch
 
-            val importSource = prepareImportSource(uri, extension)
+            val importSource = prepareImportSource(uri, provisionalExtension)
             try {
-                val sourceFingerprint = importSource.sourceFingerprint
+                val detectedExtension = BookImportFormatDetector.detect(appContext, importSource.parseUri)
+                val parserCandidates =
+                    (listOfNotNull(detectedExtension) + extensionCandidates).distinct()
+                val (parser, extension) =
+                    findParserMatch(parserCandidates) ?: throw IllegalArgumentException(
+                        "No parser found for $supportedExtensionList files"
+                    )
+                val sourceFingerprint =
+                    importSource.sourceFingerprint?.let { fingerprint ->
+                        ImportFingerprint.withSourceExtension(fingerprint, extension)
+                    }
                 sourceFingerprint
                     ?.let { fingerprint -> bookDao.getBookByImportFingerprint(fingerprint) }
                     ?.let { existing ->
@@ -81,6 +87,12 @@ class BookRepositoryImpl(
             } finally {
                 importSource.deleteTempFile()
             }
+        }
+
+    private fun findParserMatch(extensionCandidates: List<String>): Pair<BookParser, String>? =
+        extensionCandidates.firstNotNullOfOrNull { extension ->
+            parsers.firstOrNull { parser -> parser.supports(extension) }
+                ?.let { parser -> parser to extension }
         }
 
     override suspend fun importUrl(rawUrl: String): BookImportResult =
