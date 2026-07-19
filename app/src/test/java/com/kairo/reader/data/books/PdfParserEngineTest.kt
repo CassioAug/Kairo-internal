@@ -17,6 +17,19 @@ class PdfParserEngineTest {
     }
 
     @Test
+    fun splitExtractedPagesPreservesPageBoundariesFromSinglePass() {
+        val pages =
+            PdfParserEngine.splitExtractedPages(
+                extractedText =
+                "First page has readable text.\u0000KAIRO_PDF_PAGE\u0000" +
+                    "Second page is also readable.\u0000KAIRO_PDF_PAGE\u0000",
+                pageCount = 2,
+            )
+
+        assertEquals(listOf("First page has readable text.", "Second page is also readable."), pages)
+    }
+
+    @Test
     fun parseExtractsTextAndMetadataFromPdf() {
         val book =
             PdfParserEngine.buildBook(
@@ -50,10 +63,8 @@ class PdfParserEngineTest {
     }
 
     private fun request() =
-        BinaryBookParseRequest(
+        PdfBookParseRequest(
             bookId = BookId("pdf-test"),
-            bytes = byteArrayOf(),
             sourceDisplayName = "fallback.pdf",
-            sourceExtension = "pdf",
         )
 }

@@ -1,75 +1,153 @@
 package com.kairo.reader.data.books
 
+import android.content.ContentResolver
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
+import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.countWords
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.text.PDFTextStripper
+import java.io.BufferedInputStream
+import java.io.File
 import java.io.IOException
+import java.util.Locale
+import kotlinx.coroutines.withContext
 
-internal class PdfBookParser(dispatcherProvider: DispatcherProvider) :
-    BinaryBookParser(
-        dispatcherProvider = dispatcherProvider,
-        supportedExtensions = setOf(PDF_EXTENSION),
-        maxFileSizeBytes = MAX_FILE_SIZE_BYTES,
-    ) {
-    override fun parseSource(
+internal class PdfBookParser(private val dispatcherProvider: DispatcherProvider,) : BookParser {
+    override suspend fun parse(
         context: Context,
-        request: BinaryBookParseRequest,
-    ): Book {
-        PDFBoxResourceLoader.init(context.applicationContext)
-        return PdfParserEngine.parse(request)
+        uri: Uri,
+        bookId: BookId,
+    ): Book = parse(context, uri, bookId, sourceDisplayName = null)
+
+    override suspend fun parse(
+        context: Context,
+        uri: Uri,
+        bookId: BookId,
+        sourceDisplayName: String?,
+    ): Book =
+        withContext(dispatcherProvider.io) {
+            PDFBoxResourceLoader.init(context.applicationContext)
+            require(BookImportFormatDetector.detect(context, uri) == PDF_EXTENSION) {
+                "Selected file is not a valid PDF"
+            }
+            val fileSize = resolveFileSize(context, uri)
+            require(fileSize < 0L || fileSize <= MAX_FILE_SIZE_BYTES) {
+                "File is too large to import (maximum ${MAX_FILE_SIZE_BYTES.toMebibytes()} MB)"
+            }
+            val request =
+                PdfBookParseRequest(
+                    bookId = bookId,
+                    sourceDisplayName =
+                    sourceDisplayName?.takeIf(String::isNotBlank)
+                        ?: uri.lastPathSegment?.substringAfterLast('/')
+                        ?: DEFAULT_SOURCE_NAME,
+                )
+            try {
+                loadDocument(context, uri).use { document ->
+                    PdfParserEngine.parse(document, request)
+                }
+            } catch (error: InvalidPasswordException) {
+                throw IllegalArgumentException("Password-protected or encrypted PDFs are not supported", error)
+            } catch (error: IllegalArgumentException) {
+                throw error
+            } catch (error: IOException) {
+                throw IllegalArgumentException("Unable to parse PDF document", error)
+            }
+        }
+
+    override fun supports(extension: String): Boolean =
+        extension.trim().lowercase(Locale.ROOT) == PDF_EXTENSION
+
+    private fun loadDocument(
+        context: Context,
+        uri: Uri,
+    ): PDDocument {
+        val memoryUsage =
+            MemoryUsageSetting.setupMixed(MAX_PDFBOX_MEMORY_BYTES).setTempDir(context.cacheDir)
+        val localFile = uri.localFileOrNull()
+        if (localFile?.isFile == true) {
+            return PDDocument.load(localFile, memoryUsage)
+        }
+        return requireNotNull(context.contentResolver.openInputStream(uri)) {
+            "Unable to read imported file"
+        }.use { input ->
+            PDDocument.load(BufferedInputStream(input), memoryUsage)
+        }
     }
+
+    private fun resolveFileSize(
+        context: Context,
+        uri: Uri,
+    ): Long {
+        uri.localFileOrNull()?.takeIf(File::isFile)?.let(File::length)?.let { return it }
+        runCatching {
+            context.contentResolver
+                .query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+                ?.use { cursor ->
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst() && sizeIndex >= 0) return cursor.getLong(sizeIndex)
+                }
+        }
+        return runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor -> descriptor.statSize }
+        }.getOrNull() ?: -1L
+    }
+
+    private fun Uri.localFileOrNull(): File? =
+        path?.takeIf { scheme == ContentResolver.SCHEME_FILE }?.let(::File)
+
+    private fun Long.toMebibytes(): Long = this / BYTES_PER_MEBIBYTE
 
     private companion object {
         private const val PDF_EXTENSION = "pdf"
+        private const val DEFAULT_SOURCE_NAME = "Imported PDF"
         private const val MAX_FILE_SIZE_BYTES = 96L * 1024L * 1024L
+        private const val MAX_PDFBOX_MEMORY_BYTES = 16L * 1024L * 1024L
+        private const val BYTES_PER_MEBIBYTE = 1024L * 1024L
     }
 }
+
+internal data class PdfBookParseRequest(val bookId: BookId, val sourceDisplayName: String,)
 
 internal data class ExtractedPdfDocument(val title: String?, val author: String?, val pages: List<String>,)
 
 internal object PdfParserEngine {
-    fun parse(request: BinaryBookParseRequest): Book =
-        try {
-            PDDocument.load(request.bytes).use { document ->
-                require(!document.isEncrypted) { "Password-protected or encrypted PDFs are not supported" }
-                val pageCount = document.numberOfPages
-                require(pageCount in 1..MAX_PAGES) { "PDF page count is outside the supported range" }
-
-                val pages = extractPages(document)
-                buildBook(
-                    request = request,
-                    extracted =
-                    ExtractedPdfDocument(
-                        title = document.documentInformation?.title,
-                        author = document.documentInformation?.author,
-                        pages = pages,
-                    ),
-                )
-            }
-        } catch (error: InvalidPasswordException) {
-            throw IllegalArgumentException("Password-protected or encrypted PDFs are not supported", error)
-        } catch (error: IllegalArgumentException) {
-            throw error
-        } catch (error: IOException) {
-            throw IllegalArgumentException("Unable to parse PDF document", error)
-        }
+    fun parse(
+        document: PDDocument,
+        request: PdfBookParseRequest,
+    ): Book {
+        require(!document.isEncrypted) { "Password-protected or encrypted PDFs are not supported" }
+        val pageCount = document.numberOfPages
+        require(pageCount in 1..MAX_PAGES) { "PDF page count is outside the supported range" }
+        return buildBook(
+            request = request,
+            extracted =
+            ExtractedPdfDocument(
+                title = document.documentInformation?.title,
+                author = document.documentInformation?.author,
+                pages = extractPages(document),
+            ),
+        )
+    }
 
     internal fun buildBook(
-        request: BinaryBookParseRequest,
+        request: PdfBookParseRequest,
         extracted: ExtractedPdfDocument,
     ): Book {
-        val readableWordCount = extracted.pages.sumOf(::countWords)
-        require(readableWordCount >= MIN_READABLE_WORDS) {
-            "No selectable text was found. Scanned PDFs require OCR and are not supported yet."
-        }
         require(extracted.pages.sumOf { page -> page.length.toLong() } <= MAX_EXTRACTED_TEXT_CHARS) {
             "PDF contains too much extracted text"
+        }
+        val chapters = buildChapters(extracted.pages)
+        require(chapters.sumOf(Chapter::wordCount) >= MIN_READABLE_WORDS) {
+            "No selectable text was found. Scanned PDFs require OCR and are not supported yet."
         }
         val title =
             extracted.title?.normalizePdfMetadata()?.takeIf(String::isNotBlank)
@@ -85,7 +163,7 @@ internal object PdfParserEngine {
             id = request.bookId,
             title = title,
             authors = authors,
-            chapters = buildChapters(extracted.pages),
+            chapters = chapters,
         )
     }
 
@@ -95,12 +173,21 @@ internal object PdfParserEngine {
                 sortByPosition = true
                 lineSeparator = "\n"
                 pageStart = ""
-                pageEnd = ""
+                pageEnd = EXTRACTION_PAGE_SEPARATOR
             }
-        return (1..document.numberOfPages).map { pageNumber ->
-            stripper.startPage = pageNumber
-            stripper.endPage = pageNumber
-            normalizePdfPageText(stripper.getText(document))
+        return splitExtractedPages(
+            extractedText = stripper.getText(document),
+            pageCount = document.numberOfPages,
+        )
+    }
+
+    internal fun splitExtractedPages(
+        extractedText: String,
+        pageCount: Int,
+    ): List<String> {
+        val rawPages = extractedText.split(EXTRACTION_PAGE_SEPARATOR)
+        return List(pageCount) { pageIndex ->
+            normalizePdfPageText(rawPages.getOrElse(pageIndex) { "" })
         }
     }
 
@@ -180,6 +267,7 @@ internal object PdfParserEngine {
     private const val MIN_READABLE_WORDS = 5
     private const val MAX_EXTRACTED_TEXT_CHARS = 16L * 1024L * 1024L
     private const val PAGE_BREAK_MARKER = '\u000C'
+    private const val EXTRACTION_PAGE_SEPARATOR = "\u0000KAIRO_PDF_PAGE\u0000"
     private val HORIZONTAL_WHITESPACE = Regex("[\\t\\x0B\\f ]+")
     private val PARAGRAPH_SEPARATOR = Regex("\\n{2,}")
     private val AUTHOR_SEPARATOR = Regex("\\s*(?:;|,|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
