@@ -13,7 +13,7 @@ internal object SafeXml {
         val factory =
             DocumentBuilderFactory.newInstance().apply {
                 isNamespaceAware = true
-                isXIncludeAware = false
+                disableXInclude { enabled -> isXIncludeAware = enabled }
                 isExpandEntityReferences = false
                 setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
                 setFeature("http://xml.org/sax/features/external-general-entities", false)
@@ -25,6 +25,13 @@ internal object SafeXml {
         val builder = factory.newDocumentBuilder()
         builder.setEntityResolver { _, _ -> InputSource(StringReader("")) }
         return ByteArrayInputStream(bytes).use(builder::parse)
+    }
+
+    internal fun disableXInclude(setEnabled: (Boolean) -> Unit) {
+        // XInclude is disabled by default. Some Android XML providers throw an
+        // "Unknown version 0.0" exception even when explicitly setting it to false.
+        val failure = runCatching { setEnabled(false) }.exceptionOrNull()
+        if (failure != null && failure !is UnsupportedOperationException) throw failure
     }
 
     private const val ACCESS_EXTERNAL_DTD = "http://javax.xml.XMLConstants/property/accessExternalDTD"
