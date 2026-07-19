@@ -7,11 +7,13 @@ import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.data.books.mobi.MobiFallbackParser
+import com.kairo.reader.data.books.mobi.MobiFormatValidator
 import com.kairo.reader.data.books.mobi.MobiLimits
 import com.kairo.reader.data.books.mobi.MobiParserEngine
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.util.Locale
 import kotlinx.coroutines.withContext
 
 class MobiBookParser(private val dispatcherProvider: DispatcherProvider,) : BookParser {
@@ -47,6 +49,8 @@ class MobiBookParser(private val dispatcherProvider: DispatcherProvider,) : Book
                     readInputBytesWithLimit(BufferedInputStream(input), MobiLimits.MAX_FILE_SIZE_BYTES)
                 }
 
+            MobiFormatValidator.validate(data)
+
             runCatching {
                 parserEngine.parse(
                     context = context,
@@ -64,7 +68,7 @@ class MobiBookParser(private val dispatcherProvider: DispatcherProvider,) : Book
         }
 
     override fun supports(extension: String): Boolean =
-        extension == "mobi" || extension == "prc" || extension == "azw"
+        extension.trim().lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS
 
     private fun resolveFileSize(
         context: Context,
@@ -119,3 +123,4 @@ class MobiBookParser(private val dispatcherProvider: DispatcherProvider,) : Book
 }
 
 private const val BYTES_PER_KIB = 1024
+private val SUPPORTED_EXTENSIONS = setOf("mobi", "prc", "azw")

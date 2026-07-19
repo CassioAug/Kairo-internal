@@ -26,7 +26,7 @@ internal object MobiLimits {
     const val EXTH_PRESENT_FLAG = 0x40
 }
 
-internal data class PalmDocHeader(val compression: Int, val textRecordCount: Int,)
+internal data class PalmDocHeader(val compression: Int, val textRecordCount: Int, val encryptionType: Int,)
 
 internal data class MobiHeader(
     val title: String,

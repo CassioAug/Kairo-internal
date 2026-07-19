@@ -74,6 +74,7 @@ class MobiHeaderParserTest {
 
         assertEquals(2, palmDoc.compression)
         assertEquals(9, palmDoc.textRecordCount)
+        assertEquals(0, palmDoc.encryptionType)
     }
 
     @Test
