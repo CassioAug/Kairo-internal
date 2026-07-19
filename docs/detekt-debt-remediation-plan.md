@@ -2,17 +2,31 @@
 
 Date: 2026-07-18
 
-Branch: `refactor/large-file-code-smells`
+Remediation branch: `refactor/detekt-debt-remediation`
 
-Code snapshot: `2b0e062`
+Remediation base: `6f29f7b`
 
 Detekt version: `1.23.8`
 
 Command: `./gradlew detektFull`
 
-## Executive summary
+## Completion status
 
-The first successful repository-wide Detekt run reported 1,116 weighted findings. After removing 31 stale EPUB constants and one unused helper exposed by the large-file refactor, the current reproducible baseline is **1,084 findings**.
+Completed on 2026-07-18.
+
+- Detekt reduced from the 1,084-finding starting baseline to **zero findings**.
+- `detektFull` passes with `ignoreFailures = false` and no Detekt baseline configured.
+- The temporary baseline was deleted after the final long-tail cleanup.
+- Pull requests and `main` now run `detektFull` in `.github/workflows/detekt.yml` and retain the HTML, XML, SARIF, and text reports.
+- Parser constants and scan stages, RSVP timing and tokenisation, Reader/RSVP Compose contracts, navigation coordinators, and preference mapping were remediated in domain-focused slices.
+- `ktlintCheck`, `compileDebugKotlin`, all 437 `testDebugUnitTest` tests, and unbaselined `detektFull` pass together.
+- The app and instrumentation APKs compile; connected execution still requires an attached emulator or device.
+
+The remaining sections preserve the starting inventory and the remediation rationale for future maintenance.
+
+## Starting executive summary
+
+The first successful repository-wide Detekt run reported 1,116 weighted findings. After removing 31 stale EPUB constants and one unused helper exposed by the large-file refactor, the remediation starting baseline was **1,084 findings**.
 
 This is not a list of 1,084 equally serious bugs:
 
@@ -25,7 +39,7 @@ This is not a list of 1,084 equally serious bugs:
 
 The right approach is to establish a CI ratchet, classify intentional patterns, and then remove the baseline in focused behavior-preserving slices. A repository-wide mechanical cleanup would be high risk and would obscure parser, timing, and UI regressions.
 
-## Current baseline
+## Starting baseline
 
 ### Findings by rule
 

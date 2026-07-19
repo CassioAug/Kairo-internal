@@ -27,11 +27,14 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.sp
 import com.kairo.reader.R
+import com.kairo.reader.core.model.RsvpConfigConstraints
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.shouldInsertSpaceBeforeToken
 import com.kairo.reader.ui.theme.MerriweatherFontFamily
 
+// Rich text spans, focus semantics, and tap geometry must be built in one AnnotatedString layout pass.
+@Suppress("LongMethod")
 @Composable
 internal fun ParagraphText(
     paragraph: Paragraph,
@@ -49,12 +52,18 @@ internal fun ParagraphText(
             fontSize = fontSizeSp.sp,
             lineHeight = (fontSizeSp * 1.5f).sp,
             color = MaterialTheme.colorScheme.onBackground.copy(
-                alpha = textBrightness.coerceIn(0.55f, 1.0f)
+                alpha =
+                textBrightness.coerceIn(
+                    RsvpConfigConstraints.MIN_TEXT_BRIGHTNESS.toFloat(),
+                    RsvpConfigConstraints.MAX_TEXT_BRIGHTNESS.toFloat(),
+                ),
             ),
         )
     val paragraphIndent =
         remember(fontSizeSp) {
-            ParagraphStyle(textIndent = TextIndent(firstLine = (fontSizeSp * 0.55f).sp))
+            ParagraphStyle(
+                textIndent = TextIndent(firstLine = (fontSizeSp * PARAGRAPH_INDENT_FACTOR).sp),
+            )
         }
     val primary = MaterialTheme.colorScheme.primary
     val tertiary = MaterialTheme.colorScheme.tertiary
@@ -232,5 +241,7 @@ internal fun ParagraphText(
         onTextLayout = { layoutResult = it },
     )
 }
+
+private const val PARAGRAPH_INDENT_FACTOR = 0.55f
 
 private const val NO_PARAGRAPH_FOCUS = -1

@@ -119,55 +119,55 @@ internal fun RsvpRoute(
     val rsvpState =
         RsvpScreenState(
             book =
-                RsvpBookContext(
-                    bookId = bookIdValue,
-                    chapterIndex = chapterIndex,
-                    tokens = tokens,
-                    startIndex = safeStartIndex,
-                    startResumeCursor = startResumeCursor,
-                    sessionStartIndex = startIndex.coerceAtLeast(0),
-                ),
+            RsvpBookContext(
+                bookId = bookIdValue,
+                chapterIndex = chapterIndex,
+                tokens = tokens,
+                startIndex = safeStartIndex,
+                startResumeCursor = startResumeCursor,
+                sessionStartIndex = startIndex.coerceAtLeast(0),
+            ),
             profile =
-                RsvpProfileContext(
-                    config = resolvedRsvpConfig,
-                    selectedProfileId = prefs.rsvpSelectedProfileId,
-                    customProfiles = prefs.rsvpCustomProfiles,
-                ),
+            RsvpProfileContext(
+                config = resolvedRsvpConfig,
+                selectedProfileId = prefs.rsvpSelectedProfileId,
+                customProfiles = prefs.rsvpCustomProfiles,
+            ),
             launchTempoMsPerWord = launchTempoMsPerWord,
             initialIsPlaying = playbackIsPlaying,
             uiPrefs =
-                RsvpUiPreferences(
-                    extremeSpeedUnlocked = prefs.unlockExtremeSpeed,
-                    readerTheme = prefs.readerTheme,
-                    focusModeEnabled = focusEnabledInRsvp,
-                    positioningGridEnabled = prefs.rsvpPositioningGridEnabled,
-                    positioningGridSnap = prefs.rsvpPositioningGridSnap,
-                ),
+            RsvpUiPreferences(
+                extremeSpeedUnlocked = prefs.unlockExtremeSpeed,
+                readerTheme = prefs.readerTheme,
+                focusModeEnabled = focusEnabledInRsvp,
+                positioningGridEnabled = prefs.rsvpPositioningGridEnabled,
+                positioningGridSnap = prefs.rsvpPositioningGridSnap,
+            ),
             textStyle =
-                if (presentationMode == ReadingPresentationMode.BIONIC) {
-                    RsvpTextStyle(
-                        fontSizeSp = prefs.bionicReading.fontSizeSp,
-                        fontFamily = prefs.rsvpFontFamily,
-                        fontWeight = RsvpFontWeight.NORMAL,
-                        textBrightness = prefs.bionicReading.textBrightness,
-                    )
-                } else {
-                    RsvpTextStyle(
-                        fontSizeSp = prefs.rsvpFontSizeSp,
-                        fontFamily = prefs.rsvpFontFamily,
-                        fontWeight = prefs.rsvpFontWeight,
-                        textBrightness = prefs.rsvpTextBrightness,
-                    )
-                },
+            if (presentationMode == ReadingPresentationMode.BIONIC) {
+                RsvpTextStyle(
+                    fontSizeSp = prefs.bionicReading.fontSizeSp,
+                    fontFamily = prefs.rsvpFontFamily,
+                    fontWeight = RsvpFontWeight.NORMAL,
+                    textBrightness = prefs.bionicReading.textBrightness,
+                )
+            } else {
+                RsvpTextStyle(
+                    fontSizeSp = prefs.rsvpFontSizeSp,
+                    fontFamily = prefs.rsvpFontFamily,
+                    fontWeight = prefs.rsvpFontWeight,
+                    textBrightness = prefs.rsvpTextBrightness,
+                )
+            },
             layoutBias =
-                if (presentationMode == ReadingPresentationMode.BIONIC) {
-                    RsvpLayoutBias(verticalBias = 0f, horizontalBias = 0f)
-                } else {
-                    RsvpLayoutBias(
-                        verticalBias = prefs.rsvpVerticalBias,
-                        horizontalBias = prefs.rsvpHorizontalBias,
-                    )
-                },
+            if (presentationMode == ReadingPresentationMode.BIONIC) {
+                RsvpLayoutBias(verticalBias = 0f, horizontalBias = 0f)
+            } else {
+                RsvpLayoutBias(
+                    verticalBias = prefs.rsvpVerticalBias,
+                    horizontalBias = prefs.rsvpHorizontalBias,
+                )
+            },
         )
     val rsvpCallbacks =
         buildRsvpRouteCallbacks(

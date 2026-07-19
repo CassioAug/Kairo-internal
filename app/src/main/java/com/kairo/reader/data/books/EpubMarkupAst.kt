@@ -2,9 +2,7 @@ package com.kairo.reader.data.books
 
 internal sealed interface EpubMarkupNode
 
-internal data class EpubMarkupTextNode(
-    val text: String,
-) : EpubMarkupNode
+internal data class EpubMarkupTextNode(val text: String,) : EpubMarkupNode
 
 internal data class EpubMarkupElementNode(
     val name: String,
@@ -12,6 +10,4 @@ internal data class EpubMarkupElementNode(
     val children: MutableList<EpubMarkupNode> = mutableListOf(),
 ) : EpubMarkupNode
 
-internal data class EpubMarkupDocument(
-    val children: MutableList<EpubMarkupNode> = mutableListOf(),
-)
+internal data class EpubMarkupDocument(val children: MutableList<EpubMarkupNode> = mutableListOf(),)

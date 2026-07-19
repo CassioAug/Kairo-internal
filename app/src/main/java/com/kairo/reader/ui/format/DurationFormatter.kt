@@ -13,11 +13,11 @@ fun formatShortDurationMinutes(context: Context, minutes: Int): String {
     }
     val locale = context.resources.configuration.locales[0] ?: Locale.getDefault()
     val formatter = MeasureFormat.getInstance(locale, MeasureFormat.FormatWidth.SHORT)
-    return if (minutes < 60) {
+    return if (minutes < MINUTES_PER_HOUR) {
         formatter.format(Measure(minutes, MeasureUnit.MINUTE))
     } else {
-        val hours = minutes / 60
-        val remainingMinutes = minutes % 60
+        val hours = minutes / MINUTES_PER_HOUR
+        val remainingMinutes = minutes % MINUTES_PER_HOUR
         if (remainingMinutes == 0) {
             formatter.format(Measure(hours, MeasureUnit.HOUR))
         } else {
@@ -28,3 +28,5 @@ fun formatShortDurationMinutes(context: Context, minutes: Int): String {
         }
     }
 }
+
+private const val MINUTES_PER_HOUR = 60

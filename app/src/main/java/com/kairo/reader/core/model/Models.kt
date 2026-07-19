@@ -47,11 +47,7 @@ data class Book(
  * Represents an internal link within chapter content.
  * Character positions are relative to plainText.
  */
-data class ChapterLink(
-    val startChar: Int,
-    val endChar: Int,
-    val targetChapterIndex: Int,
-)
+data class ChapterLink(val startChar: Int, val endChar: Int, val targetChapterIndex: Int,)
 
 data class Chapter(
     val index: Int,
@@ -302,6 +298,8 @@ object RsvpProfileIds {
 
 data class RsvpCustomProfile(val id: String, val name: String, val config: RsvpConfig, val updatedAtMs: Long,)
 
+// Built-in profiles are exhaustive immutable preset tables kept beside the domain enum.
+@Suppress("LongMethod")
 fun RsvpProfile.defaultConfig(): RsvpConfig =
     when (this) {
         RsvpProfile.BALANCED ->
@@ -608,6 +606,8 @@ private fun RsvpConfig.withProfilePunctuation(profile: RsvpProfile): RsvpConfig 
         )
     }
 
+// Punctuation tuning is an exhaustive immutable preset table, not branching business logic.
+@Suppress("LongMethod")
 private fun RsvpProfile.punctuationTuning(): RsvpProfilePunctuationTuning =
     when (this) {
         RsvpProfile.BALANCED ->

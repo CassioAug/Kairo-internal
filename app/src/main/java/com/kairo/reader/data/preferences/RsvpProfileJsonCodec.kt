@@ -2,6 +2,7 @@ package com.kairo.reader.data.preferences
 
 import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpConfigConstraints
 import com.kairo.reader.core.model.RsvpContextAssistMode
 import com.kairo.reader.core.model.RsvpCustomProfile
 import org.json.JSONArray
@@ -417,10 +418,16 @@ internal class RsvpProfileJsonCodec(private val onMalformed: (Throwable) -> Unit
         ).normalizedNaturalFlowMultipliers(defaults)
 
     private fun normalizeClausePauseFactor(value: Double, fallback: Double): Double =
-        (value.takeIf { it.isFinite() } ?: fallback).coerceIn(1.0, 1.6)
+        (value.takeIf { it.isFinite() } ?: fallback).coerceIn(
+            RsvpConfigConstraints.MIN_CLAUSE_PAUSE_FACTOR,
+            RsvpConfigConstraints.MAX_CLAUSE_PAUSE_FACTOR,
+        )
 
     private fun normalizeProsodyStrength(value: Double, fallback: Double): Double =
-        (value.takeIf { it.isFinite() } ?: fallback).coerceIn(0.0, 1.6)
+        (value.takeIf { it.isFinite() } ?: fallback).coerceIn(
+            RsvpConfigConstraints.MIN_PROSODY_STRENGTH,
+            RsvpConfigConstraints.MAX_PROSODY_STRENGTH,
+        )
 
     private fun RsvpConfig.withBlinkMode(blinkMode: BlinkMode): RsvpConfig =
         copy(blinkMode = blinkMode)

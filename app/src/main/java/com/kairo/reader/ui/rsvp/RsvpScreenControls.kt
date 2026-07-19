@@ -49,10 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.nearestWordIndex
 
-private data class PausedPreviewContent(
-    val paragraph: AnnotatedString,
-    val focusWord: String,
-)
+private data class PausedPreviewContent(val paragraph: AnnotatedString, val focusWord: String,)
 
 @Composable
 internal fun BoxScope.RsvpBottomControls(
@@ -70,10 +67,10 @@ internal fun BoxScope.RsvpBottomControls(
     ) {
         BoxWithConstraints(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(CONTROLS_OUTER_PADDING),
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(CONTROLS_OUTER_PADDING),
             contentAlignment = Alignment.Center,
         ) {
             val compactLandscape = maxWidth > maxHeight && maxHeight <= 480.dp
@@ -104,19 +101,19 @@ private fun RsvpDefaultBottomControls(
     val previewContent = rememberPausedPreviewContent(context, compact = false)
     Column(
         modifier =
-            Modifier
-                .widthIn(max = CONTROLS_MAX_WIDTH)
-                .fillMaxWidth(CONTROLS_WIDTH_FRACTION)
-                .clip(RoundedCornerShape(CONTROLS_CORNER_RADIUS))
-                .background(
-                    MaterialTheme.colorScheme.surface.copy(alpha = CONTROLS_BACKGROUND_ALPHA),
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = CONTROLS_BORDER_ALPHA),
-                    shape = RoundedCornerShape(CONTROLS_CORNER_RADIUS),
-                )
-                .padding(CONTROLS_PADDING),
+        Modifier
+            .widthIn(max = CONTROLS_MAX_WIDTH)
+            .fillMaxWidth(CONTROLS_WIDTH_FRACTION)
+            .clip(RoundedCornerShape(CONTROLS_CORNER_RADIUS))
+            .background(
+                MaterialTheme.colorScheme.surface.copy(alpha = CONTROLS_BACKGROUND_ALPHA),
+            )
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = CONTROLS_BORDER_ALPHA),
+                shape = RoundedCornerShape(CONTROLS_CORNER_RADIUS),
+            )
+            .padding(CONTROLS_PADDING),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (
@@ -144,11 +141,11 @@ private fun RsvpDefaultBottomControls(
         Spacer(modifier = Modifier.height(CONTROLS_SPACER))
         RsvpPlaybackInfoPills(
             progressText =
-                stringResource(
-                    R.string.rsvp_frame_progress,
-                    runtime.frameIndex + 1,
-                    context.frameState.frames.size,
-                ),
+            stringResource(
+                R.string.rsvp_frame_progress,
+                runtime.frameIndex + 1,
+                context.frameState.frames.size,
+            ),
             speedText = speedText,
         )
         Spacer(modifier = Modifier.height(CONTROLS_HINT_SPACER))
@@ -170,19 +167,19 @@ private fun RsvpCompactBottomControls(
     val previewContent = rememberPausedPreviewContent(context, compact = true)
     Column(
         modifier =
-            Modifier
-                .widthIn(max = CONTROLS_MAX_WIDTH)
-                .fillMaxWidth(0.88f)
-                .clip(RoundedCornerShape(CONTROLS_CORNER_RADIUS))
-                .background(
-                    MaterialTheme.colorScheme.surface.copy(alpha = CONTROLS_BACKGROUND_ALPHA),
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = CONTROLS_BORDER_ALPHA),
-                    shape = RoundedCornerShape(CONTROLS_CORNER_RADIUS),
-                )
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier
+            .widthIn(max = CONTROLS_MAX_WIDTH)
+            .fillMaxWidth(COMPACT_CONTROLS_WIDTH_FRACTION)
+            .clip(RoundedCornerShape(CONTROLS_CORNER_RADIUS))
+            .background(
+                MaterialTheme.colorScheme.surface.copy(alpha = CONTROLS_BACKGROUND_ALPHA),
+            )
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = CONTROLS_BORDER_ALPHA),
+                shape = RoundedCornerShape(CONTROLS_CORNER_RADIUS),
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (
@@ -219,11 +216,11 @@ private fun RsvpCompactBottomControls(
             ) {
                 RsvpPlaybackInfoPills(
                     progressText =
-                        stringResource(
-                            R.string.rsvp_frame_progress,
-                            runtime.frameIndex + 1,
-                            context.frameState.frames.size,
-                        ),
+                    stringResource(
+                        R.string.rsvp_frame_progress,
+                        runtime.frameIndex + 1,
+                        context.frameState.frames.size,
+                    ),
                     speedText = speedText,
                     compact = true,
                 )
@@ -238,6 +235,8 @@ private fun RsvpCompactBottomControls(
         }
     }
 }
+
+private const val COMPACT_CONTROLS_WIDTH_FRACTION = 0.88f
 
 @Composable
 private fun rememberPausedPreviewContent(
@@ -274,18 +273,18 @@ private fun rememberPausedPreviewContent(
     return remember(paragraph, highlightIndex, highlightStyle, focusWord, compact) {
         PausedPreviewContent(
             paragraph =
-                buildRsvpParagraphAnnotatedText(
-                    paragraph = paragraph,
-                    highlightIndex = highlightIndex,
-                    highlightStyle = highlightStyle,
-                    maxWords =
-                        if (compact) {
-                            PAUSE_PREVIEW_COMPACT_WINDOW_WORDS
-                        } else {
-                            PARAGRAPH_PREVIEW_WINDOW_WORDS
-                        },
-                    highlightWindowFraction = PAUSE_PREVIEW_HIGHLIGHT_FRACTION,
-                ),
+            buildRsvpParagraphAnnotatedText(
+                paragraph = paragraph,
+                highlightIndex = highlightIndex,
+                highlightStyle = highlightStyle,
+                maxWords =
+                if (compact) {
+                    PAUSE_PREVIEW_COMPACT_WINDOW_WORDS
+                } else {
+                    PARAGRAPH_PREVIEW_WINDOW_WORDS
+                },
+                highlightWindowFraction = PAUSE_PREVIEW_HIGHLIGHT_FRACTION,
+            ),
             focusWord = focusWord,
         )
     }
@@ -309,17 +308,17 @@ private fun RsvpPausedPreview(
                 shape = shape,
             ).padding(
                 horizontal =
-                    if (compact) {
-                        PAUSE_PREVIEW_COMPACT_PADDING_HORIZONTAL
-                    } else {
-                        PAUSE_PREVIEW_PADDING_HORIZONTAL
-                    },
+                if (compact) {
+                    PAUSE_PREVIEW_COMPACT_PADDING_HORIZONTAL
+                } else {
+                    PAUSE_PREVIEW_PADDING_HORIZONTAL
+                },
                 vertical =
-                    if (compact) {
-                        PAUSE_PREVIEW_COMPACT_PADDING_VERTICAL
-                    } else {
-                        PAUSE_PREVIEW_PADDING_VERTICAL
-                    },
+                if (compact) {
+                    PAUSE_PREVIEW_COMPACT_PADDING_VERTICAL
+                } else {
+                    PAUSE_PREVIEW_PADDING_VERTICAL
+                },
             )
 
     if (compact) {
@@ -333,11 +332,11 @@ private fun RsvpPausedPreview(
                 context = context,
                 compact = true,
                 modifier =
-                    Modifier
-                        .widthIn(
-                            min = PAUSE_PREVIEW_COMPACT_FOCUS_MIN_WIDTH,
-                            max = PAUSE_PREVIEW_COMPACT_FOCUS_MAX_WIDTH,
-                        ),
+                Modifier
+                    .widthIn(
+                        min = PAUSE_PREVIEW_COMPACT_FOCUS_MIN_WIDTH,
+                        max = PAUSE_PREVIEW_COMPACT_FOCUS_MAX_WIDTH,
+                    ),
             )
             RsvpPausePreviewContextText(
                 text = content.paragraph,
@@ -383,13 +382,13 @@ private fun RsvpPausePreviewFocusWord(
     Text(
         text = focusWord,
         style =
-            MaterialTheme.typography.headlineSmall.copy(
-                fontSize = fontSizeSp.sp,
-                fontFamily = resolveFontFamily(runtime.currentFontFamily),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = PAUSE_PREVIEW_FOCUS_ALPHA),
-                lineHeight = (fontSizeSp * 1.08f).sp,
-            ),
+        MaterialTheme.typography.headlineSmall.copy(
+            fontSize = fontSizeSp.sp,
+            fontFamily = resolveFontFamily(runtime.currentFontFamily),
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = PAUSE_PREVIEW_FOCUS_ALPHA),
+            lineHeight = (fontSizeSp * 1.08f).sp,
+        ),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier,
@@ -418,22 +417,22 @@ private fun RsvpPausePreviewContextText(
 
     Box(
         modifier =
-            modifier
-                .fillMaxWidth()
-                .height(previewHeight)
-                .clipToBounds(),
+        modifier
+            .fillMaxWidth()
+            .height(previewHeight)
+            .clipToBounds(),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
             text = text,
             style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = fontSizeSp.sp,
-                    fontFamily = resolveFontFamily(runtime.currentFontFamily),
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = PAUSE_PREVIEW_TEXT_ALPHA),
-                    lineHeight = lineHeightSp.sp,
-                ),
+            MaterialTheme.typography.bodyMedium.copy(
+                fontSize = fontSizeSp.sp,
+                fontFamily = resolveFontFamily(runtime.currentFontFamily),
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = PAUSE_PREVIEW_TEXT_ALPHA),
+                lineHeight = lineHeightSp.sp,
+            ),
             overflow = TextOverflow.Clip,
             maxLines = lineCount,
             minLines = lineCount,
@@ -488,25 +487,25 @@ private fun RsvpPlaybackInfoPill(
 ) {
     Column(
         modifier =
-            modifier
-                .clip(RoundedCornerShape(CONTROLS_INFO_PILL_CORNER_RADIUS))
-                .background(
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = CONTROLS_PILL_BACKGROUND_ALPHA),
-                )
-                .padding(
-                    horizontal =
-                        if (compact) {
-                            10.dp
-                        } else {
-                            CONTROLS_INFO_PILL_PADDING_HORIZONTAL
-                        },
-                    vertical =
-                        if (compact) {
-                            6.dp
-                        } else {
-                            CONTROLS_INFO_PILL_PADDING_VERTICAL
-                        },
-                ),
+        modifier
+            .clip(RoundedCornerShape(CONTROLS_INFO_PILL_CORNER_RADIUS))
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = CONTROLS_PILL_BACKGROUND_ALPHA),
+            )
+            .padding(
+                horizontal =
+                if (compact) {
+                    10.dp
+                } else {
+                    CONTROLS_INFO_PILL_PADDING_HORIZONTAL
+                },
+                vertical =
+                if (compact) {
+                    6.dp
+                } else {
+                    CONTROLS_INFO_PILL_PADDING_VERTICAL
+                },
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -533,10 +532,10 @@ private fun RsvpControlsProgress(context: RsvpUiContext) {
     LinearProgressIndicator(
         progress = { progress },
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(CONTROLS_PROGRESS_CORNER_RADIUS))
-                .height(CONTROLS_PROGRESS_HEIGHT),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CONTROLS_PROGRESS_CORNER_RADIUS))
+            .height(CONTROLS_PROGRESS_HEIGHT),
         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
         trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = PROGRESS_TRACK_ALPHA),
     )

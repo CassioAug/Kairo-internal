@@ -173,7 +173,7 @@ internal object EpubHtmlEntities {
         if (entity[0] == '#') {
             val codePoint =
                 if (entity.length > 1 && (entity[1] == 'x' || entity[1] == 'X')) {
-                    entity.substring(2).toIntOrNull(16)
+                    entity.substring(2).toIntOrNull(HEX_RADIX)
                 } else {
                     entity.substring(1).toIntOrNull()
                 }
@@ -193,3 +193,5 @@ internal object EpubHtmlEntities {
         }
     }
 }
+
+private const val HEX_RADIX = 16

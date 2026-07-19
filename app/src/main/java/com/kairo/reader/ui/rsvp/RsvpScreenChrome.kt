@@ -151,17 +151,17 @@ private fun RsvpTopIconButton(
     IconButton(
         onClick = onClick,
         modifier =
-            modifier
-                .size(TOP_BAR_BUTTON_SIZE)
-                .clip(CircleShape)
-                .background(
-                    MaterialTheme.colorScheme.surface.copy(alpha = TOP_BAR_BUTTON_BACKGROUND_ALPHA),
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = TOP_BAR_BUTTON_BORDER_ALPHA),
-                    shape = CircleShape,
-                ),
+        modifier
+            .size(TOP_BAR_BUTTON_SIZE)
+            .clip(CircleShape)
+            .background(
+                MaterialTheme.colorScheme.surface.copy(alpha = TOP_BAR_BUTTON_BACKGROUND_ALPHA),
+            )
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = TOP_BAR_BUTTON_BORDER_ALPHA),
+                shape = CircleShape,
+            ),
     ) {
         Icon(
             imageVector,
@@ -340,9 +340,9 @@ internal fun BoxScope.RsvpScrubTargetIndicator(context: RsvpUiContext) {
     val frames = context.frameState.frames
     val frameCount = frames.size.coerceAtLeast(1)
     val progressPercent =
-        (((runtime.frameIndex + 1).toFloat() / frameCount.toFloat()) * 100f)
+        (((runtime.frameIndex + 1).toFloat() / frameCount.toFloat()) * PERCENT_SCALE)
             .roundToInt()
-            .coerceIn(0, 100)
+            .coerceIn(0, PERCENT_SCALE.toInt())
     val topPadding = wordAwareIndicatorTopPadding(context, SCRUB_INDICATOR_TOP_PADDING)
 
     AnimatedVisibility(
@@ -353,16 +353,16 @@ internal fun BoxScope.RsvpScrubTargetIndicator(context: RsvpUiContext) {
     ) {
         Box(
             modifier =
-                Modifier
-                    .statusBarsPadding()
-                    .padding(top = topPadding)
-                    .background(
-                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = INDICATOR_BACKGROUND_ALPHA),
-                        RoundedCornerShape(INDICATOR_CORNER_RADIUS),
-                    ).padding(
-                        horizontal = INDICATOR_PADDING_HORIZONTAL,
-                        vertical = INDICATOR_PADDING_VERTICAL,
-                    ),
+            Modifier
+                .statusBarsPadding()
+                .padding(top = topPadding)
+                .background(
+                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = INDICATOR_BACKGROUND_ALPHA),
+                    RoundedCornerShape(INDICATOR_CORNER_RADIUS),
+                ).padding(
+                    horizontal = INDICATOR_PADDING_HORIZONTAL,
+                    vertical = INDICATOR_PADDING_VERTICAL,
+                ),
         ) {
             Text(
                 text = "${runtime.frameIndex + 1}/$frameCount • $progressPercent%",

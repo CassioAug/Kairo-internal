@@ -21,3 +21,20 @@ tasks.register("detektFull") {
     description = "Runs Detekt across the app module"
     dependsOn(":app:detekt")
 }
+
+tasks.register("qualityCheck") {
+    group = "verification"
+    description = "Runs formatting, Detekt, debug compilation, and unit tests"
+    dependsOn(
+        "detektFull",
+        ":app:ktlintCheck",
+        ":app:compileDebugKotlin",
+        ":app:testDebugUnitTest",
+    )
+}
+
+tasks.register("qualityGate") {
+    group = "verification"
+    description = "Runs the complete deterministic CI quality gate, including debug APK assembly"
+    dependsOn("qualityCheck", ":app:assembleDebug")
+}

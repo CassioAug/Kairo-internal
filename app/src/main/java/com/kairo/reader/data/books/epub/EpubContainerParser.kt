@@ -97,7 +97,7 @@ internal class EpubContainerParser {
         val attrRegex = Regex("([A-Za-z_][A-Za-z0-9_:.\\-]*)\\s*=\\s*(['\"])(.*?)\\2")
         attrRegex.findAll(tag).forEach { match ->
             val name = match.groupValues[1].lowercase(Locale.ROOT)
-            val value = EpubHtmlEntities.decode(match.groupValues[3]).trim()
+            val value = EpubHtmlEntities.decode(match.groupValues[ATTRIBUTE_VALUE_GROUP]).trim()
             if (value.isNotBlank()) {
                 attrs[name] = value
             }
@@ -105,3 +105,5 @@ internal class EpubContainerParser {
         return attrs
     }
 }
+
+private const val ATTRIBUTE_VALUE_GROUP = 3

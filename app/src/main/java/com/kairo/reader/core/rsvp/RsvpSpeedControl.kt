@@ -55,7 +55,8 @@ object RsvpSpeedControl {
         return exp(tempoLog).roundToLong().coerceIn(fastTempo, slowTempo)
     }
 
-    fun displaySpeed(speed: Float): Int = speed.roundToInt().coerceIn(0, 100)
+    fun displaySpeed(speed: Float): Int =
+        speed.roundToInt().coerceIn(MIN_SPEED.roundToInt(), MAX_SPEED.roundToInt())
 
     /**
      * Keeps a saved slider position stable while moving it onto the more readable speed curve.
@@ -92,11 +93,11 @@ object RsvpSpeedControl {
             }
         return bandForTempoMs(
             tempoMsPerWord =
-                tempoForSpeed(
-                    speed = speed,
-                    minTempoMsPerWord = minTempoMsPerWord,
-                    maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
-                ),
+            tempoForSpeed(
+                speed = speed,
+                minTempoMsPerWord = minTempoMsPerWord,
+                maxTempoMsPerWord = MAX_TEMPO_MS_PER_WORD,
+            ),
             extremeUnlocked = extremeUnlocked,
         )
     }
@@ -105,7 +106,7 @@ object RsvpSpeedControl {
         tempoMsPerWord: Long,
         extremeUnlocked: Boolean,
     ): SpeedBand {
-        val selectedWpm = MS_PER_MINUTE / tempoMsPerWord.coerceAtLeast(1L).toDouble()
+        val selectedWpm = MILLISECONDS_PER_MINUTE / tempoMsPerWord.coerceAtLeast(1L).toDouble()
         return when {
             extremeUnlocked && selectedWpm >= EXTREME_MIN_WPM -> SpeedBand.EXTREME
             selectedWpm >= VERY_FAST_MIN_WPM -> SpeedBand.VERY_FAST
@@ -116,7 +117,6 @@ object RsvpSpeedControl {
         }
     }
 
-    private const val MS_PER_MINUTE = 60_000.0
     private const val SLOW_MIN_WPM = 250
     private const val STEADY_MIN_WPM = 350
     private const val FAST_MIN_WPM = 550
@@ -124,3 +124,5 @@ object RsvpSpeedControl {
     private const val EXTREME_MIN_WPM = 1_800
     private const val LEGACY_MAX_TEMPO_MS_PER_WORD = 240L
 }
+
+internal const val MILLISECONDS_PER_MINUTE = 60_000.0

@@ -5,9 +5,7 @@ import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.withoutInlinePhysicalPageBreaks
 import com.kairo.reader.core.tokenization.ChapterTokenizer
 
-class CjkTokenizer(
-    config: CjkSegmenterConfig = CjkSegmenterConfig(),
-) : ChapterTokenizer {
+class CjkTokenizer(config: CjkSegmenterConfig = CjkSegmenterConfig(),) : ChapterTokenizer {
     private val segmenter = CjkSegmenter(config)
 
     override fun tokenize(chapter: Chapter): List<Token> {

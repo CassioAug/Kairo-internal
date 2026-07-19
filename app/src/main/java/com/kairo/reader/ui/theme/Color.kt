@@ -182,6 +182,8 @@ private val DarkOnError = Color(0xFF3A100B)
 private val DarkErrorContainer = Color(0xFF5A211B)
 private val DarkOnErrorContainer = Color(0xFFFFDAD4)
 
+// This exhaustive theme-to-token table is data expressed as Kotlin, not procedural control flow.
+@Suppress("LongMethod")
 internal fun ReaderTheme.readerThemePalette(): ReaderThemePalette =
     when (this) {
         ReaderTheme.LIGHT ->

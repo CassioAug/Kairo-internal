@@ -39,16 +39,16 @@ class BionicPlaybackReadinessTest {
         val token = Token("word", TokenType.WORD)
         return RsvpFrameLoadState(
             frames =
-                listOf(
-                    RsvpFrame(
-                        tokens = listOf(token),
-                        durationMs = 100L,
-                        originalTokenIndex = 0,
-                        nextOriginalTokenIndex = 1,
-                        displayOriginalStartIndex = 0,
-                        displayOriginalEndExclusive = 1,
-                    ),
+            listOf(
+                RsvpFrame(
+                    tokens = listOf(token),
+                    durationMs = 100L,
+                    originalTokenIndex = 0,
+                    nextOriginalTokenIndex = 1,
+                    displayOriginalStartIndex = 0,
+                    displayOriginalEndExclusive = 1,
                 ),
+            ),
             baseTempoMs = 100L,
             isLoading = isLoading,
             isComplete = isComplete,

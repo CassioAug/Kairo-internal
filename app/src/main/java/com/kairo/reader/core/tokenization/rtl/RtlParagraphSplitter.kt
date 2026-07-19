@@ -1,5 +1,7 @@
 package com.kairo.reader.core.tokenization.rtl
 
+import com.kairo.reader.core.tokenization.ParagraphBreakPatterns
+
 internal object RtlParagraphSplitter {
     fun split(text: String): List<String> =
         text
@@ -17,7 +19,7 @@ internal object RtlParagraphSplitter {
         if (paragraph == RtlTextNormalizer.FORM_FEED_MARKER) return true
         if (paragraph == FORM_FEED) return true
         if (paragraph.isBlank()) return false
-        return PAGE_BREAK_REGEX.matches(paragraph)
+        return ParagraphBreakPatterns.sceneBreak.matches(paragraph)
     }
 
     fun pageBreakText(paragraph: String): String =
@@ -26,11 +28,6 @@ internal object RtlParagraphSplitter {
         } else {
             paragraph.trim()
         }
-
-    private val PAGE_BREAK_REGEX =
-        Regex(
-            """^\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,}|(?:~\s*){3,}|(?:\u2014\s*){2,}|(?:\u2013\s*){2,}|(?:\u2022\s*){3,}|(?:\u00B7\s*){3,})\s*$""",
-        )
 
     private const val FORM_FEED = "\u000C"
 }

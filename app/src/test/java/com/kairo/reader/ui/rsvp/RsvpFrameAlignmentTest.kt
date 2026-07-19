@@ -73,26 +73,26 @@ class RsvpFrameAlignmentTest {
     fun alignFrameIndexUsesExactResumeCursorWhenAvailable() {
         val frames = engine.generateFrames(
             tokens =
-                listOf(
-                    Token(
-                        text = "supercalifragilisticexpialidocious",
-                        type = TokenType.WORD,
-                        syllableCount = 8,
-                        frequencyScore = 0.1,
-                        complexityMultiplier = 1.2,
-                    ),
+            listOf(
+                Token(
+                    text = "supercalifragilisticexpialidocious",
+                    type = TokenType.WORD,
+                    syllableCount = 8,
+                    frequencyScore = 0.1,
+                    complexityMultiplier = 1.2,
                 ),
+            ),
             startIndex = 0,
             config =
-                RsvpConfig(
-                    maxChunkLength = 4,
-                    subwordChunkPauseMs = 0L,
-                    startDelayMs = 0L,
-                    endDelayMs = 0L,
-                    rampUpFrames = 0,
-                    rampDownFrames = 0,
-                    enablePhraseChunking = false,
-                ),
+            RsvpConfig(
+                maxChunkLength = 4,
+                subwordChunkPauseMs = 0L,
+                startDelayMs = 0L,
+                endDelayMs = 0L,
+                rampUpFrames = 0,
+                rampDownFrames = 0,
+                enablePhraseChunking = false,
+            ),
         )
 
         val targetFrame = frames[1]

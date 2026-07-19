@@ -96,6 +96,9 @@ internal fun timedReadingModeFromStored(
         ?.let { stored -> runCatching { TimedReadingMode.valueOf(stored) }.getOrNull() }
         ?: fallback
 
+// The repository intentionally mirrors the explicit preference update API; private codecs and
+// mappers remain split into their own files.
+@Suppress("TooManyFunctions")
 class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepository {
     private val keys = PrefKeys
     private val migrationMutex = Mutex()
@@ -265,7 +268,7 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         name: String,
         config: RsvpConfig,
     ) {
-        val trimmedName = name.trim().take(32)
+        val trimmedName = name.trim().take(MAX_CUSTOM_PROFILE_NAME_LENGTH)
         if (trimmedName.isBlank()) return
 
         context.dataStore.edit { prefs ->
@@ -430,6 +433,8 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         context.dataStore.edit { it.clear() }
     }
 }
+
+private const val MAX_CUSTOM_PROFILE_NAME_LENGTH = 32
 
 private const val CURRENT_RSVP_PUNCTUATION_TUNING_VERSION = 2
 private const val TAG = "PreferencesRepository"

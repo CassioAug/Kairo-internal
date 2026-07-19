@@ -27,6 +27,7 @@ internal const val EASY_PAIR_THRESHOLD = 0.72
 internal const val TRANSITION_HOLD_BASE_MS = 4.0
 internal const val TRANSITION_HOLD_EXTRA_MS = 6.0
 internal const val COHERENCE_HOLD_MS = 5.0
+
 // Breath between intonation units. Applied before a grammatical phrase/clause boundary that has
 // no punctuation (e.g. before "who", "which", "because", "when", a joining "and"/"but"). This is
 // the pause an inner voice takes between thoughts — it groups words into phrases and gives the
@@ -35,6 +36,7 @@ internal const val COHERENCE_HOLD_MS = 5.0
 // ~nothing except at very high WPM, so phrasing was never actually felt).
 internal const val PHRASE_BREAK_HOLD_MS = 30.0
 internal const val PHRASE_BREATH_BASE = 0.5
+
 // Phrase-arc shaping at the same grammatical (punctuation-free) boundaries the breath fires on.
 // Speech prosody lengthens the final word of an intonation unit (pre-boundary lengthening) and
 // articulates the word that opens the next one — without the onset lift, the function-word glide

@@ -308,9 +308,11 @@ internal fun resolveImportFailureMessage(
         when (val root = error.rootCause()) {
             is HttpStatusException ->
                 when (root.statusCode) {
-                    401, 403 -> resources.getString(R.string.toast_import_failed_blocked)
-                    404 -> resources.getString(R.string.toast_import_failed_not_found)
-                    429 -> resources.getString(R.string.toast_import_failed_rate_limited)
+                    HTTP_UNAUTHORIZED, HTTP_FORBIDDEN ->
+                        resources.getString(R.string.toast_import_failed_blocked)
+                    HTTP_NOT_FOUND -> resources.getString(R.string.toast_import_failed_not_found)
+                    HTTP_TOO_MANY_REQUESTS ->
+                        resources.getString(R.string.toast_import_failed_rate_limited)
                     in 500..599 -> resources.getString(R.string.toast_import_failed_server)
                     else -> resources.getString(R.string.toast_import_failed_detail, root.message)
                 }
@@ -324,6 +326,11 @@ internal fun resolveImportFailureMessage(
         }
     return message
 }
+
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_NOT_FOUND = 404
+private const val HTTP_TOO_MANY_REQUESTS = 429
 
 private fun Throwable.rootCause(): Throwable {
     var current = this

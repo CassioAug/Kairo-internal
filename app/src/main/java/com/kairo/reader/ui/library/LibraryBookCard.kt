@@ -224,7 +224,7 @@ internal fun CompletedStatusPill() {
     Row(
         modifier =
         Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(BOOK_PROGRESS_CORNER_PERCENT))
             .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f))
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -243,3 +243,5 @@ internal fun CompletedStatusPill() {
         )
     }
 }
+
+private const val BOOK_PROGRESS_CORNER_PERCENT = 50

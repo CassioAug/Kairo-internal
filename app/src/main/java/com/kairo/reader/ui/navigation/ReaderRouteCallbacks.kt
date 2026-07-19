@@ -36,7 +36,7 @@ internal data class ReaderRouteCallbacks(
     val onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
 )
 
-internal class ReaderRouteCallbackDependencies(
+internal data class ReaderRouteCallbackDependencies(
     val container: KairoApplication,
     val navController: NavHostController,
     val prefs: UserPreferences,

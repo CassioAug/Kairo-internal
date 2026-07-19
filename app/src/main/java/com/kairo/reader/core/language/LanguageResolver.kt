@@ -15,24 +15,30 @@ object LanguageTagNormalizer {
 object LanguageDetector {
     fun detectLanguageTag(text: String): String? {
         val sample = text.take(MAX_SAMPLE_CHARS)
-        if (containsRange(sample, 0x3040, 0x30FF)) return "ja" // Hiragana/Katakana
-        if (containsRange(sample, 0xAC00, 0xD7AF)) return "ko" // Hangul
-        if (containsRange(sample, 0x0600, 0x06FF) || containsRange(sample, 0x0750, 0x077F)) {
+        if (containsRange(sample, JAPANESE_KANA)) return "ja"
+        if (containsRange(sample, HANGUL_SYLLABLES)) return "ko"
+        if (containsRange(sample, ARABIC) || containsRange(sample, ARABIC_SUPPLEMENT)) {
             return "ar"
         }
-        if (containsRange(sample, 0x0590, 0x05FF)) return "he"
-        if (containsRange(sample, 0x4E00, 0x9FFF)) return "zh-Hans" // CJK Unified Ideographs
+        if (containsRange(sample, HEBREW)) return "he"
+        if (containsRange(sample, CJK_UNIFIED_IDEOGRAPHS)) return "zh-Hans"
         return null
     }
 
-    private fun containsRange(text: String, start: Int, end: Int): Boolean {
+    private fun containsRange(text: String, range: IntRange): Boolean {
         for (char in text) {
             val code = char.code
-            if (code in start..end) return true
+            if (code in range) return true
         }
         return false
     }
 
+    private val JAPANESE_KANA = 0x3040..0x30FF
+    private val HANGUL_SYLLABLES = 0xAC00..0xD7AF
+    private val ARABIC = 0x0600..0x06FF
+    private val ARABIC_SUPPLEMENT = 0x0750..0x077F
+    private val HEBREW = 0x0590..0x05FF
+    private val CJK_UNIFIED_IDEOGRAPHS = 0x4E00..0x9FFF
     private const val MAX_SAMPLE_CHARS = 2000
 }
 

@@ -1,6 +1,7 @@
 package com.kairo.reader.core.rsvp.timing
 
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpConfigConstraints as Constraints
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.isMidSentencePunctuation
@@ -14,16 +15,9 @@ import com.kairo.reader.core.rsvp.text.isThousandSeparator
 import kotlin.math.max
 import kotlin.math.min
 
-internal data class RsvpPunctuationPauseTiming(
-    val baseMs: Double,
-    val floorMs: Double,
-    val scaleRetentionBoost: Double,
-)
+internal data class RsvpPunctuationPauseTiming(val baseMs: Double, val floorMs: Double, val scaleRetentionBoost: Double,)
 
-internal data class RsvpBoundaryContour(
-    val landingHoldWeight: Double,
-    val tailLiftWeight: Double,
-)
+internal data class RsvpBoundaryContour(val landingHoldWeight: Double, val tailLiftWeight: Double,)
 
 internal enum class RsvpPunctuationTier {
     SENTENCE_END,
@@ -131,43 +125,8 @@ internal object RsvpPunctuationTimingPolicy {
             )
         if (contourStrength <= 0.0) return ZERO_BOUNDARY_CONTOUR
 
-        val landingHoldWeight =
-            when {
-                tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' ->
-                    ELLIPSIS_LANDING_HOLD_WEIGHT
-                tier == RsvpPunctuationTier.SENTENCE_END ->
-                    STRONG_LANDING_HOLD_WEIGHT
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && ch == ';' ->
-                    SEMICOLON_LANDING_HOLD_WEIGHT
-                tier == RsvpPunctuationTier.CLAUSE_BREAK ->
-                    CLAUSE_LANDING_HOLD_WEIGHT
-                else -> 0.0
-            } * contourStrength
-
-        val tailLiftWeight =
-            when {
-                tier == RsvpPunctuationTier.SENTENCE_END && isPeriodPunctuation(ch) ->
-                    when {
-                        ch == '.' &&
-                            (isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken)) -> 0.0
-                        isLikelySentenceContinuation(nextToken) -> 1.18
-                        else -> 1.34
-                    }
-                tier == RsvpPunctuationTier.SENTENCE_END && ch == '\u2026' -> 1.40
-                tier == RsvpPunctuationTier.SENTENCE_END && isQuestionPunctuation(ch) -> 1.34
-                tier == RsvpPunctuationTier.SENTENCE_END && isExclamationPunctuation(ch) -> 1.18
-                tier == RsvpPunctuationTier.SENTENCE_END -> 1.26
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && isSemicolonPunctuation(ch) -> 0.64
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && isColonPunctuation(ch) -> 0.68
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && isDashPunctuation(ch) -> 0.74
-                tier == RsvpPunctuationTier.CLAUSE_BREAK && isCommaPunctuation(ch) ->
-                    if (isClauseLeadPunctuation(',', nextToken)) {
-                        0.36
-                    } else {
-                        0.24
-                    }
-                else -> 0.0
-            } * contourStrength
+        val landingHoldWeight = landingHoldWeight(tier, ch) * contourStrength
+        val tailLiftWeight = tailLiftWeight(tier, ch, prevText, nextToken) * contourStrength
 
         return balanceBoundaryContour(
             tier = tier,
@@ -175,6 +134,51 @@ internal object RsvpPunctuationTimingPolicy {
             tailLiftWeight = tailLiftWeight,
         )
     }
+
+    private fun landingHoldWeight(
+        tier: RsvpPunctuationTier,
+        character: Char,
+    ): Double =
+        when {
+            tier == RsvpPunctuationTier.SENTENCE_END && character == '\u2026' -> ELLIPSIS_LANDING_HOLD_WEIGHT
+            tier == RsvpPunctuationTier.SENTENCE_END -> STRONG_LANDING_HOLD_WEIGHT
+            tier == RsvpPunctuationTier.CLAUSE_BREAK && character == ';' -> SEMICOLON_LANDING_HOLD_WEIGHT
+            tier == RsvpPunctuationTier.CLAUSE_BREAK -> CLAUSE_LANDING_HOLD_WEIGHT
+            else -> 0.0
+        }
+
+    private fun tailLiftWeight(
+        tier: RsvpPunctuationTier,
+        character: Char,
+        previousText: String,
+        nextToken: Token?,
+    ): Double =
+        when {
+            tier == RsvpPunctuationTier.SENTENCE_END && isPeriodPunctuation(character) ->
+                periodTailLift(character, previousText, nextToken)
+            tier == RsvpPunctuationTier.SENTENCE_END && character == '\u2026' -> ELLIPSIS_TAIL_LIFT
+            tier == RsvpPunctuationTier.SENTENCE_END && isQuestionPunctuation(character) -> QUESTION_TAIL_LIFT
+            tier == RsvpPunctuationTier.SENTENCE_END && isExclamationPunctuation(character) -> EXCLAMATION_TAIL_LIFT
+            tier == RsvpPunctuationTier.SENTENCE_END -> SENTENCE_TAIL_LIFT
+            tier == RsvpPunctuationTier.CLAUSE_BREAK && isSemicolonPunctuation(character) -> SEMICOLON_TAIL_LIFT
+            tier == RsvpPunctuationTier.CLAUSE_BREAK && isColonPunctuation(character) -> COLON_TAIL_LIFT
+            tier == RsvpPunctuationTier.CLAUSE_BREAK && isDashPunctuation(character) -> DASH_TAIL_LIFT
+            tier == RsvpPunctuationTier.CLAUSE_BREAK && isCommaPunctuation(character) ->
+                if (isClauseLeadPunctuation(',', nextToken)) CLAUSE_LEAD_COMMA_TAIL_LIFT else COMMA_TAIL_LIFT
+            else -> 0.0
+        }
+
+    private fun periodTailLift(
+        character: Char,
+        previousText: String,
+        nextToken: Token?,
+    ): Double =
+        when {
+            character == '.' &&
+                (isDecimalPoint(previousText, nextToken) || isAbbreviationDot(previousText, nextToken)) -> 0.0
+            isLikelySentenceContinuation(nextToken) -> PERIOD_CONTINUATION_TAIL_LIFT
+            else -> PERIOD_TAIL_LIFT
+        }
 
     private fun boundaryTierContourWeight(
         token: Token,
@@ -191,25 +195,25 @@ internal object RsvpPunctuationTimingPolicy {
                         when {
                             ch == '.' &&
                                 (isDecimalPoint(prevText, nextToken) || isAbbreviationDot(prevText, nextToken)) -> 0.0
-                            isLikelySentenceContinuation(nextToken) -> 0.55
-                            else -> 0.92
+                            isLikelySentenceContinuation(nextToken) -> PERIOD_CONTINUATION_CONTOUR
+                            else -> PERIOD_CONTOUR
                         }
                     }
                     '\u2026' -> 1.0
-                    in QUESTION_PUNCTUATION -> 0.94
-                    in EXCLAMATION_PUNCTUATION -> 0.84
-                    else -> 0.88
+                    in QUESTION_PUNCTUATION -> QUESTION_CONTOUR
+                    in EXCLAMATION_PUNCTUATION -> EXCLAMATION_CONTOUR
+                    else -> SENTENCE_CONTOUR
                 }
             RsvpPunctuationTier.CLAUSE_BREAK ->
                 when {
-                    isSemicolonPunctuation(ch) -> 0.72
-                    isColonPunctuation(ch) -> 0.76
-                    isDashPunctuation(ch) -> 0.82
+                    isSemicolonPunctuation(ch) -> SEMICOLON_CONTOUR
+                    isColonPunctuation(ch) -> COLON_CONTOUR
+                    isDashPunctuation(ch) -> DASH_CONTOUR
                     isCommaPunctuation(ch) ->
                         if (isClauseLeadPunctuation(',', nextToken)) {
-                            0.42
+                            CLAUSE_LEAD_COMMA_CONTOUR
                         } else {
-                            0.24
+                            COMMA_CONTOUR
                         }
                     else -> 0.0
                 }
@@ -232,8 +236,8 @@ internal object RsvpPunctuationTimingPolicy {
 
         val overlapPressure =
             when (tier) {
-                RsvpPunctuationTier.SENTENCE_END -> 0.48
-                RsvpPunctuationTier.CLAUSE_BREAK -> 0.32
+                RsvpPunctuationTier.SENTENCE_END -> SENTENCE_CONTOUR_OVERLAP_PRESSURE
+                RsvpPunctuationTier.CLAUSE_BREAK -> CLAUSE_CONTOUR_OVERLAP_PRESSURE
                 RsvpPunctuationTier.SOFT_SEPARATOR, RsvpPunctuationTier.NONE -> 0.0
             }
 
@@ -244,7 +248,11 @@ internal object RsvpPunctuationTimingPolicy {
             )
         }
 
-        val dampening = min(0.16, landingHoldWeight.coerceIn(0.0, 0.35) * overlapPressure)
+        val dampening =
+            min(
+                MAX_CONTOUR_DAMPENING,
+                landingHoldWeight.coerceIn(0.0, MAX_DAMPENED_LANDING_WEIGHT) * overlapPressure,
+            )
         return RsvpBoundaryContour(
             landingHoldWeight = landingHoldWeight,
             tailLiftWeight = tailLiftWeight * (1.0 - dampening),
@@ -286,7 +294,10 @@ internal object RsvpPunctuationTimingPolicy {
         }
 
     private fun punctuationBreathingScale(config: RsvpConfig): Double =
-        config.punctuationPauseFactor.coerceIn(0.5, 1.75)
+        config.punctuationPauseFactor.coerceIn(
+            Constraints.MIN_PUNCTUATION_PAUSE_FACTOR,
+            Constraints.MAX_PUNCTUATION_PAUSE_FACTOR,
+        )
 
     private fun pauseBaseMs(
         ch: Char,
@@ -511,6 +522,34 @@ internal object RsvpPunctuationTimingPolicy {
     private const val SEMICOLON_LANDING_HOLD_WEIGHT = 0.20
     private const val STRONG_LANDING_HOLD_WEIGHT = 0.22
     private const val ELLIPSIS_LANDING_HOLD_WEIGHT = 0.24
+
+    private const val PERIOD_CONTINUATION_TAIL_LIFT = 1.18
+    private const val PERIOD_TAIL_LIFT = 1.34
+    private const val ELLIPSIS_TAIL_LIFT = 1.40
+    private const val QUESTION_TAIL_LIFT = 1.34
+    private const val EXCLAMATION_TAIL_LIFT = 1.18
+    private const val SENTENCE_TAIL_LIFT = 1.26
+    private const val SEMICOLON_TAIL_LIFT = 0.64
+    private const val COLON_TAIL_LIFT = 0.68
+    private const val DASH_TAIL_LIFT = 0.74
+    private const val CLAUSE_LEAD_COMMA_TAIL_LIFT = 0.36
+    private const val COMMA_TAIL_LIFT = 0.24
+
+    private const val PERIOD_CONTINUATION_CONTOUR = 0.55
+    private const val PERIOD_CONTOUR = 0.92
+    private const val QUESTION_CONTOUR = 0.94
+    private const val EXCLAMATION_CONTOUR = 0.84
+    private const val SENTENCE_CONTOUR = 0.88
+    private const val SEMICOLON_CONTOUR = 0.72
+    private const val COLON_CONTOUR = 0.76
+    private const val DASH_CONTOUR = 0.82
+    private const val CLAUSE_LEAD_COMMA_CONTOUR = 0.42
+    private const val COMMA_CONTOUR = 0.24
+
+    private const val SENTENCE_CONTOUR_OVERLAP_PRESSURE = 0.48
+    private const val CLAUSE_CONTOUR_OVERLAP_PRESSURE = 0.32
+    private const val MAX_CONTOUR_DAMPENING = 0.16
+    private const val MAX_DAMPENED_LANDING_WEIGHT = 0.35
 
     private val ZERO_BOUNDARY_CONTOUR = RsvpBoundaryContour(0.0, 0.0)
 

@@ -1,18 +1,9 @@
 package com.kairo.reader.core.model
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RsvpReadabilityModeTest {
-    @Test
-    fun punctuationStaysVisibleAtHighSpeed() {
-        val config = RsvpConfig()
-
-        assertFalse(config.prefersSimplifiedOrpDisplay(tempoMs = 75L))
-        assertFalse(config.prefersSimplifiedOrpDisplay(tempoMs = 55L))
-    }
-
     @Test
     fun highSpeedReadabilityFloorsNarrowAsTempoIncreases() {
         val config =

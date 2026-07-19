@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.navigation
 
 import androidx.navigation.NavGraphBuilder
@@ -25,15 +27,15 @@ internal fun NavGraphBuilder.rsvpDestination(dependencies: RsvpDestinationDepend
     composable(
         route = KairoRoutes.RSVP,
         arguments =
-            listOf(
-                navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
-                navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
-                navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
-                navArgument(KairoRoutes.ARG_TEMPO_MS) {
-                    type = NavType.LongType
-                    defaultValue = -1L
-                },
-            ),
+        listOf(
+            navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+            navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
+            navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
+            navArgument(KairoRoutes.ARG_TEMPO_MS) {
+                type = NavType.LongType
+                defaultValue = -1L
+            },
+        ),
     ) { backStackEntry ->
         RsvpRoute(
             backStackEntry = backStackEntry,
@@ -53,15 +55,15 @@ internal fun NavGraphBuilder.bionicDestination(dependencies: RsvpDestinationDepe
     composable(
         route = KairoRoutes.BIONIC,
         arguments =
-            listOf(
-                navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
-                navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
-                navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
-                navArgument(KairoRoutes.ARG_TEMPO_MS) {
-                    type = NavType.LongType
-                    defaultValue = -1L
-                },
-            ),
+        listOf(
+            navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
+            navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
+            navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
+            navArgument(KairoRoutes.ARG_TEMPO_MS) {
+                type = NavType.LongType
+                defaultValue = -1L
+            },
+        ),
     ) { backStackEntry ->
         RsvpRoute(
             backStackEntry = backStackEntry,

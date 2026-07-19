@@ -79,7 +79,6 @@ internal fun emphasisMultiplier(
     return multiplier.coerceIn(1.0, MAX_EMPHASIS_MULTIPLIER)
 }
 
-
 internal fun prosodyMultiplier(
     token: Token,
     prevWordText: String?,
@@ -143,7 +142,6 @@ internal fun prosodyMultiplier(
     return multiplier.coerceIn(MIN_PROSODY_MULTIPLIER, MAX_PROSODY_MULTIPLIER)
 }
 
-
 internal fun isFunctionBridgePair(
     currentLower: String,
     nextLower: String,
@@ -157,20 +155,15 @@ internal fun isFunctionBridgePair(
         currentLower in FUNCTION_BRIDGE_WORDS
 }
 
-
 internal fun isSemanticAnchor(wordLower: String): Boolean = wordLower in SEMANTIC_ANCHOR_WORDS
 
-
 internal fun isFunctionWord(wordLower: String): Boolean = wordLower in FUNCTION_WORDS
-
 
 internal fun normalizeWord(text: String): String =
     text.lowercase().trim('"', '\'', '\u2018', '\u2019')
 
-
 internal fun shouldKeepFullFocalDuration(token: Token): Boolean =
     token.isSubwordChunk || token.text.endsWith("-")
-
 
 internal fun speakerTagMultiplier(
     wordsInFrame: List<Token>,
@@ -183,7 +176,7 @@ internal fun speakerTagMultiplier(
 
     if (wordsInFrame.isEmpty()) return 1.0
     if (wordsInFrame.any { it.isDialogue }) return 1.0
-    if (wordsInFrame.size > 3) return 1.0
+    if (wordsInFrame.size > MAX_SPEAKER_TAG_FRAME_WORDS) return 1.0
 
     val prevText = prevWord?.text
     val nextText = nextWord?.text
@@ -218,7 +211,7 @@ internal fun speakerTagMultiplier(
     return if (matchesTag) {
         val dialogueSpeedStrength =
             max(
-                0.15,
+                MIN_DIALOGUE_SPEED_STRENGTH,
                 speedStrength + (speedStrength * speedStrength),
             )
         contextShapingMultiplier(
@@ -230,7 +223,6 @@ internal fun speakerTagMultiplier(
     }
 }
 
-
 internal fun contextShapingMultiplier(
     targetMultiplier: Double,
     speedStrength: Double,
@@ -239,7 +231,6 @@ internal fun contextShapingMultiplier(
     val effectStrength = speedStrength.coerceIn(0.0, 1.0)
     return 1.0 + ((targetMultiplier - 1.0) * effectStrength)
 }
-
 
 internal fun transitionHoldMs(
     frameTokens: List<Token>,
@@ -282,7 +273,6 @@ internal fun transitionHoldMs(
     return 0.0
 }
 
-
 internal fun isCoherencePair(
     currentLower: String,
     nextLower: String,
@@ -311,7 +301,6 @@ internal fun isCoherencePair(
     }
     return false
 }
-
 
 /**
  * Phrase-arc shaping for a single-word frame at a grammatical (punctuation-free) phrase boundary.
@@ -349,7 +338,6 @@ internal fun phraseBoundaryShapeMultiplier(
     return multiplier
 }
 
-
 /**
  * Given/new glide: words shown recently read lighter on re-mention.
  *
@@ -370,7 +358,6 @@ internal fun givennessGlideMultiplier(
     return 1.0 - (GIVENNESS_GLIDE * speedStrength.coerceIn(0.0, 1.0))
 }
 
-
 internal fun recordGivennessWord(
     token: Token,
     prose: ProseState,
@@ -379,20 +366,17 @@ internal fun recordGivennessWord(
     prose.record(key)
 }
 
-
 private fun givennessKey(token: Token): String? {
     if (token.isSubwordChunk) return null
     val key = givennessKey(token.text)
     return key.takeIf { it.length >= GIVENNESS_MIN_CHARS && !isFunctionWord(it) }
 }
 
-
 private fun givennessKey(text: String): String =
     normalizeWord(text)
         .removeSuffix("'s")
         .removeSuffix("’s")
         .filter { it.isLetter() }
-
 
 internal fun isPhraseBreakBefore(
     currentLower: String,
@@ -423,7 +407,7 @@ internal fun isPhraseBreakBefore(
     }
     // Before coordinating conjunctions in longer sentences
     if (nextLower in setOf("and", "but", "or", "yet", "so") &&
-        currentLower.length > 3 &&
+        currentLower.length > MIN_COORDINATING_BOUNDARY_WORD_CHARS &&
         !nextWord.isClauseBoundary
     ) {
         return true
@@ -431,13 +415,11 @@ internal fun isPhraseBreakBefore(
     return false
 }
 
-
 internal fun frameDifficulty(words: List<Token>): Double {
     if (words.isEmpty()) return 0.0
     val total = words.sumOf { (1.0 - wordEase(it)) }
     return (total / words.size).coerceIn(0.0, 1.0)
 }
-
 
 internal fun shouldPreferHold(
     prev: Token,
@@ -450,26 +432,27 @@ internal fun shouldPreferHold(
     val gluePair =
         prevLower in GLUE_WORDS &&
             nextLower in GLUE_WORDS &&
-            prev.text.length <= 4 &&
-            next.text.length <= 4
+            prev.text.length <= MAX_GLUE_PAIR_WORD_CHARS &&
+            next.text.length <= MAX_GLUE_PAIR_WORD_CHARS
     val easyPair =
         wordEase(prev) >= EASY_PAIR_THRESHOLD && wordEase(next) >= EASY_PAIR_THRESHOLD
 
     // Check coherence score for high-coherence pairs
     val coherence = ClauseDetector.getCoherenceScore(prevLower, nextLower)
-    val highCoherence = coherence >= 0.65 && prev.text.length <= 5 && next.text.length <= 6
+    val highCoherence =
+        coherence >= HIGH_COHERENCE_HOLD_THRESHOLD &&
+            prev.text.length <= MAX_HIGH_COHERENCE_PREV_CHARS &&
+            next.text.length <= MAX_HIGH_COHERENCE_NEXT_CHARS
 
     return (easyPair && (isHinted || gluePair)) || highCoherence
 }
 
-
 internal fun multiWordPenalty(wordCount: Int): Double =
     when (wordCount) {
         0, 1 -> 1.0
-        2 -> 1.06  // Reduced from 1.12 for smoother rhythm
-        else -> 1.12
+        2 -> TWO_WORD_FRAME_PENALTY
+        else -> MULTI_WORD_FRAME_PENALTY
     }
-
 
 internal fun isPhraseChunkCandidate(
     prev: Token,
@@ -479,43 +462,46 @@ internal fun isPhraseChunkCandidate(
     val nextLower = next.text.lowercase()
     val pairKey = "$prevLower $nextLower"
 
-    // Never chunk across subword splits or a mid-word hyphen continuation.
-    if (prev.isSubwordChunk || next.isSubwordChunk) return false
-    if (prev.text.endsWith("-")) return false
-    if (prev.isClauseBoundary || next.isClauseBoundary) return false
-    if (ClauseDetector.isCoordinatingConjunction(prevLower)) return false
-    if (pairKey in TIGHT_PAIR_HINTS) return true
-    if (nextLower in SEMANTIC_ANCHOR_WORDS) return false
-
     val pronounAuxiliaryBridge =
         prevLower in PRONOUN_BRIDGE_WORDS &&
             nextLower in AUXILIARY_BRIDGE_WORDS &&
             prev.text.length <= PRONOUN_BRIDGE_MAX_CHARS &&
             next.text.length <= AUXILIARY_BRIDGE_MAX_CHARS
-    if (pronounAuxiliaryBridge) return true
-
     val auxiliaryContentBridge =
         prevLower in AUXILIARY_BRIDGE_WORDS &&
             nextLower !in SEMANTIC_ANCHOR_WORDS &&
             next.text.length <= AUXILIARY_CONTENT_MAX_CHARS &&
             next.frequencyScore >= AUXILIARY_CONTENT_MIN_FREQUENCY
-    if (auxiliaryContentBridge) return true
-
-    // Use coherence scoring to determine if words should be chunked together
     val coherenceScore = ClauseDetector.getCoherenceScore(prevLower, nextLower)
-    if (coherenceScore >= 0.7) {
-        // High coherence pairs should always be chunked if short enough
-        val bothShort = prev.text.length <= 5 && next.text.length <= 8
-        if (bothShort) return true
-    }
+    val coherentShortPair =
+        coherenceScore >= PHRASE_CHUNK_COHERENCE_THRESHOLD &&
+            prev.text.length <= MAX_COHERENT_CHUNK_PREV_CHARS &&
+            next.text.length <= MAX_COHERENT_CHUNK_NEXT_CHARS
 
     val glue = prevLower in GLUE_WORDS || nextLower in GLUE_WORDS
-    val bothShort = prev.text.length <= 4 && next.text.length <= 7
-    val bothCommon = prev.frequencyScore >= 0.7 && next.frequencyScore >= 0.7
+    val bothShort =
+        prev.text.length <= MAX_GENERAL_CHUNK_PREV_CHARS &&
+            next.text.length <= MAX_GENERAL_CHUNK_NEXT_CHARS
+    val bothCommon =
+        prev.frequencyScore >= COMMON_WORD_FREQUENCY_THRESHOLD &&
+            next.frequencyScore >= COMMON_WORD_FREQUENCY_THRESHOLD
 
-    return (glue && bothShort) || (bothShort && bothCommon)
+    val generalShortPair = (glue && bothShort) || (bothShort && bothCommon)
+    val disqualified =
+        prev.isSubwordChunk ||
+            next.isSubwordChunk ||
+            prev.text.endsWith("-") ||
+            prev.isClauseBoundary ||
+            next.isClauseBoundary ||
+            ClauseDetector.isCoordinatingConjunction(prevLower)
+    return when {
+        disqualified -> false
+        pairKey in TIGHT_PAIR_HINTS -> true
+        nextLower in SEMANTIC_ANCHOR_WORDS -> false
+        pronounAuxiliaryBridge || auxiliaryContentBridge -> true
+        else -> coherentShortPair || generalShortPair
+    }
 }
-
 
 internal fun terminalWordMultiplier(
     wordIndex: Int,
@@ -562,7 +548,6 @@ internal fun terminalWordMultiplier(
     return 1.0 + (extra * effectiveStrength)
 }
 
-
 internal fun boundaryTailLiftWeight(
     token: Token,
     prevWord: Token?,
@@ -575,21 +560,51 @@ internal fun boundaryTailLiftWeight(
     )
 }
 
-
 internal fun wordEase(word: Token): Double {
     val letters = word.text.count { it.isLetterOrDigit() }.coerceAtLeast(1)
-    val lengthScore = ((letters - 4).coerceAtLeast(0) / 8.0).coerceIn(0.0, 1.0)
-    val syllableScore = ((word.syllableCount - 1).coerceAtLeast(0) / 4.0).coerceIn(0.0, 1.0)
+    val lengthScore =
+        (
+            (letters - WORD_EASE_BASE_CHARS).coerceAtLeast(0) /
+                WORD_EASE_LENGTH_SCALE
+            ).coerceIn(0.0, 1.0)
+    val syllableScore =
+        (
+            (word.syllableCount - 1).coerceAtLeast(0) /
+                WORD_EASE_SYLLABLE_SCALE
+            ).coerceIn(0.0, 1.0)
     val rarityScore = (1.0 - word.frequencyScore).coerceIn(0.0, 1.0)
     val complexityScore = (word.complexityMultiplier - 1.0).coerceAtLeast(
         0.0
     ).coerceIn(0.0, 1.0)
 
     val difficulty =
-        (lengthScore * 0.35) +
-            (syllableScore * 0.25) +
-            (rarityScore * 0.25) +
-            (complexityScore * 0.15)
+        (lengthScore * WORD_EASE_LENGTH_WEIGHT) +
+            (syllableScore * WORD_EASE_SYLLABLE_WEIGHT) +
+            (rarityScore * WORD_EASE_RARITY_WEIGHT) +
+            (complexityScore * WORD_EASE_COMPLEXITY_WEIGHT)
 
     return (1.0 - difficulty).coerceIn(0.0, 1.0)
 }
+
+private const val MAX_SPEAKER_TAG_FRAME_WORDS = 3
+private const val MIN_DIALOGUE_SPEED_STRENGTH = 0.15
+private const val MIN_COORDINATING_BOUNDARY_WORD_CHARS = 3
+private const val MAX_GLUE_PAIR_WORD_CHARS = 4
+private const val HIGH_COHERENCE_HOLD_THRESHOLD = 0.65
+private const val MAX_HIGH_COHERENCE_PREV_CHARS = 5
+private const val MAX_HIGH_COHERENCE_NEXT_CHARS = 6
+private const val TWO_WORD_FRAME_PENALTY = 1.06
+private const val MULTI_WORD_FRAME_PENALTY = 1.12
+private const val PHRASE_CHUNK_COHERENCE_THRESHOLD = 0.7
+private const val MAX_COHERENT_CHUNK_PREV_CHARS = 5
+private const val MAX_COHERENT_CHUNK_NEXT_CHARS = 8
+private const val MAX_GENERAL_CHUNK_PREV_CHARS = 4
+private const val MAX_GENERAL_CHUNK_NEXT_CHARS = 7
+private const val COMMON_WORD_FREQUENCY_THRESHOLD = 0.7
+private const val WORD_EASE_BASE_CHARS = 4
+private const val WORD_EASE_LENGTH_SCALE = 8.0
+private const val WORD_EASE_SYLLABLE_SCALE = 4.0
+private const val WORD_EASE_LENGTH_WEIGHT = 0.35
+private const val WORD_EASE_SYLLABLE_WEIGHT = 0.25
+private const val WORD_EASE_RARITY_WEIGHT = 0.25
+private const val WORD_EASE_COMPLEXITY_WEIGHT = 0.15

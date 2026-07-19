@@ -14,9 +14,7 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import kotlinx.coroutines.withContext
 
-class MobiBookParser(
-    private val dispatcherProvider: DispatcherProvider,
-) : BookParser {
+class MobiBookParser(private val dispatcherProvider: DispatcherProvider,) : BookParser {
     private val parserEngine = MobiParserEngine()
     private val fallbackParser = MobiFallbackParser()
 
@@ -39,7 +37,7 @@ class MobiBookParser(
 
             val fileSize = resolveFileSize(context, uri)
             require(fileSize < 0 || !isFileTooLarge(fileSize)) {
-                "MOBI file too large (max ${MobiLimits.MAX_FILE_SIZE_BYTES / 1024 / 1024}MB)"
+                "MOBI file too large (max ${MobiLimits.MAX_FILE_SIZE_BYTES / BYTES_PER_KIB / BYTES_PER_KIB}MB)"
             }
 
             val data =
@@ -111,7 +109,7 @@ class MobiBookParser(
             if (read == 0) continue
             total += read
             require(total <= maxBytes) {
-                "MOBI file too large (max ${maxBytes / 1024 / 1024}MB)"
+                "MOBI file too large (max ${maxBytes / BYTES_PER_KIB / BYTES_PER_KIB}MB)"
             }
             output.write(buffer, 0, read)
         }
@@ -119,3 +117,5 @@ class MobiBookParser(
         return output.toByteArray()
     }
 }
+
+private const val BYTES_PER_KIB = 1024

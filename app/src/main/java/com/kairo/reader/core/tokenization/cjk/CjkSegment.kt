@@ -5,8 +5,4 @@ internal enum class CjkSegmentType {
     PUNCTUATION,
 }
 
-internal data class CjkSegment(
-    val text: String,
-    val type: CjkSegmentType,
-    val isLatin: Boolean = false,
-)
+internal data class CjkSegment(val text: String, val type: CjkSegmentType, val isLatin: Boolean = false,)

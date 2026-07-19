@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.library
 
 import com.kairo.reader.core.model.Book
@@ -9,10 +11,7 @@ import com.kairo.reader.core.rsvp.RsvpConfigResolver
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import kotlin.math.roundToInt
 
-data class LibraryBookProgress(
-    val percentComplete: Int,
-    val remainingMinutes: Int?,
-)
+data class LibraryBookProgress(val percentComplete: Int, val remainingMinutes: Int?,)
 
 internal fun buildLibraryEstimatedWpmByBookId(
     books: List<Book>,
@@ -83,9 +82,9 @@ suspend fun buildLibraryProgress(
             if (totalWords == 0) {
                 0
             } else {
-                ((wordsRead.toDouble() / totalWords.toDouble()) * 100.0)
+                ((wordsRead.toDouble() / totalWords.toDouble()) * PERCENT_SCALE)
                     .roundToInt()
-                    .coerceIn(0, 100)
+                    .coerceIn(0, PERCENT_MAX)
             }
 
         val remainingMinutes =
@@ -110,3 +109,6 @@ suspend fun buildLibraryProgress(
 
     return progress
 }
+
+private const val PERCENT_SCALE = 100.0
+private const val PERCENT_MAX = 100

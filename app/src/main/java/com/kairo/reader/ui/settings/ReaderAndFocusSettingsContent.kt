@@ -24,6 +24,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kairo.reader.R
 import com.kairo.reader.core.model.ReaderTheme
+import com.kairo.reader.core.model.RsvpConfigConstraints
 
 private const val READER_FONT_SIZE_MIN_SP = 14f
 private const val READER_FONT_SIZE_MAX_SP = 32f
@@ -57,11 +58,28 @@ fun ReaderSettingsContent(
         valueLabel =
         stringResource(
             R.string.format_percent,
-            (textBrightness.coerceIn(0.55f, 1.0f) * 100).toInt(),
+            (
+                textBrightness.coerceIn(
+                    RsvpConfigConstraints.MIN_TEXT_BRIGHTNESS.toFloat(),
+                    RsvpConfigConstraints.MAX_TEXT_BRIGHTNESS.toFloat(),
+                ) * RsvpConfigConstraints.PERCENT_SCALE
+                ).toInt(),
         ),
-        value = textBrightness.coerceIn(0.55f, 1.0f),
-        onValueChange = { onTextBrightnessChange(it.coerceIn(0.55f, 1.0f)) },
-        valueRange = 0.55f..1.0f,
+        value =
+        textBrightness.coerceIn(
+            RsvpConfigConstraints.MIN_TEXT_BRIGHTNESS.toFloat(),
+            RsvpConfigConstraints.MAX_TEXT_BRIGHTNESS.toFloat(),
+        ),
+        onValueChange = {
+            onTextBrightnessChange(
+                it.coerceIn(
+                    RsvpConfigConstraints.MIN_TEXT_BRIGHTNESS.toFloat(),
+                    RsvpConfigConstraints.MAX_TEXT_BRIGHTNESS.toFloat(),
+                ),
+            )
+        },
+        valueRange =
+        RsvpConfigConstraints.MIN_TEXT_BRIGHTNESS.toFloat()..RsvpConfigConstraints.MAX_TEXT_BRIGHTNESS.toFloat(),
     )
 
     Text(stringResource(R.string.reader_scrolling_title), style = MaterialTheme.typography.titleMedium)

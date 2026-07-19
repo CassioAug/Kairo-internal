@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.navigation
 
 import androidx.compose.foundation.layout.Box
@@ -21,10 +23,7 @@ import com.kairo.reader.ui.theme.KairoSnackbarHost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-internal class KairoUserMessageController(
-    val hostState: SnackbarHostState,
-    private val coroutineScope: CoroutineScope,
-) {
+internal class KairoUserMessageController(val hostState: SnackbarHostState, private val coroutineScope: CoroutineScope,) {
     fun show(
         message: String,
         duration: SnackbarDuration = SnackbarDuration.Short,
@@ -69,13 +68,13 @@ internal fun KairoNavChrome(
         KairoSnackbarHost(
             hostState = messageController.hostState,
             modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
-                        )
-                    ),
+            Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
+                    )
+                ),
         )
     }
 }

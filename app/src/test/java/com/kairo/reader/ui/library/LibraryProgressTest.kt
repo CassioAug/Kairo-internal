@@ -58,10 +58,10 @@ class LibraryProgressTest {
                     books = books,
                     positions = emptyList(),
                     estimatedWpmByBookId =
-                        mapOf(
-                            "fast" to 600,
-                            "slow" to 300,
-                        ),
+                    mapOf(
+                        "fast" to 600,
+                        "slow" to 300,
+                    ),
                 )
 
             assertEquals(1, progress.getValue("fast").remainingMinutes)
@@ -79,14 +79,14 @@ class LibraryProgressTest {
             authors = emptyList(),
             languageTag = languageTag,
             chapters =
-                listOf(
-                    Chapter(
-                        index = 0,
-                        title = null,
-                        htmlContent = "",
-                        plainText = "",
-                        wordCount = wordCount,
-                    ),
+            listOf(
+                Chapter(
+                    index = 0,
+                    title = null,
+                    htmlContent = "",
+                    plainText = "",
+                    wordCount = wordCount,
                 ),
+            ),
         )
 }

@@ -10,16 +10,9 @@ internal data class OpfData(
     val spineItems: List<SpineItem>,
 )
 
-internal data class SpineItem(
-    val idref: String,
-)
+internal data class SpineItem(val idref: String,)
 
-internal data class ManifestItem(
-    val id: String,
-    val href: String,
-    val mediaType: String?,
-    val properties: Set<String>,
-)
+internal data class ManifestItem(val id: String, val href: String, val mediaType: String?, val properties: Set<String>,)
 
 internal data class ContainerXmlResolution(
     val path: String,
@@ -27,7 +20,4 @@ internal data class ContainerXmlResolution(
     val candidatePaths: List<String> = listOf(path),
 )
 
-internal data class OpfParseResult(
-    val opfData: OpfData,
-    val usedLenientFallback: Boolean,
-)
+internal data class OpfParseResult(val opfData: OpfData, val usedLenientFallback: Boolean,)

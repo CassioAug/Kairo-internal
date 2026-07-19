@@ -6,13 +6,13 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.rsvp.RsvpEngine
-import com.kairo.reader.core.rsvp.resolveAnalysisStartIndex
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
+import com.kairo.reader.core.rsvp.resolveAnalysisStartIndex
 import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -185,12 +185,10 @@ class RsvpFrameRepositoryImpl(
             val frameSet = RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
             mutex.withLock {
                 cache[key] = frameSet
-                inFlight.remove(key)
             }
             frameSet
-        } catch (error: Throwable) {
+        } finally {
             mutex.withLock { inFlight.remove(key) }
-            throw error
         }
     }
 
@@ -234,9 +232,9 @@ class RsvpFrameRepositoryImpl(
             originalTokenIndex = (originalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
             nextOriginalTokenIndex = (nextOriginalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
             displayOriginalStartIndex =
-                (displayOriginalStartIndex + originalIndexOffset).coerceIn(0, tokenCount),
+            (displayOriginalStartIndex + originalIndexOffset).coerceIn(0, tokenCount),
             displayOriginalEndExclusive =
-                (displayOriginalEndExclusive + originalIndexOffset).coerceIn(0, tokenCount),
+            (displayOriginalEndExclusive + originalIndexOffset).coerceIn(0, tokenCount),
             resumeCursor = -1,
         )
 

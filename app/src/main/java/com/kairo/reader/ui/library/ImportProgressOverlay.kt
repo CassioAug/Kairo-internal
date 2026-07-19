@@ -1,13 +1,15 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.library
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,11 +46,7 @@ import com.kairo.reader.R
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-data class ImportUiState(
-    val isImporting: Boolean = false,
-    val progress: Float = 0f,
-    val fileName: String? = null,
-)
+data class ImportUiState(val isImporting: Boolean = false, val progress: Float = 0f, val fileName: String? = null,)
 
 @Composable
 fun ImportProgressOverlay(
@@ -58,21 +56,21 @@ fun ImportProgressOverlay(
     AnimatedVisibility(
         visible = state.isImporting,
         enter =
-        fadeIn(animationSpec = tween(220)) +
+        fadeIn(animationSpec = tween(IMPORT_ENTER_DURATION_MS)) +
             scaleIn(
-                animationSpec = tween(220, easing = FastOutSlowInEasing),
+                animationSpec = tween(IMPORT_ENTER_DURATION_MS, easing = FastOutSlowInEasing),
                 initialScale = 0.96f,
             ),
         exit =
-        fadeOut(animationSpec = tween(180)) +
+        fadeOut(animationSpec = tween(IMPORT_EXIT_DURATION_MS)) +
             scaleOut(
-                animationSpec = tween(180, easing = FastOutSlowInEasing),
+                animationSpec = tween(IMPORT_EXIT_DURATION_MS, easing = FastOutSlowInEasing),
                 targetScale = 0.98f,
             ),
     ) {
         val animatedProgress by animateFloatAsState(
             targetValue = state.progress.coerceIn(0f, 1f),
-            animationSpec = tween(280, easing = FastOutSlowInEasing),
+            animationSpec = tween(IMPORT_PROGRESS_DURATION_MS, easing = FastOutSlowInEasing),
             label = "importProgress",
         )
         val primary = MaterialTheme.colorScheme.primary
@@ -122,8 +120,8 @@ fun ImportProgressOverlay(
                         contentAlignment = Alignment.Center,
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            val strokeWidth = size.minDimension * 0.08f
-                            val glowWidth = strokeWidth * 1.55f
+                            val strokeWidth = size.minDimension * PROGRESS_STROKE_RATIO
+                            val glowWidth = strokeWidth * PROGRESS_GLOW_RATIO
                             val maxStroke = max(strokeWidth, glowWidth)
                             val inset = maxStroke / 2f
                             val arcSize =
@@ -150,8 +148,8 @@ fun ImportProgressOverlay(
                                             primary,
                                         ),
                                     ),
-                                    startAngle = -90f,
-                                    sweepAngle = animatedProgress * 360f,
+                                    startAngle = PROGRESS_START_ANGLE_DEGREES,
+                                    sweepAngle = animatedProgress * FULL_CIRCLE_DEGREES,
                                     useCenter = false,
                                     topLeft = arcTopLeft,
                                     size = arcSize,
@@ -159,8 +157,8 @@ fun ImportProgressOverlay(
                                 )
                                 drawArc(
                                     color = primary.copy(alpha = 0.25f),
-                                    startAngle = -90f,
-                                    sweepAngle = animatedProgress * 360f,
+                                    startAngle = PROGRESS_START_ANGLE_DEGREES,
+                                    sweepAngle = animatedProgress * FULL_CIRCLE_DEGREES,
                                     useCenter = false,
                                     topLeft = arcTopLeft,
                                     size = arcSize,
@@ -170,8 +168,14 @@ fun ImportProgressOverlay(
                                     ),
                                 )
                             }
-                            val dotRadius = strokeWidth * 0.8f
-                            val angle = Math.toRadians((animatedProgress * 360f - 90f).toDouble())
+                            val dotRadius = strokeWidth * PROGRESS_DOT_RADIUS_RATIO
+                            val angle =
+                                Math.toRadians(
+                                    (
+                                        animatedProgress * FULL_CIRCLE_DEGREES +
+                                            PROGRESS_START_ANGLE_DEGREES
+                                        ).toDouble(),
+                                )
                             val radius = (size.minDimension - maxStroke) / 2f
                             if (animatedProgress > 0f) {
                                 val dotCenter =
@@ -190,7 +194,7 @@ fun ImportProgressOverlay(
                             text =
                             stringResource(
                                 R.string.format_percent,
-                                (animatedProgress * 100).roundToInt(),
+                                (animatedProgress * PERCENT_SCALE).roundToInt(),
                             ),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.SemiBold,
@@ -222,3 +226,13 @@ fun ImportProgressOverlay(
         }
     }
 }
+
+private const val IMPORT_ENTER_DURATION_MS = 220
+private const val IMPORT_EXIT_DURATION_MS = 180
+private const val IMPORT_PROGRESS_DURATION_MS = 280
+private const val PROGRESS_STROKE_RATIO = 0.08f
+private const val PROGRESS_GLOW_RATIO = 1.55f
+private const val PROGRESS_DOT_RADIUS_RATIO = 0.8f
+private const val PROGRESS_START_ANGLE_DEGREES = -90f
+private const val FULL_CIRCLE_DEGREES = 360f
+private const val PERCENT_SCALE = 100

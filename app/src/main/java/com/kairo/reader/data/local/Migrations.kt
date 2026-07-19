@@ -26,7 +26,9 @@ val MIGRATION_1_2 =
                 "CREATE INDEX IF NOT EXISTS index_bookmarks_createdAt ON bookmarks(createdAt)"
             )
             db.execSQL(
-                "CREATE UNIQUE INDEX IF NOT EXISTS index_bookmarks_bookId_chapterIndex_tokenIndex ON bookmarks(bookId, chapterIndex, tokenIndex)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                    "index_bookmarks_bookId_chapterIndex_tokenIndex " +
+                    "ON bookmarks(bookId, chapterIndex, tokenIndex)",
             )
         }
     }
@@ -41,7 +43,9 @@ val MIGRATION_2_3 =
                 "CREATE INDEX IF NOT EXISTS index_bookmarks_createdAt ON bookmarks(createdAt)"
             )
             db.execSQL(
-                "CREATE UNIQUE INDEX IF NOT EXISTS index_bookmarks_bookId_chapterIndex_tokenIndex ON bookmarks(bookId, chapterIndex, tokenIndex)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                    "index_bookmarks_bookId_chapterIndex_tokenIndex " +
+                    "ON bookmarks(bookId, chapterIndex, tokenIndex)",
             )
         }
     }

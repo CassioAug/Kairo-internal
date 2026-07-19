@@ -25,13 +25,13 @@ class MobiContentAndImageProcessorTest {
                 compression = 17480,
                 textRecordCount = 1,
                 header =
-                    MobiHeader(
-                        title = "Book",
-                        authors = emptyList(),
-                        textCharset = Charsets.UTF_8,
-                        firstImageIndex = -1,
-                        coverRecordIndex = null,
-                    ),
+                MobiHeader(
+                    title = "Book",
+                    authors = emptyList(),
+                    textCharset = Charsets.UTF_8,
+                    firstImageIndex = -1,
+                    coverRecordIndex = null,
+                ),
                 firstImageIndexHint = -1,
             )
 

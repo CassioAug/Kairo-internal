@@ -3,9 +3,7 @@ package com.kairo.reader.data.books.mobi
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookId
 
-internal class MobiFallbackParser(
-    private val contentProcessor: MobiContentProcessor = MobiContentProcessor(),
-) {
+internal class MobiFallbackParser(private val contentProcessor: MobiContentProcessor = MobiContentProcessor(),) {
     fun parse(
         bookId: BookId,
         data: ByteArray,

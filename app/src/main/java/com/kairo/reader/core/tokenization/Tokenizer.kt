@@ -5,7 +5,6 @@ package com.kairo.reader.core.tokenization
 import com.kairo.reader.core.linguistics.DialogueAnalyzer
 import com.kairo.reader.core.linguistics.WordAnalyzer
 import com.kairo.reader.core.model.Chapter
-import com.kairo.reader.core.model.ChapterLink
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.normalizeWhitespace
@@ -83,95 +82,16 @@ class Tokenizer {
      */
     private fun applyLinks(tokens: MutableList<Token>, chapter: Chapter): List<Token> {
         if (chapter.links.isNotEmpty()) {
-            applyLinksByCharPositions(tokens, chapter.links, chapter.plainText)
+            LinkPositionMapper.apply(tokens, chapter.links, chapter.plainText)
         }
-        applyLinksFromHtml(tokens, chapter.htmlContent)
-        return tokens
-    }
-
-    private fun applyLinksByCharPositions(
-        tokens: MutableList<Token>,
-        links: List<ChapterLink>,
-        plainText: String,
-    ) {
-        LinkPositionMapper.apply(tokens, links, plainText)
-    }
-
-    private fun applyLinksFromHtml(
-        tokens: MutableList<Token>,
-        html: String,
-    ) {
-        if (!html.contains("kairo://chapter/", ignoreCase = true)) return
-
-        val anchorOpenRegex = Regex(
-            "<a\\b[^>]*href\\s*=\\s*['\"]kairo://chapter/(\\d+)(?:#[^'\"]*)?['\"][^>]*>",
-            RegexOption.IGNORE_CASE,
+        HtmlChapterLinkApplier.apply(
+            tokens = tokens,
+            html = chapter.htmlContent,
+            normalizeInlineText = { normalizeEpubSymbols(normalizeWhitespace(it)) },
+            tokenizeInlineText = ::tokenizeInlineText,
+            minimumRomanPageNumberLength = 2,
         )
-        val matchable =
-            tokens.mapIndexedNotNull { index, token ->
-                if (token.type == TokenType.WORD || token.type == TokenType.PUNCTUATION) {
-                    index to token.text
-                } else {
-                    null
-                }
-            }
-        if (matchable.isEmpty()) return
-        val tokenTexts = matchable.map { it.second }
-
-        var scanIndex = 0
-        var tokenCursor = 0
-        var processedLinks = 0
-        while (scanIndex < html.length) {
-            if (processedLinks >= MAX_LINKS_PER_CHAPTER) break
-            if (tokenCursor >= tokenTexts.size) break
-            val match = anchorOpenRegex.find(html, scanIndex) ?: break
-            val chapterIndex = match.groupValues[1].toIntOrNull()
-            val contentStart = match.range.last + 1
-            if (chapterIndex == null || contentStart >= html.length) {
-                scanIndex = contentStart.coerceAtMost(html.length)
-                continue
-            }
-            processedLinks += 1
-
-            val closeIndex = html.indexOf("</a>", contentStart, ignoreCase = true)
-            if (closeIndex == -1) {
-                scanIndex = contentStart
-                continue
-            }
-
-            val innerLength = closeIndex - contentStart
-            if (innerLength <= 0 || innerLength > MAX_LINK_TEXT_HTML_CHARS) {
-                scanIndex = closeIndex + 4
-                continue
-            }
-
-            val innerHtml = html.substring(contentStart, closeIndex)
-            val linkText = extractLinkText(innerHtml)
-            if (linkText.isBlank() || isPageNumberText(linkText)) {
-                scanIndex = closeIndex + 4
-                continue
-            }
-
-            val normalizedLinkText = normalizeEpubSymbols(normalizeWhitespace(linkText))
-            val linkTokens = tokenizeInlineText(normalizedLinkText)
-            if (linkTokens.isEmpty()) {
-                scanIndex = closeIndex + 4
-                continue
-            }
-
-            val matchIndex = findTokenSequence(tokenTexts, linkTokens, tokenCursor)
-            if (matchIndex >= 0) {
-                for (offset in linkTokens.indices) {
-                    val tokenIndex = matchable[matchIndex + offset].first
-                    val token = tokens[tokenIndex]
-                    if (token.linkChapterIndex == null) {
-                        tokens[tokenIndex] = token.copy(linkChapterIndex = chapterIndex)
-                    }
-                }
-                tokenCursor = matchIndex + linkTokens.size
-            }
-            scanIndex = closeIndex + 4
-        }
+        return tokens
     }
 
     private fun tokenizeInlineText(text: String): List<String> {
@@ -183,52 +103,6 @@ class Tokenizer {
             if (part.isNotBlank()) parts.add(part)
         }
         return parts
-    }
-
-    private fun findTokenSequence(
-        tokens: List<String>,
-        sequence: List<String>,
-        startIndex: Int,
-    ): Int {
-        if (sequence.isEmpty() || tokens.isEmpty()) return -1
-        val lastStart = tokens.size - sequence.size
-        var i = startIndex.coerceAtLeast(0)
-        while (i <= lastStart) {
-            var j = 0
-            while (j < sequence.size && tokens[i + j] == sequence[j]) {
-                j += 1
-            }
-            if (j == sequence.size) return i
-            i += 1
-        }
-        return -1
-    }
-
-    private fun extractLinkText(html: String): String =
-        html
-            .replace(Regex("<[^>]+>"), " ")
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&apos;", "'")
-            .replace("&#39;", "'")
-            .replace(Regex("&#(\\d+);")) { m ->
-                m.groupValues[1].toIntOrNull()?.toChar()?.toString().orEmpty()
-            }
-            .replace(Regex("&#x([0-9a-fA-F]+);")) { m ->
-                m.groupValues[1].toIntOrNull(16)?.toChar()?.toString().orEmpty()
-            }
-            .replace(Regex("\\s+"), " ")
-            .trim()
-
-    private fun isPageNumberText(text: String): Boolean {
-        val trimmed = text.trim()
-        if (trimmed.isEmpty()) return false
-        if (trimmed.all { it.isDigit() }) return true
-        val romanNumeralPattern = Regex("^[ivxlcdm]+$", RegexOption.IGNORE_CASE)
-        return romanNumeralPattern.matches(trimmed) && trimmed.length > 1
     }
 
     private fun tokenizeParagraph(paragraph: String): List<Token> {
@@ -436,7 +310,7 @@ class Tokenizer {
         val isFormFeed = paragraph == FORM_FEED
         if (isFormFeedMarker || isFormFeed) return true
         if (paragraph.isBlank()) return false
-        return PAGE_BREAK_REGEX.matches(paragraph)
+        return ParagraphBreakPatterns.sceneBreak.matches(paragraph)
     }
 
     private fun pageBreakText(paragraph: String): String =
@@ -449,8 +323,6 @@ class Tokenizer {
     companion object {
         private const val FORM_FEED = "\u000C"
         private const val FORM_FEED_MARKER = "KAIRO_PAGE_BREAK"
-        private const val MAX_LINKS_PER_CHAPTER = 1000
-        private const val MAX_LINK_TEXT_HTML_CHARS = 1200
 
         private const val HEADING_BEFORE_MS = 140L
         private const val HEADING_AFTER_MS = 220L
@@ -501,13 +373,6 @@ class Tokenizer {
         // Closing quotes that end dialogue
         private val CLOSING_QUOTES = setOf('"', '\u201D', '\u2019')
 
-        // Common "scene break" markers: "***", "* * *", "---", "— — —", "• • •", "___", etc.
-        // These frequently represent page breaks or scene breaks in ebooks.
-        private val PAGE_BREAK_REGEX =
-            Regex(
-                """^\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,}|(?:~\s*){3,}|(?:\u2014\s*){2,}|(?:\u2013\s*){2,}|(?:\u2022\s*){3,}|(?:\u00B7\s*){3,})\s*$""",
-            )
-
         private val ELLIPSIS_REGEX = Regex("\\.{3,}")
         private const val ELLIPSIS_CHAR = '\u2026'
 
@@ -521,20 +386,21 @@ class Tokenizer {
                 // Examples: "$20", "€1,000", "£5.99"
                 """[$€£¥]\d+(?:[.,]\d+)*""" +
                     "|" +
-                // Numeric + unit patterns: temperatures and percentages.
-                // Examples: "20°C", "-35c", "–35c", "‑35c", "20°F", "20℃", "50%"
-                """[-−–—‐‑‒﹣－]?\d+(?:[.,]\d+)?(?:[℃℉]|%|[°º]?[cCfFkK](?![a-zA-Z]))""" +
+                    // Numeric + unit patterns: temperatures and percentages.
+                    // Examples: "20°C", "-35c", "–35c", "‑35c", "20°F", "20℃", "50%"
+                    """[-−–—‐‑‒﹣－]?\d+(?:[.,]\d+)?(?:[℃℉]|%|[°º]?[cCfFkK](?![a-zA-Z]))""" +
                     "|" +
                     // Numeric patterns with separators (decimals / thousands).
                     // Examples: "3.14", "1,000", "1,000,000", "-2.5"
                     """[-−–—‐‑‒﹣－]?\d+(?:[.,]\d+)+""" +
                     "|" +
-                    // Word pattern: word chars, optionally followed by (apostrophe + word chars) or (hyphen + word chars)
+                    // Word chars optionally followed by apostrophe-word or hyphen-word groups.
                     // This captures contractions like "don't" and hyphenated words like "self-aware"
                     """[\w]+(?:[\u0027\u2019\u2018][\w]+|-[\w]+)*""" +
                     "|" +
                     // Punctuation pattern: single punctuation characters (quotes, periods, etc.)
-                    """[.,;:!?\u201C\u201D\u201E\u0022\u2018\u2019\u2014\u2013\u2026()\[\]{}\-\u2212°º%$€£¥℃℉]""",
+                    """[.,;:!?\u201C\u201D\u201E\u0022\u2018\u2019""" +
+                    """\u2014\u2013\u2026()\[\]{}\-\u2212°º%$€£¥℃℉]""",
             )
     }
 

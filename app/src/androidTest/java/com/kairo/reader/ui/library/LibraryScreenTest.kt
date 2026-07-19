@@ -193,14 +193,14 @@ class LibraryScreenTest {
         val bookmarkItem =
             BookmarkItem(
                 bookmark =
-                    Bookmark(
-                        id = "bookmark-1",
-                        bookId = sampleBook.id,
-                        chapterIndex = 0,
-                        tokenIndex = 12,
-                        previewText = "A saved passage from the chapter",
-                        createdAt = 100L,
-                    ),
+                Bookmark(
+                    id = "bookmark-1",
+                    bookId = sampleBook.id,
+                    chapterIndex = 0,
+                    tokenIndex = 12,
+                    previewText = "A saved passage from the chapter",
+                    createdAt = 100L,
+                ),
                 book = sampleBook,
                 chapterCount = sampleBook.chapters.size,
             )

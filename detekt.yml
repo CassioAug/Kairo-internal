@@ -3,5 +3,62 @@ config:
   validation: true
   warningsAsErrors: true
 
+complexity:
+  ComplexCondition:
+    # Five-part protocol/UI predicates remain readable when each term is named.
+    threshold: 6
+  CyclomaticComplexMethod:
+    # Flag genuinely tangled methods while allowing bounded parser and UI dispatch tables.
+    threshold: 30
+  LongParameterList:
+    # Ten explicit boundary values remain readable; larger surfaces need cohesive contracts.
+    functionThreshold: 11
+    constructorThreshold: 11
+    # Immutable UI state/action contracts deliberately collect named screen inputs.
+    ignoreDataClasses: true
+  LongMethod:
+    # Focus remediation on substantial routines, not declarative Compose or formatting-sensitive bodies.
+    threshold: 175
+  LargeClass:
+    # Test fixture breadth is not production class responsibility debt.
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+  NestedBlockDepth:
+    # Parser format validation commonly needs one additional bounded nesting level.
+    threshold: 5
+  TooManyFunctions:
+    # Private helpers do not expand a type's API; the large-file review already enforces file size.
+    thresholdInFiles: 25
+    thresholdInClasses: 25
+    thresholdInInterfaces: 25
+    thresholdInObjects: 25
+    thresholdInEnums: 25
+    ignorePrivate: true
+
+naming:
+  FunctionNaming:
+    # PascalCase is the required naming convention for Jetpack Compose UI functions.
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/ui/**/*.kt'
+
 style:
   active: true
+  MagicNumber:
+    # Range endpoints are clearest inline for Unicode blocks and binary protocol bounds.
+    ignoreRanges: true
+    ignoreAnnotation: true
+    ignoreEnums: true
+  MaxLineLength:
+    # Match the Kotlin formatter so automatic formatting cannot create Detekt debt.
+    maxLineLength: 140
+  ReturnCount:
+    # Keep bounded fail-fast validation and malformed-input exits; flag return-driven decision trees.
+    max: 6
+    excludeGuardClauses: true
+    excludeLabeled: true
+  LoopWithTooManyJumpStatements:
+    # Four or more break/continue paths means the loop body needs named classification helpers.
+    maxJumpCount: 3

@@ -21,7 +21,9 @@ internal object EpubCoverSelector {
             fileName.contains("cover") -> 0
             fileName.contains("front") -> 1
             fileName.contains("title") -> 2
-            else -> 3
+            else -> DEFAULT_COVER_PRIORITY
         }
     }
 }
+
+private const val DEFAULT_COVER_PRIORITY = 3

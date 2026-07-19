@@ -28,13 +28,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpConfigConstraints
 import com.kairo.reader.core.model.RsvpCustomProfile
 import com.kairo.reader.core.model.RsvpProfile
 import com.kairo.reader.core.model.RsvpProfileIds
 import com.kairo.reader.core.model.defaultConfig
+import com.kairo.reader.core.rsvp.MILLISECONDS_PER_MINUTE
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
 import kotlin.math.roundToInt
 
+// The selector is a single modal form; extracting its tightly coupled validation state obscures the flow.
+@Suppress("LongMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RsvpProfileSelector(
@@ -310,7 +314,10 @@ internal fun RsvpConfig.withLiveTempo(tempoMsPerWord: Long): RsvpConfig {
     val safeTempoMsPerWord = tempoMsPerWord.coerceAtLeast(EXTREME_MIN_TEMPO_MS_PER_WORD)
     return copy(
         tempoMsPerWord = safeTempoMsPerWord,
-        baseWpm = (60_000.0 / safeTempoMsPerWord.toDouble()).roundToInt().coerceAtLeast(1),
+        baseWpm =
+        (MILLISECONDS_PER_MINUTE / safeTempoMsPerWord.toDouble())
+            .roundToInt()
+            .coerceAtLeast(1),
     )
 }
 
@@ -330,4 +337,4 @@ internal fun percentToMultiplier(
     minValue: Double,
     maxValue: Double,
 ): Double =
-    (percent.toDouble() / 100.0).coerceIn(minValue, maxValue)
+    (percent.toDouble() / RsvpConfigConstraints.PERCENT_SCALE).coerceIn(minValue, maxValue)

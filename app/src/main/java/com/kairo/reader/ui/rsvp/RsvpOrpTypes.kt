@@ -6,12 +6,7 @@ import androidx.compose.ui.text.font.FontWeight
 
 internal data class OrpTypography(val fontSizeSp: Float, val fontFamily: FontFamily, val fontWeight: FontWeight,)
 
-internal data class OrpColors(
-    val textColor: Color,
-    val pivotColor: Color,
-    val pivotLineColor: Color,
-    val highlightColor: Color,
-)
+internal data class OrpColors(val textColor: Color, val pivotColor: Color, val pivotLineColor: Color, val highlightColor: Color,)
 
 internal data class OrpTextLayout(
     val horizontalBias: Float,

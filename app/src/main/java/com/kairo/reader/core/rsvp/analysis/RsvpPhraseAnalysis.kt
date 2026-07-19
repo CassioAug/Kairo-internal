@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.core.rsvp.analysis
 
 import com.kairo.reader.core.model.RsvpConfig
@@ -193,12 +195,16 @@ internal fun focalScore(
     val letters = normalized.count { it.isLetterOrDigit() }
     if (letters == 0) return Double.NEGATIVE_INFINITY
 
-    val functionPenalty = if (isFunctionWord(normalized)) 0.25 else 1.0
-    val anchorBonus = if (isSemanticAnchor(normalized)) 1.5 else 1.0
+    val functionPenalty = if (isFunctionWord(normalized)) FOCAL_FUNCTION_WORD_PENALTY else 1.0
+    val anchorBonus = if (isSemanticAnchor(normalized)) FOCAL_SEMANTIC_ANCHOR_BONUS else 1.0
     // Tiny end-weighting so the final content word of a breath wins ties.
-    val endWeight = 1.0 + (positionInGroup.toDouble() / (groupSize * 20.0))
+    val endWeight = 1.0 + (positionInGroup.toDouble() / (groupSize * FOCAL_END_WEIGHT_DIVISOR))
     return letters.toDouble() * functionPenalty * anchorBonus * endWeight
 }
+
+private const val FOCAL_FUNCTION_WORD_PENALTY = 0.25
+private const val FOCAL_SEMANTIC_ANCHOR_BONUS = 1.5
+private const val FOCAL_END_WEIGHT_DIVISOR = 20.0
 
 internal fun MutableMap<Int, PhraseContour>.mergeContour(
     expandedIndex: Int,

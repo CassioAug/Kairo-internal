@@ -71,14 +71,14 @@ internal fun OrpAlignedTextLayout(
             ) {
                 displayCache.getOrPut(
                     key =
-                        OrpDisplayCacheKey(
-                            content = content,
-                            textStyle = textStyle,
-                            colors = colors,
-                            maxWidthPx = maxWidthPx.roundToInt(),
-                            preferWindowing = layout.preferWindowing,
-                            pivotHighlightVisible = layout.pivotHighlightVisible,
-                        ),
+                    OrpDisplayCacheKey(
+                        content = content,
+                        textStyle = textStyle,
+                        colors = colors,
+                        maxWidthPx = maxWidthPx.roundToInt(),
+                        preferWindowing = layout.preferWindowing,
+                        pivotHighlightVisible = layout.pivotHighlightVisible,
+                    ),
                 ) {
                     resolveOrpDisplay(
                         content = content,

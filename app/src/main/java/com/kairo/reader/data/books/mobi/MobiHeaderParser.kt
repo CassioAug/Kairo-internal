@@ -8,10 +8,10 @@ import java.nio.charset.Charset
 internal class MobiHeaderParser {
     fun parsePalmDocHeader(record0: ByteArray): PalmDocHeader {
         val buffer = ByteBuffer.wrap(record0).order(ByteOrder.BIG_ENDIAN)
-        val compression = buffer.short.toInt() and 0xFFFF
+        val compression = buffer.short.toInt() and UNSIGNED_SHORT_MASK
         buffer.short
         buffer.int
-        val recordCount = buffer.short.toInt() and 0xFFFF
+        val recordCount = buffer.short.toInt() and UNSIGNED_SHORT_MASK
         return PalmDocHeader(compression = compression, textRecordCount = recordCount)
     }
 
@@ -39,7 +39,8 @@ internal class MobiHeaderParser {
         val resourceNames = findResourceNameList(data, recordOffsets) ?: return null
         val firstResource =
             firstResourceIndexHint.takeIf { it in recordOffsets.indices }
-                ?: (1 + textRecordCount).takeIf { it in recordOffsets.indices }
+                ?: (PALM_DATABASE_HEADER_RECORD_COUNT + textRecordCount)
+                    .takeIf { it in recordOffsets.indices }
                 ?: MobiBinary.findFirstImageRecordIndex(data, recordOffsets)
                 ?: return null
 
@@ -60,11 +61,11 @@ internal class MobiHeaderParser {
         fallbackTitle: String,
         fileName: String,
     ): MobiHeader? {
-        var offset = indexOfMobiHeader(record0, MobiLimits.MOBI_HEADER_OFFSET + 4)
+        var offset = indexOfMobiHeader(record0, MobiLimits.MOBI_HEADER_OFFSET + MOBI_MAGIC_SIZE)
         var resolved: MobiHeader? = null
         while (offset >= 0) {
             parseHeaderAtOffset(record0, fallbackTitle, fileName, offset)?.let { resolved = it }
-            offset = indexOfMobiHeader(record0, offset + 4)
+            offset = indexOfMobiHeader(record0, offset + MOBI_MAGIC_SIZE)
         }
         return resolved
     }
@@ -75,21 +76,23 @@ internal class MobiHeaderParser {
         fileName: String,
         headerOffset: Int,
     ): MobiHeader? {
-        if (headerOffset < 0 || headerOffset + 4 > record0.size) return null
-        if (String(record0.copyOfRange(headerOffset, headerOffset + 4)) != "MOBI") return null
+        if (headerOffset < 0 || headerOffset + MOBI_MAGIC_SIZE > record0.size) return null
+        if (String(record0.copyOfRange(headerOffset, headerOffset + MOBI_MAGIC_SIZE)) != MOBI_MAGIC) {
+            return null
+        }
 
-        val headerLength = MobiBinary.readInt(record0, headerOffset + 4)
+        val headerLength = MobiBinary.readInt(record0, headerOffset + MOBI_HEADER_LENGTH_OFFSET)
         if (headerLength <= 0 || headerOffset + headerLength > record0.size) return null
 
         var title = fallbackTitle
         var authors = emptyList<String>()
         var coverRecordIndex: Int? = null
 
-        val encoding = MobiBinary.readInt(record0, headerOffset + 12)
+        val encoding = MobiBinary.readInt(record0, headerOffset + MOBI_TEXT_ENCODING_OFFSET)
         val charset = MobiBinary.resolveCharset(encoding)
 
-        val fullNameOffset = MobiBinary.readInt(record0, headerOffset + 28)
-        val fullNameLength = MobiBinary.readInt(record0, headerOffset + 32)
+        val fullNameOffset = MobiBinary.readInt(record0, headerOffset + MOBI_FULL_NAME_OFFSET_FIELD)
+        val fullNameLength = MobiBinary.readInt(record0, headerOffset + MOBI_FULL_NAME_LENGTH_FIELD)
         if (fullNameOffset > 0 && fullNameLength > 0 && fullNameOffset + fullNameLength <= record0.size) {
             title =
                 runCatching {
@@ -98,14 +101,14 @@ internal class MobiHeaderParser {
         }
 
         val firstImageIndex =
-            if (headerLength >= MobiLimits.FIRST_IMAGE_INDEX_OFFSET + 4) {
+            if (headerLength >= MobiLimits.FIRST_IMAGE_INDEX_OFFSET + INT_BYTES) {
                 MobiBinary.readInt(record0, headerOffset + MobiLimits.FIRST_IMAGE_INDEX_OFFSET)
             } else {
                 -1
             }
 
         val exthFlags =
-            if (headerLength >= MobiLimits.EXTH_FLAGS_OFFSET + 4) {
+            if (headerLength >= MobiLimits.EXTH_FLAGS_OFFSET + INT_BYTES) {
                 MobiBinary.readInt(record0, headerOffset + MobiLimits.EXTH_FLAGS_OFFSET)
             } else {
                 0
@@ -113,9 +116,9 @@ internal class MobiHeaderParser {
         val exthStart = headerOffset + headerLength
         val hasExthFlag = (exthFlags and MobiLimits.EXTH_PRESENT_FLAG) != 0
         val hasExthMagic =
-            exthStart + 4 <= record0.size &&
-                String(record0.copyOfRange(exthStart, exthStart + 4)) == "EXTH"
-        if ((hasExthFlag || hasExthMagic) && exthStart + 12 <= record0.size) {
+            exthStart + EXTH_MAGIC_SIZE <= record0.size &&
+                String(record0.copyOfRange(exthStart, exthStart + EXTH_MAGIC_SIZE)) == EXTH_MAGIC
+        if ((hasExthFlag || hasExthMagic) && exthStart + EXTH_HEADER_SIZE <= record0.size) {
             val exth = parseExth(record0, exthStart, charset)
             exth.title?.let { title = it }
             if (exth.authors.isNotEmpty()) authors = exth.authors
@@ -135,23 +138,19 @@ internal class MobiHeaderParser {
         )
     }
 
-    private data class ExthMetadata(
-        val title: String?,
-        val authors: List<String>,
-        val coverRecordIndex: Int?,
-    )
+    private data class ExthMetadata(val title: String?, val authors: List<String>, val coverRecordIndex: Int?,)
 
     private fun parseExth(
         record0: ByteArray,
         start: Int,
         charset: Charset,
     ): ExthMetadata {
-        if (String(record0.copyOfRange(start, start + 4)) != "EXTH") {
+        if (String(record0.copyOfRange(start, start + EXTH_MAGIC_SIZE)) != EXTH_MAGIC) {
             return ExthMetadata(title = null, authors = emptyList(), coverRecordIndex = null)
         }
-        val exthLength = MobiBinary.readInt(record0, start + 4)
-        val recordCount = MobiBinary.readInt(record0, start + 8)
-        var offset = start + 12
+        val exthLength = MobiBinary.readInt(record0, start + EXTH_LENGTH_OFFSET)
+        val recordCount = MobiBinary.readInt(record0, start + EXTH_RECORD_COUNT_OFFSET)
+        var offset = start + EXTH_HEADER_SIZE
         val end = (start + exthLength).coerceAtMost(record0.size)
 
         val authors = mutableListOf<String>()
@@ -159,30 +158,30 @@ internal class MobiHeaderParser {
         var coverRecordIndex: Int? = null
 
         repeat(recordCount) {
-            if (offset + 8 > end) return@repeat
+            if (offset + EXTH_RECORD_HEADER_SIZE > end) return@repeat
             val type = MobiBinary.readInt(record0, offset)
-            val length = MobiBinary.readInt(record0, offset + 4)
-            val dataStart = offset + 8
+            val length = MobiBinary.readInt(record0, offset + EXTH_RECORD_LENGTH_OFFSET)
+            val dataStart = offset + EXTH_RECORD_HEADER_SIZE
             val dataEnd = (offset + length).coerceAtMost(end)
-            if (length < 8 || dataStart >= dataEnd) {
-                offset += maxOf(length, 8)
+            if (length < EXTH_RECORD_HEADER_SIZE || dataStart >= dataEnd) {
+                offset += maxOf(length, EXTH_RECORD_HEADER_SIZE)
                 return@repeat
             }
             val payload = record0.copyOfRange(dataStart, dataEnd)
             when (type) {
-                100 -> {
+                EXTH_AUTHOR_RECORD_TYPE -> {
                     val raw = String(payload, charset).trim('\u0000')
                     raw.split(';', ',')
                         .map(String::trim)
                         .filter(String::isNotBlank)
                         .forEach(authors::add)
                 }
-                201 -> {
-                    if (payload.size >= 4) {
+                EXTH_COVER_OFFSET_RECORD_TYPE -> {
+                    if (payload.size >= INT_BYTES) {
                         coverRecordIndex = MobiBinary.readInt(payload, 0)
                     }
                 }
-                503 -> {
+                EXTH_UPDATED_TITLE_RECORD_TYPE -> {
                     val raw = String(payload, charset).trim('\u0000')
                     if (raw.isNotBlank()) title = raw
                 }
@@ -212,14 +211,14 @@ internal class MobiHeaderParser {
         data: ByteArray,
         startIndex: Int,
     ): Int {
-        if (startIndex < 0 || startIndex >= data.size - 4) return -1
-        val limit = data.size - 4
+        if (startIndex < 0 || startIndex >= data.size - MOBI_MAGIC_SIZE) return -1
+        val limit = data.size - MOBI_MAGIC_SIZE
         var index = startIndex
         while (index <= limit) {
-            if (data[index] == 'M'.code.toByte() &&
-                data[index + 1] == 'O'.code.toByte() &&
-                data[index + 2] == 'B'.code.toByte() &&
-                data[index + 3] == 'I'.code.toByte()
+            if (data[index] == MOBI_MAGIC[MOBI_MAGIC_M_INDEX].code.toByte() &&
+                data[index + 1] == MOBI_MAGIC[MOBI_MAGIC_O_INDEX].code.toByte() &&
+                data[index + 2] == MOBI_MAGIC[MOBI_MAGIC_B_INDEX].code.toByte() &&
+                data[index + MOBI_MAGIC_I_INDEX] == MOBI_MAGIC[MOBI_MAGIC_I_INDEX].code.toByte()
             ) {
                 return index
             }
@@ -235,21 +234,27 @@ internal class MobiHeaderParser {
     ): String? {
         val startTag = "<package"
         val endTag = "</package>"
-        for (index in recordOffsets.indices) {
+        return recordOffsets.indices.firstNotNullOfOrNull { index ->
             val start = recordOffsets[index]
             val end = if (index + 1 < recordOffsets.size) recordOffsets[index + 1] else data.size
-            if (start < 0 || end > data.size || end <= start) continue
-            val bytes = data.copyOfRange(start, end)
-            if (MobiBinary.detectImageType(bytes) != null) continue
-            val text = MobiBinary.decodeText(bytes, charset)
-            val lower = text.lowercase()
-            val packageStart = lower.indexOf(startTag)
-            if (packageStart < 0) continue
-            val packageEnd = lower.indexOf(endTag, packageStart)
-            if (packageEnd < 0) continue
-            return text.substring(packageStart, packageEnd + endTag.length)
+            val validRange = start >= 0 && end <= data.size && end > start
+            if (!validRange) return@firstNotNullOfOrNull null
+            extractOpfPackage(data.copyOfRange(start, end), charset, startTag, endTag)
         }
-        return null
+    }
+
+    private fun extractOpfPackage(
+        bytes: ByteArray,
+        charset: Charset,
+        startTag: String,
+        endTag: String,
+    ): String? {
+        if (MobiBinary.detectImageType(bytes) != null) return null
+        val text = MobiBinary.decodeText(bytes, charset)
+        val lower = text.lowercase()
+        val packageStart = lower.indexOf(startTag).takeIf { it >= 0 } ?: return null
+        val packageEnd = lower.indexOf(endTag, packageStart).takeIf { it >= 0 } ?: return null
+        return text.substring(packageStart, packageEnd + endTag.length)
     }
 
     private fun parseCoverHrefFromOpf(opf: String): String? {
@@ -272,8 +277,10 @@ internal class MobiHeaderParser {
             if (props.contains("cover-image", ignoreCase = true) && !href.isNullOrBlank()) return href
             if (fallback == null &&
                 !href.isNullOrBlank() &&
-                (id?.contains("cover", ignoreCase = true) == true ||
-                    href.contains("cover", ignoreCase = true))
+                (
+                    id?.contains("cover", ignoreCase = true) == true ||
+                        href.contains("cover", ignoreCase = true)
+                    )
             ) {
                 fallback = href
             }
@@ -304,7 +311,7 @@ internal class MobiHeaderParser {
             val bytes = data.copyOfRange(start, end)
             if (MobiBinary.detectImageType(bytes) != null) continue
             val names = extractResourceNames(bytes)
-            if (names.size >= 3 && (best == null || names.size > best!!.size)) {
+            if (names.size >= MIN_RESOURCE_NAME_COUNT && (best == null || names.size > best!!.size)) {
                 best = names
             }
         }
@@ -323,8 +330,8 @@ internal class MobiHeaderParser {
         }
 
         bytes.forEach { raw ->
-            val code = raw.toInt() and 0xFF
-            if (code in 32..126) {
+            val code = raw.toInt() and BYTE_MASK
+            if (code in PRINTABLE_ASCII_RANGE) {
                 builder.append(code.toChar())
             } else {
                 flush()
@@ -335,7 +342,7 @@ internal class MobiHeaderParser {
     }
 
     private fun looksLikeResourceName(value: String): Boolean {
-        if (!value.contains('.') || value.length > 180) return false
+        if (!value.contains('.') || value.length > MAX_RESOURCE_NAME_LENGTH) return false
         return value.lowercase().substringAfterLast('.', "") in setOf(
             "jpg",
             "jpeg",
@@ -364,5 +371,40 @@ internal class MobiHeaderParser {
         return runCatching { URLDecoder.decode(cleaned, "UTF-8") }
             .getOrDefault(cleaned)
             .lowercase()
+    }
+
+    private companion object {
+        private const val UNSIGNED_SHORT_MASK = 0xFFFF
+        private const val BYTE_MASK = 0xFF
+        private const val INT_BYTES = 4
+        private const val PALM_DATABASE_HEADER_RECORD_COUNT = 1
+
+        // MOBI header fields are offsets from the start of the MOBI header.
+        private const val MOBI_MAGIC = "MOBI"
+        private const val MOBI_MAGIC_SIZE = 4
+        private const val MOBI_HEADER_LENGTH_OFFSET = 4
+        private const val MOBI_TEXT_ENCODING_OFFSET = 12
+        private const val MOBI_FULL_NAME_OFFSET_FIELD = 28
+        private const val MOBI_FULL_NAME_LENGTH_FIELD = 32
+        private const val MOBI_MAGIC_M_INDEX = 0
+        private const val MOBI_MAGIC_O_INDEX = 1
+        private const val MOBI_MAGIC_B_INDEX = 2
+        private const val MOBI_MAGIC_I_INDEX = 3
+
+        // EXTH begins with magic, total length, and record count.
+        private const val EXTH_MAGIC = "EXTH"
+        private const val EXTH_MAGIC_SIZE = 4
+        private const val EXTH_LENGTH_OFFSET = 4
+        private const val EXTH_RECORD_COUNT_OFFSET = 8
+        private const val EXTH_HEADER_SIZE = 12
+        private const val EXTH_RECORD_HEADER_SIZE = 8
+        private const val EXTH_RECORD_LENGTH_OFFSET = 4
+        private const val EXTH_AUTHOR_RECORD_TYPE = 100
+        private const val EXTH_COVER_OFFSET_RECORD_TYPE = 201
+        private const val EXTH_UPDATED_TITLE_RECORD_TYPE = 503
+
+        private const val MIN_RESOURCE_NAME_COUNT = 3
+        private const val MAX_RESOURCE_NAME_LENGTH = 180
+        private val PRINTABLE_ASCII_RANGE = 32..126
     }
 }

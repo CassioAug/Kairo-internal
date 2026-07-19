@@ -39,12 +39,13 @@ import com.kairo.reader.core.rsvp.text.findFirstWordCursor
 import com.kairo.reader.core.rsvp.text.findPrevWord
 import com.kairo.reader.core.rsvp.text.isCurrencyPrefixPunctuation
 import com.kairo.reader.core.rsvp.text.isOpeningPunctuation
+import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTier
+import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
+import com.kairo.reader.core.rsvp.timing.RsvpUnitTimingInput
 import com.kairo.reader.core.rsvp.timing.computeUnitDurationMs
 import com.kairo.reader.core.rsvp.timing.pageBreakBasePauseMs
 import com.kairo.reader.core.rsvp.timing.paragraphBreakBasePauseMs
 import com.kairo.reader.core.rsvp.timing.pauseScale
-import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTier
-import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
 import com.kairo.reader.core.rsvp.timing.speedStrength
 import kotlin.math.max
 
@@ -354,24 +355,26 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
 
     val durationMs =
         computeUnitDurationMs(
-            frameTokens = frameTokens,
-            config = config,
-            contextBefore = contextBefore,
-            rhythm = rhythm,
-            flow = flow,
-            prevToken = expanded.getOrNull(cursor - 1)?.token,
-            prevWord = findPrevWord(expanded, beforeIndex = cursor),
-            nextToken = expanded.getOrNull(nextCursor)?.token,
-            nextWord = expanded.getOrNull(findFirstWordCursor(expanded, nextCursor))?.token,
-            boundaryBefore = boundaryBefore(expanded, wordCursor),
-            focalSuppression = focalSuppression(wordCursor),
-            anticipatoryLanding = anticipatoryLanding(wordCursor),
-            emDashAside = config.useParentheticalAside && wordCursor in analysis.emDashAsideIndices,
-            phraseContour = analysis.phraseContours[wordCursor] ?: PhraseContour.NONE,
-            prose = prose,
-            pairedEmDashInUnit =
+            RsvpUnitTimingInput(
+                frameTokens = frameTokens,
+                config = config,
+                contextBefore = contextBefore,
+                rhythm = rhythm,
+                flow = flow,
+                prevToken = expanded.getOrNull(cursor - 1)?.token,
+                prevWord = findPrevWord(expanded, beforeIndex = cursor),
+                nextToken = expanded.getOrNull(nextCursor)?.token,
+                nextWord = expanded.getOrNull(findFirstWordCursor(expanded, nextCursor))?.token,
+                boundaryBefore = boundaryBefore(expanded, wordCursor),
+                focalSuppression = focalSuppression(wordCursor),
+                anticipatoryLanding = anticipatoryLanding(wordCursor),
+                emDashAside = config.useParentheticalAside && wordCursor in analysis.emDashAsideIndices,
+                phraseContour = analysis.phraseContours[wordCursor] ?: PhraseContour.NONE,
+                prose = prose,
+                pairedEmDashInUnit =
                 (frameStartCursor until nextCursor).any { it in analysis.pairedEmDashIndices },
-            afterPairedEmDash = followsPairedEmDash(wordCursor),
+                afterPairedEmDash = followsPairedEmDash(wordCursor),
+            ),
         )
 
     frames +=
@@ -383,14 +386,14 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
             nextOriginalTokenIndex = nextOriginalTokenIndex(nextCursor),
             displayOriginalStartIndex = expanded[frameStartCursor].originalIndex,
             displayOriginalEndExclusive =
-                displayOriginalEndExclusive(
-                    frameStartCursor = frameStartCursor,
-                    nextCursor = nextCursor,
-                ),
+            displayOriginalEndExclusive(
+                frameStartCursor = frameStartCursor,
+                nextCursor = nextCursor,
+            ),
             displayOriginalStartCharacterOffset =
-                expanded[frameStartCursor].sourceCharacterStart,
+            expanded[frameStartCursor].sourceCharacterStart,
             displayOriginalEndCharacterOffset =
-                expanded.getOrNull(nextCursor - 1)?.sourceCharacterEndExclusive,
+            expanded.getOrNull(nextCursor - 1)?.sourceCharacterEndExclusive,
         )
 
     return consumeContextPunctuation(nextCursor)

@@ -3,6 +3,7 @@ package com.kairo.reader.data.books.epub
 import java.io.StringReader
 import java.util.Locale
 import org.w3c.dom.Document
+import org.w3c.dom.Element
 import org.xml.sax.InputSource
 
 internal class EpubOpfParser {
@@ -47,8 +48,10 @@ internal class EpubOpfParser {
             if (
                 coverHref == null &&
                 isImage &&
-                (item.id.contains("cover", ignoreCase = true) ||
-                    item.href.contains("cover", ignoreCase = true))
+                (
+                    item.id.contains("cover", ignoreCase = true) ||
+                        item.href.contains("cover", ignoreCase = true)
+                    )
             ) {
                 coverHref = item.href
             }
@@ -82,99 +85,128 @@ internal class EpubOpfParser {
                 ?.takeIf { EpubXmlUtils.localNameOf(it).equals("package", ignoreCase = true) }
                 ?: EpubXmlUtils.findElementsByLocalName(doc, "package").firstOrNull()
         val metadataElement = packageElement?.let { EpubXmlUtils.findDirectChildByLocalName(it, "metadata") }
+        val coverId = extractStrictCoverId(metadataElement, doc)
+        val manifestData = extractStrictManifest(packageElement, doc, coverId)
+        val spineItems = extractStrictSpine(packageElement, doc)
 
-        var coverHref: String? = null
+        val resolvedSpine =
+            spineItems.ifEmpty {
+                manifestData.items.filter(::isReadingManifestItem).map { SpineItem(it.id) }
+            }
+        return OpfData(
+            title,
+            authors,
+            languageTag,
+            manifestData.coverHref,
+            manifestData.hrefById,
+            manifestData.items,
+            resolvedSpine,
+        )
+    }
+
+    private fun extractStrictCoverId(
+        metadataElement: Element?,
+        doc: Document,
+    ): String? {
         val metaNodes =
             metadataElement?.let { EpubXmlUtils.findDirectChildrenByLocalName(it, "meta") }
                 ?: EpubXmlUtils.findElementsByLocalName(doc, "meta")
-        var coverId: String? = null
-        for (meta in metaNodes) {
-            val name = meta.attributes.getNamedItem("name")?.nodeValue
-            if (name == "cover") {
-                coverId = meta.attributes.getNamedItem("content")?.nodeValue
-                break
-            }
-        }
+        return metaNodes
+            .firstOrNull { it.attributes.getNamedItem("name")?.nodeValue == "cover" }
+            ?.attributes
+            ?.getNamedItem("content")
+            ?.nodeValue
+    }
 
-        val manifest = mutableMapOf<String, String>()
+    private fun extractStrictManifest(
+        packageElement: Element?,
+        doc: Document,
+        coverId: String?,
+    ): StrictManifestData {
         val manifestNodes =
             packageElement
                 ?.let { EpubXmlUtils.findDirectChildByLocalName(it, "manifest") }
                 ?.let { EpubXmlUtils.findDirectChildrenByLocalName(it, "item") }
                 ?: EpubXmlUtils.findElementsByParentLocalName(doc, "manifest", "item")
-        val manifestItems = mutableListOf<ManifestItem>()
-        for (item in manifestNodes) {
-            val id =
-                item.attributes
-                    .getNamedItem("id")
-                    ?.nodeValue
-                    ?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                    ?: continue
-            val hrefRaw = item.attributes.getNamedItem("href")?.nodeValue ?: continue
-            val href = EpubPathResolver.normalizeHrefValue(hrefRaw)
-            if (href.isBlank()) continue
-            val mediaType = item.attributes.getNamedItem("media-type")?.nodeValue
-            val properties =
-                item.attributes
-                    .getNamedItem("properties")
-                    ?.nodeValue
-                    ?.split(Regex("\\s+"))
-                    ?.mapNotNull { token ->
-                        token.trim().lowercase(Locale.ROOT).takeIf { it.isNotBlank() }
-                    }?.toSet()
-                    .orEmpty()
-
-            manifest[id] = href
-            manifestItems.add(
-                ManifestItem(
-                    id = id,
-                    href = href,
-                    mediaType = mediaType,
-                    properties = properties,
-                ),
-            )
-            val isImage = isImageManifestItem(mediaType, href)
-
-            if ((id == coverId && isImage) ||
-                (
-                    coverHref == null &&
-                        isImage &&
-                        (
-                            id.contains("cover", ignoreCase = true) ||
-                                href.contains("cover", ignoreCase = true)
-                            )
-                    )
-            ) {
-                coverHref = href
-            }
-
-            if (properties.contains("cover-image") && isImage) {
-                coverHref = href
+        val hrefById = mutableMapOf<String, String>()
+        val items = mutableListOf<ManifestItem>()
+        var coverHref: String? = null
+        manifestNodes.mapNotNull(::parseStrictManifestItem).forEach { item ->
+            hrefById[item.id] = item.href
+            items += item
+            if (isPreferredCoverItem(item, coverId, coverHref)) {
+                coverHref = item.href
             }
         }
+        return StrictManifestData(coverHref, hrefById, items)
+    }
 
-        val spineItems = mutableListOf<SpineItem>()
+    private fun parseStrictManifestItem(element: Element): ManifestItem? {
+        val id =
+            element.attributes
+                .getNamedItem("id")
+                ?.nodeValue
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+                ?: return null
+        val href =
+            element.attributes
+                .getNamedItem("href")
+                ?.nodeValue
+                ?.let(EpubPathResolver::normalizeHrefValue)
+                ?.takeIf(String::isNotBlank)
+                ?: return null
+        val properties =
+            element.attributes
+                .getNamedItem("properties")
+                ?.nodeValue
+                ?.split(Regex("\\s+"))
+                ?.mapNotNull { it.trim().lowercase(Locale.ROOT).takeIf(String::isNotBlank) }
+                ?.toSet()
+                .orEmpty()
+        return ManifestItem(
+            id = id,
+            href = href,
+            mediaType = element.attributes.getNamedItem("media-type")?.nodeValue,
+            properties = properties,
+        )
+    }
+
+    private fun isPreferredCoverItem(
+        item: ManifestItem,
+        coverId: String?,
+        currentCoverHref: String?,
+    ): Boolean {
+        if (!isImageManifestItem(item.mediaType, item.href)) return false
+        return item.properties.contains("cover-image") ||
+            item.id == coverId ||
+            (
+                currentCoverHref == null &&
+                    (item.id.contains("cover", ignoreCase = true) || item.href.contains("cover", ignoreCase = true))
+                )
+    }
+
+    private fun extractStrictSpine(
+        packageElement: Element?,
+        doc: Document,
+    ): List<SpineItem> {
         val spineNodes =
             packageElement
                 ?.let { EpubXmlUtils.findDirectChildByLocalName(it, "spine") }
                 ?.let { EpubXmlUtils.findDirectChildrenByLocalName(it, "itemref") }
                 ?: EpubXmlUtils.findElementsByParentLocalName(doc, "spine", "itemref")
-        for (itemref in spineNodes) {
+        return spineNodes.mapNotNull { itemref ->
             val idref =
                 EpubPathResolver
                     .normalizeIdRef(itemref.attributes.getNamedItem("idref")?.nodeValue.orEmpty())
-                    .takeIf { it.isNotBlank() }
-                    ?: continue
+                    .takeIf(String::isNotBlank)
+                    ?: return@mapNotNull null
             val linear = itemref.attributes.getNamedItem("linear")?.nodeValue
-            if (!linear.equals("no", ignoreCase = true)) {
-                spineItems.add(SpineItem(idref))
-            }
+            SpineItem(idref).takeUnless { linear.equals("no", ignoreCase = true) }
         }
-
-        val resolvedSpine = spineItems.ifEmpty { manifestItems.filter(::isReadingManifestItem).map { SpineItem(it.id) } }
-        return OpfData(title, authors, languageTag, coverHref, manifest, manifestItems, resolvedSpine)
     }
+
+    private data class StrictManifestData(val coverHref: String?, val hrefById: Map<String, String>, val items: List<ManifestItem>,)
 
     private fun extractCoverIdLenient(xml: String): String? {
         val metaRegex = Regex("(?is)<meta\\b[^>]*>")
@@ -195,7 +227,11 @@ internal class EpubOpfParser {
         sections.forEach { section ->
             itemRegex.findAll(section).forEach { match ->
                 val attrs = parseTagAttributes(match.value)
-                val id = EpubPathResolver.normalizeIdRef(attrs["id"].orEmpty()).takeIf { it.isNotBlank() } ?: return@forEach
+                val id =
+                    EpubPathResolver
+                        .normalizeIdRef(attrs["id"].orEmpty())
+                        .takeIf { it.isNotBlank() }
+                        ?: return@forEach
                 val idKey = id.lowercase(Locale.ROOT)
                 if (!seenIds.add(idKey)) return@forEach
                 val hrefRaw = attrs["href"] ?: return@forEach
@@ -230,7 +266,10 @@ internal class EpubOpfParser {
             itemRefRegex.findAll(section).forEach { match ->
                 val attrs = parseTagAttributes(match.value)
                 val idref =
-                    EpubPathResolver.normalizeIdRef(attrs["idref"].orEmpty()).takeIf { it.isNotBlank() } ?: return@forEach
+                    EpubPathResolver
+                        .normalizeIdRef(attrs["idref"].orEmpty())
+                        .takeIf { it.isNotBlank() }
+                        ?: return@forEach
                 val linear = attrs["linear"]
                 if (!linear.equals("no", ignoreCase = true)) {
                     spineItems.add(SpineItem(idref))
@@ -287,7 +326,7 @@ internal class EpubOpfParser {
         val attrRegex = Regex("([A-Za-z_][A-Za-z0-9_:.\\-]*)\\s*=\\s*(['\"])(.*?)\\2")
         attrRegex.findAll(tag).forEach { match ->
             val name = match.groupValues[1].lowercase(Locale.ROOT)
-            val value = EpubHtmlEntities.decode(match.groupValues[3]).trim()
+            val value = EpubHtmlEntities.decode(match.groupValues[ATTRIBUTE_VALUE_GROUP]).trim()
             if (value.isNotBlank()) {
                 attrs[name] = value
             }
@@ -346,3 +385,5 @@ internal class EpubOpfParser {
         return emptyList()
     }
 }
+
+private const val ATTRIBUTE_VALUE_GROUP = 3

@@ -38,9 +38,11 @@ internal class EpubPackageSelector(private val opfParser: EpubOpfParser,) {
         resolvedCandidates.forEach { path ->
             val opfContent = zipTextEntries[path] ?: return@forEach
             val result =
-                runCatching { opfParser.parseWithResult(EpubTextDecoder.decodeTextEntry(opfContent)) }.getOrNull() ?: return@forEach
+                runCatching {
+                    opfParser.parseWithResult(EpubTextDecoder.decodeTextEntry(opfContent))
+                }.getOrNull() ?: return@forEach
             val score =
-                (if (result.opfData.spineItems.isNotEmpty()) 4 else 0) +
+                (if (result.opfData.spineItems.isNotEmpty()) SPINE_SCORE else 0) +
                     (if (result.opfData.manifestItems.isNotEmpty()) 2 else 0) +
                     (if (!result.opfData.title.isNullOrBlank()) 1 else 0)
             if (score > bestScore) {
@@ -52,3 +54,5 @@ internal class EpubPackageSelector(private val opfParser: EpubOpfParser,) {
         return OpfSelection(path = bestPath, parseResult = bestResult)
     }
 }
+
+private const val SPINE_SCORE = 4

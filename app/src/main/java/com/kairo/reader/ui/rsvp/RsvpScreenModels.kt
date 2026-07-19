@@ -68,12 +68,7 @@ data class BionicReadingCallbacks(
 
 data class RsvpBookmarkCallbacks(val onAddBookmark: (tokenIndex: Int, previewText: String) -> Unit, val onOpenBookmarks: () -> Unit,)
 
-data class RsvpResumePoint(
-    val tokenIndex: Int,
-    val resumeCursor: Int = -1,
-    val chapterIndex: Int? = null,
-    val tempoMsPerWord: Long = -1L,
-)
+data class RsvpResumePoint(val tokenIndex: Int, val resumeCursor: Int = -1, val chapterIndex: Int? = null, val tempoMsPerWord: Long = -1L,)
 
 data class RsvpPlaybackCallbacks(
     val onFinished: (RsvpResumePoint) -> Unit,

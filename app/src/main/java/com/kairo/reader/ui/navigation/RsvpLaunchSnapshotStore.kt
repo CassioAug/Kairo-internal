@@ -6,15 +6,9 @@ internal object RsvpLaunchSnapshotStore {
     private const val MAX_SNAPSHOTS = 2
     private const val SNAPSHOT_TTL_MS = 60_000L
 
-    private data class SnapshotKey(
-        val bookId: String,
-        val chapterIndex: Int,
-    )
+    private data class SnapshotKey(val bookId: String, val chapterIndex: Int,)
 
-    private data class Snapshot(
-        val tokens: List<Token>,
-        val createdAtMs: Long,
-    )
+    private data class Snapshot(val tokens: List<Token>, val createdAtMs: Long,)
 
     private val snapshots = LinkedHashMap<SnapshotKey, Snapshot>()
 

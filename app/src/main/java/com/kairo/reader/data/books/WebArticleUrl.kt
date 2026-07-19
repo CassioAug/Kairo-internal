@@ -82,26 +82,30 @@ internal object WebArticleUrl {
         val query = rawQuery.orEmpty()
 
         var score = 0
-        if (!host.isSocialHost()) score += 1_000
-        if (segments.isNotEmpty()) score += 180
-        score += (segments.size.coerceAtMost(MAX_SEGMENT_SCORE_COUNT) * 35)
-        if (segments.any { it.any(Char::isDigit) }) score += 40
-        if (query.isNotBlank()) score += 15
-        if (host.isSocialHost()) score -= 900
-        if (segments.size <= 1 && host.isSocialHost()) score -= 250
+        if (!host.isSocialHost()) score += NON_SOCIAL_HOST_SCORE
+        if (segments.isNotEmpty()) score += HAS_PATH_SCORE
+        score += (segments.size.coerceAtMost(MAX_SEGMENT_SCORE_COUNT) * PATH_SEGMENT_SCORE)
+        if (segments.any { it.any(Char::isDigit) }) score += NUMERIC_PATH_SCORE
+        if (query.isNotBlank()) score += QUERY_SCORE
+        if (host.isSocialHost()) score -= SOCIAL_HOST_PENALTY
+        if (segments.size <= 1 && host.isSocialHost()) score -= SHALLOW_SOCIAL_LINK_PENALTY
         return score
     }
 
     private fun String.isSocialHost(): Boolean =
         SOCIAL_HOSTS.any { socialHost -> this == socialHost || endsWith(".$socialHost") }
 
-    private data class ScoredUrl(
-        val url: String,
-        val score: Int,
-    )
+    private data class ScoredUrl(val url: String, val score: Int,)
 
     private val WEB_URL_REGEX = Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE)
     private const val MAX_SEGMENT_SCORE_COUNT = 6
+    private const val NON_SOCIAL_HOST_SCORE = 1_000
+    private const val HAS_PATH_SCORE = 180
+    private const val PATH_SEGMENT_SCORE = 35
+    private const val NUMERIC_PATH_SCORE = 40
+    private const val QUERY_SCORE = 15
+    private const val SOCIAL_HOST_PENALTY = 900
+    private const val SHALLOW_SOCIAL_LINK_PENALTY = 250
     private val SOCIAL_HOSTS =
         setOf(
             "facebook.com",

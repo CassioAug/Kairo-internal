@@ -162,31 +162,31 @@ internal fun BionicReadingText(
 
     Box(
         modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
         val chunk = chunks[currentChunkIndex]
         BionicChunkCard(
             text =
-                buildBionicAnnotatedText(
-                    tokens = tokens,
-                    chunk = chunk,
-                    activeFrame = currentFrame,
-                    fixationStrength = preferences.fixationStrength,
-                    fixationColor = fixationColor,
-                    activeBackground = activeBackground,
-                ),
+            buildBionicAnnotatedText(
+                tokens = tokens,
+                chunk = chunk,
+                activeFrame = currentFrame,
+                fixationStrength = preferences.fixationStrength,
+                fixationColor = fixationColor,
+                activeBackground = activeBackground,
+            ),
             textStyle =
-                TextStyle(
-                    fontSize = safeFontSize.sp,
-                    lineHeight = lineHeightSp.sp,
-                    fontFamily = resolveFontFamily(runtime.currentFontFamily),
-                    fontWeight = FontWeight.Normal,
-                    color = textColor,
-                    textAlign = TextAlign.Start,
-                ),
+            TextStyle(
+                fontSize = safeFontSize.sp,
+                lineHeight = lineHeightSp.sp,
+                fontFamily = resolveFontFamily(runtime.currentFontFamily),
+                fontWeight = FontWeight.Normal,
+                color = textColor,
+                textAlign = TextAlign.Start,
+            ),
             surfaceColor = chunkSurfaceColor,
             paneLineCount = paneLineCount,
             modifier = Modifier.padding(top = paneTopPadding),
@@ -204,9 +204,9 @@ private fun BionicChunkCard(
 ) {
     Surface(
         modifier =
-            modifier
-                .widthIn(max = 720.dp)
-                .fillMaxWidth(),
+        modifier
+            .widthIn(max = 720.dp)
+            .fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         color = surfaceColor,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -215,9 +215,9 @@ private fun BionicChunkCard(
             text = text,
             style = textStyle,
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 22.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 22.dp),
             minLines = paneLineCount,
         )
     }

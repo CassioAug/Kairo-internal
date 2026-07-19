@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.navigation
 
 import androidx.compose.runtime.rememberCoroutineScope
@@ -12,7 +14,9 @@ import com.kairo.reader.ui.settings.InfoSettingsScreen
 import com.kairo.reader.ui.settings.LanguageSettingsScreen
 import com.kairo.reader.ui.settings.ReaderSettingsScreen
 import com.kairo.reader.ui.settings.RsvpSettingsScreen
+import com.kairo.reader.ui.settings.SettingsHomeActions
 import com.kairo.reader.ui.settings.SettingsHomeScreen
+import com.kairo.reader.ui.settings.SettingsTutorialActions
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import kotlinx.coroutines.launch
 
@@ -27,29 +31,37 @@ internal data class SettingsRouteDependencies(
     val onTutorialSkip: () -> Unit,
 )
 
+// Navigation graph declarations are intentionally kept together so route ownership remains auditable.
+@Suppress("LongMethod")
 internal fun NavGraphBuilder.settingsRoutes(dependencies: SettingsRouteDependencies) {
     composable(KairoRoutes.SETTINGS) {
         val coroutineScope = rememberCoroutineScope()
         SettingsHomeScreen(
-            onOpenLanguage = {
-                dependencies.navController.navigate(KairoRoutes.SETTINGS_LANGUAGE)
-            },
-            onOpenRsvp = { dependencies.navController.navigate(KairoRoutes.SETTINGS_RSVP) },
-            onOpenBionic = { dependencies.navController.navigate(KairoRoutes.SETTINGS_BIONIC) },
-            onOpenReader = { dependencies.navController.navigate(KairoRoutes.SETTINGS_READER) },
-            onOpenFocus = { dependencies.navController.navigate(KairoRoutes.SETTINGS_FOCUS) },
-            onOpenInfo = { dependencies.navController.navigate(KairoRoutes.SETTINGS_INFO) },
-            onOpenStartingTutorial = dependencies.onOpenStartingTutorial,
-            onReset = {
-                coroutineScope.launch {
-                    dependencies.container.preferencesRepository.reset()
-                }
-            },
-            onClose = { dependencies.navController.popBackStack() },
+            actions =
+            SettingsHomeActions(
+                onOpenLanguage = {
+                    dependencies.navController.navigate(KairoRoutes.SETTINGS_LANGUAGE)
+                },
+                onOpenRsvp = { dependencies.navController.navigate(KairoRoutes.SETTINGS_RSVP) },
+                onOpenBionic = { dependencies.navController.navigate(KairoRoutes.SETTINGS_BIONIC) },
+                onOpenReader = { dependencies.navController.navigate(KairoRoutes.SETTINGS_READER) },
+                onOpenFocus = { dependencies.navController.navigate(KairoRoutes.SETTINGS_FOCUS) },
+                onOpenInfo = { dependencies.navController.navigate(KairoRoutes.SETTINGS_INFO) },
+                onOpenStartingTutorial = dependencies.onOpenStartingTutorial,
+                onReset = {
+                    coroutineScope.launch {
+                        dependencies.container.preferencesRepository.reset()
+                    }
+                },
+                onClose = { dependencies.navController.popBackStack() },
+            ),
             tutorialState = dependencies.tutorialState,
-            onTutorialNext = dependencies.onTutorialNext,
-            onTutorialPrevious = dependencies.onTutorialPrevious,
-            onTutorialSkip = dependencies.onTutorialSkip,
+            tutorialActions =
+            SettingsTutorialActions(
+                onNext = dependencies.onTutorialNext,
+                onPrevious = dependencies.onTutorialPrevious,
+                onSkip = dependencies.onTutorialSkip,
+            ),
         )
     }
 

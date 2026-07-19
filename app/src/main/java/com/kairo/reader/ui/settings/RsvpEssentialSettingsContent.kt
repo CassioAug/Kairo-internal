@@ -12,6 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.RsvpConfig
+import com.kairo.reader.core.model.RsvpConfigConstraints as Constraints
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.EXTREME_MIN_TEMPO_MS_PER_WORD
 import com.kairo.reader.core.rsvp.RsvpSpeedControl.MAX_TEMPO_MS_PER_WORD
@@ -21,6 +22,8 @@ import com.kairo.reader.ui.rsvp.MIN_FONT_SIZE_SP
 import com.kairo.reader.ui.rsvp.rsvpSpeedBandLabelRes
 import kotlin.math.roundToInt
 
+// This is a declarative settings form whose repeated rows already delegate their behavior.
+@Suppress("LongMethod")
 @Composable
 internal fun RsvpEssentialSettingsContent(
     state: RsvpSettingsState,
@@ -90,9 +93,14 @@ internal fun RsvpEssentialSettingsContent(
             valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
             rawValue = config.minWordMs.toFloat(),
             onCommit = { newValue ->
-                updateConfig { it.copy(minWordMs = newValue.toLong().coerceIn(20L, 140L)) }
+                updateConfig {
+                    it.copy(
+                        minWordMs =
+                        newValue.toLong().coerceIn(Constraints.MIN_WORD_MS, Constraints.MAX_WORD_MS),
+                    )
+                }
             },
-            valueRange = 20f..140f,
+            valueRange = Constraints.MIN_WORD_MS.toFloat()..Constraints.MAX_WORD_MS.toFloat(),
         )
         DeferredSliderRow(
             title = stringResource(R.string.rsvp_long_word_min_title),
@@ -100,9 +108,18 @@ internal fun RsvpEssentialSettingsContent(
             valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
             rawValue = config.longWordMinMs.toFloat(),
             onCommit = { newValue ->
-                updateConfig { it.copy(longWordMinMs = newValue.toLong().coerceIn(60L, 300L)) }
+                updateConfig {
+                    it.copy(
+                        longWordMinMs =
+                        newValue.toLong().coerceIn(
+                            Constraints.MIN_LONG_WORD_MS,
+                            Constraints.MAX_LONG_WORD_MS,
+                        ),
+                    )
+                }
             },
-            valueRange = 60f..300f,
+            valueRange =
+            Constraints.MIN_LONG_WORD_MS.toFloat()..Constraints.MAX_LONG_WORD_MS.toFloat(),
         )
         DeferredSliderRow(
             title = stringResource(R.string.rsvp_sentence_end_pause_title),
@@ -110,9 +127,14 @@ internal fun RsvpEssentialSettingsContent(
             valueLabel = { context.getString(R.string.format_ms, it.toLong()) },
             rawValue = config.sentenceEndPauseMs.toFloat(),
             onCommit = { newValue ->
-                updateConfig { it.copy(sentenceEndPauseMs = newValue.toLong().coerceIn(0L, 500L)) }
+                updateConfig {
+                    it.copy(
+                        sentenceEndPauseMs =
+                        newValue.toLong().coerceIn(0L, Constraints.MAX_SENTENCE_END_PAUSE_MS),
+                    )
+                }
             },
-            valueRange = 0f..500f,
+            valueRange = 0f..Constraints.MAX_SENTENCE_END_PAUSE_MS.toFloat(),
         )
         SettingsSwitchRow(
             title = stringResource(R.string.rsvp_adaptive_pacing_title),
@@ -196,12 +218,29 @@ internal fun RsvpEssentialSettingsContent(
             valueLabel = {
                 context.getString(
                     R.string.format_percent,
-                    (it.coerceIn(0.55f, 1.0f) * 100).toInt(),
+                    (
+                        it.coerceIn(
+                            Constraints.MIN_TEXT_BRIGHTNESS.toFloat(),
+                            Constraints.MAX_TEXT_BRIGHTNESS.toFloat(),
+                        ) * Constraints.PERCENT_SCALE
+                        ).toInt(),
                 )
             },
-            rawValue = rsvpTextBrightness.coerceIn(0.55f, 1.0f),
-            onCommit = { onRsvpTextBrightnessChange(it.coerceIn(0.55f, 1.0f)) },
-            valueRange = 0.55f..1.0f,
+            rawValue =
+            rsvpTextBrightness.coerceIn(
+                Constraints.MIN_TEXT_BRIGHTNESS.toFloat(),
+                Constraints.MAX_TEXT_BRIGHTNESS.toFloat(),
+            ),
+            onCommit = {
+                onRsvpTextBrightnessChange(
+                    it.coerceIn(
+                        Constraints.MIN_TEXT_BRIGHTNESS.toFloat(),
+                        Constraints.MAX_TEXT_BRIGHTNESS.toFloat(),
+                    ),
+                )
+            },
+            valueRange =
+            Constraints.MIN_TEXT_BRIGHTNESS.toFloat()..Constraints.MAX_TEXT_BRIGHTNESS.toFloat(),
         )
 
         SettingsSwitchRow(
@@ -229,16 +268,27 @@ internal fun RsvpEssentialSettingsContent(
                 valueLabel = {
                     context.getString(
                         R.string.format_percent,
-                        it.coerceIn(25f, 200f).toInt(),
+                        it.coerceIn(
+                            (Constraints.MIN_ORP_GUIDE_BRIGHTNESS * Constraints.PERCENT_SCALE).toFloat(),
+                            (Constraints.MAX_ORP_GUIDE_BRIGHTNESS * Constraints.PERCENT_SCALE).toFloat(),
+                        ).toInt(),
                     )
                 },
-                rawValue = (config.orpGuideBrightness * 100.0).toFloat(),
+                rawValue = (config.orpGuideBrightness * Constraints.PERCENT_SCALE).toFloat(),
                 onCommit = { newValue ->
                     updateConfig {
-                        it.copy(orpGuideBrightness = (newValue / 100.0).coerceIn(0.25, 2.0))
+                        it.copy(
+                            orpGuideBrightness =
+                            (newValue / Constraints.PERCENT_SCALE).coerceIn(
+                                Constraints.MIN_ORP_GUIDE_BRIGHTNESS,
+                                Constraints.MAX_ORP_GUIDE_BRIGHTNESS,
+                            ),
+                        )
                     }
                 },
-                valueRange = 25f..200f,
+                valueRange =
+                (Constraints.MIN_ORP_GUIDE_BRIGHTNESS * Constraints.PERCENT_SCALE)
+                    .toFloat()..(Constraints.MAX_ORP_GUIDE_BRIGHTNESS * Constraints.PERCENT_SCALE).toFloat(),
             )
             DeferredSliderRow(
                 title = stringResource(R.string.rsvp_orp_guide_thickness_title),
@@ -247,10 +297,17 @@ internal fun RsvpEssentialSettingsContent(
                 rawValue = config.orpGuideThickness.toFloat(),
                 onCommit = { newValue ->
                     updateConfig {
-                        it.copy(orpGuideThickness = newValue.toDouble().coerceIn(0.5, 3.0))
+                        it.copy(
+                            orpGuideThickness =
+                            newValue.toDouble().coerceIn(
+                                Constraints.MIN_ORP_GUIDE_THICKNESS,
+                                Constraints.MAX_ORP_GUIDE_THICKNESS,
+                            ),
+                        )
                     }
                 },
-                valueRange = 0.5f..3.0f,
+                valueRange =
+                Constraints.MIN_ORP_GUIDE_THICKNESS.toFloat()..Constraints.MAX_ORP_GUIDE_THICKNESS.toFloat(),
             )
         }
     }

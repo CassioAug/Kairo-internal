@@ -182,10 +182,16 @@ Contributions are welcome. If you want to improve Kairo, strong areas to contrib
 - performance work for large books
 - tests for parsing, pacing, and reading-state persistence
 
-Before opening a change, it is a good idea to run:
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before making a change. Install the repository-managed checks once per clone:
 
 ```bash
-./gradlew testDebugUnitTest ktlintCheck detektFull
+./scripts/setup-dev.sh
+```
+
+Before opening a change, run the required quality gate:
+
+```bash
+./gradlew qualityGate
 ```
 
 ## Vision

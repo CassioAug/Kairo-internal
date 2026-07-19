@@ -15,7 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.rsvp.frameFloorMs
 import com.kairo.reader.core.rsvp.shouldSkipBlinkFrame

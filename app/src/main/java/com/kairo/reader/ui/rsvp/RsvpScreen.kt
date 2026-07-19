@@ -14,8 +14,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.BionicReadingPreferences
+import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.RsvpReadabilityMode
@@ -24,8 +24,8 @@ import com.kairo.reader.core.model.effectiveBlinkMode
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.model.readabilityMode
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
-import com.kairo.reader.data.rsvp.RsvpFrameRepository
 import com.kairo.reader.data.rsvp.RsvpFrameIndexMap
+import com.kairo.reader.data.rsvp.RsvpFrameRepository
 import com.kairo.reader.data.rsvp.RsvpFrameSet
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialTargetIds
@@ -142,11 +142,11 @@ fun RsvpScreen(
         sessionKey = sessionKey,
         autoPlay = state.initialIsPlaying && !isTutorialMode,
         playbackEnabled =
-            !isTutorialMode &&
-                isFrameSetReadyForPlayback(
-                    frameState = frameState,
-                    presentationMode = presentationMode,
-                ),
+        !isTutorialMode &&
+            isFrameSetReadyForPlayback(
+                frameState = frameState,
+                presentationMode = presentationMode,
+            ),
     )
     RsvpIndicatorEffects(runtime)
 
@@ -469,10 +469,7 @@ private fun rememberFrameLoadState(
     )
 }
 
-private data class LoadedRsvpFrameSet(
-    val frameSet: RsvpFrameSet,
-    val isComplete: Boolean,
-)
+private data class LoadedRsvpFrameSet(val frameSet: RsvpFrameSet, val isComplete: Boolean,)
 
 private fun buildInstantFrameSet(
     book: RsvpBookContext,
@@ -488,19 +485,19 @@ private fun buildInstantFrameSet(
             ?: book.tokens.size
     return RsvpFrameSet(
         frames =
-            listOf(
-                RsvpFrame(
-                    tokens = listOf(token),
-                    durationMs = config.tempoMsPerWord,
-                    originalTokenIndex = safeIndex,
-                    resumeCursor = book.startResumeCursor.takeIf { it >= 0 } ?: safeIndex,
-                    nextOriginalTokenIndex = nextWordIndex,
-                    displayOriginalStartIndex = safeIndex,
-                    displayOriginalEndExclusive = safeIndex + 1,
-                    displayOriginalStartCharacterOffset = 0,
-                    displayOriginalEndCharacterOffset = token.text.length,
-                ),
+        listOf(
+            RsvpFrame(
+                tokens = listOf(token),
+                durationMs = config.tempoMsPerWord,
+                originalTokenIndex = safeIndex,
+                resumeCursor = book.startResumeCursor.takeIf { it >= 0 } ?: safeIndex,
+                nextOriginalTokenIndex = nextWordIndex,
+                displayOriginalStartIndex = safeIndex,
+                displayOriginalEndExclusive = safeIndex + 1,
+                displayOriginalStartCharacterOffset = 0,
+                displayOriginalEndCharacterOffset = token.text.length,
             ),
+        ),
         baseTempoMs = config.tempoMsPerWord,
     )
 }

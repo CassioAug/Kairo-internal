@@ -136,7 +136,7 @@ internal object TextImportParser {
             MARKDOWN_HEADING.matchEntire(trimmed)?.let { match ->
                 flushParagraph()
                 flushList()
-                val level = match.groupValues[1].length.coerceIn(1, 6)
+                val level = match.groupValues[1].length.coerceIn(1, MAX_MARKDOWN_HEADING_LEVEL)
                 val text = cleanInlineMarkdown(match.groupValues[2])
                 if (!skippedTitleHeading && titleHeading != null && text == titleHeading) {
                     skippedTitleHeading = true
@@ -236,6 +236,7 @@ internal object TextImportParser {
     private const val MAX_DERIVED_TITLE_LENGTH = 72
     private const val MAX_DERIVED_TITLE_WORDS = 10
     private val MARKDOWN_HEADING = Regex("^(#{1,6})\\s+(.+?)\\s*#*\\s*$")
+    private const val MAX_MARKDOWN_HEADING_LEVEL = 6
     private val LIST_ITEM = Regex("^(?:([-+*]|\\d+[.)]))\\s+(.+)$")
     private val FENCE = Regex("^(```|~~~).*$")
     private val HORIZONTAL_RULE = Regex("^([-*_])(?:\\s*\\1){2,}\\s*$")

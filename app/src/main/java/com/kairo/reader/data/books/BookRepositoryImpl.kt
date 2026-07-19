@@ -61,6 +61,7 @@ class BookRepositoryImpl(
                 val bookId =
                     sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
                         ?: BookId(UUID.randomUUID().toString())
+                var importCompleted = false
                 try {
                     val parsedBook =
                         parser.parse(
@@ -69,10 +70,13 @@ class BookRepositoryImpl(
                             bookId = bookId,
                             sourceDisplayName = importSource.sourceDisplayName,
                         )
-                    return@withLock persistImportedBook(parsedBook, sourceFingerprint)
-                } catch (error: Throwable) {
-                    deleteBookAssets(bookId.value)
-                    throw error
+                    val result = persistImportedBook(parsedBook, sourceFingerprint)
+                    importCompleted = true
+                    return@withLock result
+                } finally {
+                    if (!importCompleted) {
+                        deleteBookAssets(bookId.value)
+                    }
                 }
             } finally {
                 importSource.deleteTempFile()

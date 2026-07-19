@@ -1,5 +1,6 @@
 package com.kairo.reader.core.rsvp
 
+import com.kairo.reader.core.language.LanguageTagNormalizer
 import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
@@ -8,7 +9,6 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.effectiveBlinkMode
 import com.kairo.reader.core.model.isSentenceEndingPunctuation
 import com.kairo.reader.core.model.wordFloorMsForReadability
-import com.kairo.reader.core.language.LanguageTagNormalizer
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.core.rsvp.text.isOpeningPunctuationChar
 import com.kairo.reader.core.rsvp.text.isQuoteOrBracket
@@ -55,7 +55,10 @@ object RsvpEstimatedReadingPace {
     private fun RsvpConfig.withLiveTempo(tempoMsPerWord: Long): RsvpConfig =
         copy(
             tempoMsPerWord = tempoMsPerWord,
-            baseWpm = (60_000.0 / tempoMsPerWord.toDouble()).roundToInt().coerceAtLeast(1),
+            baseWpm =
+            (MILLISECONDS_PER_MINUTE / tempoMsPerWord.toDouble())
+                .roundToInt()
+                .coerceAtLeast(1),
         )
 
     fun adjustPreviewWpm(
@@ -137,7 +140,9 @@ object RsvpEstimatedReadingPace {
                 )
         }
 
-        return ((wordCount * 60_000.0) / totalMs.toDouble()).roundToInt().coerceAtLeast(1)
+        return ((wordCount * MILLISECONDS_PER_MINUTE) / totalMs.toDouble())
+            .roundToInt()
+            .coerceAtLeast(1)
     }
 
     private fun cachedEstimate(key: EstimatedWpmCacheKey): Int? =
@@ -166,14 +171,15 @@ object RsvpEstimatedReadingPace {
         LanguageTagNormalizer.normalize(languageTag)?.lowercase()
 }
 
-private data class EstimatedWpmCacheKey(
-    val timingConfig: RsvpConfig,
-    val languageTag: String?,
-)
+private data class EstimatedWpmCacheKey(val timingConfig: RsvpConfig, val languageTag: String?,)
 
 private val estimateCacheLock = Any()
 private val estimatedWpmCache =
-    object : LinkedHashMap<EstimatedWpmCacheKey, Int>(ESTIMATED_WPM_CACHE_SIZE, 0.75f, true) {
+    object : LinkedHashMap<EstimatedWpmCacheKey, Int>(
+        ESTIMATED_WPM_CACHE_SIZE,
+        ESTIMATED_WPM_CACHE_LOAD_FACTOR,
+        true,
+    ) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<EstimatedWpmCacheKey, Int>?): Boolean =
             size > ESTIMATED_WPM_CACHE_SIZE
     }
@@ -275,6 +281,7 @@ internal fun shouldSkipBlinkFrame(
 private const val TEMPO_SCALE_MIN = 0.1
 private const val TEMPO_SCALE_MAX = 4.0
 private const val ESTIMATED_WPM_CACHE_SIZE = 32
+private const val ESTIMATED_WPM_CACHE_LOAD_FACTOR = 0.75f
 private const val MIN_FRAME_DELAY_MS = 1L
 private const val BLINK_SKIP_TEMPO_MS = 200L
 private const val BLINK_SKIP_MAX_MS = 48L

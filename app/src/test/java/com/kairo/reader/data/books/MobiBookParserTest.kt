@@ -77,7 +77,9 @@ class MobiBookParserTest {
     @Test
     fun extractPlainTextRemovesClosedClassPageBreakContent() {
         val html =
-            "<p><span class=\"pagebreak\">12</span><span class=\"char-first\">T<span class=\"smallcaps\">HE OPENING WORDS </span></span>remain intact.</p>"
+            "<p><span class=\"pagebreak\">12</span>" +
+                "<span class=\"char-first\">T<span class=\"smallcaps\">" +
+                "HE OPENING WORDS </span></span>remain intact.</p>"
 
         val text = contentProcessor.extractPlainText(html)
 

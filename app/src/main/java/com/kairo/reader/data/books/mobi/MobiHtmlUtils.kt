@@ -29,7 +29,7 @@ internal object MobiHtmlUtils {
             .replace(Regex("&#(\\d+);")) { match ->
                 match.groupValues[1].toIntOrNull()?.toChar()?.toString().orEmpty()
             }.replace(Regex("&#x([0-9a-fA-F]+);")) { match ->
-                match.groupValues[1].toIntOrNull(16)?.toChar()?.toString().orEmpty()
+                match.groupValues[1].toIntOrNull(HEX_RADIX)?.toChar()?.toString().orEmpty()
             }
 
     fun decodeFragment(fragment: String): String {
@@ -40,3 +40,5 @@ internal object MobiHtmlUtils {
     fun decodePath(path: String): String =
         runCatching { URLDecoder.decode(path, "UTF-8") }.getOrDefault(path)
 }
+
+private const val HEX_RADIX = 16

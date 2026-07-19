@@ -2,9 +2,9 @@ package com.kairo.reader.core.rsvp
 
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpProfile
-import com.kairo.reader.core.model.defaultConfig
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
+import com.kairo.reader.core.model.defaultConfig
 import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTier
 import com.kairo.reader.core.rsvp.timing.RsvpPunctuationTimingPolicy
 import org.junit.Assert.assertEquals
@@ -87,10 +87,10 @@ class RsvpPunctuationTimingPolicyTest {
                 prevWord = word("待って"),
                 nextToken = word("次"),
                 config =
-                    RsvpConfig(
-                        sentenceEndPauseMs = 220L,
-                        minPauseScale = 0.6,
-                    ),
+                RsvpConfig(
+                    sentenceEndPauseMs = 220L,
+                    minPauseScale = 0.6,
+                ),
             )
 
         assertTrue(timing.baseMs > 0.0)
@@ -105,10 +105,10 @@ class RsvpPunctuationTimingPolicyTest {
                 prevWord = word("Wait"),
                 nextToken = word("again"),
                 config =
-                    RsvpConfig(
-                        tempoMsPerWord = 120L,
-                        commaPauseMs = 100L,
-                    ),
+                RsvpConfig(
+                    tempoMsPerWord = 120L,
+                    commaPauseMs = 100L,
+                ),
             )
         val fast =
             RsvpPunctuationTimingPolicy.resolvePauseTiming(
@@ -116,10 +116,10 @@ class RsvpPunctuationTimingPolicyTest {
                 prevWord = word("Wait"),
                 nextToken = word("again"),
                 config =
-                    RsvpConfig(
-                        tempoMsPerWord = 55L,
-                        commaPauseMs = 100L,
-                    ),
+                RsvpConfig(
+                    tempoMsPerWord = 55L,
+                    commaPauseMs = 100L,
+                ),
             )
 
         assertTrue(fast.baseMs < slow.baseMs)

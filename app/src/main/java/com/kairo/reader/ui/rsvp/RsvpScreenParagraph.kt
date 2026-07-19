@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.rsvp
 
 import androidx.compose.ui.text.AnnotatedString

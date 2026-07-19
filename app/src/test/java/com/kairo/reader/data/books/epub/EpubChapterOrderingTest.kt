@@ -13,31 +13,31 @@ class EpubChapterOrderingTest {
                 languageTag = null,
                 coverHref = null,
                 manifest =
-                    mapOf(
-                        "c1" to "text/ch1.xhtml",
-                        "c2" to "text/ch2.xhtml",
-                    ),
+                mapOf(
+                    "c1" to "text/ch1.xhtml",
+                    "c2" to "text/ch2.xhtml",
+                ),
                 manifestItems =
-                    listOf(
-                        ManifestItem(
-                            id = "c1",
-                            href = "text/ch1.xhtml",
-                            mediaType = "application/xhtml+xml",
-                            properties = emptySet(),
-                        ),
-                        ManifestItem(
-                            id = "c2",
-                            href = "text/ch2.xhtml",
-                            mediaType = "application/xhtml+xml",
-                            properties = emptySet(),
-                        ),
+                listOf(
+                    ManifestItem(
+                        id = "c1",
+                        href = "text/ch1.xhtml",
+                        mediaType = "application/xhtml+xml",
+                        properties = emptySet(),
                     ),
+                    ManifestItem(
+                        id = "c2",
+                        href = "text/ch2.xhtml",
+                        mediaType = "application/xhtml+xml",
+                        properties = emptySet(),
+                    ),
+                ),
                 spineItems =
-                    listOf(
-                        SpineItem("c1"),
-                        SpineItem("c2"),
-                        SpineItem("c1"),
-                    ),
+                listOf(
+                    SpineItem("c1"),
+                    SpineItem("c2"),
+                    SpineItem("c1"),
+                ),
             )
 
         val resolved =

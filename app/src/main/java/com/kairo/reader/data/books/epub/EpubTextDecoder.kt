@@ -6,19 +6,13 @@ internal object EpubTextDecoder {
     fun decodeTextEntry(bytes: ByteArray): String {
         if (bytes.isEmpty()) return ""
 
-        detectBomCharset(bytes)?.let { charset ->
-            val bomLength =
-                when (charset.name()) {
-                    "UTF-8" -> 3
-                    "UTF-16BE", "UTF-16LE" -> 2
-                    "UTF-32BE", "UTF-32LE" -> 4
-                    else -> 0
-                }
-            val slice = if (bomLength in 1 until bytes.size) bytes.copyOfRange(bomLength, bytes.size) else bytes
-            return runCatching { String(slice, charset) }.getOrElse { String(bytes, Charsets.UTF_8) }
+        detectBom(bytes)?.let { detected ->
+            val slice = bytes.copyOfRange(detected.signature.size, bytes.size)
+            return runCatching { String(slice, detected.charset) }
+                .getOrElse { String(bytes, Charsets.UTF_8) }
         }
 
-        val sampleLength = minOf(bytes.size, 4096)
+        val sampleLength = minOf(bytes.size, CHARSET_PROBE_BYTES)
         val sample = bytes.copyOf(sampleLength)
         val asciiProbe = String(sample, Charsets.ISO_8859_1)
         val declared = extractDeclaredCharset(asciiProbe)
@@ -38,49 +32,15 @@ internal object EpubTextDecoder {
         }
     }
 
-    private fun detectBomCharset(bytes: ByteArray): Charset? {
-        if (bytes.size >= 3 &&
-            bytes[0] == 0xEF.toByte() &&
-            bytes[1] == 0xBB.toByte() &&
-            bytes[2] == 0xBF.toByte()
-        ) {
-            return Charsets.UTF_8
-        }
-        // UTF-32 BOMs must be checked before UTF-16: FF FE 00 00 starts with the
-        // UTF-16LE BOM (FF FE) and would otherwise be misdetected.
-        if (bytes.size >= 4 &&
-            bytes[0] == 0x00.toByte() &&
-            bytes[1] == 0x00.toByte() &&
-            bytes[2] == 0xFE.toByte() &&
-            bytes[3] == 0xFF.toByte()
-        ) {
-            return Charset.forName("UTF-32BE")
-        }
-        if (bytes.size >= 4 &&
-            bytes[0] == 0xFF.toByte() &&
-            bytes[1] == 0xFE.toByte() &&
-            bytes[2] == 0x00.toByte() &&
-            bytes[3] == 0x00.toByte()
-        ) {
-            return Charset.forName("UTF-32LE")
-        }
-        if (bytes.size >= 2 &&
-            bytes[0] == 0xFE.toByte() &&
-            bytes[1] == 0xFF.toByte()
-        ) {
-            return Charsets.UTF_16BE
-        }
-        if (bytes.size >= 2 &&
-            bytes[0] == 0xFF.toByte() &&
-            bytes[1] == 0xFE.toByte()
-        ) {
-            return Charsets.UTF_16LE
-        }
-        return null
-    }
+    private fun detectBom(bytes: ByteArray): BomEncoding? =
+        BOM_ENCODINGS.firstOrNull { encoding -> bytes.startsWith(encoding.signature) }
+
+    private fun ByteArray.startsWith(signature: ByteArray): Boolean =
+        size >= signature.size &&
+            signature.indices.all { index -> this[index] == signature[index] }
 
     private fun detectUtf16Heuristic(sample: ByteArray): Charset? {
-        if (sample.size < 4) return null
+        if (sample.size < MIN_UTF16_PROBE_BYTES) return null
         var evenNulls = 0
         var oddNulls = 0
         var evenCount = 0
@@ -100,8 +60,10 @@ internal object EpubTextDecoder {
         val oddRatio = if (oddCount == 0) 0.0 else oddNulls.toDouble() / oddCount.toDouble()
 
         return when {
-            evenRatio > 0.3 && oddRatio < 0.1 -> Charsets.UTF_16BE
-            oddRatio > 0.3 && evenRatio < 0.1 -> Charsets.UTF_16LE
+            evenRatio > UTF16_NULL_DOMINANT_RATIO && oddRatio < UTF16_NULL_SPARSE_RATIO ->
+                Charsets.UTF_16BE
+            oddRatio > UTF16_NULL_DOMINANT_RATIO && evenRatio < UTF16_NULL_SPARSE_RATIO ->
+                Charsets.UTF_16LE
             else -> null
         }
     }
@@ -117,4 +79,22 @@ internal object EpubTextDecoder {
         val metaMatch = metaCharsetRegex.find(sample)
         return metaMatch?.groupValues?.getOrNull(1)?.trim()
     }
+
+    private data class BomEncoding(val charset: Charset, val signature: ByteArray,)
+
+    private const val CHARSET_PROBE_BYTES = 4096
+    private const val MIN_UTF16_PROBE_BYTES = 4
+    private const val UTF16_NULL_DOMINANT_RATIO = 0.3
+    private const val UTF16_NULL_SPARSE_RATIO = 0.1
+
+    // BOM byte sequences are fixed protocol signatures. UTF-32 precedes UTF-16 intentionally.
+    @Suppress("MagicNumber")
+    private val BOM_ENCODINGS =
+        listOf(
+            BomEncoding(Charset.forName("UTF-32BE"), byteArrayOf(0x00, 0x00, 0xFE.toByte(), 0xFF.toByte())),
+            BomEncoding(Charset.forName("UTF-32LE"), byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0x00, 0x00)),
+            BomEncoding(Charsets.UTF_8, byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())),
+            BomEncoding(Charsets.UTF_16BE, byteArrayOf(0xFE.toByte(), 0xFF.toByte())),
+            BomEncoding(Charsets.UTF_16LE, byteArrayOf(0xFF.toByte(), 0xFE.toByte())),
+        )
 }

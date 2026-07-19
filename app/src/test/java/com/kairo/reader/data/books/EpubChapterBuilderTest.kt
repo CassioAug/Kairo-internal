@@ -110,7 +110,9 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
     fun buildFallbackChaptersKeepsTocPathWhenContentLooksLikeRegularChapter() {
         val entries =
             linkedMapOf(
-                "oebps/toc.xhtml" to "<html><body><p>Once upon a time we begin the story.</p></body></html>".toByteArray(),
+                "oebps/toc.xhtml" to
+                    "<html><body><p>Once upon a time we begin the story.</p></body></html>"
+                        .toByteArray(),
                 "oebps/chapter1.xhtml" to "<html><body><p>Chapter one prose.</p></body></html>".toByteArray(),
             )
 

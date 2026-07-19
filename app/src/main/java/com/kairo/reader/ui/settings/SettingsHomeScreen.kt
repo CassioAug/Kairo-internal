@@ -27,10 +27,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -43,21 +43,25 @@ import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialTargetIds
 import com.kairo.reader.ui.tutorial.startingTutorialTarget
 
+data class SettingsHomeActions(
+    val onOpenRsvp: () -> Unit,
+    val onOpenBionic: () -> Unit,
+    val onOpenReader: () -> Unit,
+    val onOpenFocus: () -> Unit,
+    val onOpenInfo: () -> Unit,
+    val onOpenLanguage: () -> Unit,
+    val onOpenStartingTutorial: () -> Unit,
+    val onReset: () -> Unit,
+    val onClose: () -> Unit,
+)
+
+data class SettingsTutorialActions(val onNext: () -> Unit = {}, val onPrevious: () -> Unit = {}, val onSkip: () -> Unit = {},)
+
 @Composable
 fun SettingsHomeScreen(
-    onOpenRsvp: () -> Unit,
-    onOpenBionic: () -> Unit,
-    onOpenReader: () -> Unit,
-    onOpenFocus: () -> Unit,
-    onOpenInfo: () -> Unit,
-    onOpenLanguage: () -> Unit,
-    onOpenStartingTutorial: () -> Unit,
-    onReset: () -> Unit,
-    onClose: () -> Unit,
+    actions: SettingsHomeActions,
     tutorialState: StartingTutorialOverlayState? = null,
-    onTutorialNext: () -> Unit = {},
-    onTutorialPrevious: () -> Unit = {},
-    onTutorialSkip: () -> Unit = {},
+    tutorialActions: SettingsTutorialActions = SettingsTutorialActions(),
 ) {
     val context = LocalContext.current
     val languageLabel = resolveLanguageLabel(context, getAppLanguageTag())
@@ -67,103 +71,24 @@ fun SettingsHomeScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge)
-
-            SettingsNavRow(
-                modifier =
-                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.SETTINGS_LANGUAGE) {
-                        targetId,
-                        bounds,
-                        ->
-                        tutorialTargets[targetId] = bounds
-                    },
-                title = stringResource(R.string.settings_language_title),
-                subtitle = languageLabel,
-                icon = Icons.Default.Language,
-                onClick = onOpenLanguage,
-            )
-
-            SettingsNavRow(
-                modifier =
-                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.SETTINGS_RSVP) {
-                        targetId,
-                        bounds,
-                        ->
-                        tutorialTargets[targetId] = bounds
-                    },
-                title = stringResource(R.string.rsvp_settings_title),
-                subtitle = stringResource(R.string.settings_rsvp_subtitle),
-                icon = Icons.Default.Settings,
-                onClick = onOpenRsvp,
-            )
-            SettingsNavRow(
-                title = stringResource(R.string.bionic_settings_title),
-                subtitle = stringResource(R.string.settings_bionic_subtitle),
-                icon = Icons.Default.AutoStories,
-                onClick = onOpenBionic,
-            )
-            SettingsNavRow(
-                modifier =
-                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.SETTINGS_READER) {
-                        targetId,
-                        bounds,
-                        ->
-                        tutorialTargets[targetId] = bounds
-                    },
-                title = stringResource(R.string.reader_settings_title),
-                subtitle = stringResource(R.string.reader_settings_subtitle),
-                icon = Icons.Default.Settings,
-                onClick = onOpenReader,
-            )
-            SettingsNavRow(
-                modifier =
-                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.SETTINGS_FOCUS) {
-                        targetId,
-                        bounds,
-                        ->
-                        tutorialTargets[targetId] = bounds
-                    },
-                title = stringResource(R.string.focus_settings_title),
-                subtitle = stringResource(R.string.focus_settings_subtitle),
-                icon = Icons.Default.Settings,
-                onClick = onOpenFocus,
-            )
-            SettingsNavRow(
-                title = stringResource(R.string.info_settings_title),
-                subtitle = stringResource(R.string.info_settings_subtitle),
-                icon = Icons.Default.Info,
-                onClick = onOpenInfo,
-            )
-            SettingsNavRow(
-                modifier =
-                    Modifier.startingTutorialTarget(StartingTutorialTargetIds.SETTINGS_TUTORIAL) {
-                        targetId,
-                        bounds,
-                        ->
-                        tutorialTargets[targetId] = bounds
-                    },
-                title = stringResource(R.string.settings_starting_tutorial_title),
-                subtitle = stringResource(R.string.settings_starting_tutorial_subtitle),
-                icon = Icons.Default.Info,
-                onClick = onOpenStartingTutorial,
-            )
-
+            PrimarySettingsRows(actions, languageLabel, tutorialTargets)
+            SupportingSettingsRows(actions, tutorialTargets)
             Spacer(modifier = Modifier.height(8.dp))
-
             OutlinedButton(
                 onClick = { showResetConfirmation = true },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.settings_reset_defaults))
             }
-            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = actions.onClose, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.action_done))
             }
         }
@@ -171,32 +96,111 @@ fun SettingsHomeScreen(
             StartingTutorialOverlay(
                 state = overlayState,
                 targetBounds = overlayState.step.targetId?.let(tutorialTargets::get),
-                onNext = onTutorialNext,
-                onPrevious = onTutorialPrevious,
-                onSkip = onTutorialSkip,
+                onNext = tutorialActions.onNext,
+                onPrevious = tutorialActions.onPrevious,
+                onSkip = tutorialActions.onSkip,
             )
         }
         if (showResetConfirmation) {
-            AlertDialog(
-                onDismissRequest = { showResetConfirmation = false },
-                title = { Text(stringResource(R.string.settings_reset_confirm_title)) },
-                text = { Text(stringResource(R.string.settings_reset_confirm_message)) },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showResetConfirmation = false
-                            onReset()
-                        },
-                    ) {
-                        Text(stringResource(R.string.settings_reset_defaults))
-                    }
+            ResetSettingsDialog(
+                onConfirm = {
+                    showResetConfirmation = false
+                    actions.onReset()
                 },
-                dismissButton = {
-                    TextButton(onClick = { showResetConfirmation = false }) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
+                onDismiss = { showResetConfirmation = false },
             )
         }
     }
+}
+
+@Composable
+private fun PrimarySettingsRows(
+    actions: SettingsHomeActions,
+    languageLabel: String,
+    tutorialTargets: MutableMap<String, Rect>,
+) {
+    SettingsNavRow(
+        modifier = Modifier.captureTutorialTarget(StartingTutorialTargetIds.SETTINGS_LANGUAGE, tutorialTargets),
+        title = stringResource(R.string.settings_language_title),
+        subtitle = languageLabel,
+        icon = Icons.Default.Language,
+        onClick = actions.onOpenLanguage,
+    )
+    SettingsNavRow(
+        modifier = Modifier.captureTutorialTarget(StartingTutorialTargetIds.SETTINGS_RSVP, tutorialTargets),
+        title = stringResource(R.string.rsvp_settings_title),
+        subtitle = stringResource(R.string.settings_rsvp_subtitle),
+        icon = Icons.Default.Settings,
+        onClick = actions.onOpenRsvp,
+    )
+    SettingsNavRow(
+        title = stringResource(R.string.bionic_settings_title),
+        subtitle = stringResource(R.string.settings_bionic_subtitle),
+        icon = Icons.Default.AutoStories,
+        onClick = actions.onOpenBionic,
+    )
+    SettingsNavRow(
+        modifier = Modifier.captureTutorialTarget(StartingTutorialTargetIds.SETTINGS_READER, tutorialTargets),
+        title = stringResource(R.string.reader_settings_title),
+        subtitle = stringResource(R.string.reader_settings_subtitle),
+        icon = Icons.Default.Settings,
+        onClick = actions.onOpenReader,
+    )
+}
+
+@Composable
+private fun SupportingSettingsRows(
+    actions: SettingsHomeActions,
+    tutorialTargets: MutableMap<String, Rect>,
+) {
+    SettingsNavRow(
+        modifier = Modifier.captureTutorialTarget(StartingTutorialTargetIds.SETTINGS_FOCUS, tutorialTargets),
+        title = stringResource(R.string.focus_settings_title),
+        subtitle = stringResource(R.string.focus_settings_subtitle),
+        icon = Icons.Default.Settings,
+        onClick = actions.onOpenFocus,
+    )
+    SettingsNavRow(
+        title = stringResource(R.string.info_settings_title),
+        subtitle = stringResource(R.string.info_settings_subtitle),
+        icon = Icons.Default.Info,
+        onClick = actions.onOpenInfo,
+    )
+    SettingsNavRow(
+        modifier = Modifier.captureTutorialTarget(StartingTutorialTargetIds.SETTINGS_TUTORIAL, tutorialTargets),
+        title = stringResource(R.string.settings_starting_tutorial_title),
+        subtitle = stringResource(R.string.settings_starting_tutorial_subtitle),
+        icon = Icons.Default.Info,
+        onClick = actions.onOpenStartingTutorial,
+    )
+}
+
+private fun Modifier.captureTutorialTarget(
+    targetId: String,
+    targets: MutableMap<String, Rect>,
+): Modifier =
+    startingTutorialTarget(targetId) { resolvedId, bounds ->
+        targets[resolvedId] = bounds
+    }
+
+@Composable
+private fun ResetSettingsDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_reset_confirm_title)) },
+        text = { Text(stringResource(R.string.settings_reset_confirm_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.settings_reset_defaults))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }

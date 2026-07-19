@@ -739,19 +739,11 @@ object ClauseDetector {
     ): Double {
         if (nextWord == null) return 0.0
         val lower = word.lowercase()
-        val nextLower = nextWord.lowercase()
-
-        // Articles leading into nouns/adjectives
-        if (lower in setOf("a", "an", "the")) return 0.9
-
-        // Possessives
-        if (lower in setOf("my", "your", "his", "her", "its", "our", "their")) return 0.85
-
-        // Phrase leaders
-        if (lower in phraseLeaders) return 0.75
-
-        // Prepositions leading into their objects
-        if (lower in setOf(
+        return when {
+            lower in setOf("a", "an", "the") -> 0.9
+            lower in setOf("my", "your", "his", "her", "its", "our", "their") -> 0.85
+            lower in phraseLeaders -> 0.75
+            lower in setOf(
                 "of",
                 "to",
                 "in",
@@ -771,22 +763,11 @@ object ClauseDetector {
                 "against",
                 "toward",
                 "towards",
-            )
-        ) {
-            return 0.7
+            ) -> 0.7
+            lower in setOf("very", "quite", "rather", "too", "so", "really", "almost", "nearly") -> 0.8
+            lower in setOf("will", "would", "can", "could", "should", "must", "may", "might") -> 0.65
+            else -> 0.0
         }
-
-        // Adverbs modifying what follows
-        if (lower in setOf("very", "quite", "rather", "too", "so", "really", "almost", "nearly")) {
-            return 0.8
-        }
-
-        // Modal verbs
-        if (lower in setOf("will", "would", "can", "could", "should", "must", "may", "might")) {
-            return 0.65
-        }
-
-        return 0.0
     }
 }
 

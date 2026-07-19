@@ -85,7 +85,7 @@ fun LibraryScreen(
     val configuration = LocalConfiguration.current
     val compactLandscape =
         configuration.screenWidthDp > configuration.screenHeightDp &&
-            configuration.screenHeightDp <= 480
+            configuration.screenHeightDp <= COMPACT_LANDSCAPE_MAX_HEIGHT_DP
     var selectedTabName by rememberSaveable(initialTab) { mutableStateOf(initialTab.name) }
     val selectedTab =
         remember(selectedTabName) {
@@ -355,5 +355,7 @@ fun LibraryScreen(
         )
     }
 }
+
+private const val COMPACT_LANDSCAPE_MAX_HEIGHT_DP = 480
 
 enum class LibraryTab { Library, Completed, Bookmarks }

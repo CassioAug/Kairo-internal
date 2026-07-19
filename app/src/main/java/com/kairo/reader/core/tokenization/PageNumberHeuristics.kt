@@ -13,7 +13,7 @@ internal object PageNumberHeuristics {
             (
                 PAGE_NUMBER_MARKUP_REGEX.containsMatchIn(html) ||
                     PAGE_NUMBER_ARIA_REGEX.containsMatchIn(html)
-            )
+                )
 
     fun stripStandalonePageNumbers(
         text: String,
@@ -69,17 +69,7 @@ internal object PageNumberHeuristics {
         val upper = text.uppercase()
         for (index in upper.indices.reversed()) {
             val char = upper[index]
-            val value =
-                when (char) {
-                    'I' -> 1
-                    'V' -> 5
-                    'X' -> 10
-                    'L' -> 50
-                    'C' -> 100
-                    'D' -> 500
-                    'M' -> 1000
-                    else -> return null
-                }
+            val value = ROMAN_NUMERAL_VALUES[char] ?: return null
             if (value < previous) {
                 total -= value
             } else {
@@ -90,10 +80,7 @@ internal object PageNumberHeuristics {
         return total
     }
 
-    private data class PageNumberCandidate(
-        val index: Int,
-        val value: Int,
-    )
+    private data class PageNumberCandidate(val index: Int, val value: Int,)
 
     private val PAGE_BREAK_ATTRIBUTE_REGEX =
         Regex(
@@ -103,7 +90,9 @@ internal object PageNumberHeuristics {
 
     private val PAGE_NUMBER_MARKUP_REGEX =
         Regex(
-            """\b(?:class|id)\s*=\s*['"][^'"]*\b(?:pagenum|page[\s_-]?(?:num|number|no)|pgnum|folio|pagebreak)\b[^'"]*['"]""",
+            """\b(?:class|id)\s*=\s*['"][^'"]*\b""" +
+                """(?:pagenum|page[\s_-]?(?:num|number|no)|pgnum|folio|pagebreak)""" +
+                """\b[^'"]*['"]""",
             RegexOption.IGNORE_CASE,
         )
 
@@ -114,6 +103,20 @@ internal object PageNumberHeuristics {
         )
 
     private val ROMAN_NUMERAL_REGEX = Regex("^[ivxlcdm]+$", RegexOption.IGNORE_CASE)
+
+    // Roman numeral weights are an inherent lookup table.
+    @Suppress("MagicNumber")
+    private val ROMAN_NUMERAL_VALUES =
+        mapOf(
+            'I' to 1,
+            'V' to 5,
+            'X' to 10,
+            'L' to 50,
+            'C' to 100,
+            'D' to 500,
+            'M' to 1000,
+        )
+
     private const val MIN_SEQUENTIAL_PAGE_NUMBER_COUNT = 3
     private const val MAX_REASONABLE_PAGE_NUMBER = 10_000
 }

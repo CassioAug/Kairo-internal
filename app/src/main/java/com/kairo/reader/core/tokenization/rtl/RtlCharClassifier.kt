@@ -33,18 +33,19 @@ internal object RtlCharClassifier {
         Character.isLetterOrDigit(codePoint) || isRtlLetter(codePoint)
 
     private fun isRtlLetter(codePoint: Int): Boolean =
-        inRange(codePoint, 0x0590, 0x05FF) || // Hebrew
-            inRange(codePoint, 0x0600, 0x06FF) || // Arabic
-            inRange(codePoint, 0x0750, 0x077F) || // Arabic Supplement
-            inRange(codePoint, 0x08A0, 0x08FF) || // Arabic Extended-A
-            inRange(codePoint, 0xFB50, 0xFDFF) || // Arabic Presentation Forms-A
-            inRange(codePoint, 0xFE70, 0xFEFF) // Arabic Presentation Forms-B
+        codePoint in HEBREW ||
+            codePoint in ARABIC ||
+            codePoint in ARABIC_SUPPLEMENT ||
+            codePoint in ARABIC_EXTENDED_A ||
+            codePoint in ARABIC_PRESENTATION_FORMS_A ||
+            codePoint in ARABIC_PRESENTATION_FORMS_B
 
-    private fun inRange(
-        codePoint: Int,
-        start: Int,
-        end: Int,
-    ): Boolean = codePoint in start..end
+    private val HEBREW = 0x0590..0x05FF
+    private val ARABIC = 0x0600..0x06FF
+    private val ARABIC_SUPPLEMENT = 0x0750..0x077F
+    private val ARABIC_EXTENDED_A = 0x08A0..0x08FF
+    private val ARABIC_PRESENTATION_FORMS_A = 0xFB50..0xFDFF
+    private val ARABIC_PRESENTATION_FORMS_B = 0xFE70..0xFEFF
 
     private val WORD_CONNECTORS =
         setOf(

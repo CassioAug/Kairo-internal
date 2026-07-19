@@ -53,10 +53,10 @@ class RsvpEffectivePaceTest {
         val frame =
             RsvpFrame(
                 tokens =
-                    listOf(
-                        Token(text = "Wait", type = TokenType.WORD),
-                        Token(text = ".", type = TokenType.PUNCTUATION),
-                    ),
+                listOf(
+                    Token(text = "Wait", type = TokenType.WORD),
+                    Token(text = ".", type = TokenType.PUNCTUATION),
+                ),
                 durationMs = 1L,
                 originalTokenIndex = 0,
             )
@@ -122,10 +122,10 @@ class RsvpEffectivePaceTest {
             listOf(
                 RsvpFrame(
                     tokens =
-                        listOf(
-                            Token(text = "in", type = TokenType.WORD),
-                            Token(text = "time", type = TokenType.WORD),
-                        ),
+                    listOf(
+                        Token(text = "in", type = TokenType.WORD),
+                        Token(text = "time", type = TokenType.WORD),
+                    ),
                     durationMs = 200L,
                     originalTokenIndex = 0,
                 ),

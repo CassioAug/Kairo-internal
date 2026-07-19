@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.kairo.reader.ui.navigation
 
 import androidx.compose.runtime.Composable
@@ -12,11 +14,7 @@ import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
 import com.kairo.reader.ui.rsvp.RsvpResumePoint
 import kotlinx.coroutines.withContext
 
-internal data class RsvpReturnTarget(
-    val chapterIndex: Int,
-    val tokenIndex: Int,
-    val resumeCursor: Int,
-)
+internal data class RsvpReturnTarget(val chapterIndex: Int, val tokenIndex: Int, val resumeCursor: Int,)
 
 internal fun resolveWordIndex(
     wordCountByToken: IntArray?,
