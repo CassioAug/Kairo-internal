@@ -13,7 +13,7 @@ import org.w3c.dom.Node
 internal class Fb2BookParser(dispatcherProvider: DispatcherProvider) :
     BinaryBookParser(
         dispatcherProvider = dispatcherProvider,
-        supportedExtensions = SUPPORTED_EXTENSIONS,
+        supportedExtensions = BookImportFormats.fb2.extensions,
         maxFileSizeBytes = MAX_FILE_SIZE_BYTES,
     ) {
     override fun parseSource(
@@ -27,7 +27,6 @@ internal class Fb2BookParser(dispatcherProvider: DispatcherProvider) :
     private companion object {
         private const val FB2_ASSET_ROOT = "kairo_fb2_assets"
         private const val MAX_FILE_SIZE_BYTES = 64L * 1024L * 1024L
-        private val SUPPORTED_EXTENSIONS = setOf("fb2", "fb2.zip")
     }
 }
 

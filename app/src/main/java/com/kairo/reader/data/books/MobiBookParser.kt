@@ -68,7 +68,7 @@ class MobiBookParser(private val dispatcherProvider: DispatcherProvider,) : Book
         }
 
     override fun supports(extension: String): Boolean =
-        extension.trim().lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS
+        extension.trim().lowercase(Locale.ROOT) in BookImportFormats.mobiFamilyExtensions
 
     private fun resolveFileSize(
         context: Context,
@@ -123,4 +123,3 @@ class MobiBookParser(private val dispatcherProvider: DispatcherProvider,) : Book
 }
 
 private const val BYTES_PER_KIB = 1024
-private val SUPPORTED_EXTENSIONS = setOf("mobi", "prc", "azw")

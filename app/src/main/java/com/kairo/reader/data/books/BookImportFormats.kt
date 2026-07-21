@@ -2,7 +2,31 @@ package com.kairo.reader.data.books
 
 import java.util.Locale
 
+internal enum class BookImportFormatCategory { EBOOK, DOCUMENT, TEXT }
+
+internal data class BookImportFormat(val displayName: String, val category: BookImportFormatCategory, val extensions: Set<String>)
+
 internal object BookImportFormats {
+    val epub = BookImportFormat("EPUB", BookImportFormatCategory.EBOOK, setOf("epub"))
+    val mobi = BookImportFormat("MOBI", BookImportFormatCategory.EBOOK, setOf("mobi"))
+    val prc = BookImportFormat("PRC", BookImportFormatCategory.EBOOK, setOf("prc"))
+    val azw = BookImportFormat("AZW", BookImportFormatCategory.EBOOK, setOf("azw"))
+    val fb2 = BookImportFormat("FB2 / FB2.ZIP", BookImportFormatCategory.EBOOK, setOf("fb2", "fb2.zip"))
+    val pdf = BookImportFormat("PDF", BookImportFormatCategory.DOCUMENT, setOf("pdf"))
+    val docx = BookImportFormat("DOCX", BookImportFormatCategory.DOCUMENT, setOf("docx"))
+    val text = BookImportFormat("TXT", BookImportFormatCategory.TEXT, setOf("txt"))
+    val markdown = BookImportFormat("Markdown", BookImportFormatCategory.TEXT, setOf("md", "markdown"))
+    val html = BookImportFormat("HTML", BookImportFormatCategory.TEXT, setOf("html", "htm"))
+
+    val supportedFormats =
+        listOf(epub, mobi, prc, azw, fb2, pdf, docx, text, markdown, html)
+
+    val mobiFamilyExtensions = mobi.extensions + prc.extensions + azw.extensions
+    val textFileExtensions = text.extensions + markdown.extensions + html.extensions
+
+    fun formatsIn(category: BookImportFormatCategory): List<BookImportFormat> =
+        supportedFormats.filter { format -> format.category == category }
+
     val pickerMimeTypes =
         listOf(
             "application/epub+zip",
@@ -52,5 +76,9 @@ internal object BookImportFormats {
         }
     }
 
-    private val COMPOUND_EXTENSIONS = setOf("fb2.zip")
+    private val COMPOUND_EXTENSIONS =
+        supportedFormats
+            .flatMap(BookImportFormat::extensions)
+            .filter { extension -> '.' in extension }
+            .toSet()
 }

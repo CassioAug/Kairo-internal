@@ -64,7 +64,7 @@ internal class PdfBookParser(private val dispatcherProvider: DispatcherProvider,
         }
 
     override fun supports(extension: String): Boolean =
-        extension.trim().lowercase(Locale.ROOT) == PDF_EXTENSION
+        extension.trim().lowercase(Locale.ROOT) in BookImportFormats.pdf.extensions
 
     private fun loadDocument(
         context: Context,
@@ -107,7 +107,6 @@ internal class PdfBookParser(private val dispatcherProvider: DispatcherProvider,
     private fun Long.toMebibytes(): Long = this / BYTES_PER_MEBIBYTE
 
     private companion object {
-        private const val PDF_EXTENSION = "pdf"
         private const val DEFAULT_SOURCE_NAME = "Imported PDF"
         private const val MAX_FILE_SIZE_BYTES = 96L * 1024L * 1024L
         private const val MAX_PDFBOX_MEMORY_BYTES = 16L * 1024L * 1024L

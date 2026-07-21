@@ -12,7 +12,7 @@ import org.w3c.dom.Element
 internal class DocxBookParser(dispatcherProvider: DispatcherProvider) :
     BinaryBookParser(
         dispatcherProvider = dispatcherProvider,
-        supportedExtensions = setOf(DOCX_EXTENSION),
+        supportedExtensions = BookImportFormats.docx.extensions,
         maxFileSizeBytes = MAX_FILE_SIZE_BYTES,
     ) {
     override fun parseSource(
@@ -24,7 +24,6 @@ internal class DocxBookParser(dispatcherProvider: DispatcherProvider) :
     }
 
     private companion object {
-        private const val DOCX_EXTENSION = "docx"
         private const val DOCX_ASSET_ROOT = "kairo_docx_assets"
         private const val MAX_FILE_SIZE_BYTES = 64L * 1024L * 1024L
     }

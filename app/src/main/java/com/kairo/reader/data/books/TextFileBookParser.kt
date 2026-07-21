@@ -14,7 +14,7 @@ import org.jsoup.safety.Safelist
 internal class TextFileBookParser(dispatcherProvider: DispatcherProvider) :
     BinaryBookParser(
         dispatcherProvider = dispatcherProvider,
-        supportedExtensions = SUPPORTED_EXTENSIONS,
+        supportedExtensions = BookImportFormats.textFileExtensions,
         maxFileSizeBytes = MAX_FILE_SIZE_BYTES,
     ) {
     override fun parseSource(
@@ -23,7 +23,6 @@ internal class TextFileBookParser(dispatcherProvider: DispatcherProvider) :
     ): Book = TextFileParserEngine.parse(request)
 
     private companion object {
-        private val SUPPORTED_EXTENSIONS = setOf("txt", "md", "markdown", "html", "htm")
         private const val MAX_FILE_SIZE_BYTES = 16L * 1024L * 1024L
     }
 }

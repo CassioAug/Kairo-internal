@@ -36,4 +36,30 @@ class BookImportFormatsTest {
         assertTrue(BookImportFormats.pickerMimeTypes.contains("application/octet-stream"))
         assertTrue(BookImportFormats.pickerMimeTypes.contains("*/*"))
     }
+
+    @Test
+    fun supportedFormatsExposeEveryParserExtensionToTheUi() {
+        val visibleExtensions = BookImportFormats.supportedFormats.flatMap(BookImportFormat::extensions).toSet()
+
+        assertEquals(
+            setOf("epub", "mobi", "prc", "azw", "fb2", "fb2.zip", "pdf", "docx", "txt", "md", "markdown", "html", "htm"),
+            visibleExtensions,
+        )
+    }
+
+    @Test
+    fun supportedFormatsAreGroupedForDiscovery() {
+        assertEquals(
+            listOf("EPUB", "MOBI", "PRC", "AZW", "FB2 / FB2.ZIP"),
+            BookImportFormats.formatsIn(BookImportFormatCategory.EBOOK).map(BookImportFormat::displayName),
+        )
+        assertEquals(
+            listOf("PDF", "DOCX"),
+            BookImportFormats.formatsIn(BookImportFormatCategory.DOCUMENT).map(BookImportFormat::displayName),
+        )
+        assertEquals(
+            listOf("TXT", "Markdown", "HTML"),
+            BookImportFormats.formatsIn(BookImportFormatCategory.TEXT).map(BookImportFormat::displayName),
+        )
+    }
 }
