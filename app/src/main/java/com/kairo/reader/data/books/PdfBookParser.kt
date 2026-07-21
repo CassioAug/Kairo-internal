@@ -45,13 +45,14 @@ internal class PdfBookParser(private val dispatcherProvider: DispatcherProvider,
             val request =
                 PdfBookParseRequest(
                     bookId = bookId,
+                    sourceSizeBytes = fileSize,
                     sourceDisplayName =
                     sourceDisplayName?.takeIf(String::isNotBlank)
                         ?: uri.lastPathSegment?.substringAfterLast('/')
                         ?: DEFAULT_SOURCE_NAME,
                 )
             try {
-                loadDocument(context, uri).use { document ->
+                loadDocument(context, uri, fileSize).use { document ->
                     PdfParserEngine.parse(document, request)
                 }
             } catch (error: InvalidPasswordException) {
@@ -69,9 +70,12 @@ internal class PdfBookParser(private val dispatcherProvider: DispatcherProvider,
     private fun loadDocument(
         context: Context,
         uri: Uri,
+        sourceSizeBytes: Long,
     ): PDDocument {
         val memoryUsage =
-            MemoryUsageSetting.setupMixed(MAX_PDFBOX_MEMORY_BYTES).setTempDir(context.cacheDir)
+            MemoryUsageSetting
+                .setupMixed(PdfImportPerformancePolicy.memoryBudgetBytes(sourceSizeBytes))
+                .setTempDir(context.cacheDir)
         val localFile = uri.localFileOrNull()
         if (localFile?.isFile == true) {
             return PDDocument.load(localFile, memoryUsage)
@@ -109,12 +113,41 @@ internal class PdfBookParser(private val dispatcherProvider: DispatcherProvider,
     private companion object {
         private const val DEFAULT_SOURCE_NAME = "Imported PDF"
         private const val MAX_FILE_SIZE_BYTES = 96L * 1024L * 1024L
-        private const val MAX_PDFBOX_MEMORY_BYTES = 16L * 1024L * 1024L
         private const val BYTES_PER_MEBIBYTE = 1024L * 1024L
     }
 }
 
-internal data class PdfBookParseRequest(val bookId: BookId, val sourceDisplayName: String,)
+internal data class PdfBookParseRequest(
+    val bookId: BookId,
+    val sourceDisplayName: String,
+    val sourceSizeBytes: Long = UNKNOWN_SOURCE_SIZE_BYTES,
+) {
+    private companion object {
+        private const val UNKNOWN_SOURCE_SIZE_BYTES = -1L
+    }
+}
+
+internal object PdfImportPerformancePolicy {
+    fun memoryBudgetBytes(sourceSizeBytes: Long): Long =
+        if (sourceSizeBytes in 0..SMALL_SOURCE_MAX_BYTES) {
+            SMALL_SOURCE_MEMORY_BUDGET_BYTES
+        } else {
+            DEFAULT_MEMORY_BUDGET_BYTES
+        }
+
+    fun shouldSortByPosition(
+        sourceSizeBytes: Long,
+        pageCount: Int,
+    ): Boolean =
+        sourceSizeBytes in 0..POSITION_SORT_SOURCE_MAX_BYTES &&
+            pageCount <= POSITION_SORT_PAGE_MAX
+
+    private const val SMALL_SOURCE_MAX_BYTES = 4L * 1024L * 1024L
+    private const val SMALL_SOURCE_MEMORY_BUDGET_BYTES = 32L * 1024L * 1024L
+    private const val DEFAULT_MEMORY_BUDGET_BYTES = 16L * 1024L * 1024L
+    private const val POSITION_SORT_SOURCE_MAX_BYTES = 1L * 1024L * 1024L
+    private const val POSITION_SORT_PAGE_MAX = 80
+}
 
 internal data class ExtractedPdfDocument(val title: String?, val author: String?, val pages: List<String>,)
 
@@ -132,7 +165,7 @@ internal object PdfParserEngine {
             ExtractedPdfDocument(
                 title = document.documentInformation?.title,
                 author = document.documentInformation?.author,
-                pages = extractPages(document),
+                pages = extractPages(document, request.sourceSizeBytes),
             ),
         )
     }
@@ -166,10 +199,17 @@ internal object PdfParserEngine {
         )
     }
 
-    private fun extractPages(document: PDDocument): List<String> {
+    private fun extractPages(
+        document: PDDocument,
+        sourceSizeBytes: Long,
+    ): List<String> {
         val stripper =
             PDFTextStripper().apply {
-                sortByPosition = true
+                sortByPosition =
+                    PdfImportPerformancePolicy.shouldSortByPosition(
+                        sourceSizeBytes = sourceSizeBytes,
+                        pageCount = document.numberOfPages,
+                    )
                 lineSeparator = "\n"
                 pageStart = ""
                 pageEnd = EXTRACTION_PAGE_SEPARATOR
