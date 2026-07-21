@@ -267,7 +267,14 @@
     <string name="library_read_from_link_submit">Lesen</string>
     <string name="library_add_content_title">Lesestoff hinzufügen</string>
     <string name="library_source_book">Buch</string>
-    <string name="library_source_book_hint">EPUB, MOBI, AZW, PRC, TXT, MD, HTML, FB2, DOCX oder PDF</string>
+    <string name="library_source_book_hint">EPUB, PDF, DOCX + weitere</string>
+    <string name="library_supported_formats_title">Unterstützte Dateiformate</string>
+    <string name="library_supported_formats_description">Wähle eine unterstützte Datei aus. Kairo erkennt das Format automatisch.</string>
+    <string name="library_supported_formats_ebooks">E-Books</string>
+    <string name="library_supported_formats_documents">Dokumente</string>
+    <string name="library_supported_formats_text">Textdateien</string>
+    <string name="library_supported_formats_requirements">E-Books müssen DRM-frei sein. PDFs benötigen auswählbaren Text; gescannte PDFs werden noch nicht unterstützt.</string>
+    <string name="library_supported_formats_choose_file">Datei auswählen</string>
     <string name="library_source_link">Link</string>
     <string name="library_source_link_hint">Webartikel</string>
     <string name="library_source_text">Text</string>

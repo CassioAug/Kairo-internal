@@ -94,6 +94,7 @@ fun LibraryScreen(
         }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
     var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
+    var showSupportedFormats by rememberSaveable { mutableStateOf(false) }
     var showReadLinkDialog by rememberSaveable { mutableStateOf(false) }
     var linkInput by rememberSaveable { mutableStateOf("") }
     var showAddTextDialog by rememberSaveable { mutableStateOf(false) }
@@ -102,9 +103,11 @@ fun LibraryScreen(
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
     val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
     val completedBooks = remember(books) { books.filter { it.isCompleted } }
-    val launchBookImport = {
+    val openSystemFilePicker = {
+        showSupportedFormats = false
         filePickerLauncher.launch(BookImportFormats.pickerMimeTypes.toTypedArray())
     }
+    val launchBookImport = { showSupportedFormats = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -252,6 +255,13 @@ fun LibraryScreen(
                 onSkip = onTutorialSkip,
             )
         }
+    }
+
+    if (showSupportedFormats) {
+        SupportedFormatsSheet(
+            onDismiss = { showSupportedFormats = false },
+            onChooseFile = openSystemFilePicker,
+        )
     }
 
     pendingDeleteBook?.let { book ->

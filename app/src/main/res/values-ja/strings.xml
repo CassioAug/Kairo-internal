@@ -267,7 +267,14 @@
     <string name="library_read_from_link_submit">読む</string>
     <string name="library_add_content_title">読むものを追加</string>
     <string name="library_source_book">本</string>
-    <string name="library_source_book_hint">EPUB、MOBI、AZW、PRC、TXT、MD、HTML、FB2、DOCX、PDF</string>
+    <string name="library_source_book_hint">EPUB、PDF、DOCX など</string>
+    <string name="library_supported_formats_title">対応ファイル形式</string>
+    <string name="library_supported_formats_description">対応ファイルを選択してください。Kairo が形式を自動的に判別します。</string>
+    <string name="library_supported_formats_ebooks">電子書籍</string>
+    <string name="library_supported_formats_documents">ドキュメント</string>
+    <string name="library_supported_formats_text">テキストファイル</string>
+    <string name="library_supported_formats_requirements">電子書籍は DRM フリーである必要があります。PDF はテキスト選択可能なものに限り、スキャン PDF にはまだ対応していません。</string>
+    <string name="library_supported_formats_choose_file">ファイルを選択</string>
     <string name="library_source_link">リンク</string>
     <string name="library_source_link_hint">ウェブ記事</string>
     <string name="library_source_text">テキスト</string>

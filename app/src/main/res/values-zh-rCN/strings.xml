@@ -267,7 +267,14 @@
     <string name="library_read_from_link_submit">阅读</string>
     <string name="library_add_content_title">添加阅读内容</string>
     <string name="library_source_book">图书</string>
-    <string name="library_source_book_hint">EPUB、MOBI、AZW、PRC、TXT、MD、HTML、FB2、DOCX 或 PDF</string>
+    <string name="library_source_book_hint">EPUB、PDF、DOCX 等</string>
+    <string name="library_supported_formats_title">支持的文件格式</string>
+    <string name="library_supported_formats_description">选择任意支持的文件，Kairo 会自动识别格式。</string>
+    <string name="library_supported_formats_ebooks">电子书</string>
+    <string name="library_supported_formats_documents">文档</string>
+    <string name="library_supported_formats_text">文本文件</string>
+    <string name="library_supported_formats_requirements">电子书必须无 DRM。PDF 需要包含可选择的文本；暂不支持扫描版 PDF。</string>
+    <string name="library_supported_formats_choose_file">选择文件</string>
     <string name="library_source_link">链接</string>
     <string name="library_source_link_hint">网页文章</string>
     <string name="library_source_text">文本</string>
