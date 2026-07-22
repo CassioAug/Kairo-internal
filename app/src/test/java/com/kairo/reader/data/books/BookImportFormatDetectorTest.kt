@@ -6,6 +6,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BookImportFormatDetectorTest {
@@ -27,6 +28,15 @@ class BookImportFormatDetectorTest {
         val bytes = "comment before header\n%PDF-1.7\n".toByteArray()
 
         assertEquals("pdf", BookImportFormatDetector.detect(ByteArrayInputStream(bytes)))
+    }
+
+    @Test
+    fun detectedPdfMatchesCanonicalPdfExtensions() {
+        val bytes = "%PDF-1.7\n".toByteArray()
+
+        val detectedFormat = BookImportFormatDetector.detect(ByteArrayInputStream(bytes))
+
+        assertTrue(detectedFormat in BookImportFormats.pdf.extensions)
     }
 
     @Test

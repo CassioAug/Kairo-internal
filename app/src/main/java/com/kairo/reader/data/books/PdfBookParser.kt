@@ -35,7 +35,7 @@ internal class PdfBookParser(private val dispatcherProvider: DispatcherProvider,
     ): Book =
         withContext(dispatcherProvider.io) {
             PDFBoxResourceLoader.init(context.applicationContext)
-            require(BookImportFormatDetector.detect(context, uri) == PDF_EXTENSION) {
+            require(BookImportFormatDetector.detect(context, uri) in BookImportFormats.pdf.extensions) {
                 "Selected file is not a valid PDF"
             }
             val fileSize = resolveFileSize(context, uri)
