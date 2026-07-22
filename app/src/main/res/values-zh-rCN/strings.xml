@@ -352,11 +352,13 @@
     <string name="settings_starting_tutorial_title">入门教程</string>
     <string name="settings_starting_tutorial_subtitle">重新播放应用引导。</string>
     <string name="info_settings_title">信息</string>
-    <string name="info_settings_subtitle">支持 Kairo 或在 GitHub 参与贡献</string>
-    <string name="info_buy_me_a_coffee_title">请我喝咖啡</string>
-    <string name="info_buy_me_a_coffee_subtitle">支持 Kairo 开发</string>
+    <string name="info_settings_subtitle">了解详情、参与贡献或联系我们</string>
+    <string name="info_website_title">了解更多</string>
+    <string name="info_website_subtitle">访问 Kairo 网站</string>
     <string name="info_contribute_title">想参与贡献？</string>
     <string name="info_contribute_subtitle">打开 Kairo GitHub 仓库</string>
+    <string name="info_contact_title">遇到问题或有功能建议？</string>
+    <string name="info_contact_subtitle">请联系 kairoapp@proton.me</string>
     <string name="settings_reset_confirm_title">重置所有设置？</string>
     <string name="settings_reset_confirm_message">这会将 RSVP、仿生阅读、阅读器、专注、配置和教程偏好恢复为默认值。</string>
     <string name="starting_tutorial_progress">%1$d / %2$d</string>
