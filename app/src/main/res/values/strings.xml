@@ -393,11 +393,13 @@
     <string name="settings_starting_tutorial_title">Starting tutorial</string>
     <string name="settings_starting_tutorial_subtitle">Replay the guided app walkthrough.</string>
     <string name="info_settings_title">Info</string>
-    <string name="info_settings_subtitle">Support Kairo or contribute on GitHub</string>
-    <string name="info_buy_me_a_coffee_title">Buy me a coffee</string>
-    <string name="info_buy_me_a_coffee_subtitle">Support Kairo development</string>
+    <string name="info_settings_subtitle">Learn more, contribute, or get in touch</string>
+    <string name="info_website_title">Find out more</string>
+    <string name="info_website_subtitle">Visit the Kairo website</string>
     <string name="info_contribute_title">Want to contribute?</string>
     <string name="info_contribute_subtitle">Open the Kairo GitHub repository</string>
+    <string name="info_contact_title">Issues or feature requests?</string>
+    <string name="info_contact_subtitle">Reach out to kairoapp@proton.me</string>
     <string name="settings_reset_defaults">Reset to defaults</string>
     <string name="settings_reset_confirm_title">Reset all settings?</string>
     <string name="settings_reset_confirm_message">This will restore RSVP, Bionic Reading, reader, focus, profile, and tutorial preferences to their defaults.</string>

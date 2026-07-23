@@ -352,11 +352,13 @@
     <string name="settings_starting_tutorial_title">Tutoriel de démarrage</string>
     <string name="settings_starting_tutorial_subtitle">Rejouer la visite guidée de l’app.</string>
     <string name="info_settings_title">Infos</string>
-    <string name="info_settings_subtitle">Soutenir Kairo ou contribuer sur GitHub</string>
-    <string name="info_buy_me_a_coffee_title">Offrez-moi un café</string>
-    <string name="info_buy_me_a_coffee_subtitle">Soutenir le développement de Kairo</string>
+    <string name="info_settings_subtitle">En savoir plus, contribuer ou nous contacter</string>
+    <string name="info_website_title">En savoir plus</string>
+    <string name="info_website_subtitle">Visiter le site web de Kairo</string>
     <string name="info_contribute_title">Envie de contribuer ?</string>
     <string name="info_contribute_subtitle">Ouvrir le dépôt GitHub de Kairo</string>
+    <string name="info_contact_title">Un problème ou une demande de fonctionnalité ?</string>
+    <string name="info_contact_subtitle">Écrivez-nous à kairoapp@proton.me</string>
     <string name="settings_reset_confirm_title">Réinitialiser tous les réglages ?</string>
     <string name="settings_reset_confirm_message">Cela restaurera les préférences RSVP, lecture bionique, lecteur, focus, profil et tutoriel par défaut.</string>
     <string name="starting_tutorial_progress">%1$d sur %2$d</string>
