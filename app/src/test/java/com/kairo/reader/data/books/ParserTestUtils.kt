@@ -37,14 +37,14 @@ private fun isCompatibleParameter(
     }
 
     return when (expectedType) {
-        java.lang.Boolean.TYPE -> actualType == java.lang.Boolean::class.java
-        java.lang.Byte.TYPE -> actualType == java.lang.Byte::class.java
-        java.lang.Short.TYPE -> actualType == java.lang.Short::class.java
-        java.lang.Integer.TYPE -> actualType == java.lang.Integer::class.java
-        java.lang.Long.TYPE -> actualType == java.lang.Long::class.java
-        java.lang.Float.TYPE -> actualType == java.lang.Float::class.java
-        java.lang.Double.TYPE -> actualType == java.lang.Double::class.java
-        java.lang.Character.TYPE -> actualType == java.lang.Character::class.java
+        java.lang.Boolean.TYPE -> actualType == Boolean::class.javaObjectType
+        java.lang.Byte.TYPE -> actualType == Byte::class.javaObjectType
+        java.lang.Short.TYPE -> actualType == Short::class.javaObjectType
+        java.lang.Integer.TYPE -> actualType == Int::class.javaObjectType
+        java.lang.Long.TYPE -> actualType == Long::class.javaObjectType
+        java.lang.Float.TYPE -> actualType == Float::class.javaObjectType
+        java.lang.Double.TYPE -> actualType == Double::class.javaObjectType
+        java.lang.Character.TYPE -> actualType == Char::class.javaObjectType
         else -> false
     }
 }

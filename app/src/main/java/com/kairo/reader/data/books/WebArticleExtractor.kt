@@ -156,7 +156,6 @@ class WebArticleExtractor(private val dispatcherProvider: DispatcherProvider) {
             )
                 ?: selectFirst("h1")?.text()
                 ?: title()
-                ?: host
         return title
             .normalizeText()
             .removeSiteSuffix(host)
@@ -200,13 +199,13 @@ class WebArticleExtractor(private val dispatcherProvider: DispatcherProvider) {
                 .toList()
                 .ifEmpty { listOfNotNull(body()) }
         val best = candidates.maxByOrNull { it.readabilityScore() } ?: body()
-        val extracted = best?.extractBlockText().orEmpty()
+        val extracted = best.extractBlockText()
         if (extracted.length >= MIN_ARTICLE_CHARS) return extracted
 
         return body()
-            ?.extractBlockText()
-            ?.takeIf { it.length >= MIN_ARTICLE_CHARS }
-            ?: body()?.text()?.normalizeText().orEmpty()
+            .extractBlockText()
+            .takeIf { it.length >= MIN_ARTICLE_CHARS }
+            ?: body().text().normalizeText()
     }
 
     private fun Element.readabilityScore(): Int {

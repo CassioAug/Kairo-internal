@@ -78,8 +78,8 @@ object StartingTutorialTargetIds {
 data class StartingTutorialStep(
     val route: StartingTutorialRoute,
     val targetId: String? = null,
-    @StringRes val titleRes: Int,
-    @StringRes val bodyRes: Int,
+    @param:StringRes val titleRes: Int,
+    @param:StringRes val bodyRes: Int,
 )
 
 data class StartingTutorialOverlayState(val step: StartingTutorialStep, val index: Int, val totalSteps: Int,) {
