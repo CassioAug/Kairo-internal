@@ -18,3 +18,19 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 -renamesourcefileattribute SourceFile
+
+# PDFBox Android supports optional JPEG 2000 decoding, but Kairo only extracts selectable text.
+-dontwarn com.gemalto.jp2.JP2Decoder
+
+# Kairo rejects encrypted PDFs, so PDFBox's optional public-key decryption integration is unreachable.
+-dontwarn org.bouncycastle.asn1.x500.X500Name
+-dontwarn org.bouncycastle.cert.X509CertificateHolder
+-dontwarn org.bouncycastle.cms.CMSEnvelopedData
+-dontwarn org.bouncycastle.cms.CMSException
+-dontwarn org.bouncycastle.cms.KeyTransRecipientId
+-dontwarn org.bouncycastle.cms.Recipient
+-dontwarn org.bouncycastle.cms.RecipientId
+-dontwarn org.bouncycastle.cms.RecipientInformation
+-dontwarn org.bouncycastle.cms.RecipientInformationStore
+-dontwarn org.bouncycastle.cms.jcajce.JceKeyTransEnvelopedRecipient
+-dontwarn org.bouncycastle.util.Arrays
