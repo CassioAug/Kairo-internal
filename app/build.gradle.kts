@@ -133,6 +133,12 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        jniLibs {
+            // Kairo uses single-process DataStore, so its multi-process shared counter is unused.
+            excludes += "**/libdatastore_shared_counter.so"
+        }
+    }
 }
 
 
