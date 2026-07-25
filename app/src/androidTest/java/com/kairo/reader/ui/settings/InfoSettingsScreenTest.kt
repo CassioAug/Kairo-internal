@@ -23,7 +23,12 @@ class InfoSettingsScreenTest {
     @Test
     fun websiteRow_opensKairoWebsite() {
         var openedUri: String? = null
-        val uriHandler = UriHandler { uri -> openedUri = uri }
+        val uriHandler =
+            object : UriHandler {
+                override fun openUri(uri: String) {
+                    openedUri = uri
+                }
+            }
 
         composeRule.setContent {
             CompositionLocalProvider(LocalUriHandler provides uriHandler) {
@@ -44,7 +49,12 @@ class InfoSettingsScreenTest {
     @Test
     fun contactRow_opensEmailComposer() {
         var openedUri: String? = null
-        val uriHandler = UriHandler { uri -> openedUri = uri }
+        val uriHandler =
+            object : UriHandler {
+                override fun openUri(uri: String) {
+                    openedUri = uri
+                }
+            }
 
         composeRule.setContent {
             CompositionLocalProvider(LocalUriHandler provides uriHandler) {

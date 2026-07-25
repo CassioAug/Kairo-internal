@@ -105,15 +105,15 @@ class KairoThemeContrastTest {
             assertContrast(
                 theme = theme,
                 label = "snackbar text",
-                foreground = palette.inverseOnSurface,
-                background = palette.inverseSurface,
+                foreground = palette.onBackground,
+                background = palette.surfaceContainerHigh,
                 minimum = WCAG_NORMAL_TEXT_CONTRAST,
             )
             assertContrast(
                 theme = theme,
                 label = "snackbar action",
-                foreground = palette.inversePrimary,
-                background = palette.inverseSurface,
+                foreground = palette.primary,
+                background = palette.surfaceContainerHigh,
                 minimum = WCAG_NORMAL_TEXT_CONTRAST,
             )
         }

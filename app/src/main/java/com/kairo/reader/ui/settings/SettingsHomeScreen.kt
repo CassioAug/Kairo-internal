@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -49,6 +50,7 @@ data class SettingsHomeActions(
     val onOpenReader: () -> Unit,
     val onOpenFocus: () -> Unit,
     val onOpenInfo: () -> Unit,
+    val onCheckForUpdates: () -> Unit,
     val onOpenLanguage: () -> Unit,
     val onOpenStartingTutorial: () -> Unit,
     val onReset: () -> Unit,
@@ -159,6 +161,12 @@ private fun SupportingSettingsRows(
         subtitle = stringResource(R.string.focus_settings_subtitle),
         icon = Icons.Default.Settings,
         onClick = actions.onOpenFocus,
+    )
+    SettingsNavRow(
+        title = stringResource(R.string.update_check_title),
+        subtitle = stringResource(R.string.update_check_subtitle),
+        icon = Icons.Default.Refresh,
+        onClick = actions.onCheckForUpdates,
     )
     SettingsNavRow(
         title = stringResource(R.string.info_settings_title),

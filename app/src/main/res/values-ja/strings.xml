@@ -482,6 +482,14 @@
     <string name="bionic_preparing">バイオニックリーディングを準備しています...</string>
     <string name="bionic_frame_load_failed">バイオニックリーディングを準備できませんでした。タップしてリーダーに戻ります。</string>
     <string name="bionic_empty_state">表示するコンテンツがありません。\nタップして戻ります。</string>
+    <string name="update_available_message">Kairoのアップデートが利用可能です。</string>
+    <string name="update_available_action">更新</string>
+    <string name="update_ready_message">アップデートをダウンロードしました。準備ができたらKairoを再起動してください。</string>
+    <string name="update_ready_action">再起動</string>
+    <string name="update_check_title">アップデートを確認</string>
+    <string name="update_check_subtitle">Google Playで新しいバージョンを確認します</string>
+    <string name="update_check_up_to_date">Kairoは最新です。</string>
+    <string name="update_check_failed">アップデートを確認できませんでした。後でもう一度お試しください。</string>
     <string name="accessibility_state_expanded">展開済み</string>
     <string name="accessibility_state_collapsed">折りたたみ済み</string>
 </resources>

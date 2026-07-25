@@ -482,6 +482,14 @@
     <string name="bionic_preparing">正在准备仿生阅读...</string>
     <string name="bionic_frame_load_failed">无法准备仿生阅读。点按以返回阅读器。</string>
     <string name="bionic_empty_state">没有可显示的内容。\n点按返回。</string>
+    <string name="update_available_message">Kairo 有可用更新。</string>
+    <string name="update_available_action">更新</string>
+    <string name="update_ready_message">更新已下载。准备好后请重新启动 Kairo。</string>
+    <string name="update_ready_action">重新启动</string>
+    <string name="update_check_title">检查更新</string>
+    <string name="update_check_subtitle">在 Google Play 上查找新版本</string>
+    <string name="update_check_up_to_date">Kairo 已是最新版本。</string>
+    <string name="update_check_failed">无法检查更新。请稍后重试。</string>
     <string name="accessibility_state_expanded">已展开</string>
     <string name="accessibility_state_collapsed">已折叠</string>
 </resources>

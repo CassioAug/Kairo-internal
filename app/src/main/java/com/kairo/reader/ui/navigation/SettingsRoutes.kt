@@ -25,6 +25,7 @@ internal data class SettingsRouteDependencies(
     val navController: NavHostController,
     val prefs: UserPreferences,
     val tutorialState: StartingTutorialOverlayState?,
+    val onCheckForUpdates: () -> Unit,
     val onOpenStartingTutorial: () -> Unit,
     val onTutorialNext: () -> Unit,
     val onTutorialPrevious: () -> Unit,
@@ -47,6 +48,7 @@ internal fun NavGraphBuilder.settingsRoutes(dependencies: SettingsRouteDependenc
                 onOpenReader = { dependencies.navController.navigate(KairoRoutes.SETTINGS_READER) },
                 onOpenFocus = { dependencies.navController.navigate(KairoRoutes.SETTINGS_FOCUS) },
                 onOpenInfo = { dependencies.navController.navigate(KairoRoutes.SETTINGS_INFO) },
+                onCheckForUpdates = dependencies.onCheckForUpdates,
                 onOpenStartingTutorial = dependencies.onOpenStartingTutorial,
                 onReset = {
                     coroutineScope.launch {
