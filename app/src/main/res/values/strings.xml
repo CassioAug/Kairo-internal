@@ -468,6 +468,14 @@
     <string name="toast_import_failed_timeout">Import failed: The link took too long to respond.</string>
     <string name="toast_import_failed_secure">Import failed: Could not open a secure connection to that site.</string>
     <string name="toast_import_failed_unknown">Import failed: Unknown error</string>
+    <string name="update_available_message">A Kairo update is available.</string>
+    <string name="update_available_action">Update</string>
+    <string name="update_ready_message">Update downloaded. Restart Kairo when you’re ready.</string>
+    <string name="update_ready_action">Restart</string>
+    <string name="update_check_title">Check for updates</string>
+    <string name="update_check_subtitle">Look for a newer version on Google Play</string>
+    <string name="update_check_up_to_date">Kairo is up to date.</string>
+    <string name="update_check_failed">Couldn’t check for updates. Try again later.</string>
 
     <plurals name="library_chapter_count">
         <item quantity="one">%1$d chapter</item>

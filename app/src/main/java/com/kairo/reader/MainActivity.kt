@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,9 @@ import com.kairo.reader.ui.LocalDispatcherProvider
 import com.kairo.reader.ui.focus.SystemBarsStyleSideEffect
 import com.kairo.reader.ui.navigation.KairoNavHost
 import com.kairo.reader.ui.theme.KairoTheme
+import com.kairo.reader.ui.updates.InAppUpdatePrompt
+import com.kairo.reader.ui.updates.InAppUpdateUiBindings
+import com.kairo.reader.ui.updates.PlayInAppUpdateCoordinator
 
 @Composable
 private fun rememberSystemDefaultPreferences(): UserPreferences {
@@ -48,6 +53,16 @@ class MainActivity : AppCompatActivity() {
     private val pendingExternalImportUriState = mutableStateOf<Uri?>(null)
     private val pendingSharedArticleUrlState = mutableStateOf<String?>(null)
     private val pendingSharedTextState = mutableStateOf<SharedTextImport?>(null)
+    private val inAppUpdatePromptState = mutableStateOf<InAppUpdatePrompt?>(null)
+    private lateinit var inAppUpdateCoordinator: PlayInAppUpdateCoordinator
+    private val inAppUpdateFlowLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.StartIntentSenderForResult()
+        ) { result ->
+            if (::inAppUpdateCoordinator.isInitialized) {
+                inAppUpdateCoordinator.onUpdateFlowResult(result.resultCode)
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -55,6 +70,12 @@ class MainActivity : AppCompatActivity() {
         applyIncomingIntent(intent)
 
         val container = application as KairoApplication
+        inAppUpdateCoordinator =
+            PlayInAppUpdateCoordinator(
+                activity = this,
+                onPromptChanged = { prompt -> inAppUpdatePromptState.value = prompt },
+            )
+        inAppUpdateCoordinator.start(inAppUpdateFlowLauncher)
 
         setContent {
             val fallbackPrefs = rememberSystemDefaultPreferences()
@@ -95,12 +116,33 @@ class MainActivity : AppCompatActivity() {
                                 onExternalSharedTextConsumed = { consumedText ->
                                     clearConsumedSharedTextIntent(consumedText)
                                 },
+                                inAppUpdateUi =
+                                InAppUpdateUiBindings(
+                                    prompt = inAppUpdatePromptState.value,
+                                    onAction = inAppUpdateCoordinator::perform,
+                                    onDismiss = inAppUpdateCoordinator::dismiss,
+                                    onCheckForUpdates = inAppUpdateCoordinator::checkForUpdates,
+                                ),
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::inAppUpdateCoordinator.isInitialized) {
+            inAppUpdateCoordinator.refreshUpdateState()
+        }
+    }
+
+    override fun onDestroy() {
+        if (::inAppUpdateCoordinator.isInitialized) {
+            inAppUpdateCoordinator.stop()
+        }
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {

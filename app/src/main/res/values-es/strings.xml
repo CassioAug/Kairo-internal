@@ -482,6 +482,14 @@
     <string name="bionic_preparing">Preparando la lectura biónica...</string>
     <string name="bionic_frame_load_failed">No se pudo preparar la lectura biónica. Toca para volver al lector.</string>
     <string name="bionic_empty_state">No hay contenido que mostrar.\nToca para volver.</string>
+    <string name="update_available_message">Hay una actualización de Kairo disponible.</string>
+    <string name="update_available_action">Actualizar</string>
+    <string name="update_ready_message">La actualización se ha descargado. Reinicia Kairo cuando quieras.</string>
+    <string name="update_ready_action">Reiniciar</string>
+    <string name="update_check_title">Buscar actualizaciones</string>
+    <string name="update_check_subtitle">Buscar una versión más reciente en Google Play</string>
+    <string name="update_check_up_to_date">Kairo está actualizado.</string>
+    <string name="update_check_failed">No se pudieron buscar actualizaciones. Inténtalo más tarde.</string>
     <string name="accessibility_state_expanded">Expandido</string>
     <string name="accessibility_state_collapsed">Contraído</string>
 </resources>

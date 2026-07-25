@@ -3,14 +3,18 @@ package com.kairo.reader.ui.navigation
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kairo.reader.KairoApplication
+import com.kairo.reader.R
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.data.books.SharedTextImport
 import com.kairo.reader.ui.importing.rememberImportCoordinator
 import com.kairo.reader.ui.tutorial.rememberStartingTutorialCoordinator
+import com.kairo.reader.ui.updates.InAppUpdateCheckResult
+import com.kairo.reader.ui.updates.InAppUpdateUiBindings
 
 @Suppress("FunctionNaming")
 @Composable
@@ -23,10 +27,13 @@ internal fun KairoNavHost(
     onExternalImportUriConsumed: (Uri) -> Unit,
     onExternalArticleUrlConsumed: (String) -> Unit,
     onExternalSharedTextConsumed: (SharedTextImport) -> Unit,
+    inAppUpdateUi: InAppUpdateUiBindings,
 ) {
     val navController = rememberNavController()
     val dispatcherProvider = container.dispatcherProvider
     val messageController = rememberKairoUserMessageController()
+    val upToDateMessage = stringResource(R.string.update_check_up_to_date)
+    val updateCheckFailedMessage = stringResource(R.string.update_check_failed)
 
     val importCoordinator =
         rememberImportCoordinator(
@@ -65,6 +72,7 @@ internal fun KairoNavHost(
         prefs = prefs,
         currentRoute = currentRoute,
         messageController = messageController,
+        inAppUpdateUi = inAppUpdateUi,
     ) {
         NavHost(navController = navController, startDestination = KairoRoutes.LIBRARY) {
             kairoNavGraph(
@@ -114,6 +122,19 @@ internal fun KairoNavHost(
                         navController = navController,
                         prefs = prefs,
                         tutorialState = tutorialCoordinator.settingsState,
+                        onCheckForUpdates = {
+                            inAppUpdateUi.onCheckForUpdates { result ->
+                                when (result) {
+                                    InAppUpdateCheckResult.AVAILABLE -> Unit
+                                    InAppUpdateCheckResult.UP_TO_DATE -> {
+                                        messageController.show(upToDateMessage)
+                                    }
+                                    InAppUpdateCheckResult.FAILED -> {
+                                        messageController.show(updateCheckFailedMessage)
+                                    }
+                                }
+                            }
+                        },
                         onOpenStartingTutorial = tutorialCoordinator.start,
                         onTutorialNext = tutorialCoordinator.next,
                         onTutorialPrevious = tutorialCoordinator.previous,

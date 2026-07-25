@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,6 +21,8 @@ import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.ui.focus.FocusModeSideEffects
 import com.kairo.reader.ui.focus.shouldApplyFocusMode
 import com.kairo.reader.ui.theme.KairoSnackbarHost
+import com.kairo.reader.ui.updates.InAppUpdatePromptEffect
+import com.kairo.reader.ui.updates.InAppUpdateUiBindings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -35,6 +38,20 @@ internal class KairoUserMessageController(val hostState: SnackbarHostState, priv
                 duration = duration,
             )
         }
+    }
+
+    suspend fun showAction(
+        message: String,
+        actionLabel: String,
+        duration: SnackbarDuration,
+    ): SnackbarResult {
+        hostState.currentSnackbarData?.dismiss()
+        return hostState.showSnackbar(
+            message = message,
+            actionLabel = actionLabel,
+            withDismissAction = true,
+            duration = duration,
+        )
     }
 }
 
@@ -55,12 +72,17 @@ internal fun KairoNavChrome(
     prefs: UserPreferences,
     currentRoute: String?,
     messageController: KairoUserMessageController,
+    inAppUpdateUi: InAppUpdateUiBindings,
     content: @Composable () -> Unit,
 ) {
     FocusModeSideEffects(
         enabled = shouldApplyFocusMode(currentRoute, prefs),
         hideStatusBar = prefs.focusHideStatusBar,
         pauseNotifications = prefs.focusPauseNotifications,
+    )
+    InAppUpdatePromptEffect(
+        bindings = inAppUpdateUi,
+        messageController = messageController,
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
