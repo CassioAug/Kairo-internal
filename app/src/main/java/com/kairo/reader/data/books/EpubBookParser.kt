@@ -384,7 +384,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             )
         }
 
-    override fun supports(extension: String): Boolean = extension == "epub"
+    override fun supports(extension: String): Boolean = extension in BookImportFormats.epub.extensions
 
     private fun parseContainerXmlWithResult(xml: String): ContainerXmlResolution =
         containerParser.parse(xml)

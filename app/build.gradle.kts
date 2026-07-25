@@ -185,6 +185,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.coil.compose)
     implementation(libs.jsoup)
+    implementation(libs.pdfbox.android) {
+        // Kairo rejects encrypted PDFs; public-key cryptography providers are unnecessary here.
+        exclude(group = "org.bouncycastle")
+    }
 
     testImplementation(libs.junit)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.coroutines.get()}")

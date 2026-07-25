@@ -13,6 +13,14 @@ class MobiBookParserTest {
     private val contentProcessor = MobiContentProcessor()
 
     @Test
+    fun supportsMobiPrcAndAzwCaseInsensitively() {
+        assertTrue(parser.supports("mobi"))
+        assertTrue(parser.supports("PRC"))
+        assertTrue(parser.supports(" AzW "))
+        assertFalse(parser.supports("azw3"))
+    }
+
+    @Test
     fun extractPlainTextKeepsInlineMbpPageBreakContent() {
         val html = "<p>Indiana and<mbp:pagebreak/> Leo took up the rear.</p>"
 

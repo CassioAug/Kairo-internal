@@ -49,7 +49,7 @@
     <string name="import_parsing_chapters">Analisando capítulos e recursos</string>
 
     <string name="library_title">Sua biblioteca</string>
-    <string name="library_subtitle">Importe arquivos EPUB ou MOBI para começar.</string>
+    <string name="library_subtitle">Importe arquivos compatíveis para começar.</string>
     <string name="library_tab_library">Biblioteca</string>
     <string name="library_tab_completed">Concluídos</string>
     <string name="library_tab_bookmarks">Marcadores</string>
@@ -267,7 +267,14 @@
     <string name="library_read_from_link_submit">Ler</string>
     <string name="library_add_content_title">Adicione algo para ler</string>
     <string name="library_source_book">Livro</string>
-    <string name="library_source_book_hint">EPUB ou MOBI</string>
+    <string name="library_source_book_hint">EPUB, PDF, DOCX e mais</string>
+    <string name="library_supported_formats_title">Formatos de arquivo compatíveis</string>
+    <string name="library_supported_formats_description">Escolha qualquer arquivo compatível. O Kairo detecta o formato automaticamente.</string>
+    <string name="library_supported_formats_ebooks">E-books</string>
+    <string name="library_supported_formats_documents">Documentos</string>
+    <string name="library_supported_formats_text">Arquivos de texto</string>
+    <string name="library_supported_formats_requirements">Os e-books devem ser livres de DRM. PDFs precisam ter texto selecionável; PDFs digitalizados ainda não são compatíveis.</string>
+    <string name="library_supported_formats_choose_file">Escolher arquivo</string>
     <string name="library_source_link">Link</string>
     <string name="library_source_link_hint">Artigo da web</string>
     <string name="library_source_text">Texto</string>
@@ -365,7 +372,7 @@
     <string name="starting_tutorial_intro_title">Bem-vindo ao Kairo</string>
     <string name="starting_tutorial_intro_body">O Kairo começa na sua biblioteca. Importe um livro, abra-o e toque na palavra em foco no leitor para entrar na reprodução RSVP.</string>
     <string name="starting_tutorial_import_title">Importe seu primeiro livro</string>
-    <string name="starting_tutorial_import_body">Use este botão para trazer arquivos EPUB ou MOBI sem DRM do armazenamento do dispositivo.</string>
+    <string name="starting_tutorial_import_body">Use este botão para importar arquivos compatíveis sem DRM do armazenamento do dispositivo.</string>
     <string name="starting_tutorial_tabs_title">Alterne entre biblioteca e marcadores</string>
     <string name="starting_tutorial_tabs_body">A segunda aba reúne marcadores salvos para você voltar rapidamente a trechos importantes.</string>
     <string name="starting_tutorial_library_settings_title">Abrir configurações do app</string>

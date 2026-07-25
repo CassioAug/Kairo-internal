@@ -24,6 +24,9 @@ internal class MobiParserEngine(
         val record0 = palmDatabase.firstRecord
 
         val palmDoc = headerParser.parsePalmDocHeader(record0)
+        require(palmDoc.encryptionType == 0) {
+            "DRM-protected MOBI, PRC, and AZW files are not supported"
+        }
         val headers = headerParser.parseHeaders(record0, parsedBookName, fallbackFileName)
         val header = headers.primary
         val imageHeader =

@@ -12,7 +12,13 @@ internal class MobiHeaderParser {
         buffer.short
         buffer.int
         val recordCount = buffer.short.toInt() and UNSIGNED_SHORT_MASK
-        return PalmDocHeader(compression = compression, textRecordCount = recordCount)
+        buffer.short
+        val encryptionType = buffer.short.toInt() and UNSIGNED_SHORT_MASK
+        return PalmDocHeader(
+            compression = compression,
+            textRecordCount = recordCount,
+            encryptionType = encryptionType,
+        )
     }
 
     fun parseHeaders(

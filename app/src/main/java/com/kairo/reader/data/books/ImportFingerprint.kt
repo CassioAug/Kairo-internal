@@ -25,6 +25,17 @@ internal object ImportFingerprint {
         return "source:$normalizedExtension:${input.sha256Hex(copyTo)}"
     }
 
+    fun withSourceExtension(
+        fingerprint: String,
+        extension: String,
+    ): String {
+        val digest = fingerprint.substringAfterLast(':')
+        require(fingerprint.startsWith(SOURCE_PREFIX) && digest.length == SHA_256_HEX_LENGTH) {
+            "Invalid source fingerprint"
+        }
+        return "$SOURCE_PREFIX${extension.lowercase(Locale.ROOT)}:$digest"
+    }
+
     fun webUrlFingerprint(normalizedUrl: String): String =
         "web:${normalizeContent(normalizedUrl)}".toByteArray(Charsets.UTF_8).sha256Hex().let {
             "web:url:$it"
@@ -97,6 +108,8 @@ internal object ImportFingerprint {
         digest().joinToString(separator = "") { "%02x".format(it.toInt() and BYTE_MASK) }
 
     private val WHITESPACE = Regex("\\s+")
+    private const val SOURCE_PREFIX = "source:"
+    private const val SHA_256_HEX_LENGTH = 64
     private const val BUFFER_SIZE = 64 * 1024
     private const val BYTE_MASK = 0xFF
 }

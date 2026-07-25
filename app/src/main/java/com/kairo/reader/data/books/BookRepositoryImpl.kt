@@ -37,18 +37,24 @@ class BookRepositoryImpl(
         importMutex.withLock {
             val extensionCandidates = resolveExtensionCandidates(uri)
             val supportedExtensionList = extensionCandidates.joinToString { extension -> ".$extension" }
-            val parserMatch =
-                extensionCandidates.firstNotNullOfOrNull { extension ->
-                    parsers.firstOrNull { parser -> parser.supports(extension) }
-                        ?.let { parser -> parser to extension }
-                } ?: throw IllegalArgumentException(
+            val provisionalExtension =
+                findParserMatch(extensionCandidates)?.second ?: throw IllegalArgumentException(
                     "No parser found for $supportedExtensionList files"
                 )
-            val (parser, extension) = parserMatch
 
-            val importSource = prepareImportSource(uri, extension)
+            val importSource = prepareImportSource(uri, provisionalExtension)
             try {
-                val sourceFingerprint = importSource.sourceFingerprint
+                val detectedExtension = BookImportFormatDetector.detect(appContext, importSource.parseUri)
+                val parserCandidates =
+                    (listOfNotNull(detectedExtension) + extensionCandidates).distinct()
+                val (parser, extension) =
+                    findParserMatch(parserCandidates) ?: throw IllegalArgumentException(
+                        "No parser found for $supportedExtensionList files"
+                    )
+                val sourceFingerprint =
+                    importSource.sourceFingerprint?.let { fingerprint ->
+                        ImportFingerprint.withSourceExtension(fingerprint, extension)
+                    }
                 sourceFingerprint
                     ?.let { fingerprint -> bookDao.getBookByImportFingerprint(fingerprint) }
                     ?.let { existing ->
@@ -81,6 +87,12 @@ class BookRepositoryImpl(
             } finally {
                 importSource.deleteTempFile()
             }
+        }
+
+    private fun findParserMatch(extensionCandidates: List<String>): Pair<BookParser, String>? =
+        extensionCandidates.firstNotNullOfOrNull { extension ->
+            parsers.firstOrNull { parser -> parser.supports(extension) }
+                ?.let { parser -> parser to extension }
         }
 
     override suspend fun importUrl(rawUrl: String): BookImportResult =
@@ -278,22 +290,17 @@ class BookRepositoryImpl(
     }
 
     private fun deleteBookAssets(bookId: String) {
-        runCatching {
-            File(appContext.filesDir, "kairo_epub_assets/$bookId").deleteRecursively()
-        }
-        runCatching {
-            File(appContext.filesDir, "kairo_mobi_assets/$bookId").deleteRecursively()
+        BookImportFormats.assetRootNames.forEach { rootName ->
+            runCatching {
+                File(appContext.filesDir, "$rootName/$bookId").deleteRecursively()
+            }
         }
     }
 
     private fun resolveExtensionCandidates(uri: Uri): List<String> {
         val displayName = resolveDisplayName(uri)
 
-        val extFromDisplay =
-            displayName
-                ?.substringAfterLast('.', "")
-                ?.lowercase()
-                .orEmpty()
+        val extensionsFromDisplay = BookImportFormats.extensionsForDisplayName(displayName)
 
         // Check the MIME type
         val mime =
@@ -301,21 +308,13 @@ class BookRepositoryImpl(
                 .getType(uri)
                 ?.lowercase()
                 .orEmpty()
-        val extFromMime =
-            when {
-                mime.contains("epub") || mime == "application/epub+zip" -> "epub"
-                mime.contains("mobi") || mime.contains("x-mobipocket") -> "mobi"
-                else -> ""
-            }
+        val extensionFromMime = BookImportFormats.extensionForMimeType(mime)
 
         // Try path segment as fallback
-        val pathExt =
-            uri.lastPathSegment
-                ?.substringAfterLast('.', "")
-                ?.lowercase()
-                .orEmpty()
+        val extensionsFromPath = BookImportFormats.extensionsForDisplayName(uri.lastPathSegment)
 
-        return listOf(extFromDisplay, extFromMime, pathExt, DEFAULT_EXTENSION)
+        return (extensionsFromDisplay + extensionFromMime + extensionsFromPath + DEFAULT_EXTENSION)
+            .filterNotNull()
             .map { it.trim().lowercase() }
             .filter { it.isNotBlank() }
             .distinct()

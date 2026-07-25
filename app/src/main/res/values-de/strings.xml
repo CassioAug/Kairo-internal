@@ -49,7 +49,7 @@
     <string name="import_parsing_chapters">Kapitel und Assets werden analysiert</string>
 
     <string name="library_title">Deine Bibliothek</string>
-    <string name="library_subtitle">Importiere EPUB- oder MOBI-Dateien, um zu starten.</string>
+    <string name="library_subtitle">Importiere unterstützte Dateien, um zu starten.</string>
     <string name="library_tab_library">Bibliothek</string>
     <string name="library_tab_completed">Abgeschlossen</string>
     <string name="library_tab_bookmarks">Lesezeichen</string>
@@ -267,7 +267,14 @@
     <string name="library_read_from_link_submit">Lesen</string>
     <string name="library_add_content_title">Lesestoff hinzufügen</string>
     <string name="library_source_book">Buch</string>
-    <string name="library_source_book_hint">EPUB oder MOBI</string>
+    <string name="library_source_book_hint">EPUB, PDF, DOCX + weitere</string>
+    <string name="library_supported_formats_title">Unterstützte Dateiformate</string>
+    <string name="library_supported_formats_description">Wähle eine unterstützte Datei aus. Kairo erkennt das Format automatisch.</string>
+    <string name="library_supported_formats_ebooks">E-Books</string>
+    <string name="library_supported_formats_documents">Dokumente</string>
+    <string name="library_supported_formats_text">Textdateien</string>
+    <string name="library_supported_formats_requirements">E-Books müssen DRM-frei sein. PDFs benötigen auswählbaren Text; gescannte PDFs werden noch nicht unterstützt.</string>
+    <string name="library_supported_formats_choose_file">Datei auswählen</string>
     <string name="library_source_link">Link</string>
     <string name="library_source_link_hint">Webartikel</string>
     <string name="library_source_text">Text</string>
@@ -365,7 +372,7 @@
     <string name="starting_tutorial_intro_title">Willkommen bei Kairo</string>
     <string name="starting_tutorial_intro_body">Kairo startet in deiner Bibliothek. Importiere ein Buch, öffne es und tippe dann im Reader auf das Fokuswort, um in die RSVP-Wiedergabe zu springen.</string>
     <string name="starting_tutorial_import_title">Importiere dein erstes Buch</string>
-    <string name="starting_tutorial_import_body">Mit dieser Taste importierst du DRM-freie EPUB- oder MOBI-Dateien aus dem Gerätespeicher.</string>
+    <string name="starting_tutorial_import_body">Mit dieser Taste importierst du unterstützte DRM-freie Dateien aus dem Gerätespeicher.</string>
     <string name="starting_tutorial_tabs_title">Zwischen Bibliothek und Lesezeichen wechseln</string>
     <string name="starting_tutorial_tabs_body">Der zweite Tab sammelt gespeicherte Lesezeichen, damit du schnell zu wichtigen Stellen zurückkehren kannst.</string>
     <string name="starting_tutorial_library_settings_title">App-Einstellungen öffnen</string>

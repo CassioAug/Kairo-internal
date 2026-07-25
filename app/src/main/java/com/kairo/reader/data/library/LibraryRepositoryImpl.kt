@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.room.withTransaction
 import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
+import com.kairo.reader.data.books.BookImportFormats
 import com.kairo.reader.data.books.BookImportResult
 import com.kairo.reader.data.books.BookRepository
 import com.kairo.reader.data.books.TextImportRequest
@@ -60,11 +61,10 @@ class LibraryRepositoryImpl(
     }
 
     private fun deleteBookAssets(bookId: String) {
-        runCatching {
-            File(appContext.filesDir, "kairo_epub_assets/$bookId").deleteRecursively()
-        }
-        runCatching {
-            File(appContext.filesDir, "kairo_mobi_assets/$bookId").deleteRecursively()
+        BookImportFormats.assetRootNames.forEach { rootName ->
+            runCatching {
+                File(appContext.filesDir, "$rootName/$bookId").deleteRecursively()
+            }
         }
     }
 }

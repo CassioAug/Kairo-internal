@@ -6,7 +6,7 @@
 
 <p align="center"><strong>An Android ebook reader built for momentum, focus, and high-speed reading.</strong></p>
 
-Kairo is an RSVP-first ebook reader for Android. It lets you import DRM-free EPUB and MOBI books, read them in a comfortable scrollable reader, and jump into a tuned RSVP playback experience the moment you want to accelerate.
+Kairo is an RSVP-first ebook reader for Android. It imports DRM-free ebooks and text-bearing documents, presents them in a comfortable scrollable reader, and jumps into tuned RSVP playback the moment you want to accelerate.
 
 This project is for readers who want less friction between opening a book and actually moving through it. It is also for people who enjoy experimenting with reading speed, pacing, typography, and focus-friendly interfaces.
 
@@ -20,7 +20,7 @@ The result is an Android reader that sits somewhere between an ebook app, a spee
 
 ## What It Does
 
-- Imports DRM-free `.epub` and `.mobi` files from device storage
+- Imports DRM-free ebooks and text-bearing documents from device storage
 - Builds a local library with covers, progress, and resume state
 - Opens books in a scrollable reader with chapter and page-aware navigation
 - Launches RSVP reading from your current reading position
@@ -157,8 +157,14 @@ The app currently ships as a single Android module, with the code organized by r
 
 - EPUB
 - MOBI
+- PRC and AZW (DRM-free PalmDOC/Mobipocket variants)
+- Plain text and Markdown
+- HTML
+- FictionBook (`.fb2` and `.fb2.zip`)
+- Word documents (`.docx`)
+- PDFs containing selectable text
 
-Kairo is intended for personal reading of DRM-free files. Support for locked or vendor-protected ebooks is outside the scope of the current parser pipeline.
+Kairo is intended for personal reading of DRM-free files. Locked or vendor-protected ebooks, image-only PDFs, and OCR are outside the scope of the current parser pipeline.
 
 ## Current State
 
@@ -176,7 +182,7 @@ The project is still evolving, especially around polish, performance, and the mo
 
 Contributions are welcome. If you want to improve Kairo, strong areas to contribute include:
 
-- ebook parsing robustness across real-world EPUB and MOBI files
+- ebook and document parsing robustness across real-world supported files
 - reader and RSVP UX refinements
 - tokenization and multilingual text handling
 - performance work for large books
