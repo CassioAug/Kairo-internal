@@ -359,11 +359,13 @@
     <string name="settings_starting_tutorial_title">開始チュートリアル</string>
     <string name="settings_starting_tutorial_subtitle">アプリのガイドをもう一度再生します。</string>
     <string name="info_settings_title">情報</string>
-    <string name="info_settings_subtitle">Kairoを支援、またはGitHubで貢献</string>
-    <string name="info_buy_me_a_coffee_title">コーヒーをおごる</string>
-    <string name="info_buy_me_a_coffee_subtitle">Kairoの開発を支援</string>
+    <string name="info_settings_subtitle">詳細、貢献、問い合わせ</string>
+    <string name="info_website_title">詳細を見る</string>
+    <string name="info_website_subtitle">Kairoのウェブサイトを開く</string>
     <string name="info_contribute_title">貢献しますか？</string>
     <string name="info_contribute_subtitle">KairoのGitHubリポジトリを開く</string>
+    <string name="info_contact_title">不具合や機能リクエストがありますか？</string>
+    <string name="info_contact_subtitle">kairoapp@proton.me までご連絡ください</string>
     <string name="settings_reset_confirm_title">すべての設定をリセットしますか？</string>
     <string name="settings_reset_confirm_message">RSVP、バイオニックリーディング、リーダー、フォーカス、プロファイル、チュートリアルの設定を既定値に戻します。</string>
     <string name="starting_tutorial_progress">%1$d / %2$d</string>
