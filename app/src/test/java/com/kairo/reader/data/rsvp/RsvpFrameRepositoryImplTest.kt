@@ -9,6 +9,7 @@ import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.rsvp.RsvpEngine
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -18,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RsvpFrameRepositoryImplTest {
     @Test
     fun clearCacheWaitsForLockedMutexAndClearsEntries() = runTest {

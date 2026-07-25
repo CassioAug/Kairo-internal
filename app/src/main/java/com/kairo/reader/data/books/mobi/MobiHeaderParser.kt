@@ -317,7 +317,7 @@ internal class MobiHeaderParser {
             val bytes = data.copyOfRange(start, end)
             if (MobiBinary.detectImageType(bytes) != null) continue
             val names = extractResourceNames(bytes)
-            if (names.size >= MIN_RESOURCE_NAME_COUNT && (best == null || names.size > best!!.size)) {
+            if (names.size >= MIN_RESOURCE_NAME_COUNT && (best == null || names.size > best.size)) {
                 best = names
             }
         }

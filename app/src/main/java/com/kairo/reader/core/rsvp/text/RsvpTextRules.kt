@@ -272,7 +272,7 @@ internal fun isDecimalPoint(
 ): Boolean {
     if (prevText.isEmpty() || !prevText.all { it.isDigit() }) return false
     if (nextToken?.type != TokenType.WORD) return false
-    val nextText = nextToken?.text ?: return false
+    val nextText = nextToken.text
     if (nextText.isEmpty() || !nextText.all { it.isDigit() }) return false
     return nextText.length <= MAX_SEPARATED_DECIMAL_FRACTION_DIGITS
 }

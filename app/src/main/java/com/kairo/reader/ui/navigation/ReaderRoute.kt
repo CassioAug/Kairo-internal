@@ -67,7 +67,7 @@ internal data class ReaderRouteInput(
 )
 
 @Composable
-internal fun ReaderRoute(input: ReaderRouteInput) =
+internal fun ReaderRoute(input: ReaderRouteInput) {
     with(input) {
         val bookId = backStackEntry.arguments?.getString(KairoRoutes.ARG_BOOK_ID) ?: return
         val dispatcherProvider = container.dispatcherProvider
@@ -229,6 +229,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) =
             onTutorialSkip = onTutorialSkip,
         )
     }
+}
 
 @Composable
 private fun rememberReaderInitialization(
@@ -287,14 +288,15 @@ private fun ReaderPositionEffects(
     }
     LaunchedEffect(uiState.chapterIndex, uiState.chapterData) {
         if (!hasInitialized) return@LaunchedEffect
-        val tokens = uiState.chapterData?.tokens?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
+        val chapterData = uiState.chapterData ?: return@LaunchedEffect
+        val tokens = chapterData.tokens.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
         val safeIndex = tokens.nearestWordIndex(uiState.focusIndex).coerceIn(0, tokens.lastIndex)
         readerPositionSaver.saveDebounced(
             ReadingPosition(
                 BookId(bookId),
                 uiState.chapterIndex,
                 safeIndex,
-                resolveWordIndex(uiState.chapterData?.wordCountByToken, safeIndex),
+                resolveWordIndex(chapterData.wordCountByToken, safeIndex),
             ),
         )
     }

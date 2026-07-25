@@ -250,7 +250,7 @@ class KairoThemeContrastTest {
             this / SRGB_LINEAR_DIVISOR
         } else {
             ((this + SRGB_EXPONENT_OFFSET) / SRGB_EXPONENT_DIVISOR).pow(SRGB_EXPONENT)
-        }.toDouble()
+        }
 
     private data class ThemeRole(val label: String, val expected: Color, val actual: Color,)
 
