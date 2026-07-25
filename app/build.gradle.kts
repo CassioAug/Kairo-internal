@@ -141,6 +141,11 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        allWarningsAsErrors.set(true)
+    }
+}
 
 detekt {
     buildUponDefaultConfig = true
