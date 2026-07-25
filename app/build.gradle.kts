@@ -4,7 +4,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
@@ -131,11 +130,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
+    }
+    packaging {
+        jniLibs {
+            // Kairo uses single-process DataStore, so its multi-process shared counter is unused.
+            excludes += "**/libdatastore_shared_counter.so"
+        }
     }
 }
 
