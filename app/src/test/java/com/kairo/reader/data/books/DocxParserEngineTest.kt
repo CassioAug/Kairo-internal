@@ -85,7 +85,7 @@ class DocxParserEngineTest {
                     """
                     <Relationships xmlns="rels">
                       <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-                        Target="media/picture.png"/>
+                        Target="../word/media/picture.png"/>
                     </Relationships>
                     """.trimIndent().toByteArray(),
                 "word/media/picture.png" to imageBytes,

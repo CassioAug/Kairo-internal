@@ -124,7 +124,7 @@ internal object DocxParserEngine {
         source.replace('\\', '/').split('/').forEach { segment ->
             when (segment) {
                 "", "." -> Unit
-                ".." -> if (segments.isNotEmpty()) segments.removeLast()
+                ".." -> if (segments.isNotEmpty()) segments.removeAt(segments.lastIndex)
                 else -> segments += segment
             }
         }
