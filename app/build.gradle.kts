@@ -95,8 +95,8 @@ android {
         applicationId = "com.kairo.reader"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 10
-        versionName = "1.0.8"
+        versionCode = 12
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
