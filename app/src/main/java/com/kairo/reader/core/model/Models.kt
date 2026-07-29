@@ -1,6 +1,6 @@
 package com.kairo.reader.core.model
 
-const val DEFAULT_RSVP_FONT_SIZE_SP = 36f
+const val DEFAULT_RSVP_FONT_SIZE_SP = 28f
 
 data class BookId(val value: String,)
 

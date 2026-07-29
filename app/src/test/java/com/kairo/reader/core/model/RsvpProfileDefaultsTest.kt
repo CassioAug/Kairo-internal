@@ -21,7 +21,7 @@ class RsvpProfileDefaultsTest {
         val defaults = UserPreferences()
 
         assertEquals(18f, defaults.readerFontSizeSp, 0.0f)
-        assertEquals(36f, defaults.rsvpFontSizeSp, 0.0f)
+        assertEquals(28f, defaults.rsvpFontSizeSp, 0.0f)
     }
 
     @Test
