@@ -1,5 +1,7 @@
 package com.kairo.reader.core.model
 
+const val DEFAULT_RSVP_FONT_SIZE_SP = 36f
+
 data class BookId(val value: String,)
 
 data class Book(
@@ -786,7 +788,7 @@ data class UserPreferences(
     val readerTextBrightness: Float = 0.88f,
     val invertedScroll: Boolean = false,
     // RSVP-specific font settings (decoupled from reader)
-    val rsvpFontSizeSp: Float = 38f,
+    val rsvpFontSizeSp: Float = DEFAULT_RSVP_FONT_SIZE_SP,
     val rsvpTextBrightness: Float = 0.88f,
     val rsvpFontWeight: RsvpFontWeight = RsvpFontWeight.LIGHT,
     val rsvpFontFamily: RsvpFontFamily = RsvpFontFamily.INTER,

@@ -1,12 +1,13 @@
 package com.kairo.reader.ui.rsvp
 
 import androidx.compose.ui.unit.dp
+import com.kairo.reader.core.model.DEFAULT_RSVP_FONT_SIZE_SP
 import com.kairo.reader.core.model.PAIRED_OPENING_PUNCTUATION_CHARS
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.rsvp.RsvpSpeedControl
 
-const val DEFAULT_FONT_SIZE_SP = 38f
+const val DEFAULT_FONT_SIZE_SP = DEFAULT_RSVP_FONT_SIZE_SP
 val DEFAULT_FONT_FAMILY = RsvpFontFamily.INTER
 val DEFAULT_FONT_WEIGHT = RsvpFontWeight.LIGHT
 const val DEFAULT_TEXT_BRIGHTNESS = 0.88f
