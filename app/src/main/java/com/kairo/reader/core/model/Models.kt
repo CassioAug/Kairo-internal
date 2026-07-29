@@ -143,7 +143,7 @@ data class RsvpConfig(
      * A low-emphasis sentence scaffold shown around the active RSVP unit.
      * This restores some spatial context without moving the ORP focus word.
      */
-    val contextAssistMode: RsvpContextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
+    val contextAssistMode: RsvpContextAssistMode = RsvpContextAssistMode.OFF,
     /** Briefly ease the live pace after the reader deliberately moves backwards. */
     val useRegressionAdaptivePacing: Boolean = true,
     /**
@@ -316,7 +316,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = false,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
-                contextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
+                contextAssistMode = RsvpContextAssistMode.OFF,
                 subwordChunkPauseMs = 60L,
                 dialogueMultiplier = 0.97,
                 smoothingAlpha = 0.30,
@@ -352,7 +352,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = false,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
-                contextAssistMode = RsvpContextAssistMode.FULL_CLAUSE,
+                contextAssistMode = RsvpContextAssistMode.OFF,
                 subwordChunkPauseMs = 76L,
                 dialogueMultiplier = 0.96,
                 smoothingAlpha = 0.20,
@@ -388,7 +388,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = true,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
-                contextAssistMode = RsvpContextAssistMode.FULL_CLAUSE,
+                contextAssistMode = RsvpContextAssistMode.OFF,
                 subwordChunkPauseMs = 66L,
                 dialogueMultiplier = 0.91,
                 smoothingAlpha = 0.27,
@@ -424,7 +424,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = false,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 13,
-                contextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
+                contextAssistMode = RsvpContextAssistMode.OFF,
                 subwordChunkPauseMs = 52L,
                 dialogueMultiplier = 0.98,
                 smoothingAlpha = 0.32,
@@ -460,7 +460,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = true,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 15,
-                contextAssistMode = RsvpContextAssistMode.PREVIOUS_WORDS,
+                contextAssistMode = RsvpContextAssistMode.OFF,
                 subwordChunkPauseMs = 58L,
                 dialogueMultiplier = 0.95,
                 smoothingAlpha = 0.28,
@@ -532,7 +532,7 @@ fun RsvpProfile.defaultConfig(): RsvpConfig =
                 enablePhraseChunking = true,
                 maxWordsPerUnit = 2,
                 maxCharsPerUnit = 14,
-                contextAssistMode = RsvpContextAssistMode.FULL_CLAUSE,
+                contextAssistMode = RsvpContextAssistMode.OFF,
                 subwordChunkPauseMs = 84L,
                 dialogueMultiplier = 0.96,
                 smoothingAlpha = 0.18,
