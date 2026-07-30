@@ -112,6 +112,11 @@ The project uses the checked-in Gradle wrapper, so you do not need to install Gr
 4. Select an emulator or connected Android device running API 24+.
 5. Run the `app` configuration.
 
+Android Studio uses the `debug` build type by default. It installs as **Kairo Dev**
+with application ID `com.kairo.reader.debug`, so it can coexist with the Play
+Store app (`com.kairo.reader`) on the same device. The two installations keep
+separate libraries, settings, and app data.
+
 ### Command Line
 
 Build a debug APK:
@@ -125,6 +130,11 @@ Install the debug build on a connected device or running emulator:
 ```bash
 ./gradlew installDebug
 ```
+
+Release builds do not use the debug suffix or dev label. They retain the
+production application ID `com.kairo.reader` and app name `Kairo`; follow
+[`docs/release-branch-strategy.md`](docs/release-branch-strategy.md) when
+preparing a Play Store build.
 
 Run unit tests:
 

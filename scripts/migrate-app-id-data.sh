@@ -2,7 +2,7 @@
 set -eu
 
 OLD_PACKAGE="${OLD_PACKAGE:-app.kairo.reader}"
-NEW_PACKAGE="${NEW_PACKAGE:-com.kairo.reader}"
+NEW_PACKAGE="${NEW_PACKAGE:-com.kairo.reader.debug}"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/Library/Application Support/Kairo/android-device-backups}"
 BACKUP_FILE="${BACKUP_FILE:-$BACKUP_DIR/${OLD_PACKAGE}-to-${NEW_PACKAGE}-data.tar}"
 
