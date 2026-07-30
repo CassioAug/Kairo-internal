@@ -6,11 +6,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
+private const val DEBUG_APPLICATION_ID = "com.kairo.reader.debug"
+private const val DEBUG_APPLICATION_LABEL = "Kairo Dev"
+
 @RunWith(AndroidJUnit4::class)
 class KairoInstrumentedTest {
     @Test
-    fun useAppContext() {
+    fun debugBuildUsesSeparateApplicationIdentity() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.kairo.reader", appContext.packageName)
+        val applicationLabel =
+            appContext.applicationInfo.loadLabel(appContext.packageManager).toString()
+
+        assertEquals(DEBUG_APPLICATION_ID, appContext.packageName)
+        assertEquals(DEBUG_APPLICATION_LABEL, applicationLabel)
     }
 }
