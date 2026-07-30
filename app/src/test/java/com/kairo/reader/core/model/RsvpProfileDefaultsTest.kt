@@ -21,7 +21,7 @@ class RsvpProfileDefaultsTest {
         val defaults = UserPreferences()
 
         assertEquals(18f, defaults.readerFontSizeSp, 0.0f)
-        assertEquals(38f, defaults.rsvpFontSizeSp, 0.0f)
+        assertEquals(28f, defaults.rsvpFontSizeSp, 0.0f)
     }
 
     @Test
@@ -38,23 +38,15 @@ class RsvpProfileDefaultsTest {
     }
 
     @Test
-    fun builtInProfilesChooseContextByReadingIntent() {
-        assertEquals(
-            RsvpContextAssistMode.OFF,
-            RsvpProfile.SPRINT.defaultConfig().contextAssistMode,
-        )
-        assertEquals(
-            RsvpContextAssistMode.FULL_CLAUSE,
-            RsvpProfile.NARRATIVE.defaultConfig().contextAssistMode,
-        )
-        assertEquals(
-            RsvpContextAssistMode.FULL_CLAUSE,
-            RsvpProfile.STUDY.defaultConfig().contextAssistMode,
-        )
-        assertEquals(
-            RsvpContextAssistMode.PREVIOUS_WORDS,
-            RsvpProfile.BALANCED.defaultConfig().contextAssistMode,
-        )
+    fun builtInProfilesDisableContextAssistByDefault() {
+        assertEquals(RsvpContextAssistMode.OFF, RsvpConfig().contextAssistMode)
+        RsvpProfile.entries.forEach { profile ->
+            assertEquals(
+                "Expected context assist off for ${profile.name}",
+                RsvpContextAssistMode.OFF,
+                profile.defaultConfig().contextAssistMode,
+            )
+        }
     }
 
     @Test
