@@ -5,8 +5,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [BookEntity::class, ChapterEntity::class, ReadingPositionEntity::class, BookmarkEntity::class],
-    version = 10,
+    entities = [
+        BookEntity::class,
+        ChapterEntity::class,
+        TableOfContentsEntryEntity::class,
+        ReadingPositionEntity::class,
+        BookmarkEntity::class,
+    ],
+    version = 11,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

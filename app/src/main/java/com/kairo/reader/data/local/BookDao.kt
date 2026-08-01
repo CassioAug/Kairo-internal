@@ -13,9 +13,15 @@ interface BookDao {
     suspend fun insertBook(
         book: BookEntity,
         chapters: List<ChapterEntity>,
+        tableOfContentsEntries: List<TableOfContentsEntryEntity>,
     ) {
         insertBookInternal(book)
+        deleteChaptersForBook(book.id)
+        deleteTableOfContentsForBook(book.id)
         insertChapters(chapters)
+        if (tableOfContentsEntries.isNotEmpty()) {
+            insertTableOfContentsEntries(tableOfContentsEntries)
+        }
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -23,6 +29,9 @@ interface BookDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChapters(chapters: List<ChapterEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTableOfContentsEntries(entries: List<TableOfContentsEntryEntity>)
 
     @Query(
         """
@@ -47,6 +56,15 @@ interface BookDao {
         """,
     )
     fun getChapterSummaries(): Flow<List<ChapterEntity>>
+
+    @Query(
+        """
+        SELECT bookId, entryIndex, label, depth, chapterIndex, characterOffset
+        FROM table_of_contents_entries
+        ORDER BY bookId, entryIndex
+        """,
+    )
+    fun getTableOfContentsEntries(): Flow<List<TableOfContentsEntryEntity>>
 
     @Query(
         """
@@ -141,6 +159,16 @@ interface BookDao {
 
     @Query(
         """
+        SELECT bookId, entryIndex, label, depth, chapterIndex, characterOffset
+        FROM table_of_contents_entries
+        WHERE bookId = :bookId
+        ORDER BY entryIndex
+        """,
+    )
+    suspend fun getTableOfContentsEntries(bookId: String): List<TableOfContentsEntryEntity>
+
+    @Query(
+        """
         SELECT bookId, `index`, title, htmlContent, plainText, imagePaths, wordCount
         FROM chapters
         WHERE bookId = :bookId AND `index` = :index
@@ -173,6 +201,9 @@ interface BookDao {
 
     @Query("DELETE FROM chapters WHERE bookId = :bookId")
     suspend fun deleteChaptersForBook(bookId: String)
+
+    @Query("DELETE FROM table_of_contents_entries WHERE bookId = :bookId")
+    suspend fun deleteTableOfContentsForBook(bookId: String)
 
     @Query("DELETE FROM books WHERE id = :bookId")
     suspend fun deleteBook(bookId: String)

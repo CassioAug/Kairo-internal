@@ -10,6 +10,13 @@ class SampleSeeder(private val bookDao: BookDao,) {
         if (existing != null) return
         // Seed the starter book directly so first-run onboarding has real content to use.
         val sample = SampleBooks.defaultSample()
-        bookDao.insertBook(sample.toEntity(), sample.chapters.map { it.toEntity(sample.id) })
+        bookDao.insertBook(
+            book = sample.toEntity(),
+            chapters = sample.chapters.map { it.toEntity(sample.id) },
+            tableOfContentsEntries =
+                sample.tableOfContents.mapIndexed { index, entry ->
+                    entry.toEntity(sample.id, index)
+                },
+        )
     }
 }
