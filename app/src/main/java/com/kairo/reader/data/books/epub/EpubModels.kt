@@ -8,11 +8,18 @@ internal data class OpfData(
     val manifest: Map<String, String>,
     val manifestItems: List<ManifestItem>,
     val spineItems: List<SpineItem>,
+    val navigationHref: String? = null,
 )
 
 internal data class SpineItem(val idref: String,)
 
 internal data class ManifestItem(val id: String, val href: String, val mediaType: String?, val properties: Set<String>,)
+
+internal data class EpubNavigationReference(
+    val label: String,
+    val depth: Int,
+    val href: String?,
+)
 
 internal data class ContainerXmlResolution(
     val path: String,

@@ -59,6 +59,8 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
     private val contentRewriter = EpubContentRewriter()
     private val navigationClassifier = EpubNavigationClassifier(contentRewriter)
+    private val navigationParser = EpubNavigationParser()
+    private val tableOfContentsResolver = EpubTableOfContentsResolver(contentRewriter)
     private val chapterBuilder = EpubChapterBuilder(contentRewriter, navigationClassifier)
     private val containerParser = EpubContainerParser()
     private val opfParser = EpubOpfParser()
@@ -171,6 +173,19 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
             diagnostics.chapterOrderSource = chapterOrderResolution.source
             diagnostics.unresolvedSpineItems = chapterOrderResolution.unresolvedSpineCount
             val orderedChapterPathsLower = chapterOrderResolution.paths
+            val navigationPathLower =
+                opfData.navigationHref?.let { href ->
+                    resolveZipEntryKey(opfDir, href, zipTextEntries.keys)
+                }
+            val navigationReferences =
+                navigationPathLower
+                    ?.let { path -> decodedTextEntry(path, zipTextEntries, decodedTextEntries) }
+                    ?.let { document ->
+                        navigationParser.parse(
+                            document = document,
+                            isNcx = navigationPathLower.endsWith(".ncx", ignoreCase = true),
+                        )
+                    }.orEmpty()
 
             // Determine which image assets we need (cover + any chapter <img> references).
             val neededImagePathsLower = mutableSetOf<String>()
@@ -281,6 +296,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     preferredChapterPathsLower = orderedChapterPathsLower,
                     decodedTextEntries = decodedTextEntries,
                     chapterImageSrcsByPathLower = chapterImageSrcsByPathLower,
+                    preservedNavigationPathsLower = chapterOrderResolution.resolvedSpinePaths,
                 )
             diagnostics.navigationFilteredChapters += primaryFallbackBuild.navigationFilteredCount
             diagnostics.navigationFilterSuppressed =
@@ -302,6 +318,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                             preferredChapterPathsLower = orderedChapterPathsLower,
                             decodedTextEntries = emptyMap(),
                             chapterImageSrcsByPathLower = emptyMap(),
+                            preservedNavigationPathsLower = chapterOrderResolution.resolvedSpinePaths,
                         )
                     diagnostics.navigationFilteredChapters += secondaryFallbackBuild.navigationFilteredCount
                     diagnostics.navigationFilterSuppressed =
@@ -323,6 +340,15 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
 
             // Build path to final index map
             val chapterIndexByPathLower = parsedChapters.associate { it.pathLower to it.chapter.index }
+            val tableOfContents =
+                navigationPathLower
+                    ?.let { path ->
+                        tableOfContentsResolver.resolve(
+                            references = navigationReferences,
+                            navigationPathLower = path,
+                            chapters = parsedChapters,
+                        )
+                    }.orEmpty()
 
             // Second pass: rewrite anchor hrefs and extract links with positions (TOC-like only).
             val chapters = parsedChapters.map { parsed ->
@@ -381,6 +407,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                 languageTag = opfData.languageTag,
                 coverImage = coverImage,
                 chapters = finalChapters,
+                tableOfContents = tableOfContents,
             )
         }
 

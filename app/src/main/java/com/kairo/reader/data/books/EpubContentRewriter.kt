@@ -4,6 +4,11 @@ import com.kairo.reader.data.books.epub.EpubHtmlEntities
 import com.kairo.reader.data.books.epub.EpubPathResolver
 import java.util.Locale
 
+internal data class EpubPlainTextContent(
+    val text: String,
+    val anchorOffsets: Map<String, Int>,
+)
+
 internal class EpubContentRewriter {
     private companion object {
         const val MAX_LINKS_PER_CHAPTER = 1000
@@ -14,7 +19,6 @@ internal class EpubContentRewriter {
         val HTML_COMMENT_REGEX = Regex("<!--[\\s\\S]*?-->")
         val SCRIPT_TAG_REGEX = Regex("<script[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE)
         val STYLE_TAG_REGEX = Regex("<style[^>]*>[\\s\\S]*?</style>", RegexOption.IGNORE_CASE)
-        val HEAD_TAG_REGEX = Regex("<head[^>]*>[\\s\\S]*?</head>", RegexOption.IGNORE_CASE)
         val ALL_TAGS_REGEX = Regex("<[^>]+>")
         val HORIZONTAL_WHITESPACE_REGEX = Regex("[ \\t]+")
         val MULTIPLE_NEWLINES_REGEX = Regex("\\n\\s*\\n+")
@@ -57,10 +61,8 @@ internal class EpubContentRewriter {
             )
         val ANCHOR_TAG_REGEX = Regex("<a\\b", RegexOption.IGNORE_CASE)
         val ANCHOR_HREF_REGEX = Regex("(<a\\b[^>]*href\\s*=\\s*['\"])([^'\"]+)(['\"][^>]*>)", RegexOption.IGNORE_CASE)
+        val ANCHOR_MARKER_REGEX = Regex("\uE000[0-9a-z]+\uE001")
         val BLOCK_ELEMENT_REGEX = Regex("(?is)<(h[1-6]|p|div)[^>]*>([\\s\\S]*?)</\\1>")
-        val HEADING_BLOCK_ELEMENT_REGEX = Regex("(?is)<h[1-6][^>]*>([\\s\\S]*?)</h[1-6]>")
-        val PARAGRAPH_BLOCK_ELEMENT_REGEX = Regex("(?is)<p[^>]*>([\\s\\S]*?)</p>")
-        val DIV_BLOCK_ELEMENT_REGEX = Regex("(?is)<div[^>]*>([\\s\\S]*?)</div>")
     }
 
     private val markupParser = EpubMarkupParser()
@@ -242,13 +244,65 @@ internal class EpubContentRewriter {
         extractPlainText(parseMarkupDocument(html))
 
     fun extractPlainText(document: EpubMarkupDocument): String =
-        EpubMarkupInspector.renderPlainText(document)
-            // Decode common HTML entities
+        extractPlainTextWithAnchors(document).text
+
+    fun extractPlainTextWithAnchors(html: String): EpubPlainTextContent =
+        extractPlainTextWithAnchors(parseMarkupDocument(html))
+
+    fun extractPlainTextWithAnchors(document: EpubMarkupDocument): EpubPlainTextContent {
+        val marked = EpubMarkupInspector.renderPlainTextWithAnchorMarkers(document)
+        if (marked.markers.isEmpty()) {
+            return EpubPlainTextContent(
+                text = normalizePlainText(marked.text),
+                anchorOffsets = emptyMap(),
+            )
+        }
+        val normalized = normalizePlainTextWhitespace(marked.text)
+
+        val anchorIdByMarker = marked.markers.associate { marker -> marker.marker to marker.anchorId }
+        val plainText = StringBuilder(normalized.length)
+        val anchorOffsets = linkedMapOf<String, Int>()
+        var cursor = 0
+        ANCHOR_MARKER_REGEX.findAll(normalized).forEach { match ->
+            plainText.append(normalized, cursor, match.range.first)
+            anchorIdByMarker[match.value]
+                ?.let(::decodeHtmlEntities)
+                ?.takeIf(String::isNotBlank)
+                ?.let { anchorId -> anchorOffsets.putIfAbsent(anchorId, plainText.length) }
+            cursor = match.range.last + 1
+        }
+        plainText.append(normalized, cursor, normalized.length)
+        val untrimmedText = plainText.toString()
+        val finalText = trimPlainTextPreservingPageBreak(untrimmedText)
+        val leadingTrimmedCharacters =
+            finalText
+                .takeIf(String::isNotEmpty)
+                ?.let(untrimmedText::indexOf)
+                ?.coerceAtLeast(0)
+                ?: 0
+        return EpubPlainTextContent(
+            text = finalText,
+            anchorOffsets =
+                anchorOffsets.mapValues { (_, offset) ->
+                    var resolved =
+                        (offset - leadingTrimmedCharacters).coerceIn(0, finalText.length)
+                    while (resolved < finalText.length && finalText[resolved].isWhitespace()) {
+                        resolved += 1
+                    }
+                    resolved
+                },
+        )
+    }
+
+    private fun normalizePlainText(text: String): String =
+        normalizePlainTextWhitespace(text)
+            .let(::trimPlainTextPreservingPageBreak)
+
+    private fun normalizePlainTextWhitespace(text: String): String =
+        text
             .let(::decodeHtmlEntities)
-            // Clean up whitespace
             .replace(HORIZONTAL_WHITESPACE_REGEX, " ")
             .replace(MULTIPLE_NEWLINES_REGEX, "\n\n")
-            .let(::trimPlainTextPreservingPageBreak)
 
     private fun trimPlainTextPreservingPageBreak(text: String): String {
         val trimmed = text.trim()
@@ -314,45 +368,8 @@ internal class EpubContentRewriter {
         return result
     }
 
-    fun stripLeadingDuplicateTitleBlock(
-        html: String,
-        title: String?,
-    ): String {
-        if (html.isBlank()) return html
-        val normalizedTitle = normalizeTitleForComparison(title ?: return html)
-        if (normalizedTitle.isBlank()) return html
-
-        return stripMatchingLeadingBlock(html, HEADING_BLOCK_ELEMENT_REGEX, normalizedTitle)
-            ?: stripMatchingLeadingBlock(html, PARAGRAPH_BLOCK_ELEMENT_REGEX, normalizedTitle)
-            ?: stripMatchingLeadingBlock(html, DIV_BLOCK_ELEMENT_REGEX, normalizedTitle)
-            ?: html
-    }
-
-    private fun stripMatchingLeadingBlock(
-        html: String,
-        blockRegex: Regex,
-        normalizedTitle: String,
-    ): String? {
-        val match = blockRegex.find(html) ?: return null
-        val leading = html.take(match.range.first)
-        if (visibleTextIgnoringMetadata(leading).isNotBlank()) return null
-        val blockText = visibleText(match.groupValues[1])
-        if (normalizeTitleForComparison(blockText) != normalizedTitle) return null
-        return html.removeRange(match.range.first, match.range.last + 1)
-    }
-
     private fun visibleText(htmlFragment: String): String =
         decodeHtmlEntities(htmlFragment.replace(ALL_TAGS_REGEX, " "))
-            .replace(WHITESPACE_REGEX, " ")
-            .trim()
-
-    private fun visibleTextIgnoringMetadata(htmlFragment: String): String =
-        visibleText(htmlFragment.replace(HEAD_TAG_REGEX, " "))
-
-    private fun normalizeTitleForComparison(text: String): String =
-        visibleText(text)
-            .lowercase()
-            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
             .replace(WHITESPACE_REGEX, " ")
             .trim()
 

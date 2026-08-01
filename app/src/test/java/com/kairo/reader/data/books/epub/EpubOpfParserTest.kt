@@ -68,4 +68,47 @@ class EpubOpfParserTest {
         assertEquals("chapter1.xhtml", result.manifest["c1"])
         assertEquals(1, result.spineItems.size)
     }
+
+    @Test
+    fun parseWithResultFindsEpubThreeNavigationDocument() {
+        val xml =
+            """
+            <package xmlns="http://www.idpf.org/2007/opf">
+              <manifest>
+                <item id="navigation" href="nav.xhtml"
+                      media-type="application/xhtml+xml" properties="nav" />
+                <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" />
+              </manifest>
+              <spine>
+                <itemref idref="navigation" />
+                <itemref idref="chapter" />
+              </spine>
+            </package>
+            """.trimIndent()
+
+        val result = parser.parseWithResult(xml).opfData
+
+        assertEquals("nav.xhtml", result.navigationHref)
+        assertEquals(listOf("navigation", "chapter"), result.spineItems.map { it.idref })
+    }
+
+    @Test
+    fun parseWithResultFindsEpubTwoNcxFromSpineTocAttribute() {
+        val xml =
+            """
+            <package xmlns="http://www.idpf.org/2007/opf">
+              <manifest>
+                <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
+                <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" />
+              </manifest>
+              <spine toc="ncx">
+                <itemref idref="chapter" />
+              </spine>
+            </package>
+            """.trimIndent()
+
+        val result = parser.parseWithResult(xml).opfData
+
+        assertEquals("toc.ncx", result.navigationHref)
+    }
 }

@@ -9,7 +9,12 @@ internal enum class ChapterOrderSource {
     ZIP_FALLBACK,
 }
 
-internal data class ChapterOrderResolution(val paths: List<String>, val source: ChapterOrderSource, val unresolvedSpineCount: Int,)
+internal data class ChapterOrderResolution(
+    val paths: List<String>,
+    val source: ChapterOrderSource,
+    val unresolvedSpineCount: Int,
+    val resolvedSpinePaths: Set<String> = emptySet(),
+)
 
 internal object EpubChapterOrdering {
     private val navigationFileBasenames =
@@ -39,7 +44,7 @@ internal object EpubChapterOrdering {
         opfData.spineItems.forEach { spineItem ->
             val manifestItem = resolveManifestItem(opfData.manifestItems, spineItem.idref)
             val path =
-                if (manifestItem != null && isReadingManifestItem(manifestItem)) {
+                if (manifestItem != null && isSpineContentItem(manifestItem)) {
                     EpubPathResolver.resolveZipEntryKey(opfDir, manifestItem.href, availableEntriesLower)
                 } else {
                     null
@@ -58,12 +63,14 @@ internal object EpubChapterOrdering {
                     paths = spineChapterPaths,
                     source = ChapterOrderSource.SPINE,
                     unresolvedSpineCount = unresolvedSpineCount,
+                    resolvedSpinePaths = spineChapterPaths.toSet(),
                 )
             }
             return ChapterOrderResolution(
                 paths = appendUniquePaths(spineChapterPaths, manifestChapterPaths),
                 source = ChapterOrderSource.SPINE_PLUS_MANIFEST,
                 unresolvedSpineCount = unresolvedSpineCount,
+                resolvedSpinePaths = spineChapterPaths.toSet(),
             )
         }
         if (manifestChapterPaths.isNotEmpty()) {
@@ -132,6 +139,9 @@ internal object EpubChapterOrdering {
         if (!isContentDocument(item.mediaType, item.href)) return false
         return !item.properties.contains("nav")
     }
+
+    fun isSpineContentItem(item: ManifestItem): Boolean =
+        isContentDocument(item.mediaType, item.href)
 
     fun isLikelyNavigationHtmlPath(pathLower: String): Boolean {
         val normalized = pathLower.lowercase(Locale.ROOT)

@@ -29,7 +29,7 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
     }
 
     @Test
-    fun buildFallbackChaptersRemovesLeadingDuplicateTitleHeading() {
+    fun buildFallbackChaptersPreservesAuthoredChapterHeading() {
         val entries =
             linkedMapOf(
                 "oebps/chapter1.xhtml" to
@@ -48,12 +48,12 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
         val chapter = parsedChapter(invokeBuildFallbackChapters(entries, emptyMap()).single())
 
         assertEquals("Chapter 1", chapter.title)
-        assertEquals("Opening line.", chapter.plainText)
-        assertFalse(chapter.htmlContent.contains("Chapter 1"))
+        assertEquals("Chapter 1\n\nOpening line.", chapter.plainText)
+        assertTrue(chapter.htmlContent.contains("Chapter 1"))
     }
 
     @Test
-    fun buildFallbackChaptersRemovesMetadataTitleRepeatedInBody() {
+    fun buildFallbackChaptersPreservesHeadingThatMatchesMetadataTitle() {
         val entries =
             linkedMapOf(
                 "oebps/preface.xhtml" to
@@ -71,8 +71,8 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
         val chapter = parsedChapter(invokeBuildFallbackChapters(entries, emptyMap()).single())
 
         assertEquals("Preface", chapter.title)
-        assertEquals("Before the story.", chapter.plainText)
-        assertFalse(chapter.htmlContent.contains("Preface</h2>"))
+        assertEquals("Preface\n\nBefore the story.", chapter.plainText)
+        assertTrue(chapter.htmlContent.contains("Preface</h2>"))
     }
 
     @Test
