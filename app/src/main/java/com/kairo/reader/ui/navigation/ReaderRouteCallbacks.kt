@@ -9,6 +9,7 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.TableOfContentsTarget
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.nearestWordIndex
@@ -33,6 +34,7 @@ internal data class ReaderRouteCallbacks(
     val onStartTimedReading: (TimedReadingMode, Int) -> Unit,
     val onSelectTimedReadingMode: (TimedReadingMode, Int) -> Unit,
     val onChapterChange: (Int, Int?) -> Unit,
+    val onTableOfContentsTargetSelected: (TableOfContentsTarget) -> Unit,
     val onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
 )
 
@@ -168,6 +170,7 @@ internal fun buildReaderRouteCallbacks(
         onChapterChange = { newIndex, focusIndex ->
             dependencies.readerViewModel.loadChapter(newIndex, focusIndex)
         },
+        onTableOfContentsTargetSelected = dependencies.readerViewModel::loadTableOfContentsTarget,
         onViewportMetricsChanged = { resolvedFontSizeSp, viewportHeightDp ->
             dependencies.readerViewModel.updatePaginationMetrics(
                 resolvedFontSizeSp,

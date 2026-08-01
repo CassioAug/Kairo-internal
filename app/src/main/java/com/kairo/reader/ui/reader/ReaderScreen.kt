@@ -51,6 +51,7 @@ import androidx.core.text.TextUtilsCompat
 import com.kairo.reader.core.language.BookLanguageResolver
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.ReaderTheme
+import com.kairo.reader.core.model.TableOfContentsTarget
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
@@ -107,6 +108,7 @@ fun ReaderScreen(
     onStartTimedReading: (TimedReadingMode, Int) -> Unit,
     onSelectTimedReadingMode: (TimedReadingMode, Int) -> Unit,
     onChapterChange: (Int, Int?) -> Unit,
+    onTableOfContentsTargetSelected: (TableOfContentsTarget) -> Unit,
     onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
     tutorialState: StartingTutorialOverlayState? = null,
     onTutorialNext: () -> Unit = {},
@@ -126,6 +128,20 @@ fun ReaderScreen(
             coverImage = coverImage,
             chapterData = uiState.chapterData,
         )
+    val activeTableOfContentsEntry =
+        remember(
+            book.tableOfContents,
+            chapterIndex,
+            focusIndex,
+            uiState.chapterData,
+        ) {
+            resolveActiveTableOfContentsEntry(
+                entries = book.tableOfContents,
+                chapterIndex = chapterIndex,
+                focusIndex = focusIndex,
+                chapterData = uiState.chapterData,
+            )
+        }
     val contentLayoutDirection =
         remember(book) {
             val languageTag = BookLanguageResolver.resolve(book)
@@ -291,6 +307,7 @@ fun ReaderScreen(
                     book = book,
                     chapterIndex = chapterIndex,
                     chapterTitle = sanitizeChapterTitleForDisplay(chapter?.title),
+                    tableOfContentsLabel = activeTableOfContentsEntry?.label,
                     coverImage = coverImage,
                     canGoPrev = navigationState.canGoPrevPage,
                     canGoNext = navigationState.canGoNextPage,
@@ -397,9 +414,10 @@ fun ReaderScreen(
             ChapterListOverlay(
                 book = book,
                 currentChapterIndex = chapterIndex,
+                currentTableOfContentsEntry = activeTableOfContentsEntry,
                 onDismiss = { showChapterList.value = false },
-                onChapterSelected = { index ->
-                    onChapterChange(index, 0)
+                onTargetSelected = { target ->
+                    onTableOfContentsTargetSelected(target)
                     showChapterList.value = false
                 },
             )

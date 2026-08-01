@@ -29,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -37,13 +36,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
+import com.kairo.reader.core.model.TableOfContentsEntry
+import com.kairo.reader.core.model.TableOfContentsTarget
 
 @Composable
 internal fun ChapterListOverlay(
     book: Book,
     currentChapterIndex: Int,
+    currentTableOfContentsEntry: TableOfContentsEntry?,
     onDismiss: () -> Unit,
-    onChapterSelected: (Int) -> Unit,
+    onTargetSelected: (TableOfContentsTarget) -> Unit,
 ) {
     Box(
         modifier =
@@ -80,8 +82,9 @@ internal fun ChapterListOverlay(
                 ChapterListSheet(
                     book = book,
                     currentChapterIndex = currentChapterIndex,
+                    currentTableOfContentsEntry = currentTableOfContentsEntry,
                     onDismiss = onDismiss,
-                    onChapterSelected = onChapterSelected,
+                    onTargetSelected = onTargetSelected,
                 )
             }
         }
@@ -96,9 +99,23 @@ internal fun ChapterListOverlay(
 internal fun ChapterListSheet(
     book: Book,
     currentChapterIndex: Int,
+    currentTableOfContentsEntry: TableOfContentsEntry?,
     onDismiss: () -> Unit,
-    onChapterSelected: (Int) -> Unit,
+    onTargetSelected: (TableOfContentsTarget) -> Unit,
 ) {
+    val hasAuthoredTableOfContents = book.tableOfContents.isNotEmpty()
+    val entries =
+        book.tableOfContents.ifEmpty {
+            book.chapters.mapIndexed { index, chapter ->
+                TableOfContentsEntry(
+                    label =
+                        sanitizeChapterTitleForDisplay(chapter.title)
+                            .orEmpty(),
+                    depth = 0,
+                    target = TableOfContentsTarget(chapterIndex = index),
+                )
+            }
+        }
     Column(
         modifier =
         Modifier
@@ -134,83 +151,63 @@ internal fun ChapterListSheet(
                 .weight(1f),
         ) {
             itemsIndexed(
-                items = book.chapters,
+                items = entries,
                 key = { index, _ -> index },
-            ) { index, chapter ->
-                val isCurrentChapter = index == currentChapterIndex
+            ) { index, entry ->
+                val target = entry.target
+                val isCurrentChapter =
+                    if (hasAuthoredTableOfContents) {
+                        entry === currentTableOfContentsEntry
+                    } else {
+                        target?.chapterIndex == currentChapterIndex
+                    }
 
                 Row(
                     modifier =
                     Modifier
                         .fillMaxWidth()
-                        .clickable { onChapterSelected(index) }
+                        .clickable(enabled = target != null) {
+                            target?.let(onTargetSelected)
+                        }
                         .background(
                             if (isCurrentChapter) {
                                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                             } else {
                                 MaterialTheme.colorScheme.surface
                             },
-                        ).padding(horizontal = 16.dp, vertical = 14.dp),
+                        ).padding(
+                            start = 16.dp + (entry.depth.coerceAtMost(MAX_TOC_INDENT_DEPTH) * 16).dp,
+                            end = 16.dp,
+                            top = 14.dp,
+                            bottom = 14.dp,
+                        ),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        val displayTitle = sanitizeChapterTitleForDisplay(chapter.title)
                         Text(
                             text =
-                            displayTitle
-                                ?: stringResource(
-                                    R.string.reader_chapter_title,
-                                    index + 1,
-                                ),
+                                entry.label.ifBlank {
+                                    stringResource(
+                                        R.string.reader_chapter_title,
+                                        (target?.chapterIndex ?: index) + 1,
+                                    )
+                                },
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = if (isCurrentChapter) FontWeight.Bold else FontWeight.Normal,
                             color =
-                            if (isCurrentChapter) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
+                            when {
+                                isCurrentChapter -> MaterialTheme.colorScheme.primary
+                                target == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                                else -> MaterialTheme.colorScheme.onSurface
                             },
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        // Use pre-computed word count from Chapter model
-                        // If not available, show nothing rather than computing on-the-fly
-                        // chapter.wordCount?.let { count ->
-                        //     Text(
-                        //         text = "$count words",
-                        //         style = MaterialTheme.typography.bodySmall,
-                        //         color = MaterialTheme.colorScheme.onSurfaceVariant
-                        //     )
-                        // }
-                    }
-
-                    Box(
-                        modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                if (isCurrentChapter) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                },
-                            ).padding(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            text = "${index + 1}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color =
-                            if (isCurrentChapter) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
                     }
                 }
 
-                if (index < book.chapters.lastIndex) {
+                if (index < entries.lastIndex) {
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
@@ -220,3 +217,5 @@ internal fun ChapterListSheet(
         }
     }
 }
+
+private const val MAX_TOC_INDENT_DEPTH = 6

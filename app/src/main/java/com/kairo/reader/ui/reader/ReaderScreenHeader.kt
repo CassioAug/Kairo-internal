@@ -46,6 +46,7 @@ internal data class ReaderHeaderState(
     val book: Book,
     val chapterIndex: Int,
     val chapterTitle: String?,
+    val tableOfContentsLabel: String?,
     val coverImage: ByteArray?,
     val canGoPrev: Boolean,
     val canGoNext: Boolean,
@@ -82,11 +83,12 @@ internal fun ReaderHeader(
         ReaderHeaderTopRow(state, actions)
         AnimatedVisibility(visible = state.detailsExpanded) {
             val chapterProgressLabel =
-                stringResource(
-                    R.string.reader_chapter_of_total,
-                    chapterProgress.currentNumber,
-                    chapterProgress.totalNumber,
-                )
+                state.tableOfContentsLabel
+                    ?: stringResource(
+                        R.string.reader_chapter_of_total,
+                        chapterProgress.currentNumber,
+                        chapterProgress.totalNumber,
+                    )
             if (state.landscapeCompact) {
                 ReaderHeaderDetailsCompact(
                     chapterProgressLabel = chapterProgressLabel,
@@ -132,7 +134,10 @@ private fun ReaderHeaderTopRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = state.chapterTitle ?: stringResource(R.string.reader_chapter_title, state.chapterIndex + 1),
+                text =
+                    state.tableOfContentsLabel
+                        ?: state.chapterTitle
+                        ?: stringResource(R.string.reader_chapter_title, state.chapterIndex + 1),
                 style = if (state.landscapeCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
