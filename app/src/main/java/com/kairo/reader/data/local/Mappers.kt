@@ -46,19 +46,30 @@ fun Chapter.toEntity(bookId: BookId): ChapterEntity =
 fun BookEntity.toDomain(
     chapters: List<ChapterEntity>,
     tableOfContentsEntries: List<TableOfContentsEntryEntity> = emptyList(),
-): Book =
-    Book(
+): Book {
+    val sortedChapters = chapters.sortedBy { it.index }
+    val tableOfContents =
+        tableOfContentsEntries
+            .sortedBy { it.entryIndex }
+            .map { it.toDomain() }
+            .ifEmpty { sortedChapters.map(ChapterEntity::toLegacyTableOfContentsEntry) }
+    return Book(
         id = BookId(id),
         title = title,
         authors = authors,
         languageTag = languageTag,
         coverImage = coverImage,
         isCompleted = isCompleted,
-        chapters = chapters.sortedBy { it.index }.map { it.toDomain() },
-        tableOfContents =
-            tableOfContentsEntries
-                .sortedBy { it.entryIndex }
-                .map { it.toDomain() },
+        chapters = sortedChapters.map { it.toDomain() },
+        tableOfContents = tableOfContents,
+    )
+}
+
+private fun ChapterEntity.toLegacyTableOfContentsEntry(): TableOfContentsEntry =
+    TableOfContentsEntry(
+        label = title.orEmpty(),
+        depth = 0,
+        target = TableOfContentsTarget(chapterIndex = index),
     )
 
 fun TableOfContentsEntry.toEntity(

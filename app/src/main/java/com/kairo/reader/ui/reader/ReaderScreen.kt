@@ -307,7 +307,7 @@ fun ReaderScreen(
                     book = book,
                     chapterIndex = chapterIndex,
                     chapterTitle = sanitizeChapterTitleForDisplay(chapter?.title),
-                    tableOfContentsLabel = activeTableOfContentsEntry?.label,
+                    tableOfContentsLabel = activeTableOfContentsEntry?.label?.takeIf(String::isNotBlank),
                     coverImage = coverImage,
                     canGoPrev = navigationState.canGoPrevPage,
                     canGoNext = navigationState.canGoNextPage,
