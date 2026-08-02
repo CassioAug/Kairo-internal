@@ -76,6 +76,7 @@ internal data class ReaderContentState(
     val fontSizeSp: Float,
     val textBrightness: Float,
     val timedReadingMode: TimedReadingMode,
+    val nonInteractiveChapterLinkTargets: Set<Int>,
     val invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,
 )
 
@@ -259,6 +260,7 @@ private fun LazyListScope.readerBlockItems(
                     onFocusChange = actions.onSafeFocusChange,
                     onStartTimedReading = actions.onStartTimedReadingForToken,
                     onChapterSelected = actions.onChapterSelected,
+                    nonInteractiveChapterLinkTargets = state.nonInteractiveChapterLinkTargets,
                 )
             is ReaderImageBlock ->
                 InlineImageBlock(

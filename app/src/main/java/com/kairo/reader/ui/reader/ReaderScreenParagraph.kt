@@ -45,6 +45,7 @@ internal fun ParagraphText(
     onFocusChange: (Int) -> Unit,
     onStartTimedReading: (Int) -> Unit,
     onChapterSelected: ((Int) -> Unit)? = null,
+    nonInteractiveChapterLinkTargets: Set<Int> = emptySet(),
 ) {
     val baseStyle =
         TextStyle(
@@ -97,6 +98,7 @@ internal fun ParagraphText(
             focusStyle,
             linkStyle,
             paragraphIndent,
+            nonInteractiveChapterLinkTargets,
         ) {
             buildAnnotatedString {
                 paragraph.tokens.forEachIndexed { localIndex, token ->
@@ -125,10 +127,15 @@ internal fun ParagraphText(
                     )
 
                     // Add link annotation if token has a link
-                    if (token.linkChapterIndex != null) {
+                    val interactiveChapterLinkTarget =
+                        resolveInteractiveChapterLinkTarget(
+                            token = token,
+                            nonInteractiveTargets = nonInteractiveChapterLinkTargets,
+                        )
+                    if (interactiveChapterLinkTarget != null) {
                         addStringAnnotation(
                             tag = "chapterLink",
-                            annotation = token.linkChapterIndex.toString(),
+                            annotation = interactiveChapterLinkTarget.toString(),
                             start = start,
                             end = end
                         )

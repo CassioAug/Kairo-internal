@@ -142,6 +142,10 @@ fun ReaderScreen(
                 chapterData = uiState.chapterData,
             )
         }
+    val nonInteractiveChapterLinkTargets =
+        remember(book) {
+            resolveNonInteractiveChapterLinkTargets(book)
+        }
     val contentLayoutDirection =
         remember(book) {
             val languageTag = BookLanguageResolver.resolve(book)
@@ -382,6 +386,7 @@ fun ReaderScreen(
                         fontSizeSp = fontSizeSp,
                         textBrightness = textBrightness,
                         timedReadingMode = effectiveTimedReadingMode,
+                        nonInteractiveChapterLinkTargets = nonInteractiveChapterLinkTargets,
                         invertedScrollCommands = listStateHolder.invertedScrollCommands,
                     ),
                     actions =
