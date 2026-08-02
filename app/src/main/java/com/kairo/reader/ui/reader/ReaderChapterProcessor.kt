@@ -18,6 +18,7 @@ class ReaderChapterProcessor {
         val wordCountByToken = buildWordCountByToken(tokens)
         return ChapterData(
             tokens = tokens,
+            plainText = chapter.plainText,
             paragraphs = paragraphs,
             blocks =
             buildReaderBlocks(

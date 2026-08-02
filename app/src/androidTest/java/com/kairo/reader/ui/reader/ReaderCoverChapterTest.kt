@@ -70,6 +70,7 @@ class ReaderCoverChapterTest {
                     onStartTimedReading = { _, _ -> },
                     onSelectTimedReadingMode = { _, _ -> },
                     onChapterChange = { _, _ -> },
+                    onTableOfContentsTargetSelected = {},
                     onViewportMetricsChanged = { _, _ -> },
                 )
             }

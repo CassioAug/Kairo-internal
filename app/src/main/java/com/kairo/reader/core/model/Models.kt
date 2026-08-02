@@ -10,6 +10,7 @@ data class Book(
     val authors: List<String>,
     val languageTag: String? = null,
     val chapters: List<Chapter>,
+    val tableOfContents: List<TableOfContentsEntry> = emptyList(),
     val coverImage: ByteArray? = null,
     val isCompleted: Boolean = false,
 ) {
@@ -22,6 +23,7 @@ data class Book(
         if (authors != other.authors) return false
         if (languageTag != other.languageTag) return false
         if (chapters != other.chapters) return false
+        if (tableOfContents != other.tableOfContents) return false
         if (isCompleted != other.isCompleted) return false
         if (coverImage != null) {
             if (other.coverImage == null) return false
@@ -39,11 +41,23 @@ data class Book(
         result = 31 * result + authors.hashCode()
         result = 31 * result + (languageTag?.hashCode() ?: 0)
         result = 31 * result + chapters.hashCode()
+        result = 31 * result + tableOfContents.hashCode()
         result = 31 * result + (coverImage?.contentHashCode() ?: 0)
         result = 31 * result + isCompleted.hashCode()
         return result
     }
 }
+
+data class TableOfContentsTarget(
+    val chapterIndex: Int,
+    val characterOffset: Int = 0,
+)
+
+data class TableOfContentsEntry(
+    val label: String,
+    val depth: Int,
+    val target: TableOfContentsTarget?,
+)
 
 /**
  * Represents an internal link within chapter content.

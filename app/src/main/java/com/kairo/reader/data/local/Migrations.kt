@@ -105,3 +105,26 @@ val MIGRATION_9_10 =
             )
         }
     }
+
+val MIGRATION_10_11 =
+    object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS table_of_contents_entries (
+                    bookId TEXT NOT NULL,
+                    entryIndex INTEGER NOT NULL,
+                    label TEXT NOT NULL,
+                    depth INTEGER NOT NULL,
+                    chapterIndex INTEGER,
+                    characterOffset INTEGER,
+                    PRIMARY KEY(bookId, entryIndex)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_table_of_contents_entries_bookId " +
+                    "ON table_of_contents_entries(bookId)",
+            )
+        }
+    }

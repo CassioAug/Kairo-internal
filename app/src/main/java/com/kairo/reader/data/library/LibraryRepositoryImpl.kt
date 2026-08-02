@@ -54,6 +54,7 @@ class LibraryRepositoryImpl(
                 positionDao.deleteForBook(bookId)
                 bookmarkDao.deleteForBook(bookId)
                 bookDao.deleteChaptersForBook(bookId)
+                bookDao.deleteTableOfContentsForBook(bookId)
                 bookDao.deleteBook(bookId)
             }
             deleteBookAssets(bookId)

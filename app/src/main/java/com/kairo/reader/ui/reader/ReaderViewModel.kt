@@ -7,6 +7,7 @@ import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.Token
+import com.kairo.reader.core.model.TableOfContentsTarget
 import com.kairo.reader.core.model.countWords
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.data.books.BookRepository
@@ -49,6 +50,7 @@ class ReaderViewModel(
     // Pending focus index to apply after chapter loads (thread-safe for cross-coroutine access)
     private val pendingFocusIndex = AtomicReference<Int?>(null)
     private val pendingPageIndex = AtomicReference<Int?>(null)
+    private val pendingCharacterOffset = AtomicReference<Int?>(null)
     private val wordsPerPageTarget = AtomicReference(DEFAULT_WORDS_PER_PAGE)
 
     /**
@@ -125,6 +127,7 @@ class ReaderViewModel(
         chapterIndex: Int,
         initialFocusIndex: Int? = null,
         initialPageIndex: Int? = null,
+        initialCharacterOffset: Int? = null,
     ) {
         val book = currentBook.get() ?: return
 
@@ -132,7 +135,11 @@ class ReaderViewModel(
         val requestId = chapterLoadSequence.incrementAndGet()
         val requestedBookId = book.id
 
-        if (initialFocusIndex != null) {
+        pendingCharacterOffset.set(initialCharacterOffset)
+        if (initialCharacterOffset != null) {
+            pendingFocusIndex.set(null)
+            pendingPageIndex.set(null)
+        } else if (initialFocusIndex != null) {
             pendingFocusIndex.set(initialFocusIndex)
         }
         when {
@@ -146,7 +153,14 @@ class ReaderViewModel(
             // Use pending focus if set, otherwise use first word
             val pageIdx = pendingPageIndex.getAndSet(null)
             val focusIdx =
-                pendingFocusIndex.getAndSet(null)?.let { cached.tokens.nearestWordIndex(it) }
+                pendingCharacterOffset.getAndSet(null)?.let { characterOffset ->
+                    ReaderTextPositionResolver.resolveTokenIndex(
+                        plainText = cached.plainText,
+                        tokens = cached.tokens,
+                        characterOffset = characterOffset,
+                    )
+                }
+                    ?: pendingFocusIndex.getAndSet(null)?.let { cached.tokens.nearestWordIndex(it) }
                     ?: cached.firstWordIndex.coerceAtLeast(0)
 
             _uiState.update {
@@ -203,11 +217,19 @@ class ReaderViewModel(
                 // Use pending focus if set, otherwise use first word
                 val focusIdx =
                     if (result != null) {
-                        pendingFocusIndex.getAndSet(null)?.let { result.tokens.nearestWordIndex(it) }
+                        pendingCharacterOffset.getAndSet(null)?.let { characterOffset ->
+                            ReaderTextPositionResolver.resolveTokenIndex(
+                                plainText = result.plainText,
+                                tokens = result.tokens,
+                                characterOffset = characterOffset,
+                            )
+                        }
+                            ?: pendingFocusIndex.getAndSet(null)?.let { result.tokens.nearestWordIndex(it) }
                             ?: result.firstWordIndex.coerceAtLeast(0)
                     } else {
                         pendingFocusIndex.set(null)
                         pendingPageIndex.set(null)
+                        pendingCharacterOffset.set(null)
                         0
                     }
                 val pageIdx = if (result != null) pendingPageIndex.getAndSet(null) else null
@@ -226,6 +248,13 @@ class ReaderViewModel(
                 preloadAdjacentChapters(chapterIndex)
             }
         }
+    }
+
+    fun loadTableOfContentsTarget(target: TableOfContentsTarget) {
+        loadChapter(
+            chapterIndex = target.chapterIndex,
+            initialCharacterOffset = target.characterOffset,
+        )
     }
 
     /**

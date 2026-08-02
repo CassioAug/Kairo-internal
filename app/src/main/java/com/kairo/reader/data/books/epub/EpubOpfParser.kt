@@ -58,6 +58,11 @@ internal class EpubOpfParser {
         }
 
         val spineItems = extractSpineItemsLenient(xml)
+        val navigationHref =
+            resolveNavigationHref(
+                manifestItems = manifestItems,
+                spineTocId = extractSpineTocIdLenient(xml),
+            )
         val resolvedSpine =
             when {
                 spineItems.isNotEmpty() -> spineItems
@@ -65,7 +70,16 @@ internal class EpubOpfParser {
                 else -> emptyList()
             }
 
-        return OpfData(title, authors, languageTag, coverHref, manifest, manifestItems, resolvedSpine)
+        return OpfData(
+            title = title,
+            authors = authors,
+            languageTag = languageTag,
+            coverHref = coverHref,
+            manifest = manifest,
+            manifestItems = manifestItems,
+            spineItems = resolvedSpine,
+            navigationHref = navigationHref,
+        )
     }
 
     private fun parseStrict(xml: String): OpfData {
@@ -88,6 +102,11 @@ internal class EpubOpfParser {
         val coverId = extractStrictCoverId(metadataElement, doc)
         val manifestData = extractStrictManifest(packageElement, doc, coverId)
         val spineItems = extractStrictSpine(packageElement, doc)
+        val navigationHref =
+            resolveNavigationHref(
+                manifestItems = manifestData.items,
+                spineTocId = extractStrictSpineTocId(packageElement, doc),
+            )
 
         val resolvedSpine =
             spineItems.ifEmpty {
@@ -101,7 +120,23 @@ internal class EpubOpfParser {
             manifestData.hrefById,
             manifestData.items,
             resolvedSpine,
+            navigationHref,
         )
+    }
+
+    private fun extractStrictSpineTocId(
+        packageElement: Element?,
+        doc: Document,
+    ): String? {
+        val spine =
+            packageElement?.let { EpubXmlUtils.findDirectChildByLocalName(it, "spine") }
+                ?: EpubXmlUtils.findElementsByLocalName(doc, "spine").firstOrNull()
+        return spine
+            ?.attributes
+            ?.getNamedItem("toc")
+            ?.nodeValue
+            ?.let(EpubPathResolver::normalizeIdRef)
+            ?.takeIf(String::isNotBlank)
     }
 
     private fun extractStrictCoverId(
@@ -202,7 +237,10 @@ internal class EpubOpfParser {
                     .takeIf(String::isNotBlank)
                     ?: return@mapNotNull null
             val linear = itemref.attributes.getNamedItem("linear")?.nodeValue
-            SpineItem(idref).takeUnless { linear.equals("no", ignoreCase = true) }
+            SpineItem(
+                idref = idref,
+                isLinear = !linear.equals("no", ignoreCase = true),
+            )
         }
     }
 
@@ -271,12 +309,43 @@ internal class EpubOpfParser {
                         .takeIf { it.isNotBlank() }
                         ?: return@forEach
                 val linear = attrs["linear"]
-                if (!linear.equals("no", ignoreCase = true)) {
-                    spineItems.add(SpineItem(idref))
-                }
+                spineItems.add(
+                    SpineItem(
+                        idref = idref,
+                        isLinear = !linear.equals("no", ignoreCase = true),
+                    ),
+                )
             }
         }
         return spineItems
+    }
+
+    private fun extractSpineTocIdLenient(xml: String): String? {
+        val spineTag =
+            Regex("(?is)<(?:[A-Za-z0-9_.-]+:)?spine\\b[^>]*>")
+                .find(xml)
+                ?.value
+                ?: return null
+        return parseTagAttributes(spineTag)["toc"]
+            ?.let(EpubPathResolver::normalizeIdRef)
+            ?.takeIf(String::isNotBlank)
+    }
+
+    private fun resolveNavigationHref(
+        manifestItems: List<ManifestItem>,
+        spineTocId: String?,
+    ): String? {
+        manifestItems.firstOrNull { it.properties.contains("nav") }?.let { return it.href }
+        if (!spineTocId.isNullOrBlank()) {
+            manifestItems
+                .firstOrNull { it.id.equals(spineTocId, ignoreCase = true) }
+                ?.let { return it.href }
+        }
+        return manifestItems
+            .firstOrNull { item ->
+                item.mediaType.equals(NCX_MEDIA_TYPE, ignoreCase = true) ||
+                    item.href.endsWith(".ncx", ignoreCase = true)
+            }?.href
     }
 
     private fun extractXmlSectionBodiesLenient(
@@ -387,3 +456,4 @@ internal class EpubOpfParser {
 }
 
 private const val ATTRIBUTE_VALUE_GROUP = 3
+private const val NCX_MEDIA_TYPE = "application/x-dtbncx+xml"

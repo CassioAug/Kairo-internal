@@ -55,17 +55,27 @@ class BookRepositoryImpl(
                     importSource.sourceFingerprint?.let { fingerprint ->
                         ImportFingerprint.withSourceExtension(fingerprint, extension)
                     }
-                sourceFingerprint
-                    ?.let { fingerprint -> bookDao.getBookByImportFingerprint(fingerprint) }
-                    ?.let { existing ->
-                        return@withLock BookImportResult(
-                            book = existing.toDomain(bookDao.getChapters(existing.id)),
-                            alreadyImported = true,
-                        )
+                val existingByFingerprint =
+                    sourceFingerprint?.let { fingerprint ->
+                        bookDao.getBookByImportFingerprint(fingerprint)
                     }
+                if (existingByFingerprint != null &&
+                    !shouldRefreshEpubNavigation(existingByFingerprint.id, extension)
+                ) {
+                    val existing = existingByFingerprint
+                    return@withLock BookImportResult(
+                        book =
+                            existing.toDomain(
+                                chapters = bookDao.getChapters(existing.id),
+                                tableOfContentsEntries = bookDao.getTableOfContentsEntries(existing.id),
+                            ),
+                        alreadyImported = true,
+                    )
+                }
 
                 val bookId =
-                    sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
+                    existingByFingerprint?.id?.let(::BookId)
+                        ?: sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
                         ?: BookId(UUID.randomUUID().toString())
                 var importCompleted = false
                 try {
@@ -80,7 +90,7 @@ class BookRepositoryImpl(
                     importCompleted = true
                     return@withLock result
                 } finally {
-                    if (!importCompleted) {
+                    if (!importCompleted && existingByFingerprint == null) {
                         deleteBookAssets(bookId.value)
                     }
                 }
@@ -88,6 +98,13 @@ class BookRepositoryImpl(
                 importSource.deleteTempFile()
             }
         }
+
+    private suspend fun shouldRefreshEpubNavigation(
+        bookId: String,
+        extension: String,
+    ): Boolean =
+        extension in BookImportFormats.epub.extensions &&
+            bookDao.getTableOfContentsEntries(bookId).isEmpty()
 
     private fun findParserMatch(extensionCandidates: List<String>): Pair<BookParser, String>? =
         extensionCandidates.firstNotNullOfOrNull { extension ->
@@ -101,7 +118,11 @@ class BookRepositoryImpl(
             val sourceFingerprint = ImportFingerprint.webUrlFingerprint(normalizedUrl)
             bookDao.getBookByImportFingerprint(sourceFingerprint)?.let { existing ->
                 return@withLock BookImportResult(
-                    book = existing.toDomain(bookDao.getChapters(existing.id)),
+                    book =
+                        existing.toDomain(
+                            chapters = bookDao.getChapters(existing.id),
+                            tableOfContentsEntries = bookDao.getTableOfContentsEntries(existing.id),
+                        ),
                     alreadyImported = true,
                 )
             }
@@ -117,7 +138,11 @@ class BookRepositoryImpl(
             val sourceFingerprint = ImportFingerprint.textFingerprint(parsedText.plainText)
             bookDao.getBookByImportFingerprint(sourceFingerprint)?.let { existing ->
                 return@withLock BookImportResult(
-                    book = existing.toDomain(bookDao.getChapters(existing.id)),
+                    book =
+                        existing.toDomain(
+                            chapters = bookDao.getChapters(existing.id),
+                            tableOfContentsEntries = bookDao.getTableOfContentsEntries(existing.id),
+                        ),
                     alreadyImported = true,
                 )
             }
@@ -229,7 +254,11 @@ class BookRepositoryImpl(
             val candidateChapters = bookDao.getChaptersWithContent(candidate.id)
             if (candidateChapters.size != parsedBook.chapters.size) return@forEach
 
-            val candidateBook = candidate.toDomain(candidateChapters)
+            val candidateBook =
+                candidate.toDomain(
+                    chapters = candidateChapters,
+                    tableOfContentsEntries = bookDao.getTableOfContentsEntries(candidate.id),
+                )
             val contentFingerprint =
                 parsedFingerprint ?: ImportFingerprint.contentFingerprint(parsedBook).also {
                     parsedFingerprint = it
@@ -282,6 +311,7 @@ class BookRepositoryImpl(
         bookDao.insertBook(
             book.toEntity(importFingerprint = sourceFingerprint),
             book.chapters.map { it.toEntity(book.id) },
+            book.tableOfContents.mapIndexed { index, entry -> entry.toEntity(book.id, index) },
         )
         return BookImportResult(
             book = book,
@@ -352,7 +382,8 @@ class BookRepositoryImpl(
     override suspend fun getBook(bookId: BookId): Book {
         val bookEntity = requireNotNull(bookDao.getBook(bookId.value)) { "Book not found" }
         val chapters = bookDao.getChaptersWithContent(bookId.value)
-        return bookEntity.toDomain(chapters)
+        val tableOfContentsEntries = bookDao.getTableOfContentsEntries(bookId.value)
+        return bookEntity.toDomain(chapters, tableOfContentsEntries)
     }
 
     override suspend fun getChapter(
@@ -377,11 +408,17 @@ class BookRepositoryImpl(
         bookDao.getBookLanguageTag(bookId.value)
 
     override fun observeBooks(): Flow<List<Book>> =
-        bookDao.getBooks().combine(bookDao.getChapterSummaries()) { entities, chapters ->
+        combine(
+            bookDao.getBooks(),
+            bookDao.getChapterSummaries(),
+            bookDao.getTableOfContentsEntries(),
+        ) { entities, chapters, tableOfContentsEntries ->
             val chaptersByBookId = chapters.groupBy { it.bookId }
+            val tableOfContentsByBookId = tableOfContentsEntries.groupBy { it.bookId }
             entities.map { bookEntity ->
                 val chapters = chaptersByBookId[bookEntity.id].orEmpty()
-                bookEntity.toDomain(chapters)
+                val tableOfContents = tableOfContentsByBookId[bookEntity.id].orEmpty()
+                bookEntity.toDomain(chapters, tableOfContents)
             }
         }.flowOn(dispatcherProvider.default)
 

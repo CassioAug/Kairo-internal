@@ -222,6 +222,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
             onStartTimedReading = readerCallbacks.onStartTimedReading,
             onSelectTimedReadingMode = readerCallbacks.onSelectTimedReadingMode,
             onChapterChange = readerCallbacks.onChapterChange,
+            onTableOfContentsTargetSelected = readerCallbacks.onTableOfContentsTargetSelected,
             onViewportMetricsChanged = readerCallbacks.onViewportMetricsChanged,
             tutorialState = tutorialState,
             onTutorialNext = onTutorialNext,

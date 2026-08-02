@@ -5,6 +5,8 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.BookmarkItem
 import com.kairo.reader.core.model.Chapter
+import com.kairo.reader.core.model.TableOfContentsEntry
+import com.kairo.reader.core.model.TableOfContentsTarget
 
 private const val IMAGE_PATHS_DELIMITER = "|||"
 
@@ -41,15 +43,59 @@ fun Chapter.toEntity(bookId: BookId): ChapterEntity =
         wordCount = wordCount,
     )
 
-fun BookEntity.toDomain(chapters: List<ChapterEntity>): Book =
-    Book(
+fun BookEntity.toDomain(
+    chapters: List<ChapterEntity>,
+    tableOfContentsEntries: List<TableOfContentsEntryEntity> = emptyList(),
+): Book {
+    val sortedChapters = chapters.sortedBy { it.index }
+    val tableOfContents =
+        tableOfContentsEntries
+            .sortedBy { it.entryIndex }
+            .map { it.toDomain() }
+            .ifEmpty { sortedChapters.map(ChapterEntity::toLegacyTableOfContentsEntry) }
+    return Book(
         id = BookId(id),
         title = title,
         authors = authors,
         languageTag = languageTag,
         coverImage = coverImage,
         isCompleted = isCompleted,
-        chapters = chapters.sortedBy { it.index }.map { it.toDomain() },
+        chapters = sortedChapters.map { it.toDomain() },
+        tableOfContents = tableOfContents,
+    )
+}
+
+private fun ChapterEntity.toLegacyTableOfContentsEntry(): TableOfContentsEntry =
+    TableOfContentsEntry(
+        label = title.orEmpty(),
+        depth = 0,
+        target = TableOfContentsTarget(chapterIndex = index),
+    )
+
+fun TableOfContentsEntry.toEntity(
+    bookId: BookId,
+    entryIndex: Int,
+): TableOfContentsEntryEntity =
+    TableOfContentsEntryEntity(
+        bookId = bookId.value,
+        entryIndex = entryIndex,
+        label = label,
+        depth = depth,
+        chapterIndex = target?.chapterIndex,
+        characterOffset = target?.characterOffset,
+    )
+
+fun TableOfContentsEntryEntity.toDomain(): TableOfContentsEntry =
+    TableOfContentsEntry(
+        label = label,
+        depth = depth,
+        target =
+            chapterIndex?.let { resolvedChapterIndex ->
+                TableOfContentsTarget(
+                    chapterIndex = resolvedChapterIndex,
+                    characterOffset = characterOffset ?: 0,
+                )
+            },
     )
 
 fun ChapterEntity.toDomain(): Chapter =

@@ -405,7 +405,7 @@ internal class EpubPackageTest : EpubParserTestBase() {
     }
 
     @Test
-    fun resolveChapterPathsForReadingOrderSkipsNavDocuments() {
+    fun resolveChapterPathsForReadingOrderKeepsLinearNavDocuments() {
         val xml =
             """
             <package xmlns="http://www.idpf.org/2007/opf">
@@ -440,6 +440,7 @@ internal class EpubPackageTest : EpubParserTestBase() {
 
         assertEquals(
             listOf(
+                "oebps/nav.xhtml",
                 "oebps/text/ch1.xhtml",
                 "oebps/text/ch2.xhtml",
             ),

@@ -62,6 +62,20 @@ data class ChapterEntity(
     val wordCount: Int = 0,
 )
 
+@Entity(
+    tableName = "table_of_contents_entries",
+    primaryKeys = ["bookId", "entryIndex"],
+    indices = [Index(value = ["bookId"])],
+)
+data class TableOfContentsEntryEntity(
+    val bookId: String,
+    val entryIndex: Int,
+    val label: String,
+    val depth: Int,
+    val chapterIndex: Int?,
+    val characterOffset: Int?,
+)
+
 @Entity(tableName = "reading_positions")
 data class ReadingPositionEntity(
     @PrimaryKey val bookId: String,

@@ -58,6 +58,14 @@ internal object ImportFingerprint {
                 digest.updateValue(normalizeMetadata(chapter.title.orEmpty()))
                 digest.updateValue(normalizeContent(chapter.plainText))
             }
+        digest.updateValue(book.tableOfContents.size.toString())
+        book.tableOfContents.forEachIndexed { index, entry ->
+            digest.updateValue(index.toString())
+            digest.updateValue(normalizeMetadata(entry.label))
+            digest.updateValue(entry.depth.toString())
+            digest.updateValue(entry.target?.chapterIndex?.toString().orEmpty())
+            digest.updateValue(entry.target?.characterOffset?.toString().orEmpty())
+        }
         return "content:sha256:${digest.hexDigest()}"
     }
 

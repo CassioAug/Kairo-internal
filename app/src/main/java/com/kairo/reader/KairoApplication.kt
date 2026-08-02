@@ -20,6 +20,7 @@ import com.kairo.reader.data.library.LibraryRepository
 import com.kairo.reader.data.library.LibraryRepositoryImpl
 import com.kairo.reader.data.local.KairoDatabase
 import com.kairo.reader.data.local.MIGRATION_1_2
+import com.kairo.reader.data.local.MIGRATION_10_11
 import com.kairo.reader.data.local.MIGRATION_2_3
 import com.kairo.reader.data.local.MIGRATION_3_4
 import com.kairo.reader.data.local.MIGRATION_4_5
@@ -82,6 +83,7 @@ class KairoApplication : Application() {
                     MIGRATION_7_8,
                     MIGRATION_8_9,
                     MIGRATION_9_10,
+                    MIGRATION_10_11,
                 )
                 .build()
 

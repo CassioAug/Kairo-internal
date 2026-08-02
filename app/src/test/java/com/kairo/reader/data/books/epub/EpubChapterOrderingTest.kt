@@ -57,4 +57,71 @@ class EpubChapterOrderingTest {
             resolved.paths,
         )
     }
+
+    @Test
+    fun resolveChapterOrderIncludesNonLinearContentsButSkipsOtherAuxiliaryDocuments() {
+        val opfData =
+            OpfData(
+                title = "Test",
+                authors = emptyList(),
+                languageTag = null,
+                coverHref = null,
+                manifest =
+                    mapOf(
+                        "contents" to "text/contents01.xhtml",
+                        "notes" to "text/notes.xhtml",
+                        "chapter" to "text/chapter.xhtml",
+                    ),
+                manifestItems =
+                    listOf(
+                        ManifestItem(
+                            id = "contents",
+                            href = "text/contents01.xhtml",
+                            mediaType = "application/xhtml+xml",
+                            properties = emptySet(),
+                        ),
+                        ManifestItem(
+                            id = "notes",
+                            href = "text/notes.xhtml",
+                            mediaType = "application/xhtml+xml",
+                            properties = emptySet(),
+                        ),
+                        ManifestItem(
+                            id = "chapter",
+                            href = "text/chapter.xhtml",
+                            mediaType = "application/xhtml+xml",
+                            properties = emptySet(),
+                        ),
+                    ),
+                spineItems =
+                    listOf(
+                        SpineItem(idref = "contents", isLinear = false),
+                        SpineItem(idref = "notes", isLinear = false),
+                        SpineItem(idref = "chapter"),
+                    ),
+            )
+        val available =
+            setOf(
+                "oebps/text/contents01.xhtml",
+                "oebps/text/notes.xhtml",
+                "oebps/text/chapter.xhtml",
+            )
+
+        val resolved =
+            EpubChapterOrdering.resolveChapterOrder(
+                opfData = opfData,
+                opfDir = "oebps",
+                availableEntriesLower = available,
+                availableTextEntriesLower = available,
+            )
+
+        assertEquals(
+            listOf(
+                "oebps/text/contents01.xhtml",
+                "oebps/text/chapter.xhtml",
+            ),
+            resolved.paths,
+        )
+        assertEquals(resolved.paths.toSet(), resolved.resolvedSpinePaths)
+    }
 }

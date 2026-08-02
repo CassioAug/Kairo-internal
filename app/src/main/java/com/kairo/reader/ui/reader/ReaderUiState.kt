@@ -15,6 +15,7 @@ data class ReaderUiState(
 
 data class ChapterData(
     val tokens: List<Token>,
+    val plainText: String,
     val paragraphs: List<Paragraph>,
     val blocks: List<ReaderBlock>,
     val firstWordIndex: Int,

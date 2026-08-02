@@ -2,6 +2,13 @@ package com.kairo.reader.data.books
 
 import java.util.Locale
 
+internal data class EpubPlainTextAnchorMarker(val marker: String, val anchorId: String,)
+
+internal data class EpubMarkedPlainText(
+    val text: String,
+    val markers: List<EpubPlainTextAnchorMarker>,
+)
+
 internal object EpubMarkupInspector {
     private val BLOCK_ELEMENTS =
         setOf(
@@ -41,9 +48,27 @@ internal object EpubMarkupInspector {
     fun renderPlainText(document: EpubMarkupDocument): String {
         val out = StringBuilder()
         document.children.forEach { node ->
-            appendPlainText(node, out)
+            appendPlainText(node, out, onElementStart = null)
         }
         return out.toString()
+    }
+
+    fun renderPlainTextWithAnchorMarkers(document: EpubMarkupDocument): EpubMarkedPlainText {
+        val out = StringBuilder()
+        val markers = mutableListOf<EpubPlainTextAnchorMarker>()
+        val seenAnchorIds = mutableSetOf<String>()
+        document.children.forEach { node ->
+            appendPlainText(node, out) { element ->
+                anchorIds(element).forEach { anchorId ->
+                    if (seenAnchorIds.add(anchorId)) {
+                        val marker = "$ANCHOR_MARKER_START${markers.size.toString(ANCHOR_MARKER_RADIX)}$ANCHOR_MARKER_END"
+                        markers += EpubPlainTextAnchorMarker(marker = marker, anchorId = anchorId)
+                        out.append(marker)
+                    }
+                }
+            }
+        }
+        return EpubMarkedPlainText(text = out.toString(), markers = markers)
     }
 
     fun countTagOccurrences(
@@ -160,11 +185,13 @@ internal object EpubMarkupInspector {
     private fun appendPlainText(
         node: EpubMarkupNode,
         out: StringBuilder,
+        onElementStart: ((EpubMarkupElementNode) -> Unit)?,
     ) {
         when (node) {
             is EpubMarkupTextNode -> out.append(node.text)
             is EpubMarkupElementNode -> {
                 if (PLAIN_TEXT_SKIP_TAGS.contains(node.name)) return
+                onElementStart?.invoke(node)
                 if (isPageBreakNode(node)) {
                     appendPageBreak(out)
                     return
@@ -178,12 +205,21 @@ internal object EpubMarkupInspector {
                 val isBlock = BLOCK_ELEMENTS.contains(node.name)
                 if (isBlock) appendLineBreak(out)
                 node.children.forEach { child ->
-                    appendPlainText(child, out)
+                    appendPlainText(child, out, onElementStart)
                 }
                 if (isBlock) appendLineBreak(out)
             }
         }
     }
+
+    private fun anchorIds(node: EpubMarkupElementNode): List<String> =
+        buildList {
+            node.attributes["id"]?.trim()?.takeIf(String::isNotBlank)?.let(::add)
+            node.attributes["xml:id"]?.trim()?.takeIf(String::isNotBlank)?.let(::add)
+            if (node.name == "a") {
+                node.attributes["name"]?.trim()?.takeIf(String::isNotBlank)?.let(::add)
+            }
+        }.distinct()
 
     private fun extractText(node: EpubMarkupNode): String {
         val out = StringBuilder()
@@ -234,4 +270,8 @@ internal object EpubMarkupInspector {
             .split(Regex("\\s+"))
             .any { token -> token.lowercase(Locale.ROOT) in PAGE_BREAK_CLASS_TOKENS }
     }
+
+    private const val ANCHOR_MARKER_START = '\uE000'
+    private const val ANCHOR_MARKER_END = '\uE001'
+    private const val ANCHOR_MARKER_RADIX = 36
 }

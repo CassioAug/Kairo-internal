@@ -4,7 +4,12 @@ import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.data.books.epub.EpubChapterOrdering
 import java.util.Locale
 
-internal data class ParsedChapter(val pathLower: String, val baseDir: String, val chapter: Chapter,)
+internal data class ParsedChapter(
+    val pathLower: String,
+    val baseDir: String,
+    val chapter: Chapter,
+    val anchorOffsets: Map<String, Int> = emptyMap(),
+)
 
 internal data class NavigationFilterResult(val chapters: List<ParsedChapter>, val filteredCount: Int, val suppressed: Boolean,)
 
@@ -32,11 +37,18 @@ internal class EpubNavigationClassifier(private val contentRewriter: EpubContent
         return EpubChapterOrdering.isLikelyNavigationHtmlPath(pathLower)
     }
 
-    fun filter(parsed: List<ParsedChapter>): NavigationFilterResult {
+    fun filter(
+        parsed: List<ParsedChapter>,
+        preservedPathsLower: Set<String> = emptySet(),
+    ): NavigationFilterResult {
         if (parsed.size <= 1) {
             return NavigationFilterResult(chapters = parsed, filteredCount = 0, suppressed = false)
         }
-        val classified = parsed.map { it to isLikelyNavigationChapter(it) }
+        val classified =
+            parsed.map { chapter ->
+                val isPreservedSpineDocument = chapter.pathLower in preservedPathsLower
+                chapter to (!isPreservedSpineDocument && isLikelyNavigationChapter(chapter))
+            }
         val flagged =
             classified.mapNotNull { (chapter, isNavigation) ->
                 if (isNavigation) chapter else null

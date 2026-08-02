@@ -9,7 +9,12 @@ internal enum class ChapterOrderSource {
     ZIP_FALLBACK,
 }
 
-internal data class ChapterOrderResolution(val paths: List<String>, val source: ChapterOrderSource, val unresolvedSpineCount: Int,)
+internal data class ChapterOrderResolution(
+    val paths: List<String>,
+    val source: ChapterOrderSource,
+    val unresolvedSpineCount: Int,
+    val resolvedSpinePaths: Set<String> = emptySet(),
+)
 
 internal object EpubChapterOrdering {
     private val navigationFileBasenames =
@@ -17,9 +22,12 @@ internal object EpubChapterOrdering {
             "nav",
             "navigation",
             "toc",
+            "contents",
             "tableofcontents",
             "table-of-contents",
         )
+    private val navigationIdentifiers =
+        navigationFileBasenames.mapTo(mutableSetOf(), ::normalizeNavigationIdentifier)
 
     fun resolveChapterOrder(
         opfData: OpfData,
@@ -36,10 +44,15 @@ internal object EpubChapterOrdering {
 
         val resolvedSpinePaths = mutableListOf<String>()
         var unresolvedSpineCount = 0
-        opfData.spineItems.forEach { spineItem ->
+        val renderableSpineItems =
+            opfData.spineItems.filter { spineItem ->
+                val manifestItem = resolveManifestItem(opfData.manifestItems, spineItem.idref)
+                spineItem.isLinear || manifestItem?.let(::isLikelyNavigationManifestItem) == true
+            }
+        renderableSpineItems.forEach { spineItem ->
             val manifestItem = resolveManifestItem(opfData.manifestItems, spineItem.idref)
             val path =
-                if (manifestItem != null && isReadingManifestItem(manifestItem)) {
+                if (manifestItem != null && isSpineContentItem(manifestItem)) {
                     EpubPathResolver.resolveZipEntryKey(opfDir, manifestItem.href, availableEntriesLower)
                 } else {
                     null
@@ -52,18 +65,20 @@ internal object EpubChapterOrdering {
         }
         val spineChapterPaths = resolvedSpinePaths
 
-        if (opfData.spineItems.isNotEmpty() && spineChapterPaths.isNotEmpty()) {
+        if (renderableSpineItems.isNotEmpty() && spineChapterPaths.isNotEmpty()) {
             if (unresolvedSpineCount <= 0 || manifestChapterPaths.isEmpty()) {
                 return ChapterOrderResolution(
                     paths = spineChapterPaths,
                     source = ChapterOrderSource.SPINE,
                     unresolvedSpineCount = unresolvedSpineCount,
+                    resolvedSpinePaths = spineChapterPaths.toSet(),
                 )
             }
             return ChapterOrderResolution(
                 paths = appendUniquePaths(spineChapterPaths, manifestChapterPaths),
                 source = ChapterOrderSource.SPINE_PLUS_MANIFEST,
                 unresolvedSpineCount = unresolvedSpineCount,
+                resolvedSpinePaths = spineChapterPaths.toSet(),
             )
         }
         if (manifestChapterPaths.isNotEmpty()) {
@@ -133,11 +148,33 @@ internal object EpubChapterOrdering {
         return !item.properties.contains("nav")
     }
 
+    fun isSpineContentItem(item: ManifestItem): Boolean =
+        isContentDocument(item.mediaType, item.href)
+
     fun isLikelyNavigationHtmlPath(pathLower: String): Boolean {
         val normalized = pathLower.lowercase(Locale.ROOT)
         val fileName = normalized.substringAfterLast('/').substringBeforeLast('.')
         return navigationFileBasenames.contains(fileName)
     }
+
+    private fun isLikelyNavigationManifestItem(item: ManifestItem): Boolean {
+        if (!isSpineContentItem(item)) return false
+        if (item.properties.contains("nav")) return true
+        return sequenceOf(item.id, item.href.substringAfterLast('/').substringBeforeLast('.'))
+            .map(::normalizeNavigationIdentifier)
+            .any { identifier ->
+                val identifierWithoutSuffix =
+                    identifier
+                        .trimEnd(Char::isDigit)
+                        .removeSuffix("page")
+                identifier in navigationIdentifiers || identifierWithoutSuffix in navigationIdentifiers
+            }
+    }
+
+    private fun normalizeNavigationIdentifier(value: String): String =
+        value
+            .lowercase(Locale.ROOT)
+            .filter(Char::isLetterOrDigit)
 
     fun comparePathsNaturally(
         left: String,

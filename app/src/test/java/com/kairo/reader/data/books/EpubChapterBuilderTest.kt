@@ -29,7 +29,7 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
     }
 
     @Test
-    fun buildFallbackChaptersRemovesLeadingDuplicateTitleHeading() {
+    fun buildFallbackChaptersPreservesAuthoredChapterHeading() {
         val entries =
             linkedMapOf(
                 "oebps/chapter1.xhtml" to
@@ -48,12 +48,12 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
         val chapter = parsedChapter(invokeBuildFallbackChapters(entries, emptyMap()).single())
 
         assertEquals("Chapter 1", chapter.title)
-        assertEquals("Opening line.", chapter.plainText)
-        assertFalse(chapter.htmlContent.contains("Chapter 1"))
+        assertEquals("Chapter 1\n\nOpening line.", chapter.plainText)
+        assertTrue(chapter.htmlContent.contains("Chapter 1"))
     }
 
     @Test
-    fun buildFallbackChaptersRemovesMetadataTitleRepeatedInBody() {
+    fun buildFallbackChaptersPreservesHeadingThatMatchesMetadataTitle() {
         val entries =
             linkedMapOf(
                 "oebps/preface.xhtml" to
@@ -71,8 +71,8 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
         val chapter = parsedChapter(invokeBuildFallbackChapters(entries, emptyMap()).single())
 
         assertEquals("Preface", chapter.title)
-        assertEquals("Before the story.", chapter.plainText)
-        assertFalse(chapter.htmlContent.contains("Preface</h2>"))
+        assertEquals("Preface\n\nBefore the story.", chapter.plainText)
+        assertTrue(chapter.htmlContent.contains("Preface</h2>"))
     }
 
     @Test
@@ -148,6 +148,42 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
         val orderedPaths = parsed.map { parsedChapterPath(it) }
 
         assertEquals(listOf("oebps/chapter1.xhtml"), orderedPaths)
+    }
+
+    @Test
+    fun buildFallbackChaptersKeepsPublisherNavigationDocumentForReader() {
+        val tocLinks =
+            (1..14).joinToString(separator = "") { index ->
+                "<a href=\"chapter$index.xhtml\">Chapter $index</a><br/>"
+            }
+        val entries =
+            linkedMapOf(
+                "oebps/nav.xhtml" to
+                    "<html><body><nav><h1>Contents</h1>$tocLinks</nav></body></html>".toByteArray(),
+                "oebps/chapter1.xhtml" to
+                    "<html><body><p>Chapter one prose.</p></body></html>".toByteArray(),
+            )
+
+        val result =
+            invokeBuildFallbackChaptersWithResult(
+                zipTextEntries = entries,
+                imageRelativePathByEpubPathLower = emptyMap(),
+                preferredChapterPathsLower =
+                    listOf(
+                        "oebps/nav.xhtml",
+                        "oebps/chapter1.xhtml",
+                    ),
+                preservedNavigationPathsLower = setOf("oebps/nav.xhtml"),
+            )
+
+        assertEquals(
+            listOf(
+                "oebps/nav.xhtml",
+                "oebps/chapter1.xhtml",
+            ),
+            result.chapters.map(::parsedChapterPath),
+        )
+        assertEquals(0, result.navigationFilteredCount)
     }
 
     @Test

@@ -25,6 +25,7 @@ internal class EpubChapterBuilder(
         zipTextEntries: Map<String, ByteArray>,
         imageRelativePathByEpubPathLower: Map<String, String>,
         preferredChapterPathsLower: List<String>,
+        preservedNavigationPathsLower: Set<String> = emptySet(),
     ): FallbackChapterBuildResult =
         buildWithResult(
             zipTextEntries = zipTextEntries,
@@ -32,6 +33,7 @@ internal class EpubChapterBuilder(
             preferredChapterPathsLower = preferredChapterPathsLower,
             decodedTextEntries = emptyMap(),
             chapterImageSrcsByPathLower = emptyMap(),
+            preservedNavigationPathsLower = preservedNavigationPathsLower,
         )
 
     fun buildWithResult(
@@ -40,6 +42,7 @@ internal class EpubChapterBuilder(
         preferredChapterPathsLower: List<String>,
         decodedTextEntries: Map<String, String>,
         chapterImageSrcsByPathLower: Map<String, List<String>>,
+        preservedNavigationPathsLower: Set<String> = emptySet(),
     ): FallbackChapterBuildResult {
         val preferredCandidates =
             preferredChapterPathsLower
@@ -88,17 +91,14 @@ internal class EpubChapterBuilder(
                         .substringAfterLast('/', pathLower)
                         .substringBeforeLast('.')
                 val title = contentRewriter.sanitizeChapterTitle(rawTitle ?: fileTitle)
-                val cleanedHtml =
-                    contentRewriter.stripLeadingDuplicateTitleBlock(
-                        html = contentRewriter.stripNoiseTitleBlocks(resolvedHtml),
-                        title = title,
-                    )
-                val plainText =
+                val cleanedHtml = contentRewriter.stripNoiseTitleBlocks(resolvedHtml)
+                val plainTextContent =
                     if (cleanedHtml == resolvedHtml) {
-                        contentRewriter.extractPlainText(originalDocument)
+                        contentRewriter.extractPlainTextWithAnchors(originalDocument)
                     } else {
-                        contentRewriter.extractPlainText(cleanedHtml)
+                        contentRewriter.extractPlainTextWithAnchors(cleanedHtml)
                     }
+                val plainText = plainTextContent.text
                 val wordCount =
                     if (plainText.length <= MAX_EXACT_WORD_COUNT_CHARS) {
                         countWords(plainText)
@@ -124,10 +124,19 @@ internal class EpubChapterBuilder(
                         imagePaths = imagePaths,
                         wordCount = wordCount,
                     ),
+                    anchorOffsets = plainTextContent.anchorOffsets,
                 )
             }
 
-        val navigationFilterResult = navigationClassifier.filter(parsed)
+        val navigationFilterResult =
+            navigationClassifier.filter(
+                parsed = parsed,
+                preservedPathsLower =
+                    preservedNavigationPathsLower
+                        .asSequence()
+                        .map { it.lowercase(Locale.ROOT) }
+                        .toSet(),
+            )
         val reIndexedChapters = navigationFilterResult.chapters.mapIndexed { index, entry ->
             entry.copy(chapter = entry.chapter.copy(index = index))
         }
