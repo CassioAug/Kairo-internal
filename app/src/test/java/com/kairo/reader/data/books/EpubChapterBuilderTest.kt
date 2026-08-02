@@ -151,6 +151,42 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
     }
 
     @Test
+    fun buildFallbackChaptersKeepsPublisherNavigationDocumentForReader() {
+        val tocLinks =
+            (1..14).joinToString(separator = "") { index ->
+                "<a href=\"chapter$index.xhtml\">Chapter $index</a><br/>"
+            }
+        val entries =
+            linkedMapOf(
+                "oebps/nav.xhtml" to
+                    "<html><body><nav><h1>Contents</h1>$tocLinks</nav></body></html>".toByteArray(),
+                "oebps/chapter1.xhtml" to
+                    "<html><body><p>Chapter one prose.</p></body></html>".toByteArray(),
+            )
+
+        val result =
+            invokeBuildFallbackChaptersWithResult(
+                zipTextEntries = entries,
+                imageRelativePathByEpubPathLower = emptyMap(),
+                preferredChapterPathsLower =
+                    listOf(
+                        "oebps/nav.xhtml",
+                        "oebps/chapter1.xhtml",
+                    ),
+                preservedNavigationPathsLower = setOf("oebps/nav.xhtml"),
+            )
+
+        assertEquals(
+            listOf(
+                "oebps/nav.xhtml",
+                "oebps/chapter1.xhtml",
+            ),
+            result.chapters.map(::parsedChapterPath),
+        )
+        assertEquals(0, result.navigationFilteredCount)
+    }
+
+    @Test
     fun buildFallbackChaptersSuppressesNavigationFilteringWhenTooAggressive() {
         val tocLinks =
             (1..18).joinToString(separator = "") { index ->

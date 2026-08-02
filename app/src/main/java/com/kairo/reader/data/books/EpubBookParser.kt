@@ -15,6 +15,7 @@ import com.kairo.reader.data.books.epub.EpubContainerParser
 import com.kairo.reader.data.books.epub.EpubLogger
 import com.kairo.reader.data.books.epub.EpubOpfParser
 import com.kairo.reader.data.books.epub.EpubPathResolver
+import com.kairo.reader.data.books.epub.EpubReaderChapterPlanner
 import com.kairo.reader.data.books.epub.EpubTextDecoder
 import com.kairo.reader.data.books.epub.OpfData
 import java.io.File
@@ -172,11 +173,17 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                 )
             diagnostics.chapterOrderSource = chapterOrderResolution.source
             diagnostics.unresolvedSpineItems = chapterOrderResolution.unresolvedSpineCount
-            val orderedChapterPathsLower = chapterOrderResolution.paths
             val navigationPathLower =
                 opfData.navigationHref?.let { href ->
                     resolveZipEntryKey(opfDir, href, zipTextEntries.keys)
                 }
+            val readerChapterPlan =
+                EpubReaderChapterPlanner.create(
+                    readingOrderPaths = chapterOrderResolution.paths,
+                    spinePaths = chapterOrderResolution.resolvedSpinePaths,
+                    navigationPath = navigationPathLower,
+                )
+            val orderedChapterPathsLower = readerChapterPlan.paths
             val navigationReferences =
                 navigationPathLower
                     ?.let { path -> decodedTextEntry(path, zipTextEntries, decodedTextEntries) }
@@ -296,7 +303,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     preferredChapterPathsLower = orderedChapterPathsLower,
                     decodedTextEntries = decodedTextEntries,
                     chapterImageSrcsByPathLower = chapterImageSrcsByPathLower,
-                    preservedNavigationPathsLower = chapterOrderResolution.resolvedSpinePaths,
+                    preservedNavigationPathsLower = readerChapterPlan.preservedNavigationPaths,
                 )
             diagnostics.navigationFilteredChapters += primaryFallbackBuild.navigationFilteredCount
             diagnostics.navigationFilterSuppressed =
@@ -318,7 +325,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                             preferredChapterPathsLower = orderedChapterPathsLower,
                             decodedTextEntries = emptyMap(),
                             chapterImageSrcsByPathLower = emptyMap(),
-                            preservedNavigationPathsLower = chapterOrderResolution.resolvedSpinePaths,
+                            preservedNavigationPathsLower = readerChapterPlan.preservedNavigationPaths,
                         )
                     diagnostics.navigationFilteredChapters += secondaryFallbackBuild.navigationFilteredCount
                     diagnostics.navigationFilterSuppressed =
