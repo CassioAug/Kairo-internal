@@ -237,7 +237,10 @@ internal class EpubOpfParser {
                     .takeIf(String::isNotBlank)
                     ?: return@mapNotNull null
             val linear = itemref.attributes.getNamedItem("linear")?.nodeValue
-            SpineItem(idref).takeUnless { linear.equals("no", ignoreCase = true) }
+            SpineItem(
+                idref = idref,
+                isLinear = !linear.equals("no", ignoreCase = true),
+            )
         }
     }
 
@@ -306,9 +309,12 @@ internal class EpubOpfParser {
                         .takeIf { it.isNotBlank() }
                         ?: return@forEach
                 val linear = attrs["linear"]
-                if (!linear.equals("no", ignoreCase = true)) {
-                    spineItems.add(SpineItem(idref))
-                }
+                spineItems.add(
+                    SpineItem(
+                        idref = idref,
+                        isLinear = !linear.equals("no", ignoreCase = true),
+                    ),
+                )
             }
         }
         return spineItems

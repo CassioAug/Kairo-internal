@@ -11,7 +11,10 @@ internal data class OpfData(
     val navigationHref: String? = null,
 )
 
-internal data class SpineItem(val idref: String,)
+internal data class SpineItem(
+    val idref: String,
+    val isLinear: Boolean = true,
+)
 
 internal data class ManifestItem(val id: String, val href: String, val mediaType: String?, val properties: Set<String>,)
 

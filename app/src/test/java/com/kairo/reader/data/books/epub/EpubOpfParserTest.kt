@@ -93,6 +93,59 @@ class EpubOpfParserTest {
     }
 
     @Test
+    fun parseWithResultPreservesNonLinearSpineMetadata() {
+        val xml =
+            """
+            <package xmlns="http://www.idpf.org/2007/opf">
+              <manifest>
+                <item id="contents" href="contents.xhtml" media-type="application/xhtml+xml" />
+                <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" />
+              </manifest>
+              <spine>
+                <itemref idref="contents" linear="no" />
+                <itemref idref="chapter" />
+              </spine>
+            </package>
+            """.trimIndent()
+
+        val result = parser.parseWithResult(xml).opfData
+
+        assertEquals(
+            listOf(
+                SpineItem(idref = "contents", isLinear = false),
+                SpineItem(idref = "chapter"),
+            ),
+            result.spineItems,
+        )
+    }
+
+    @Test
+    fun parseLenientPreservesNonLinearSpineMetadata() {
+        val xml =
+            """
+            <package>
+              <manifest>
+                <item id="contents" href="contents.xhtml" media-type="application/xhtml+xml">
+                <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml">
+              </manifest>
+              <spine>
+                <itemref idref="contents" linear="no">
+                <itemref idref="chapter">
+              </spine>
+            """.trimIndent()
+
+        val result = parser.parseLenient(xml)
+
+        assertEquals(
+            listOf(
+                SpineItem(idref = "contents", isLinear = false),
+                SpineItem(idref = "chapter"),
+            ),
+            result.spineItems,
+        )
+    }
+
+    @Test
     fun parseWithResultFindsEpubTwoNcxFromSpineTocAttribute() {
         val xml =
             """

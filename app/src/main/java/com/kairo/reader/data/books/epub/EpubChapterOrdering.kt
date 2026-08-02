@@ -22,9 +22,12 @@ internal object EpubChapterOrdering {
             "nav",
             "navigation",
             "toc",
+            "contents",
             "tableofcontents",
             "table-of-contents",
         )
+    private val navigationIdentifiers =
+        navigationFileBasenames.mapTo(mutableSetOf(), ::normalizeNavigationIdentifier)
 
     fun resolveChapterOrder(
         opfData: OpfData,
@@ -41,7 +44,12 @@ internal object EpubChapterOrdering {
 
         val resolvedSpinePaths = mutableListOf<String>()
         var unresolvedSpineCount = 0
-        opfData.spineItems.forEach { spineItem ->
+        val renderableSpineItems =
+            opfData.spineItems.filter { spineItem ->
+                val manifestItem = resolveManifestItem(opfData.manifestItems, spineItem.idref)
+                spineItem.isLinear || manifestItem?.let(::isLikelyNavigationManifestItem) == true
+            }
+        renderableSpineItems.forEach { spineItem ->
             val manifestItem = resolveManifestItem(opfData.manifestItems, spineItem.idref)
             val path =
                 if (manifestItem != null && isSpineContentItem(manifestItem)) {
@@ -57,7 +65,7 @@ internal object EpubChapterOrdering {
         }
         val spineChapterPaths = resolvedSpinePaths
 
-        if (opfData.spineItems.isNotEmpty() && spineChapterPaths.isNotEmpty()) {
+        if (renderableSpineItems.isNotEmpty() && spineChapterPaths.isNotEmpty()) {
             if (unresolvedSpineCount <= 0 || manifestChapterPaths.isEmpty()) {
                 return ChapterOrderResolution(
                     paths = spineChapterPaths,
@@ -148,6 +156,25 @@ internal object EpubChapterOrdering {
         val fileName = normalized.substringAfterLast('/').substringBeforeLast('.')
         return navigationFileBasenames.contains(fileName)
     }
+
+    private fun isLikelyNavigationManifestItem(item: ManifestItem): Boolean {
+        if (!isSpineContentItem(item)) return false
+        if (item.properties.contains("nav")) return true
+        return sequenceOf(item.id, item.href.substringAfterLast('/').substringBeforeLast('.'))
+            .map(::normalizeNavigationIdentifier)
+            .any { identifier ->
+                val identifierWithoutSuffix =
+                    identifier
+                        .trimEnd(Char::isDigit)
+                        .removeSuffix("page")
+                identifier in navigationIdentifiers || identifierWithoutSuffix in navigationIdentifiers
+            }
+    }
+
+    private fun normalizeNavigationIdentifier(value: String): String =
+        value
+            .lowercase(Locale.ROOT)
+            .filter(Char::isLetterOrDigit)
 
     fun comparePathsNaturally(
         left: String,
