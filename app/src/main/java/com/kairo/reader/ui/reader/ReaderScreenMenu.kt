@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -52,6 +53,7 @@ internal data class ReaderMenuActions(
     val onTextBrightnessChange: (Float) -> Unit,
     val onInvertedScrollChange: (Boolean) -> Unit,
     val onFocusModeEnabledChange: (Boolean) -> Unit,
+    val onSearch: () -> Unit,
     val onAddBookmark: () -> Unit,
     val onOpenBookmarks: () -> Unit,
     val onShowToc: () -> Unit,
@@ -120,8 +122,15 @@ private fun ReaderMenuContent(
 ) {
     if (!showReaderSettings) {
         SettingsNavRow(
-            title = stringResource(R.string.library_tab_bookmarks),
-            subtitle = stringResource(R.string.library_bookmarks_subtitle),
+            title = stringResource(R.string.search_this_book_title),
+            subtitle = stringResource(R.string.reader_search_menu_subtitle),
+            icon = Icons.Default.Search,
+            showChevron = false,
+            onClick = actions.onSearch,
+        )
+        SettingsNavRow(
+            title = stringResource(R.string.library_tab_saved),
+            subtitle = stringResource(R.string.saved_subtitle),
             icon = Icons.Default.Bookmark,
             onClick = actions.onOpenBookmarks,
         )

@@ -49,6 +49,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
+import com.kairo.reader.core.model.SavedAnnotation
 import com.kairo.reader.core.model.TimedReadingMode
 import java.io.File
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -77,6 +78,10 @@ internal data class ReaderContentState(
     val textBrightness: Float,
     val timedReadingMode: TimedReadingMode,
     val nonInteractiveChapterLinkTargets: Set<Int>,
+    val savedAnnotations: List<SavedAnnotation>,
+    val selectionRange: IntRange?,
+    val searchMatchRange: IntRange?,
+    val isPageGestureEnabled: () -> Boolean,
     val invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,
 )
 
@@ -87,6 +92,8 @@ internal data class ReaderContentActions(
     val onNextPage: () -> Unit,
     val onSwipePreviewChange: (ReaderSwipeDirection?, Float) -> Unit,
     val onOpenFullScreenImage: (String) -> Unit,
+    val onSelectionStart: (Int) -> Unit,
+    val onSelectionExtend: (Int) -> Unit,
     val onChapterSelected: ((Int) -> Unit)? = null,
 )
 
@@ -142,6 +149,7 @@ private fun ReaderLoadedContent(
                 invertedScroll = state.invertedScroll,
                 chapterIndex = state.chapterIndex,
                 invertedScrollCommands = state.invertedScrollCommands,
+                isPageGestureEnabled = state.isPageGestureEnabled,
             ),
             actions =
             ReaderGestureActions(
@@ -252,15 +260,26 @@ private fun LazyListScope.readerBlockItems(
         when (block) {
             is ReaderParagraphBlock ->
                 ParagraphText(
-                    paragraph = block.paragraph,
-                    focusIndex = block.paragraph.focusIndexOrNone(state.focusIndex),
-                    fontSizeSp = state.fontSizeSp,
-                    textBrightness = state.textBrightness,
-                    timedReadingMode = state.timedReadingMode,
-                    onFocusChange = actions.onSafeFocusChange,
-                    onStartTimedReading = actions.onStartTimedReadingForToken,
-                    onChapterSelected = actions.onChapterSelected,
-                    nonInteractiveChapterLinkTargets = state.nonInteractiveChapterLinkTargets,
+                    state =
+                    ParagraphTextState(
+                        paragraph = block.paragraph,
+                        focusIndex = block.paragraph.focusIndexOrNone(state.focusIndex),
+                        fontSizeSp = state.fontSizeSp,
+                        textBrightness = state.textBrightness,
+                        timedReadingMode = state.timedReadingMode,
+                        nonInteractiveChapterLinkTargets = state.nonInteractiveChapterLinkTargets,
+                        savedAnnotations = state.savedAnnotations,
+                        selectionRange = state.selectionRange,
+                        searchMatchRange = state.searchMatchRange,
+                    ),
+                    actions =
+                    ParagraphTextActions(
+                        onFocusChange = actions.onSafeFocusChange,
+                        onStartTimedReading = actions.onStartTimedReadingForToken,
+                        onChapterSelected = actions.onChapterSelected,
+                        onSelectionStart = actions.onSelectionStart,
+                        onSelectionExtend = actions.onSelectionExtend,
+                    ),
                 )
             is ReaderImageBlock ->
                 InlineImageBlock(
