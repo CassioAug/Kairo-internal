@@ -101,3 +101,48 @@ data class BookmarkEntity(
     val previewText: String,
     val createdAt: Long,
 )
+
+@Entity(
+    tableName = "saved_annotations",
+    indices = [
+        Index(value = ["bookId"]),
+        Index(value = ["updatedAt"]),
+        Index(value = ["bookId", "chapterIndex", "startTokenIndex"]),
+    ],
+)
+data class SavedAnnotationEntity(
+    @PrimaryKey val id: String,
+    val bookId: String,
+    val chapterIndex: Int,
+    val startTokenIndex: Int,
+    val endTokenIndex: Int,
+    val selectedText: String,
+    val note: String,
+    val color: String,
+    val kind: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Entity(
+    tableName = "reading_sessions",
+    indices = [
+        Index(value = ["bookId"]),
+        Index(value = ["startedAt"]),
+    ],
+)
+data class ReadingSessionEntity(
+    @PrimaryKey val id: String,
+    val bookId: String,
+    val mode: String,
+    val startedAt: Long,
+    val endedAt: Long,
+    val activeDurationMs: Long,
+    val startChapterIndex: Int,
+    val startTokenIndex: Int,
+    val endChapterIndex: Int,
+    val endTokenIndex: Int,
+    val wordsRead: Int,
+    val effectiveWpm: Int,
+    val isWordCountEstimated: Boolean,
+)

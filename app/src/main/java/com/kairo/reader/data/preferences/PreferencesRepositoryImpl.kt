@@ -41,6 +41,8 @@ internal const val MIN_BIONIC_HIGHLIGHT_STRENGTH = 0.08f
 internal const val MAX_BIONIC_HIGHLIGHT_STRENGTH = 0.32f
 internal const val MIN_BIONIC_FONT_SIZE_SP = 18f
 internal const val MAX_BIONIC_FONT_SIZE_SP = 40f
+internal const val MIN_WEEKLY_READING_GOAL_MINUTES = 30
+internal const val MAX_WEEKLY_READING_GOAL_MINUTES = 1_400
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_prefs")
 
@@ -427,6 +429,15 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
 
     override suspend fun updateFocusApplyInRsvp(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[keys.focusApplyInRsvp] = enabled }
+    }
+
+    override suspend fun updateWeeklyReadingGoalMinutes(minutes: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[keys.weeklyReadingGoalMinutes] = minutes.coerceIn(
+                MIN_WEEKLY_READING_GOAL_MINUTES,
+                MAX_WEEKLY_READING_GOAL_MINUTES,
+            )
+        }
     }
 
     override suspend fun reset() {

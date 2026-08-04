@@ -11,8 +11,10 @@ import androidx.room.TypeConverters
         TableOfContentsEntryEntity::class,
         ReadingPositionEntity::class,
         BookmarkEntity::class,
+        SavedAnnotationEntity::class,
+        ReadingSessionEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -22,4 +24,10 @@ abstract class KairoDatabase : RoomDatabase() {
     abstract fun readingPositionDao(): ReadingPositionDao
 
     abstract fun bookmarkDao(): BookmarkDao
+
+    abstract fun savedAnnotationDao(): SavedAnnotationDao
+
+    abstract fun readingSessionDao(): ReadingSessionDao
+
+    abstract fun searchDao(): SearchDao
 }

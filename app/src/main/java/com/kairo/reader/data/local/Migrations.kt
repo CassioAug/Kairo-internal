@@ -128,3 +128,66 @@ val MIGRATION_10_11 =
             )
         }
     }
+
+val MIGRATION_11_12 =
+    object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS saved_annotations (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    bookId TEXT NOT NULL,
+                    chapterIndex INTEGER NOT NULL,
+                    startTokenIndex INTEGER NOT NULL,
+                    endTokenIndex INTEGER NOT NULL,
+                    selectedText TEXT NOT NULL,
+                    note TEXT NOT NULL,
+                    color TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_saved_annotations_bookId " +
+                    "ON saved_annotations(bookId)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_saved_annotations_updatedAt " +
+                    "ON saved_annotations(updatedAt)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS " +
+                    "index_saved_annotations_bookId_chapterIndex_startTokenIndex " +
+                    "ON saved_annotations(bookId, chapterIndex, startTokenIndex)",
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS reading_sessions (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    bookId TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    startedAt INTEGER NOT NULL,
+                    endedAt INTEGER NOT NULL,
+                    activeDurationMs INTEGER NOT NULL,
+                    startChapterIndex INTEGER NOT NULL,
+                    startTokenIndex INTEGER NOT NULL,
+                    endChapterIndex INTEGER NOT NULL,
+                    endTokenIndex INTEGER NOT NULL,
+                    wordsRead INTEGER NOT NULL,
+                    effectiveWpm INTEGER NOT NULL,
+                    isWordCountEstimated INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_reading_sessions_bookId " +
+                    "ON reading_sessions(bookId)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_reading_sessions_startedAt " +
+                    "ON reading_sessions(startedAt)",
+            )
+        }
+    }

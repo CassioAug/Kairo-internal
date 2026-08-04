@@ -35,6 +35,7 @@ internal class UserPreferencesMapper(
             .withRsvpDisplaySettings(prefs, defaults, rsvpConfig)
             .withBionicDisplaySettings(prefs, defaults)
             .withFocusSettings(prefs, defaults)
+            .withMomentumSettings(prefs, defaults)
     }
 
     private fun UserPreferences.withRsvpState(
@@ -181,6 +182,18 @@ internal class UserPreferencesMapper(
             prefs.readOrDefault(keys.focusApplyInRsvp, defaults.focusApplyInRsvp),
         )
 
+    private fun UserPreferences.withMomentumSettings(
+        prefs: Preferences,
+        defaults: UserPreferences,
+    ): UserPreferences =
+        copy(
+            weeklyReadingGoalMinutes =
+            normalizeWeeklyReadingGoalMinutes(
+                value = prefs[keys.weeklyReadingGoalMinutes],
+                fallback = defaults.weeklyReadingGoalMinutes,
+            ),
+        )
+
     private fun systemDefaultUserPreferences(): UserPreferences =
         UserPreferences(readerTheme = readerThemeForNightMode(context.resources.configuration.uiMode))
 
@@ -215,3 +228,12 @@ internal class UserPreferencesMapper(
         }
     }
 }
+
+internal fun normalizeWeeklyReadingGoalMinutes(
+    value: Int?,
+    fallback: Int,
+): Int =
+    (value ?: fallback).coerceIn(
+        MIN_WEEKLY_READING_GOAL_MINUTES,
+        MAX_WEEKLY_READING_GOAL_MINUTES,
+    )

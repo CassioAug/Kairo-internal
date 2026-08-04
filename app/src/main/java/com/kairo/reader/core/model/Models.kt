@@ -835,6 +835,7 @@ data class UserPreferences(
     val focusPauseNotifications: Boolean = false,
     val focusApplyInReader: Boolean = true,
     val focusApplyInRsvp: Boolean = true,
+    val weeklyReadingGoalMinutes: Int = 120,
 )
 
 enum class ReaderTheme {

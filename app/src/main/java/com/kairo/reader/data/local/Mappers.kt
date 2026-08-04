@@ -5,6 +5,13 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.BookmarkItem
 import com.kairo.reader.core.model.Chapter
+import com.kairo.reader.core.model.HighlightColor
+import com.kairo.reader.core.model.ReadingSession
+import com.kairo.reader.core.model.ReadingSessionItem
+import com.kairo.reader.core.model.ReadingSessionMode
+import com.kairo.reader.core.model.SavedAnnotation
+import com.kairo.reader.core.model.SavedAnnotationItem
+import com.kairo.reader.core.model.SavedAnnotationKind
 import com.kairo.reader.core.model.TableOfContentsEntry
 import com.kairo.reader.core.model.TableOfContentsTarget
 
@@ -152,3 +159,85 @@ fun BookmarkWithBookEntity.toDomain(): BookmarkItem =
         book = book.toDomain(chapters = emptyList()),
         chapterCount = chapterCount,
     )
+
+fun SavedAnnotationEntity.toDomain(): SavedAnnotation =
+    SavedAnnotation(
+        id = id,
+        bookId = BookId(bookId),
+        chapterIndex = chapterIndex,
+        startTokenIndex = startTokenIndex,
+        endTokenIndex = endTokenIndex,
+        selectedText = selectedText,
+        note = note,
+        color = enumValueOrDefault(color, HighlightColor.YELLOW),
+        kind = enumValueOrDefault(kind, SavedAnnotationKind.HIGHLIGHT),
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
+
+fun SavedAnnotation.toEntity(): SavedAnnotationEntity =
+    SavedAnnotationEntity(
+        id = id,
+        bookId = bookId.value,
+        chapterIndex = chapterIndex,
+        startTokenIndex = startTokenIndex,
+        endTokenIndex = endTokenIndex,
+        selectedText = selectedText,
+        note = note,
+        color = color.name,
+        kind = kind.name,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
+
+fun SavedAnnotationWithBookEntity.toDomain(): SavedAnnotationItem =
+    SavedAnnotationItem(
+        annotation = annotation.toDomain(),
+        book = book.toDomain(chapters = emptyList()),
+        chapterCount = chapterCount,
+    )
+
+fun ReadingSessionEntity.toDomain(): ReadingSession =
+    ReadingSession(
+        id = id,
+        bookId = BookId(bookId),
+        mode = enumValueOrDefault(mode, ReadingSessionMode.READER),
+        startedAt = startedAt,
+        endedAt = endedAt,
+        activeDurationMs = activeDurationMs,
+        startChapterIndex = startChapterIndex,
+        startTokenIndex = startTokenIndex,
+        endChapterIndex = endChapterIndex,
+        endTokenIndex = endTokenIndex,
+        wordsRead = wordsRead,
+        effectiveWpm = effectiveWpm,
+        isWordCountEstimated = isWordCountEstimated,
+    )
+
+fun ReadingSession.toEntity(): ReadingSessionEntity =
+    ReadingSessionEntity(
+        id = id,
+        bookId = bookId.value,
+        mode = mode.name,
+        startedAt = startedAt,
+        endedAt = endedAt,
+        activeDurationMs = activeDurationMs,
+        startChapterIndex = startChapterIndex,
+        startTokenIndex = startTokenIndex,
+        endChapterIndex = endChapterIndex,
+        endTokenIndex = endTokenIndex,
+        wordsRead = wordsRead,
+        effectiveWpm = effectiveWpm,
+        isWordCountEstimated = isWordCountEstimated,
+    )
+
+fun ReadingSessionWithBookEntity.toDomain(): ReadingSessionItem =
+    ReadingSessionItem(
+        session = session.toDomain(),
+        book = book.toDomain(chapters = emptyList()),
+    )
+
+private inline fun <reified T : Enum<T>> enumValueOrDefault(
+    raw: String,
+    fallback: T,
+): T = enumValues<T>().firstOrNull { it.name == raw } ?: fallback
