@@ -5,7 +5,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalResources
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavBackStackEntry
@@ -13,10 +15,16 @@ import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.ReadingSessionMode
 import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.buildWordCountByToken
+import com.kairo.reader.core.model.countWordsThroughToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.data.sessions.ReadingSessionFactory
+import com.kairo.reader.data.sessions.ReadingSessionDraft
+import com.kairo.reader.data.sessions.ReadingSessionLocation
+import com.kairo.reader.data.sessions.ReadingSessionTracker
 import com.kairo.reader.ui.rsvp.ReadingPresentationMode
 import com.kairo.reader.ui.rsvp.RsvpBookContext
 import com.kairo.reader.ui.rsvp.RsvpLayoutBias
@@ -95,6 +103,18 @@ internal fun RsvpRoute(
             )
         }
     val playbackIsPlaying by playbackIsPlayingFlow.collectAsState(initial = true)
+    val sessionStartedAt = remember(bookId, chapterIndex, startIndex) { System.currentTimeMillis() }
+    val sessionTracker =
+        remember(bookId, chapterIndex, startIndex) {
+            ReadingSessionTracker(
+                sessionStartedAt,
+                initiallyActive =
+                playbackIsPlaying &&
+                    rsvpLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+            )
+        }
+    var sessionRecorded by remember(bookId, chapterIndex, startIndex) { androidx.compose.runtime.mutableStateOf(false) }
+    TrackTimedReadingSessionLifecycle(sessionTracker, rsvpLifecycleOwner, playbackIsPlaying)
     val resolvedRsvpConfig =
         RsvpConfigResolver.resolve(prefs.rsvpConfig, routeData.languageTag)
     fun saveRsvpPosition(
@@ -114,6 +134,38 @@ internal fun RsvpRoute(
                 ),
             )
         }
+    }
+    fun recordSession(endTokenIndex: Int) {
+        if (sessionRecorded || tokens.isEmpty()) return
+        val endedAt = System.currentTimeMillis()
+        sessionTracker.setActive(false, endedAt)
+        val safeStart = safeStartIndex.coerceIn(0, tokens.lastIndex)
+        val safeEnd = endTokenIndex.coerceIn(0, tokens.lastIndex)
+        val wordsRead =
+            kotlin.math.abs(
+                countWordsThroughToken(tokens, safeEnd) -
+                    countWordsThroughToken(tokens, safeStart),
+            )
+        val session =
+            ReadingSessionFactory.create(
+                ReadingSessionDraft(
+                    bookId = bookIdValue,
+                    mode =
+                    when (presentationMode) {
+                        ReadingPresentationMode.RSVP -> ReadingSessionMode.RSVP
+                        ReadingPresentationMode.BIONIC -> ReadingSessionMode.BIONIC
+                    },
+                    startedAt = sessionStartedAt,
+                    endedAt = endedAt,
+                    activeDurationMs = sessionTracker.activeDurationMs(endedAt),
+                    start = ReadingSessionLocation(chapterIndex, safeStart),
+                    end = ReadingSessionLocation(chapterIndex, safeEnd),
+                    wordsRead = wordsRead,
+                    isWordCountEstimated = false,
+                ),
+            )
+        sessionRecorded = true
+        if (session != null) container.recordReadingSession(session)
     }
 
     val rsvpState =
@@ -186,6 +238,14 @@ internal fun RsvpRoute(
                 coroutineScope = coroutineScope,
                 resources = resources,
                 onShowUserMessage = onShowUserMessage,
+                onSessionFinished = ::recordSession,
+                onSessionActiveChanged = { active ->
+                    sessionTracker.setActive(
+                        active &&
+                            rsvpLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+                        System.currentTimeMillis(),
+                    )
+                },
                 saveRsvpPosition = ::saveRsvpPosition,
             )
         )

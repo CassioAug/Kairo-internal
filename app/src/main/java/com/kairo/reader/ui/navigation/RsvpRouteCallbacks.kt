@@ -37,6 +37,8 @@ internal data class RsvpRouteCallbackDependencies(
     val coroutineScope: CoroutineScope,
     val resources: Resources,
     val onShowUserMessage: (String) -> Unit,
+    val onSessionFinished: (endTokenIndex: Int) -> Unit,
+    val onSessionActiveChanged: (Boolean) -> Unit,
     val saveRsvpPosition: (
         targetChapterIndex: Int,
         targetTokenIndex: Int,
@@ -120,6 +122,7 @@ private fun buildRsvpPlaybackCallbacks(
 ): RsvpPlaybackCallbacks =
     RsvpPlaybackCallbacks(
         onFinished = { resumePoint ->
+            dependencies.onSessionFinished(resumePoint.tokenIndex)
             val returnTarget =
                 resolveRsvpReturnTarget(
                     resumePoint = resumePoint,
@@ -200,6 +203,7 @@ private fun buildRsvpPlaybackCallbacks(
             }
         },
         onExit = { resumePoint ->
+            dependencies.onSessionFinished(resumePoint.tokenIndex)
             val resumeIndex = dependencies.safeResumeIndex(resumePoint.tokenIndex)
             val wordIndex = resolveWordIndex(dependencies.wordCountByToken, resumeIndex)
             dependencies.saveRsvpPosition(
@@ -230,6 +234,7 @@ private fun buildRsvpPlaybackCallbacks(
             dependencies.navController.popBackStack()
         },
         onOpenLibrary = { resumePoint ->
+            dependencies.onSessionFinished(resumePoint.tokenIndex)
             val resumeIndex = dependencies.safeResumeIndex(resumePoint.tokenIndex)
             val wordIndex = resolveWordIndex(dependencies.wordCountByToken, resumeIndex)
             dependencies.saveRsvpPosition(
@@ -244,6 +249,7 @@ private fun buildRsvpPlaybackCallbacks(
             }
         },
         onPlaybackStateChanged = { isPlaying ->
+            dependencies.onSessionActiveChanged(isPlaying)
             dependencies.backStackEntry.savedStateHandle[
                 KairoSavedStateKeys.RSVP_PLAYBACK_IS_PLAYING
             ] =
