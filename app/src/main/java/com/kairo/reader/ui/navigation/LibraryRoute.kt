@@ -6,20 +6,28 @@ import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
+import com.kairo.reader.core.model.LibrarySearchResult
+import com.kairo.reader.core.model.LibrarySearchResultKind
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.library.LibraryBookProgress
+import com.kairo.reader.ui.library.LibraryBookFilter
 import com.kairo.reader.ui.library.LibraryScreen
 import com.kairo.reader.ui.library.LibraryTab
 import com.kairo.reader.ui.library.buildLibraryEstimatedWpmByBookId
 import com.kairo.reader.ui.library.buildLibraryProgress
+import com.kairo.reader.data.sessions.buildReadingMomentum
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,6 +57,16 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
         val bookmarks by container.bookmarkRepository.observeBookmarks().collectAsState(
             initial = emptyList()
         )
+        val annotations by container.savedAnnotationRepository.observeAnnotations().collectAsState(
+            initial = emptyList(),
+        )
+        val sessions by container.readingSessionRepository.observeSessions().collectAsState(
+            initial = emptyList(),
+        )
+        val momentum = remember(sessions) { buildReadingMomentum(sessions) }
+        var searchResults by remember { mutableStateOf<List<LibrarySearchResult>>(emptyList()) }
+        var isSearching by remember { mutableStateOf(false) }
+        var searchRequestId by remember { mutableIntStateOf(0) }
         val positions by container.readingPositionRepository.observePositions().collectAsState(
             initial = emptyList()
         )
@@ -84,16 +102,52 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
         }
         val initialTab =
             when (initialTabRouteValue?.lowercase()) {
-                KairoRoutes.TAB_COMPLETED -> LibraryTab.Completed
-                KairoRoutes.TAB_BOOKMARKS -> LibraryTab.Bookmarks
-                else -> LibraryTab.Library
+                KairoRoutes.TAB_BOOKMARKS -> LibraryTab.Saved
+                else -> LibraryTab.Books
             }
+        val initialBookFilter =
+            if (initialTabRouteValue?.lowercase() == KairoRoutes.TAB_COMPLETED) {
+                LibraryBookFilter.COMPLETED
+            } else {
+                LibraryBookFilter.READING
+            }
+
+        fun openSearchResult(result: LibrarySearchResult) {
+            if (result.kind != LibrarySearchResultKind.BOOK) {
+                coroutineScope.launch(dispatcherProvider.io) {
+                    container.readingPositionRepository.savePosition(
+                        ReadingPosition(
+                            result.bookId,
+                            result.chapterIndex,
+                            result.tokenIndex,
+                        ),
+                    )
+                }
+            }
+            navController.navigate(
+                if (result.kind == LibrarySearchResultKind.BOOK) {
+                    KairoRoutes.reader(result.bookId.value)
+                } else {
+                    KairoRoutes.reader(
+                        result.bookId.value,
+                        result.chapterIndex,
+                        result.tokenIndex,
+                    )
+                },
+            )
+        }
 
         LibraryScreen(
             books = books,
             bookmarks = bookmarks,
+            annotations = annotations,
+            momentum = momentum,
+            weeklyGoalMinutes = prefs.weeklyReadingGoalMinutes,
+            searchResults = searchResults,
+            isSearching = isSearching,
             bookProgress = bookProgress,
             initialTab = initialTab,
+            initialBookFilter = initialBookFilter,
             importState = importState,
             onOpen = { book ->
                 navController.navigate(KairoRoutes.reader(book.id.value))
@@ -109,9 +163,31 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
             onDeleteBookmark = { bookmarkId ->
                 coroutineScope.launch { container.bookmarkRepository.delete(bookmarkId) }
             },
+            onDeleteAnnotation = { annotationId ->
+                coroutineScope.launch { container.savedAnnotationRepository.delete(annotationId) }
+            },
             onDeleteBookmarksForBook = { bookId ->
                 coroutineScope.launch {
                     container.bookmarkRepository.deleteForBook(BookId(bookId))
+                }
+            },
+            onSearchQuery = { query ->
+                val requestId = ++searchRequestId
+                isSearching = true
+                coroutineScope.launch {
+                    val results =
+                        runCatching { container.searchRepository.search(query) }
+                            .getOrDefault(emptyList())
+                    if (requestId == searchRequestId) {
+                        searchResults = results
+                        isSearching = false
+                    }
+                }
+            },
+            onOpenSearchResult = ::openSearchResult,
+            onWeeklyGoalChange = { minutes ->
+                coroutineScope.launch {
+                    container.preferencesRepository.updateWeeklyReadingGoalMinutes(minutes)
                 }
             },
             onImportFile = onImportFile,

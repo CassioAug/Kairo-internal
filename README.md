@@ -24,7 +24,9 @@ The result is an Android reader that sits somewhere between an ebook app, a spee
 - Builds a local library with covers, progress, and resume state
 - Opens books in a scrollable reader with chapter and page-aware navigation
 - Launches RSVP reading from your current reading position
-- Persists reading position, bookmarks, and reader preferences
+- Persists reading position, bookmarks, highlights, notes, and reader preferences
+- Searches book titles, full-text passages, highlights, and notes entirely on-device
+- Builds a local Momentum profile from reading sessions without requiring an account
 - Gives fine-grained control over RSVP timing, display, rhythm, and readability
 - Supports focus mode options for a quieter reading experience
 - Includes language-aware tokenization foundations for Latin, CJK, and RTL text flows
@@ -36,7 +38,11 @@ The result is an Android reader that sits somewhere between an ebook app, a spee
 - Import books directly from Android's document picker
 - Browse your collection with extracted cover art and metadata
 - Track completion progress and estimated time remaining
-- Manage bookmarks from a dedicated library tab
+- Switch between Books, Saved, and Momentum views
+- Filter the library by reading, completed, or all books
+- Search across book titles, passages, highlights, and notes
+- Review bookmarks, colour-coded highlights, and notes in one Saved view
+- Track weekly minutes, words, consistency, preferred mode, and effective pace locally
 
 ### Reader
 
@@ -45,6 +51,8 @@ The result is an Android reader that sits somewhere between an ebook app, a spee
 - Page-aware progress indicators and ETA
 - Inline image handling for illustrated books
 - Quick handoff into RSVP mode from the current reading position
+- Long-press passage selection with highlight, note, and search actions
+- Full-text search within the current book with previous and next match navigation
 
 ### RSVP
 
@@ -184,7 +192,9 @@ Kairo already includes the core reading loop:
 - browse it in your library
 - read in the standard reader
 - switch into RSVP playback
-- save progress, bookmarks, and preferences locally
+- save progress, bookmarks, highlights, notes, reading sessions, and preferences locally
+- search the library or the current book without uploading reading data
+- review a private, account-free reading profile in Momentum
 
 The project is still evolving, especially around polish, performance, and the more experimental RSVP tuning surfaces.
 

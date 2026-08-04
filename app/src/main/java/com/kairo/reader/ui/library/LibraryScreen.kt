@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -46,8 +47,12 @@ import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookmarkItem
+import com.kairo.reader.core.model.LibrarySearchResult
+import com.kairo.reader.core.model.ReadingMomentum
+import com.kairo.reader.core.model.SavedAnnotationItem
 import com.kairo.reader.data.books.BookImportFormats
 import com.kairo.reader.data.books.TextImportRequest
+import com.kairo.reader.ui.search.LibrarySearchOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialTargetIds
@@ -58,13 +63,23 @@ import com.kairo.reader.ui.tutorial.startingTutorialTarget
 fun LibraryScreen(
     books: List<Book>,
     bookmarks: List<BookmarkItem>,
+    annotations: List<SavedAnnotationItem> = emptyList(),
+    momentum: ReadingMomentum = ReadingMomentum(),
+    weeklyGoalMinutes: Int = 120,
+    searchResults: List<LibrarySearchResult> = emptyList(),
+    isSearching: Boolean = false,
     bookProgress: Map<String, LibraryBookProgress>,
-    initialTab: LibraryTab = LibraryTab.Library,
+    initialTab: LibraryTab = LibraryTab.Books,
+    initialBookFilter: LibraryBookFilter = LibraryBookFilter.READING,
     importState: ImportUiState = ImportUiState(),
     onOpen: (Book) -> Unit,
     onOpenBookmark: (bookId: String, chapterIndex: Int, tokenIndex: Int) -> Unit,
     onDeleteBookmark: (bookmarkId: String) -> Unit,
+    onDeleteAnnotation: (annotationId: String) -> Unit = {},
     onDeleteBookmarksForBook: (bookId: String) -> Unit,
+    onSearchQuery: (String) -> Unit = {},
+    onOpenSearchResult: (LibrarySearchResult) -> Unit = {},
+    onWeeklyGoalChange: (Int) -> Unit = {},
     onImportFile: (Uri) -> Unit,
     onImportUrl: (String) -> Unit,
     onImportText: (TextImportRequest) -> Unit = {},
@@ -90,7 +105,18 @@ fun LibraryScreen(
     var selectedTabName by rememberSaveable(initialTab) { mutableStateOf(initialTab.name) }
     val selectedTab =
         remember(selectedTabName) {
-            LibraryTab.entries.firstOrNull { it.name == selectedTabName } ?: LibraryTab.Library
+            LibraryTab.entries.firstOrNull { it.name == selectedTabName } ?: LibraryTab.Books
+        }
+    var bookFilterName by rememberSaveable(initialBookFilter) { mutableStateOf(initialBookFilter.name) }
+    val bookFilter =
+        remember(bookFilterName) {
+            LibraryBookFilter.entries.firstOrNull { it.name == bookFilterName }
+                ?: LibraryBookFilter.READING
+        }
+    var savedFilterName by rememberSaveable { mutableStateOf(SavedFilter.ALL.name) }
+    val savedFilter =
+        remember(savedFilterName) {
+            SavedFilter.entries.firstOrNull { it.name == savedFilterName } ?: SavedFilter.ALL
         }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
     var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
@@ -100,9 +126,8 @@ fun LibraryScreen(
     var showAddTextDialog by rememberSaveable { mutableStateOf(false) }
     var textImportTitle by rememberSaveable { mutableStateOf("") }
     var textImportContent by rememberSaveable { mutableStateOf("") }
+    var showSearch by rememberSaveable { mutableStateOf(false) }
     val tutorialTargets = remember { mutableStateMapOf<String, Rect>() }
-    val libraryBooks = remember(books) { books.filterNot { it.isCompleted } }
-    val completedBooks = remember(books) { books.filter { it.isCompleted } }
     val openSystemFilePicker = {
         showSupportedFormats = false
         filePickerLauncher.launch(BookImportFormats.pickerMimeTypes.toTypedArray())
@@ -148,7 +173,7 @@ fun LibraryScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (compactLandscape && selectedTab == LibraryTab.Library) {
+                if (compactLandscape && selectedTab == LibraryTab.Books) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ImportBookButton(
                             onClick = launchBookImport,
@@ -174,6 +199,12 @@ fun LibraryScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
+                }
+                IconButton(onClick = { showSearch = true }) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = stringResource(R.string.content_desc_search),
+                    )
                 }
                 IconButton(
                     onClick = onSettings,
@@ -203,19 +234,19 @@ fun LibraryScreen(
                 },
             ) {
                 Tab(
-                    selected = selectedTab == LibraryTab.Library,
-                    onClick = { selectedTabName = LibraryTab.Library.name },
-                    text = { Text(stringResource(R.string.library_tab_library)) },
+                    selected = selectedTab == LibraryTab.Books,
+                    onClick = { selectedTabName = LibraryTab.Books.name },
+                    text = { Text(stringResource(R.string.library_tab_books)) },
                 )
                 Tab(
-                    selected = selectedTab == LibraryTab.Completed,
-                    onClick = { selectedTabName = LibraryTab.Completed.name },
-                    text = { Text(stringResource(R.string.library_tab_completed)) },
+                    selected = selectedTab == LibraryTab.Saved,
+                    onClick = { selectedTabName = LibraryTab.Saved.name },
+                    text = { Text(stringResource(R.string.library_tab_saved)) },
                 )
                 Tab(
-                    selected = selectedTab == LibraryTab.Bookmarks,
-                    onClick = { selectedTabName = LibraryTab.Bookmarks.name },
-                    text = { Text(stringResource(R.string.library_tab_bookmarks)) },
+                    selected = selectedTab == LibraryTab.Momentum,
+                    onClick = { selectedTabName = LibraryTab.Momentum.name },
+                    text = { Text(stringResource(R.string.library_tab_momentum)) },
                 )
             }
 
@@ -223,9 +254,13 @@ fun LibraryScreen(
                 state =
                 LibraryTabContentState(
                     selectedTab = selectedTab,
-                    libraryBooks = libraryBooks,
-                    completedBooks = completedBooks,
+                    books = books,
                     bookmarks = bookmarks,
+                    annotations = annotations,
+                    momentum = momentum,
+                    weeklyGoalMinutes = weeklyGoalMinutes,
+                    bookFilter = bookFilter,
+                    savedFilter = savedFilter,
                     bookProgress = bookProgress,
                     compactLandscape = compactLandscape,
                     isImporting = importState.isImporting,
@@ -237,12 +272,16 @@ fun LibraryScreen(
                     onRequestDelete = { pendingDeleteBook = it },
                     onOpenBookmark = onOpenBookmark,
                     onDeleteBookmark = onDeleteBookmark,
+                    onDeleteAnnotation = onDeleteAnnotation,
+                    onWeeklyGoalChange = onWeeklyGoalChange,
                     onRequestClearBookmarks = { pendingClearBookmarkBook = it },
                     onLaunchBookImport = launchBookImport,
                     onShowReadLinkDialog = { showReadLinkDialog = true },
                     onShowAddTextDialog = { showAddTextDialog = true },
                 ),
                 tutorialTargets = tutorialTargets,
+                onBookFilterChange = { bookFilterName = it.name },
+                onSavedFilterChange = { savedFilterName = it.name },
             )
         }
         ImportProgressOverlay(state = importState)
@@ -358,8 +397,23 @@ fun LibraryScreen(
             },
         )
     }
+
+    if (showSearch) {
+        LibrarySearchOverlay(
+            title = stringResource(R.string.search_kairo_title),
+            hint = stringResource(R.string.search_hint),
+            results = searchResults,
+            isSearching = isSearching,
+            onQuery = onSearchQuery,
+            onOpenResult = { result ->
+                showSearch = false
+                onOpenSearchResult(result)
+            },
+            onDismiss = { showSearch = false },
+        )
+    }
 }
 
 private const val COMPACT_LANDSCAPE_MAX_HEIGHT_DP = 480
 
-enum class LibraryTab { Library, Completed, Bookmarks }
+enum class LibraryTab { Books, Saved, Momentum }
