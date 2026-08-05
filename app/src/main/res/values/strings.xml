@@ -510,6 +510,9 @@
     <string name="saved_note_empty">No note text</string>
     <string name="saved_note_passage">From the book</string>
     <string name="content_desc_delete_saved">Delete saved passage</string>
+    <string name="content_desc_edit_saved">Edit saved passage</string>
+    <string name="saved_edit_note_title">Edit note</string>
+    <string name="saved_edit_highlight_title">Edit highlight</string>
     <string name="momentum_stored_locally">Stored only on this device</string>
     <string name="momentum_this_week">This week</string>
     <string name="momentum_minutes_read">%1$d min read</string>

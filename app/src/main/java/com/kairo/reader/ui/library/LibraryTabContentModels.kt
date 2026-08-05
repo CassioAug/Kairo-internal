@@ -26,6 +26,7 @@ data class LibraryTabContentActions(
     val onOpenBookmark: (String, Int, Int) -> Unit,
     val onDeleteBookmark: (String) -> Unit,
     val onDeleteAnnotation: (String) -> Unit,
+    val onEditAnnotation: (SavedAnnotationItem) -> Unit,
     val onWeeklyGoalChange: (Int) -> Unit,
     val onRequestClearBookmarks: (Book) -> Unit,
     val onLaunchBookImport: () -> Unit,

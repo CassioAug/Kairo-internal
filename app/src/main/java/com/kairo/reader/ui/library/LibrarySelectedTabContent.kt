@@ -32,6 +32,7 @@ internal fun LibrarySelectedTabContent(
                 onOpenSaved = actions.onOpenBookmark,
                 onDeleteBookmark = actions.onDeleteBookmark,
                 onDeleteAnnotation = actions.onDeleteAnnotation,
+                onEditAnnotation = actions.onEditAnnotation,
                 onClearBookmarksForBook = actions.onRequestClearBookmarks,
             )
         LibraryTab.Momentum ->

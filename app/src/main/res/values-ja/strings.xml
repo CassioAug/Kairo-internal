@@ -511,6 +511,9 @@
     <string name="saved_note_empty">メモ本文がありません</string>
     <string name="saved_note_passage">本からの引用</string>
     <string name="content_desc_delete_saved">保存した文章を削除</string>
+    <string name="content_desc_edit_saved">保存した文章を編集</string>
+    <string name="saved_edit_note_title">メモを編集</string>
+    <string name="saved_edit_highlight_title">ハイライトを編集</string>
     <string name="momentum_stored_locally">この端末にのみ保存されます</string>
     <string name="momentum_this_week">今週</string>
     <string name="momentum_minutes_read">%1$d 分読書</string>

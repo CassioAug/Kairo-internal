@@ -511,6 +511,9 @@
     <string name="saved_note_empty">Sem texto na nota</string>
     <string name="saved_note_passage">Do livro</string>
     <string name="content_desc_delete_saved">Excluir trecho salvo</string>
+    <string name="content_desc_edit_saved">Editar trecho salvo</string>
+    <string name="saved_edit_note_title">Editar nota</string>
+    <string name="saved_edit_highlight_title">Editar destaque</string>
     <string name="momentum_stored_locally">Armazenado somente neste dispositivo</string>
     <string name="momentum_this_week">Esta semana</string>
     <string name="momentum_minutes_read">%1$d min lidos</string>

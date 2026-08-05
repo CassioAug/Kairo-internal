@@ -19,6 +19,7 @@ import com.kairo.reader.core.model.LibrarySearchResult
 import com.kairo.reader.core.model.LibrarySearchResultKind
 import com.kairo.reader.core.model.ReadingPosition
 import com.kairo.reader.core.model.UserPreferences
+import com.kairo.reader.core.model.withEdit
 import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.library.ImportUiState
 import com.kairo.reader.ui.library.LibraryBookProgress
@@ -165,6 +166,16 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
             },
             onDeleteAnnotation = { annotationId ->
                 coroutineScope.launch { container.savedAnnotationRepository.delete(annotationId) }
+            },
+            onEditAnnotation = { request ->
+                val annotation =
+                    annotations.firstOrNull { it.annotation.id == request.annotationId }?.annotation
+                        ?: return@LibraryScreen
+                coroutineScope.launch {
+                    container.savedAnnotationRepository.save(
+                        annotation.withEdit(request, System.currentTimeMillis()),
+                    )
+                }
             },
             onDeleteBookmarksForBook = { bookId ->
                 coroutineScope.launch {

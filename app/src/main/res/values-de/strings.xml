@@ -511,6 +511,9 @@
     <string name="saved_note_empty">Kein Notiztext</string>
     <string name="saved_note_passage">Aus dem Buch</string>
     <string name="content_desc_delete_saved">Gespeicherte Textstelle löschen</string>
+    <string name="content_desc_edit_saved">Gespeicherte Textstelle bearbeiten</string>
+    <string name="saved_edit_note_title">Notiz bearbeiten</string>
+    <string name="saved_edit_highlight_title">Markierung bearbeiten</string>
     <string name="momentum_stored_locally">Nur auf diesem Gerät gespeichert</string>
     <string name="momentum_this_week">Diese Woche</string>
     <string name="momentum_minutes_read">%1$d Min. gelesen</string>

@@ -47,12 +47,14 @@ import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.Book
 import com.kairo.reader.core.model.BookmarkItem
+import com.kairo.reader.core.model.EditSavedAnnotationRequest
 import com.kairo.reader.core.model.LibrarySearchResult
 import com.kairo.reader.core.model.ReadingMomentum
 import com.kairo.reader.core.model.SavedAnnotationItem
 import com.kairo.reader.data.books.BookImportFormats
 import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.search.LibrarySearchOverlay
+import com.kairo.reader.ui.saved.SavedAnnotationEditorDialog
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import com.kairo.reader.ui.tutorial.StartingTutorialTargetIds
@@ -76,6 +78,7 @@ fun LibraryScreen(
     onOpenBookmark: (bookId: String, chapterIndex: Int, tokenIndex: Int) -> Unit,
     onDeleteBookmark: (bookmarkId: String) -> Unit,
     onDeleteAnnotation: (annotationId: String) -> Unit = {},
+    onEditAnnotation: (EditSavedAnnotationRequest) -> Unit = {},
     onDeleteBookmarksForBook: (bookId: String) -> Unit,
     onSearchQuery: (String) -> Unit = {},
     onOpenSearchResult: (LibrarySearchResult) -> Unit = {},
@@ -120,6 +123,7 @@ fun LibraryScreen(
         }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
     var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
+    var pendingEditAnnotation by remember { mutableStateOf<SavedAnnotationItem?>(null) }
     var showSupportedFormats by rememberSaveable { mutableStateOf(false) }
     var showReadLinkDialog by rememberSaveable { mutableStateOf(false) }
     var linkInput by rememberSaveable { mutableStateOf("") }
@@ -273,6 +277,7 @@ fun LibraryScreen(
                     onOpenBookmark = onOpenBookmark,
                     onDeleteBookmark = onDeleteBookmark,
                     onDeleteAnnotation = onDeleteAnnotation,
+                    onEditAnnotation = { pendingEditAnnotation = it },
                     onWeeklyGoalChange = onWeeklyGoalChange,
                     onRequestClearBookmarks = { pendingClearBookmarkBook = it },
                     onLaunchBookImport = launchBookImport,
@@ -327,6 +332,17 @@ fun LibraryScreen(
                     Text(stringResource(R.string.action_cancel))
                 }
             },
+        )
+    }
+
+    pendingEditAnnotation?.let { item ->
+        SavedAnnotationEditorDialog(
+            annotation = item.annotation,
+            onSave = { request ->
+                onEditAnnotation(request)
+                pendingEditAnnotation = null
+            },
+            onDismiss = { pendingEditAnnotation = null },
         )
     }
 

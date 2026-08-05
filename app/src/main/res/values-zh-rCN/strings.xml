@@ -511,6 +511,9 @@
     <string name="saved_note_empty">没有笔记内容</string>
     <string name="saved_note_passage">摘自书中</string>
     <string name="content_desc_delete_saved">删除已保存段落</string>
+    <string name="content_desc_edit_saved">编辑已保存段落</string>
+    <string name="saved_edit_note_title">编辑笔记</string>
+    <string name="saved_edit_highlight_title">编辑高亮</string>
     <string name="momentum_stored_locally">仅存储在此设备上</string>
     <string name="momentum_this_week">本周</string>
     <string name="momentum_minutes_read">已阅读 %1$d 分钟</string>

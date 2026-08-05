@@ -511,6 +511,9 @@
     <string name="saved_note_empty">Aucun texte de note</string>
     <string name="saved_note_passage">Extrait du livre</string>
     <string name="content_desc_delete_saved">Supprimer le passage enregistré</string>
+    <string name="content_desc_edit_saved">Modifier le passage enregistré</string>
+    <string name="saved_edit_note_title">Modifier la note</string>
+    <string name="saved_edit_highlight_title">Modifier le surlignage</string>
     <string name="momentum_stored_locally">Enregistré uniquement sur cet appareil</string>
     <string name="momentum_this_week">Cette semaine</string>
     <string name="momentum_minutes_read">%1$d min lues</string>

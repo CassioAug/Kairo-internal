@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.HighlightColor
 import com.kairo.reader.ui.saved.displayColor
+import com.kairo.reader.ui.saved.labelResource
 
 @Composable
 internal fun ReaderSelectionBar(
@@ -205,13 +206,5 @@ internal fun ReaderSearchMatchBar(
         }
     }
 }
-
-private fun HighlightColor.labelResource(): Int =
-    when (this) {
-        HighlightColor.YELLOW -> R.string.highlight_yellow
-        HighlightColor.BLUE -> R.string.highlight_blue
-        HighlightColor.GREEN -> R.string.highlight_green
-        HighlightColor.PINK -> R.string.highlight_pink
-    }
 
 private const val NOTE_PASSAGE_TINT_ALPHA = 0.10f

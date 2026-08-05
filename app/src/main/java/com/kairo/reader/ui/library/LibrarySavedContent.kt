@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +50,7 @@ internal fun LibrarySavedContent(
     onOpenSaved: (String, Int, Int) -> Unit,
     onDeleteBookmark: (String) -> Unit,
     onDeleteAnnotation: (String) -> Unit,
+    onEditAnnotation: (SavedAnnotationItem) -> Unit,
     onClearBookmarksForBook: (com.kairo.reader.core.model.Book) -> Unit,
 ) {
     val visibleAnnotations =
@@ -98,7 +100,7 @@ internal fun LibrarySavedContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(visibleAnnotations, key = { "annotation:${it.annotation.id}" }) { item ->
-                    SavedAnnotationRow(item, onOpenSaved, onDeleteAnnotation)
+                    SavedAnnotationRow(item, onOpenSaved, onDeleteAnnotation, onEditAnnotation)
                 }
                 groupedBookmarks.forEach { group ->
                     val first = group.first()
@@ -123,6 +125,7 @@ private fun SavedAnnotationRow(
     item: SavedAnnotationItem,
     onOpenSaved: (String, Int, Int) -> Unit,
     onDelete: (String) -> Unit,
+    onEdit: (SavedAnnotationItem) -> Unit,
 ) {
     val annotation = item.annotation
     Row(
@@ -154,15 +157,23 @@ private fun SavedAnnotationRow(
                 SavedAnnotationKind.HIGHLIGHT -> SavedPassageCard(item, prominent = true)
             }
         }
-        IconButton(
-            onClick = { onDelete(annotation.id) },
+        Column(
             modifier = Modifier.padding(top = 2.dp, end = 2.dp),
         ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = stringResource(R.string.content_desc_delete_saved),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            IconButton(onClick = { onEdit(item) }) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = stringResource(R.string.content_desc_edit_saved),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = { onDelete(annotation.id) }) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.content_desc_delete_saved),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

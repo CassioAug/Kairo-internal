@@ -35,3 +35,24 @@ data class SaveAnnotationRequest(
     val color: HighlightColor,
     val kind: SavedAnnotationKind,
 )
+
+data class EditSavedAnnotationRequest(
+    val annotationId: String,
+    val note: String,
+    val color: HighlightColor,
+)
+
+fun SavedAnnotation.withEdit(
+    request: EditSavedAnnotationRequest,
+    updatedAt: Long,
+): SavedAnnotation {
+    require(request.annotationId == id) { "Edit request does not match saved annotation" }
+    if (kind == SavedAnnotationKind.NOTE) {
+        require(request.note.isNotBlank()) { "A saved note cannot be empty" }
+    }
+    return copy(
+        note = if (kind == SavedAnnotationKind.NOTE) request.note.trim() else note,
+        color = request.color,
+        updatedAt = updatedAt,
+    )
+}
