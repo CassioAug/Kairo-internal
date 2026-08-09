@@ -59,9 +59,13 @@ import com.kairo.reader.core.model.ReaderTheme
 import com.kairo.reader.core.model.SaveAnnotationRequest
 import com.kairo.reader.core.model.SavedAnnotation
 import com.kairo.reader.core.model.SavedAnnotationKind
+import com.kairo.reader.core.model.SavedAnnotationLimits
 import com.kairo.reader.core.model.TableOfContentsTarget
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.nearestWordIndex
+import com.kairo.reader.data.search.LibrarySearchConstraints
+import com.kairo.reader.data.search.LibrarySearchState
+import com.kairo.reader.data.search.resolveSearchResultTokenRange
 import com.kairo.reader.ui.search.LibrarySearchOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
@@ -120,9 +124,9 @@ fun ReaderScreen(
     onTableOfContentsTargetSelected: (TableOfContentsTarget) -> Unit,
     onViewportMetricsChanged: (fontSizeSp: Float, viewportHeightDp: Int) -> Unit,
     savedAnnotations: List<SavedAnnotation> = emptyList(),
-    bookSearchResults: List<LibrarySearchResult> = emptyList(),
-    isBookSearching: Boolean = false,
+    bookSearchState: LibrarySearchState = LibrarySearchState.Idle,
     onSearchBook: (String) -> Unit = {},
+    onRetryBookSearch: () -> Unit = {},
     onSearchResultSelected: (LibrarySearchResult) -> Unit = {},
     onSaveAnnotation: (SaveAnnotationRequest) -> Unit = {},
     tutorialState: StartingTutorialOverlayState? = null,
@@ -209,15 +213,15 @@ fun ReaderScreen(
     }
 
     // Chapter list bottom sheet state
-    val showChapterList = remember { mutableStateOf(false) }
+    val showChapterList = rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by remember { mutableStateOf(false) }
     var showReaderDetails by remember { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var searchInitialQuery by rememberSaveable { mutableStateOf("") }
     var activeSearchResultId by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectionAnchor by remember(chapterIndex) { mutableStateOf<Int?>(null) }
-    var selectionEnd by remember(chapterIndex) { mutableStateOf<Int?>(null) }
-    var showNoteDialog by remember { mutableStateOf(false) }
+    var selectionAnchor by rememberSaveable(chapterIndex) { mutableStateOf<Int?>(null) }
+    var selectionEnd by rememberSaveable(chapterIndex) { mutableStateOf<Int?>(null) }
+    var showNoteDialog by rememberSaveable { mutableStateOf(false) }
     var fullScreenImagePath by remember { mutableStateOf<String?>(null) }
     var swipeDirection by remember { mutableStateOf<ReaderSwipeDirection?>(null) }
     var swipeProgress by remember { mutableFloatStateOf(0f) }
@@ -228,12 +232,44 @@ fun ReaderScreen(
         remember(renderState.tokens, selectionRange) {
             buildReaderSelectionText(renderState.tokens, selectionRange)
         }
+    val selectionLimitState = readerSelectionLimitState(selectedText, selectionRange)
+    val bookSearchResults = (bookSearchState as? LibrarySearchState.Success)?.results.orEmpty()
     val activeSearchResult = activeSearchResultId?.let { id -> bookSearchResults.firstOrNull { it.id == id } }
     val searchMatchRange =
-        activeSearchResult
-            ?.takeIf { it.chapterIndex == chapterIndex }
-            ?.tokenIndex
-            ?.let { it..it }
+        remember(activeSearchResult, chapterIndex, uiState.chapterData) {
+            activeSearchResult
+                ?.takeIf { it.chapterIndex == chapterIndex }
+                ?.let { result ->
+                    uiState.chapterData?.let { chapter ->
+                        resolveSearchResultTokenRange(result, chapter.plainText, chapter.tokens)
+                    }
+                }
+        }
+    val backTarget =
+        resolveReaderBackTarget(
+            showNoteDialog = showNoteDialog && selectionRange != null,
+            showSearch = showSearch,
+            showReaderMenu = showReaderMenu,
+            showChapterList = showChapterList.value,
+            hasSelection = selectionRange != null,
+            hasSearchMatch = activeSearchResult != null,
+            hasFullScreenImage = fullScreenImagePath != null,
+        )
+    BackHandler(enabled = backTarget != ReaderBackTarget.NONE) {
+        when (backTarget) {
+            ReaderBackTarget.NOTE -> showNoteDialog = false
+            ReaderBackTarget.SEARCH -> showSearch = false
+            ReaderBackTarget.EDITOR -> showReaderMenu = false
+            ReaderBackTarget.TABLE_OF_CONTENTS -> showChapterList.value = false
+            ReaderBackTarget.SELECTION -> {
+                selectionAnchor = null
+                selectionEnd = null
+            }
+            ReaderBackTarget.SEARCH_MATCH -> activeSearchResultId = null
+            ReaderBackTarget.FULL_SCREEN_IMAGE -> fullScreenImagePath = null
+            ReaderBackTarget.NONE -> Unit
+        }
+    }
 
     LaunchedEffect(tutorialTargetId) {
         if (tutorialState == null) return@LaunchedEffect
@@ -444,7 +480,15 @@ fun ReaderScreen(
                             activeSearchResultId = null
                         },
                         onSelectionExtend = { tokenIndex -> selectionEnd = tokenIndex },
-                        onChapterSelected = { index -> onChapterChange(index, 0) },
+                        onSelectionCancel = {
+                            selectionAnchor = null
+                            selectionEnd = null
+                        },
+                        onChapterSelected = { index ->
+                            onTableOfContentsTargetSelected(
+                                TableOfContentsTarget(chapterIndex = index)
+                            )
+                        },
                     ),
                 )
             }
@@ -459,7 +503,6 @@ fun ReaderScreen(
         )
 
         if (showChapterList.value) {
-            BackHandler { showChapterList.value = false }
             ChapterListOverlay(
                 book = book,
                 currentChapterIndex = chapterIndex,
@@ -528,13 +571,26 @@ fun ReaderScreen(
                 },
                 onNote = { showNoteDialog = true },
                 onSearch = {
-                    searchInitialQuery = selectedText
+                    searchInitialQuery = selectedText.take(LibrarySearchConstraints.MAX_QUERY_LENGTH)
                     showSearch = true
                 },
                 onCancel = {
                     selectionAnchor = null
                     selectionEnd = null
                 },
+                canSaveSelection = selectionLimitState.canSave,
+                selectionSupportingText =
+                stringResource(
+                    if (selectionLimitState.canSave) {
+                        R.string.saved_passage_selection_count
+                    } else {
+                        R.string.saved_passage_limit_error
+                    },
+                    selectionLimitState.characterCount,
+                    SavedAnnotationLimits.MAX_SELECTED_TEXT_CHARACTERS,
+                    selectionLimitState.tokenCount,
+                    SavedAnnotationLimits.MAX_SELECTED_TOKENS,
+                ),
                 modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -568,7 +624,6 @@ fun ReaderScreen(
         }
 
         if (showReaderMenu) {
-            BackHandler { showReaderMenu = false }
             ReaderMenuOverlay(
                 state =
                 ReaderMenuState(
@@ -630,7 +685,6 @@ fun ReaderScreen(
         }
 
         fullScreenImagePath?.let { path ->
-            BackHandler { fullScreenImagePath = null }
             FullScreenImageViewer(
                 imagePath = path,
                 onDismiss = { fullScreenImagePath = null },
@@ -642,10 +696,10 @@ fun ReaderScreen(
         LibrarySearchOverlay(
             title = stringResource(R.string.search_this_book_title),
             hint = stringResource(R.string.search_book_hint),
-            results = bookSearchResults,
-            isSearching = isBookSearching,
+            state = bookSearchState,
             initialQuery = searchInitialQuery,
             onQuery = onSearchBook,
+            onRetry = onRetryBookSearch,
             onOpenResult = { result ->
                 activeSearchResultId = result.id
                 selectionAnchor = null
@@ -681,6 +735,37 @@ fun ReaderScreen(
 }
 
 private fun Int.floorMod(modulus: Int): Int = if (modulus <= 0) 0 else Math.floorMod(this, modulus)
+
+internal enum class ReaderBackTarget {
+    NOTE,
+    SEARCH,
+    EDITOR,
+    TABLE_OF_CONTENTS,
+    SELECTION,
+    SEARCH_MATCH,
+    FULL_SCREEN_IMAGE,
+    NONE,
+}
+
+internal fun resolveReaderBackTarget(
+    showNoteDialog: Boolean,
+    showSearch: Boolean,
+    showReaderMenu: Boolean,
+    showChapterList: Boolean,
+    hasSelection: Boolean,
+    hasSearchMatch: Boolean,
+    hasFullScreenImage: Boolean,
+): ReaderBackTarget =
+    when {
+        showNoteDialog -> ReaderBackTarget.NOTE
+        showSearch -> ReaderBackTarget.SEARCH
+        hasFullScreenImage -> ReaderBackTarget.FULL_SCREEN_IMAGE
+        showReaderMenu -> ReaderBackTarget.EDITOR
+        showChapterList -> ReaderBackTarget.TABLE_OF_CONTENTS
+        hasSelection -> ReaderBackTarget.SELECTION
+        hasSearchMatch -> ReaderBackTarget.SEARCH_MATCH
+        else -> ReaderBackTarget.NONE
+    }
 
 internal fun timedReadingModeForReader(
     selectedMode: TimedReadingMode,

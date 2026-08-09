@@ -573,4 +573,20 @@
     <string name="reading_mode_reader">Reader</string>
     <string name="reading_mode_rsvp">RSVP</string>
     <string name="reading_mode_bionic">Bionic</string>
+    <string name="action_retry">Retry</string>
+    <string name="search_error">Search could not be completed.</string>
+    <string name="saved_note_limit_error">Notes can be up to %1$d characters.</string>
+    <string name="saved_note_character_count">%1$d / %2$d characters</string>
+    <string name="saved_passage_selection_count">%1$d / %2$d characters • %3$d / %4$d words</string>
+    <string name="saved_passage_limit_error">Selection is too long: %1$d / %2$d characters • %3$d / %4$d words</string>
+    <string name="toast_passage_save_failed">Could not save this passage</string>
+    <string name="saved_delete_title">Delete saved passage?</string>
+    <string name="saved_delete_message">This saved passage and its note will be permanently deleted.</string>
+    <string name="library_books_filter_empty">No books match this filter.</string>
+    <string name="saved_filter_empty">No saved items match this filter.</string>
+    <string name="action_clear_filter">Clear filter</string>
+    <string name="reader_start_selection_action">Start text selection</string>
+    <string name="reader_extend_selection_backward_action">Extend selection backward</string>
+    <string name="reader_extend_selection_forward_action">Extend selection forward</string>
+    <string name="reader_cancel_selection_action">Cancel text selection</string>
 </resources>

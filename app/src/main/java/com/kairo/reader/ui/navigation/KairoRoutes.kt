@@ -13,13 +13,16 @@ internal object KairoRoutes {
     const val SETTINGS_READER = "settings/reader"
     const val SETTINGS_FOCUS = "settings/focus"
     const val READER = "reader/{bookId}"
-    const val READER_WITH_POSITION = "reader/{bookId}/{chapterIndex}/{tokenIndex}"
+    const val READER_WITH_POSITION =
+        "reader/{bookId}/{chapterIndex}/{tokenIndex}?" +
+            "searchCodePointOffset={searchCodePointOffset}"
     const val RSVP = "rsvp/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}"
     const val BIONIC = "bionic/{bookId}/{chapterIndex}/{tokenIndex}?tempoMs={tempoMs}"
 
     const val ARG_BOOK_ID = "bookId"
     const val ARG_CHAPTER_INDEX = "chapterIndex"
     const val ARG_TOKEN_INDEX = "tokenIndex"
+    const val ARG_SEARCH_CODE_POINT_OFFSET = "searchCodePointOffset"
     const val ARG_TEMPO_MS = "tempoMs"
     const val ARG_LIBRARY_TAB = "tab"
 
@@ -35,7 +38,14 @@ internal object KairoRoutes {
         bookId: String,
         chapterIndex: Int,
         tokenIndex: Int,
-    ): String = "reader/$bookId/$chapterIndex/$tokenIndex"
+        searchCodePointOffset: Int? = null,
+    ): String =
+        buildString {
+            append("reader/$bookId/$chapterIndex/$tokenIndex")
+            searchCodePointOffset
+                ?.takeIf { it >= 0 }
+                ?.let { append("?searchCodePointOffset=$it") }
+        }
 
     fun rsvp(
         bookId: String,

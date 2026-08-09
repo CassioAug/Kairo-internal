@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,11 +88,25 @@ internal fun LibrarySavedContent(
         }
         if (visibleAnnotations.isEmpty() && visibleBookmarks.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = stringResource(R.string.saved_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text =
+                        stringResource(
+                            if (bookmarks.isNotEmpty() || annotations.isNotEmpty()) {
+                                R.string.saved_filter_empty
+                            } else {
+                                R.string.saved_empty
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (bookmarks.isNotEmpty() || annotations.isNotEmpty()) {
+                        TextButton(onClick = { onFilterChange(SavedFilter.ALL) }) {
+                            Text(stringResource(R.string.action_clear_filter))
+                        }
+                    }
+                }
             }
         } else {
             val groupedBookmarks = visibleBookmarks.groupBy { it.book.id.value }.values

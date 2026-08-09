@@ -27,7 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.HighlightColor
+import com.kairo.reader.core.model.SavedAnnotationLimits
 import com.kairo.reader.ui.saved.displayColor
 import com.kairo.reader.ui.saved.labelResource
 
@@ -46,6 +47,8 @@ internal fun ReaderSelectionBar(
     onNote: () -> Unit,
     onSearch: () -> Unit,
     onCancel: () -> Unit,
+    canSaveSelection: Boolean = true,
+    selectionSupportingText: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -70,12 +73,28 @@ internal fun ReaderSelectionBar(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            selectionSupportingText?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.labelSmall,
+                    color =
+                    if (canSaveSelection) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+            }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Button(onClick = onHighlight) { Text(stringResource(R.string.action_highlight)) }
-                OutlinedButton(onClick = onNote) { Text(stringResource(R.string.action_note)) }
+                Button(onClick = onHighlight, enabled = canSaveSelection) {
+                    Text(stringResource(R.string.action_highlight))
+                }
+                OutlinedButton(onClick = onNote, enabled = canSaveSelection) {
+                    Text(stringResource(R.string.action_note))
+                }
                 OutlinedButton(onClick = onSearch) { Text(stringResource(R.string.action_search)) }
                 TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
             }
@@ -89,8 +108,9 @@ internal fun ReaderNoteDialog(
     onSave: (String, HighlightColor) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var note by remember { mutableStateOf("") }
-    var colorName by remember { mutableStateOf(HighlightColor.YELLOW.name) }
+    var note by rememberSaveable { mutableStateOf("") }
+    var noteLimitAttempted by rememberSaveable { mutableStateOf(false) }
+    var colorName by rememberSaveable { mutableStateOf(HighlightColor.YELLOW.name) }
     val color = HighlightColor.entries.firstOrNull { it.name == colorName } ?: HighlightColor.YELLOW
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -99,12 +119,37 @@ internal fun ReaderNoteDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = note,
-                    onValueChange = { note = it },
+                    onValueChange = { value ->
+                        if (value.length <= SavedAnnotationLimits.MAX_NOTE_CHARACTERS) {
+                            note = value
+                            noteLimitAttempted = false
+                        } else {
+                            noteLimitAttempted = true
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.reader_note_hint)) },
                     placeholder = { Text(stringResource(R.string.reader_note_prompt)) },
                     minLines = 3,
                     maxLines = 6,
+                    supportingText = {
+                        Text(
+                            text =
+                            if (noteLimitAttempted) {
+                                stringResource(
+                                    R.string.saved_note_limit_error,
+                                    SavedAnnotationLimits.MAX_NOTE_CHARACTERS,
+                                )
+                            } else {
+                                stringResource(
+                                    R.string.saved_note_character_count,
+                                    note.length,
+                                    SavedAnnotationLimits.MAX_NOTE_CHARACTERS,
+                                )
+                            },
+                        )
+                    },
+                    isError = noteLimitAttempted,
                 )
                 Surface(
                     shape = RoundedCornerShape(10.dp),

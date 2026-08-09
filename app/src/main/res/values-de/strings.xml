@@ -574,4 +574,20 @@
     <string name="reading_mode_reader">Leser</string>
     <string name="reading_mode_rsvp">RSVP</string>
     <string name="reading_mode_bionic">Bionisch</string>
+    <string name="action_retry">Erneut versuchen</string>
+    <string name="search_error">Die Suche konnte nicht abgeschlossen werden.</string>
+    <string name="saved_note_limit_error">Notizen dürfen höchstens %1$d Zeichen enthalten.</string>
+    <string name="saved_note_character_count">%1$d / %2$d Zeichen</string>
+    <string name="saved_passage_selection_count">%1$d / %2$d Zeichen • %3$d / %4$d Wörter</string>
+    <string name="saved_passage_limit_error">Auswahl zu lang: %1$d / %2$d Zeichen • %3$d / %4$d Wörter</string>
+    <string name="toast_passage_save_failed">Diese Textstelle konnte nicht gespeichert werden</string>
+    <string name="saved_delete_title">Gespeicherte Textstelle löschen?</string>
+    <string name="saved_delete_message">Diese Textstelle und ihre Notiz werden dauerhaft gelöscht.</string>
+    <string name="library_books_filter_empty">Keine Bücher entsprechen diesem Filter.</string>
+    <string name="saved_filter_empty">Keine gespeicherten Elemente entsprechen diesem Filter.</string>
+    <string name="action_clear_filter">Filter löschen</string>
+    <string name="reader_start_selection_action">Textauswahl starten</string>
+    <string name="reader_extend_selection_backward_action">Auswahl nach hinten erweitern</string>
+    <string name="reader_extend_selection_forward_action">Auswahl nach vorn erweitern</string>
+    <string name="reader_cancel_selection_action">Textauswahl abbrechen</string>
 </resources>

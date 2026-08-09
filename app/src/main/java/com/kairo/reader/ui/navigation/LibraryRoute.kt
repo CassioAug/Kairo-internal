@@ -6,12 +6,9 @@ import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
@@ -29,6 +26,7 @@ import com.kairo.reader.ui.library.LibraryTab
 import com.kairo.reader.ui.library.buildLibraryEstimatedWpmByBookId
 import com.kairo.reader.ui.library.buildLibraryProgress
 import com.kairo.reader.data.sessions.buildReadingMomentum
+import com.kairo.reader.data.search.LibrarySearchController
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlayState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,9 +63,10 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
             initial = emptyList(),
         )
         val momentum = remember(sessions) { buildReadingMomentum(sessions) }
-        var searchResults by remember { mutableStateOf<List<LibrarySearchResult>>(emptyList()) }
-        var isSearching by remember { mutableStateOf(false) }
-        var searchRequestId by remember { mutableIntStateOf(0) }
+        val searchController = remember(container.searchRepository, coroutineScope) {
+            LibrarySearchController(container.searchRepository, coroutineScope)
+        }
+        val searchState by searchController.state.collectAsState()
         val positions by container.readingPositionRepository.observePositions().collectAsState(
             initial = emptyList()
         )
@@ -114,7 +113,10 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
             }
 
         fun openSearchResult(result: LibrarySearchResult) {
-            if (result.kind != LibrarySearchResultKind.BOOK) {
+            if (
+                result.kind != LibrarySearchResultKind.BOOK &&
+                result.matchStartCodePointOffset == null
+            ) {
                 coroutineScope.launch(dispatcherProvider.io) {
                     container.readingPositionRepository.savePosition(
                         ReadingPosition(
@@ -133,6 +135,7 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
                         result.bookId.value,
                         result.chapterIndex,
                         result.tokenIndex,
+                        searchCodePointOffset = result.matchStartCodePointOffset,
                     )
                 },
             )
@@ -144,8 +147,7 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
             annotations = annotations,
             momentum = momentum,
             weeklyGoalMinutes = prefs.weeklyReadingGoalMinutes,
-            searchResults = searchResults,
-            isSearching = isSearching,
+            searchState = searchState,
             bookProgress = bookProgress,
             initialTab = initialTab,
             initialBookFilter = initialBookFilter,
@@ -182,19 +184,8 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
                     container.bookmarkRepository.deleteForBook(BookId(bookId))
                 }
             },
-            onSearchQuery = { query ->
-                val requestId = ++searchRequestId
-                isSearching = true
-                coroutineScope.launch {
-                    val results =
-                        runCatching { container.searchRepository.search(query) }
-                            .getOrDefault(emptyList())
-                    if (requestId == searchRequestId) {
-                        searchResults = results
-                        isSearching = false
-                    }
-                }
-            },
+            onSearchQuery = searchController::search,
+            onRetrySearch = searchController::retry,
             onOpenSearchResult = ::openSearchResult,
             onWeeklyGoalChange = { minutes ->
                 coroutineScope.launch {

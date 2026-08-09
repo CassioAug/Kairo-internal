@@ -53,6 +53,7 @@ import com.kairo.reader.core.model.ReadingMomentum
 import com.kairo.reader.core.model.SavedAnnotationItem
 import com.kairo.reader.data.books.BookImportFormats
 import com.kairo.reader.data.books.TextImportRequest
+import com.kairo.reader.data.search.LibrarySearchState
 import com.kairo.reader.ui.search.LibrarySearchOverlay
 import com.kairo.reader.ui.saved.SavedAnnotationEditorDialog
 import com.kairo.reader.ui.tutorial.StartingTutorialOverlay
@@ -68,8 +69,7 @@ fun LibraryScreen(
     annotations: List<SavedAnnotationItem> = emptyList(),
     momentum: ReadingMomentum = ReadingMomentum(),
     weeklyGoalMinutes: Int = 120,
-    searchResults: List<LibrarySearchResult> = emptyList(),
-    isSearching: Boolean = false,
+    searchState: LibrarySearchState = LibrarySearchState.Idle,
     bookProgress: Map<String, LibraryBookProgress>,
     initialTab: LibraryTab = LibraryTab.Books,
     initialBookFilter: LibraryBookFilter = LibraryBookFilter.READING,
@@ -81,6 +81,7 @@ fun LibraryScreen(
     onEditAnnotation: (EditSavedAnnotationRequest) -> Unit = {},
     onDeleteBookmarksForBook: (bookId: String) -> Unit,
     onSearchQuery: (String) -> Unit = {},
+    onRetrySearch: () -> Unit = {},
     onOpenSearchResult: (LibrarySearchResult) -> Unit = {},
     onWeeklyGoalChange: (Int) -> Unit = {},
     onImportFile: (Uri) -> Unit,
@@ -123,7 +124,8 @@ fun LibraryScreen(
         }
     var pendingDeleteBook by remember { mutableStateOf<Book?>(null) }
     var pendingClearBookmarkBook by remember { mutableStateOf<Book?>(null) }
-    var pendingEditAnnotation by remember { mutableStateOf<SavedAnnotationItem?>(null) }
+    var pendingEditAnnotationId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingDeleteAnnotationId by rememberSaveable { mutableStateOf<String?>(null) }
     var showSupportedFormats by rememberSaveable { mutableStateOf(false) }
     var showReadLinkDialog by rememberSaveable { mutableStateOf(false) }
     var linkInput by rememberSaveable { mutableStateOf("") }
@@ -276,8 +278,8 @@ fun LibraryScreen(
                     onRequestDelete = { pendingDeleteBook = it },
                     onOpenBookmark = onOpenBookmark,
                     onDeleteBookmark = onDeleteBookmark,
-                    onDeleteAnnotation = onDeleteAnnotation,
-                    onEditAnnotation = { pendingEditAnnotation = it },
+                    onDeleteAnnotation = { pendingDeleteAnnotationId = it },
+                    onEditAnnotation = { pendingEditAnnotationId = it.annotation.id },
                     onWeeklyGoalChange = onWeeklyGoalChange,
                     onRequestClearBookmarks = { pendingClearBookmarkBook = it },
                     onLaunchBookImport = launchBookImport,
@@ -335,14 +337,37 @@ fun LibraryScreen(
         )
     }
 
-    pendingEditAnnotation?.let { item ->
+    pendingEditAnnotationId
+        ?.let { id -> annotations.firstOrNull { it.annotation.id == id } }
+        ?.let { item ->
         SavedAnnotationEditorDialog(
             annotation = item.annotation,
             onSave = { request ->
                 onEditAnnotation(request)
-                pendingEditAnnotation = null
+                pendingEditAnnotationId = null
             },
-            onDismiss = { pendingEditAnnotation = null },
+            onDismiss = { pendingEditAnnotationId = null },
+        )
+    }
+
+    pendingDeleteAnnotationId?.let { annotationId ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteAnnotationId = null },
+            title = { Text(stringResource(R.string.saved_delete_title)) },
+            text = { Text(stringResource(R.string.saved_delete_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteAnnotation(annotationId)
+                        pendingDeleteAnnotationId = null
+                    },
+                ) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteAnnotationId = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
 
@@ -418,9 +443,9 @@ fun LibraryScreen(
         LibrarySearchOverlay(
             title = stringResource(R.string.search_kairo_title),
             hint = stringResource(R.string.search_hint),
-            results = searchResults,
-            isSearching = isSearching,
+            state = searchState,
             onQuery = onSearchQuery,
+            onRetry = onRetrySearch,
             onOpenResult = { result ->
                 showSearch = false
                 onOpenSearchResult(result)

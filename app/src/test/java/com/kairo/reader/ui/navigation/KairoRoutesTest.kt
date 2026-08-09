@@ -23,6 +23,19 @@ class KairoRoutesTest {
     }
 
     @Test
+    fun reader_buildsCharacterOffsetRouteForUnresolvedPassage() {
+        assertEquals(
+            "reader/book-123/4/0?searchCodePointOffset=300001",
+            KairoRoutes.reader(
+                bookId = "book-123",
+                chapterIndex = 4,
+                tokenIndex = 0,
+                searchCodePointOffset = 300_001,
+            ),
+        )
+    }
+
+    @Test
     fun rsvp_usesPositiveTempoWhenProvided() {
         assertEquals(
             "rsvp/book-123/2/34?tempoMs=118",

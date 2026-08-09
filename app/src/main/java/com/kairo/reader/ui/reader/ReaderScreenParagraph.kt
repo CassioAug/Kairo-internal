@@ -1,6 +1,7 @@
 package com.kairo.reader.ui.reader
 
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -14,8 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
@@ -194,6 +195,10 @@ internal fun ParagraphText(
         )
     val startTimedReadingActionLabel =
         stringResource(R.string.reader_start_timed_reading_action, timedReadingModeLabel)
+    val startSelectionActionLabel = stringResource(R.string.reader_start_selection_action)
+    val extendSelectionBackwardLabel = stringResource(R.string.reader_extend_selection_backward_action)
+    val extendSelectionForwardLabel = stringResource(R.string.reader_extend_selection_forward_action)
+    val cancelSelectionLabel = stringResource(R.string.reader_cancel_selection_action)
 
     Text(
         text = visualContent.text,
@@ -205,13 +210,6 @@ internal fun ParagraphText(
                 layoutResult = { layoutResult },
                 highlights = { visualContent.highlights },
             )
-            .semantics {
-                role = Role.Button
-                onClick(label = startTimedReadingActionLabel) {
-                    currentActions.onStartTimedReading(currentFocusIndex)
-                    true
-                }
-            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { position ->
@@ -283,6 +281,43 @@ internal fun ParagraphText(
                         currentActions.onSelectionStart(tokenIndex)
                     },
                 )
+            }
+            .combinedClickable(
+                role = Role.Button,
+                onClickLabel = startTimedReadingActionLabel,
+                onLongClickLabel = startSelectionActionLabel,
+                onClick = {
+                    if (currentFocusIndex >= 0) {
+                        currentActions.onStartTimedReading(currentFocusIndex)
+                    }
+                },
+                onLongClick = {
+                    if (currentFocusIndex >= 0) currentActions.onSelectionStart(currentFocusIndex)
+                },
+            ).semantics {
+                val selectionRange = currentSelectionRange
+                if (selectionRange != null) {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(extendSelectionBackwardLabel) {
+                                val target =
+                                    (selectionRange.first - 1).coerceAtLeast(paragraph.startIndex)
+                                currentActions.onSelectionExtend(target)
+                                true
+                            },
+                            CustomAccessibilityAction(extendSelectionForwardLabel) {
+                                val target =
+                                    (selectionRange.last + 1)
+                                        .coerceAtMost(paragraph.startIndex + paragraph.tokens.lastIndex)
+                                currentActions.onSelectionExtend(target)
+                                true
+                            },
+                            CustomAccessibilityAction(cancelSelectionLabel) {
+                                currentActions.onSelectionCancel()
+                                true
+                            },
+                        )
+                }
             },
         onTextLayout = { layoutResult = it },
     )
@@ -306,6 +341,7 @@ internal data class ParagraphTextActions(
     val onChapterSelected: ((Int) -> Unit)? = null,
     val onSelectionStart: (Int) -> Unit = {},
     val onSelectionExtend: (Int) -> Unit = {},
+    val onSelectionCancel: () -> Unit = {},
 )
 
 private const val PARAGRAPH_INDENT_FACTOR = 0.55f

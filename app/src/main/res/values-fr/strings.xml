@@ -574,4 +574,20 @@
     <string name="reading_mode_reader">Lecteur</string>
     <string name="reading_mode_rsvp">RSVP</string>
     <string name="reading_mode_bionic">Bionique</string>
+    <string name="action_retry">Réessayer</string>
+    <string name="search_error">La recherche n’a pas pu aboutir.</string>
+    <string name="saved_note_limit_error">Les notes peuvent contenir jusqu’à %1$d caractères.</string>
+    <string name="saved_note_character_count">%1$d / %2$d caractères</string>
+    <string name="saved_passage_selection_count">%1$d / %2$d caractères • %3$d / %4$d mots</string>
+    <string name="saved_passage_limit_error">Sélection trop longue : %1$d / %2$d caractères • %3$d / %4$d mots</string>
+    <string name="toast_passage_save_failed">Impossible d’enregistrer ce passage</string>
+    <string name="saved_delete_title">Supprimer le passage enregistré ?</string>
+    <string name="saved_delete_message">Ce passage enregistré et sa note seront définitivement supprimés.</string>
+    <string name="library_books_filter_empty">Aucun livre ne correspond à ce filtre.</string>
+    <string name="saved_filter_empty">Aucun élément enregistré ne correspond à ce filtre.</string>
+    <string name="action_clear_filter">Effacer le filtre</string>
+    <string name="reader_start_selection_action">Commencer la sélection de texte</string>
+    <string name="reader_extend_selection_backward_action">Étendre la sélection vers l’arrière</string>
+    <string name="reader_extend_selection_forward_action">Étendre la sélection vers l’avant</string>
+    <string name="reader_cancel_selection_action">Annuler la sélection de texte</string>
 </resources>

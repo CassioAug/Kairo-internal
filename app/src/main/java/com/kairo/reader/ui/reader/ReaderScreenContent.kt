@@ -94,6 +94,7 @@ internal data class ReaderContentActions(
     val onOpenFullScreenImage: (String) -> Unit,
     val onSelectionStart: (Int) -> Unit,
     val onSelectionExtend: (Int) -> Unit,
+    val onSelectionCancel: () -> Unit,
     val onChapterSelected: ((Int) -> Unit)? = null,
 )
 
@@ -279,6 +280,7 @@ private fun LazyListScope.readerBlockItems(
                         onChapterSelected = actions.onChapterSelected,
                         onSelectionStart = actions.onSelectionStart,
                         onSelectionExtend = actions.onSelectionExtend,
+                        onSelectionCancel = actions.onSelectionCancel,
                     ),
                 )
             is ReaderImageBlock ->

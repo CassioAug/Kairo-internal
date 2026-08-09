@@ -573,4 +573,20 @@
     <string name="reading_mode_reader">阅读器</string>
     <string name="reading_mode_rsvp">RSVP</string>
     <string name="reading_mode_bionic">仿生</string>
+    <string name="action_retry">重试</string>
+    <string name="search_error">无法完成搜索。</string>
+    <string name="saved_note_limit_error">笔记最多可输入%1$d个字符。</string>
+    <string name="saved_note_character_count">%1$d / %2$d 个字符</string>
+    <string name="saved_passage_selection_count">%1$d / %2$d 个字符 • %3$d / %4$d 个词</string>
+    <string name="saved_passage_limit_error">所选内容过长：%1$d / %2$d 个字符 • %3$d / %4$d 个词</string>
+    <string name="toast_passage_save_failed">无法保存此段落</string>
+    <string name="saved_delete_title">删除已保存的段落？</string>
+    <string name="saved_delete_message">此段落及其笔记将被永久删除。</string>
+    <string name="library_books_filter_empty">没有图书符合此筛选条件。</string>
+    <string name="saved_filter_empty">没有已保存项目符合此筛选条件。</string>
+    <string name="action_clear_filter">清除筛选</string>
+    <string name="reader_start_selection_action">开始选择文本</string>
+    <string name="reader_extend_selection_backward_action">向前扩展选择范围</string>
+    <string name="reader_extend_selection_forward_action">向后扩展选择范围</string>
+    <string name="reader_cancel_selection_action">取消文本选择</string>
 </resources>

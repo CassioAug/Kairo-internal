@@ -214,8 +214,8 @@ private fun RsvpQuickSettingsBookmarks(
     val runtime = context.runtime
 
     SettingsNavRow(
-        title = stringResource(R.string.library_tab_bookmarks),
-        subtitle = stringResource(R.string.library_bookmarks_subtitle),
+        title = stringResource(R.string.library_tab_saved),
+        subtitle = stringResource(R.string.saved_subtitle),
         icon = Icons.Default.Bookmark,
         onClick = {
             runtime.showQuickSettings = false

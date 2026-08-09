@@ -3,8 +3,10 @@ package com.kairo.reader.ui.reader
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -49,5 +51,24 @@ class ReaderNoteDialogTest {
         composeRule.onNodeWithText(saveLabel).assertIsEnabled().performClick()
 
         composeRule.runOnIdle { assertEquals("My interpretation", savedNote) }
+    }
+
+    @Test
+    fun noteDraftSurvivesSavedStateRestoration() {
+        val restorationTester = StateRestorationTester(composeRule)
+        restorationTester.setContent {
+            KairoTheme {
+                ReaderNoteDialog(
+                    selectedText = "A passage from the book",
+                    onSave = { _, _ -> },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeRule.onNode(hasSetTextAction()).performTextInput("Draft interpretation")
+        restorationTester.emulateSavedInstanceStateRestore()
+
+        composeRule.onNode(hasSetTextAction()).assertTextEquals("Draft interpretation")
     }
 }

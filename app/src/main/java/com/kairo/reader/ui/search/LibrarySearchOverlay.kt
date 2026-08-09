@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,28 +45,32 @@ import androidx.compose.ui.window.DialogProperties
 import com.kairo.reader.R
 import com.kairo.reader.core.model.LibrarySearchResult
 import com.kairo.reader.core.model.LibrarySearchResultKind
-import kotlinx.coroutines.delay
+import com.kairo.reader.data.search.LibrarySearchConstraints
+import com.kairo.reader.data.search.LibrarySearchState
+import com.kairo.reader.data.search.normalizeLibrarySearchQuery
 
 @Composable
 fun LibrarySearchOverlay(
     title: String,
     hint: String,
-    results: List<LibrarySearchResult>,
-    isSearching: Boolean,
+    state: LibrarySearchState,
     initialQuery: String = "",
     onQuery: (String) -> Unit,
+    onRetry: () -> Unit,
     onOpenResult: (LibrarySearchResult) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var query by rememberSaveable { mutableStateOf(initialQuery) }
+    val cappedInitialQuery = remember(initialQuery) { initialQuery.take(LibrarySearchConstraints.MAX_QUERY_LENGTH) }
+    var query by rememberSaveable { mutableStateOf(cappedInitialQuery) }
+    val cancelAndDismiss = {
+        onQuery("")
+        onDismiss()
+    }
     LaunchedEffect(query) {
-        if (query.trim().length >= MIN_QUERY_LENGTH) {
-            delay(SEARCH_DEBOUNCE_MS)
-            onQuery(query)
-        }
+        onQuery(query)
     }
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = cancelAndDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -78,7 +83,7 @@ fun LibrarySearchOverlay(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = cancelAndDismiss) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
@@ -88,7 +93,7 @@ fun LibrarySearchOverlay(
                 }
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it },
+                    onValueChange = { query = it.take(LibrarySearchConstraints.MAX_QUERY_LENGTH) },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text(hint) },
                     singleLine = true,
@@ -98,10 +103,15 @@ fun LibrarySearchOverlay(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions =
                     androidx.compose.foundation.text.KeyboardActions(
-                        onSearch = { if (query.trim().length >= MIN_QUERY_LENGTH) onQuery(query) },
+                        onSearch = { onQuery(query) },
                     ),
                 )
-                SearchResults(query, results, isSearching, onOpenResult)
+                SearchResults(
+                    query = query,
+                    state = state,
+                    onRetry = onRetry,
+                    onOpenResult = onOpenResult,
+                )
             }
         }
     }
@@ -110,25 +120,56 @@ fun LibrarySearchOverlay(
 @Composable
 private fun SearchResults(
     query: String,
-    results: List<LibrarySearchResult>,
-    isSearching: Boolean,
+    state: LibrarySearchState,
+    onRetry: () -> Unit,
     onOpenResult: (LibrarySearchResult) -> Unit,
 ) {
+    val normalizedQuery = normalizeLibrarySearchQuery(query)
     when {
-        isSearching ->
+        normalizedQuery.length < LibrarySearchConstraints.MIN_QUERY_LENGTH ->
+            SearchMessage(stringResource(R.string.search_minimum_hint))
+        state is LibrarySearchState.Loading && state.query == normalizedQuery ->
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-        query.trim().length < MIN_QUERY_LENGTH ->
-            SearchMessage(stringResource(R.string.search_minimum_hint))
-        results.isEmpty() -> SearchMessage(stringResource(R.string.search_no_results))
-        else ->
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(results, key = { it.id }) { result ->
-                    SearchResultRow(result, onOpenResult)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-            }
+        state is LibrarySearchState.Error && state.query == normalizedQuery ->
+            SearchError(onRetry)
+        state is LibrarySearchState.Success && state.query == normalizedQuery && state.results.isEmpty() ->
+            SearchMessage(stringResource(R.string.search_no_results))
+        state is LibrarySearchState.Success && state.query == normalizedQuery ->
+            SearchResultList(state.results, onOpenResult)
+        else -> SearchMessage(stringResource(R.string.search_minimum_hint))
+    }
+}
+
+@Composable
+private fun SearchResultList(
+    results: List<LibrarySearchResult>,
+    onOpenResult: (LibrarySearchResult) -> Unit,
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(results, key = { it.id }) { result ->
+            SearchResultRow(result, onOpenResult)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
+}
+
+@Composable
+private fun SearchError(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.search_error),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Button(onClick = onRetry) {
+            Text(stringResource(R.string.action_retry))
+        }
     }
 }
 
@@ -201,6 +242,3 @@ private fun LibrarySearchResultKind.labelResource(): Int =
         LibrarySearchResultKind.PASSAGE -> R.string.search_passage_label
         LibrarySearchResultKind.SAVED -> R.string.search_saved_label
     }
-
-private const val MIN_QUERY_LENGTH = 2
-private const val SEARCH_DEBOUNCE_MS = 250L

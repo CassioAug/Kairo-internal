@@ -11,6 +11,7 @@ import com.kairo.reader.core.model.TableOfContentsTarget
 import com.kairo.reader.core.model.countWords
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.data.books.BookRepository
+import com.kairo.reader.data.search.codePointOffsetToUtf16Offset
 import com.kairo.reader.data.token.TokenRepository
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -51,6 +52,7 @@ class ReaderViewModel(
     private val pendingFocusIndex = AtomicReference<Int?>(null)
     private val pendingPageIndex = AtomicReference<Int?>(null)
     private val pendingCharacterOffset = AtomicReference<Int?>(null)
+    private val pendingSearchCodePointOffset = AtomicReference<Int?>(null)
     private val wordsPerPageTarget = AtomicReference(DEFAULT_WORDS_PER_PAGE)
 
     /**
@@ -60,15 +62,21 @@ class ReaderViewModel(
         book: Book,
         initialChapterIndex: Int = 0,
         initialFocusIndex: Int = 0,
+        initialSearchCodePointOffset: Int? = null,
     ) {
         currentBook.set(book)
         chapterLoadSequence.incrementAndGet()
         chapterCache.clear()
         pendingFocusIndex.set(if (initialFocusIndex > 0) initialFocusIndex else null)
         pendingPageIndex.set(null)
+        pendingCharacterOffset.set(null)
+        pendingSearchCodePointOffset.set(initialSearchCodePointOffset)
         _uiState.update { it.copy(bookWordCounts = emptyList(), bookTotalWords = 0) }
         loadBookWordCounts(book)
-        loadChapter(initialChapterIndex)
+        loadChapter(
+            chapterIndex = initialChapterIndex,
+            initialSearchCodePointOffset = initialSearchCodePointOffset,
+        )
     }
 
     private fun loadBookWordCounts(book: Book) {
@@ -128,6 +136,7 @@ class ReaderViewModel(
         initialFocusIndex: Int? = null,
         initialPageIndex: Int? = null,
         initialCharacterOffset: Int? = null,
+        initialSearchCodePointOffset: Int? = null,
     ) {
         val book = currentBook.get() ?: return
 
@@ -136,7 +145,8 @@ class ReaderViewModel(
         val requestedBookId = book.id
 
         pendingCharacterOffset.set(initialCharacterOffset)
-        if (initialCharacterOffset != null) {
+        pendingSearchCodePointOffset.set(initialSearchCodePointOffset)
+        if (initialCharacterOffset != null || initialSearchCodePointOffset != null) {
             pendingFocusIndex.set(null)
             pendingPageIndex.set(null)
         } else if (initialFocusIndex != null) {
@@ -153,7 +163,7 @@ class ReaderViewModel(
             // Use pending focus if set, otherwise use first word
             val pageIdx = pendingPageIndex.getAndSet(null)
             val focusIdx =
-                pendingCharacterOffset.getAndSet(null)?.let { characterOffset ->
+                consumePendingUtf16Offset(cached.plainText)?.let { characterOffset ->
                     ReaderTextPositionResolver.resolveTokenIndex(
                         plainText = cached.plainText,
                         tokens = cached.tokens,
@@ -217,7 +227,7 @@ class ReaderViewModel(
                 // Use pending focus if set, otherwise use first word
                 val focusIdx =
                     if (result != null) {
-                        pendingCharacterOffset.getAndSet(null)?.let { characterOffset ->
+                        consumePendingUtf16Offset(result.plainText)?.let { characterOffset ->
                             ReaderTextPositionResolver.resolveTokenIndex(
                                 plainText = result.plainText,
                                 tokens = result.tokens,
@@ -230,6 +240,7 @@ class ReaderViewModel(
                         pendingFocusIndex.set(null)
                         pendingPageIndex.set(null)
                         pendingCharacterOffset.set(null)
+                        pendingSearchCodePointOffset.set(null)
                         0
                     }
                 val pageIdx = if (result != null) pendingPageIndex.getAndSet(null) else null
@@ -255,6 +266,14 @@ class ReaderViewModel(
             chapterIndex = target.chapterIndex,
             initialCharacterOffset = target.characterOffset,
         )
+    }
+
+    private fun consumePendingUtf16Offset(plainText: String): Int? {
+        val searchCodePointOffset = pendingSearchCodePointOffset.getAndSet(null)
+        val characterOffset = pendingCharacterOffset.getAndSet(null)
+        return searchCodePointOffset?.let { offset ->
+            codePointOffsetToUtf16Offset(plainText, offset)
+        } ?: characterOffset
     }
 
     /**

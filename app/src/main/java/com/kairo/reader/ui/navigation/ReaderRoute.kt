@@ -60,6 +60,7 @@ internal data class ReaderRouteInput(
     val tutorialState: StartingTutorialOverlayState?,
     val initialChapterIndex: Int? = null,
     val initialTokenIndex: Int? = null,
+    val initialSearchCodePointOffset: Int? = null,
     val onShowUserMessage: (String) -> Unit,
     val onTutorialNext: () -> Unit,
     val onTutorialPrevious: () -> Unit,
@@ -110,15 +111,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
                 }
             }
 
-        val readerViewModel: ReaderViewModel =
-            viewModel(
-                factory =
-                ReaderViewModel.factory(
-                    container.bookRepository,
-                    container.tokenRepository,
-                    dispatcherProvider,
-                ),
-            )
+        val readerViewModel = rememberReaderViewModel(container)
         val uiState by readerViewModel.uiState.collectAsState()
         val rsvpResult = rememberReaderRsvpResult(backStackEntry, bookId, uiState)
         ApplyReaderRsvpResult(
@@ -136,6 +129,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
                 bookId = bookId,
                 initialChapterIndex = initialChapterIndex,
                 initialTokenIndex = initialTokenIndex,
+                initialSearchCodePointOffset = initialSearchCodePointOffset,
                 container = container,
                 uiState = uiState,
                 readerViewModel = readerViewModel,
@@ -229,11 +223,17 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
             onTableOfContentsTargetSelected = readerCallbacks.onTableOfContentsTargetSelected,
             onViewportMetricsChanged = readerCallbacks.onViewportMetricsChanged,
             savedAnnotations = savedBindings.annotations,
-            bookSearchResults = savedBindings.searchResults,
-            isBookSearching = savedBindings.isSearching,
+            bookSearchState = savedBindings.searchState,
             onSearchBook = savedBindings.onSearch,
+            onRetryBookSearch = savedBindings.onRetrySearch,
             onSearchResultSelected = { result ->
-                readerViewModel.loadChapter(result.chapterIndex, result.tokenIndex)
+                container.readingSessionCoordinator.rebaseReader(BookId(bookId))
+                readerViewModel.loadChapter(
+                    chapterIndex = result.chapterIndex,
+                    initialFocusIndex =
+                    result.tokenIndex.takeIf { result.matchStartCodePointOffset == null },
+                    initialSearchCodePointOffset = result.matchStartCodePointOffset,
+                )
             },
             onSaveAnnotation = savedBindings.onSaveAnnotation,
             tutorialState = tutorialState,
@@ -243,6 +243,17 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
         )
     }
 }
+
+@Composable
+private fun rememberReaderViewModel(container: KairoApplication): ReaderViewModel =
+    viewModel(
+        factory =
+        ReaderViewModel.factory(
+            container.bookRepository,
+            container.tokenRepository,
+            container.dispatcherProvider,
+        ),
+    )
 
 @Composable
 private fun rememberReaderPositionSaver(
@@ -264,6 +275,7 @@ private fun rememberReaderInitialization(
     bookId: String,
     initialChapterIndex: Int?,
     initialTokenIndex: Int?,
+    initialSearchCodePointOffset: Int?,
     container: KairoApplication,
     uiState: ReaderUiState,
     readerViewModel: ReaderViewModel,
@@ -273,7 +285,10 @@ private fun rememberReaderInitialization(
     LaunchedEffect(book) {
         if (!hasInitialized || uiState.chapterData == null) {
             val savedPosition =
-                if (restoresSavedPosition || hasInitialized) {
+                if (
+                    restoresSavedPosition ||
+                    (hasInitialized && initialSearchCodePointOffset == null)
+                ) {
                     container.readingPositionRepository.getPosition(BookId(bookId))
                 } else {
                     null
@@ -282,6 +297,8 @@ private fun rememberReaderInitialization(
                 book,
                 savedPosition?.chapterIndex ?: initialChapterIndex ?: 0,
                 savedPosition?.tokenIndex ?: initialTokenIndex ?: 0,
+                initialSearchCodePointOffset =
+                if (savedPosition == null) initialSearchCodePointOffset else null,
             )
             hasInitialized = true
         }

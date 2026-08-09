@@ -573,4 +573,20 @@
     <string name="reading_mode_reader">リーダー</string>
     <string name="reading_mode_rsvp">RSVP</string>
     <string name="reading_mode_bionic">バイオニック</string>
+    <string name="action_retry">再試行</string>
+    <string name="search_error">検索を完了できませんでした。</string>
+    <string name="saved_note_limit_error">メモは%1$d文字まで入力できます。</string>
+    <string name="saved_note_character_count">%1$d / %2$d文字</string>
+    <string name="saved_passage_selection_count">%1$d / %2$d文字 • %3$d / %4$d語</string>
+    <string name="saved_passage_limit_error">選択範囲が長すぎます：%1$d / %2$d文字 • %3$d / %4$d語</string>
+    <string name="toast_passage_save_failed">この文章を保存できませんでした</string>
+    <string name="saved_delete_title">保存した文章を削除しますか？</string>
+    <string name="saved_delete_message">保存した文章とメモは完全に削除されます。</string>
+    <string name="library_books_filter_empty">このフィルターに一致する本はありません。</string>
+    <string name="saved_filter_empty">このフィルターに一致する保存項目はありません。</string>
+    <string name="action_clear_filter">フィルターを解除</string>
+    <string name="reader_start_selection_action">テキスト選択を開始</string>
+    <string name="reader_extend_selection_backward_action">選択範囲を前に広げる</string>
+    <string name="reader_extend_selection_forward_action">選択範囲を後ろに広げる</string>
+    <string name="reader_cancel_selection_action">テキスト選択をキャンセル</string>
 </resources>

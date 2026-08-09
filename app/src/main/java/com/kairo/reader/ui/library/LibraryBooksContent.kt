@@ -3,6 +3,7 @@ package com.kairo.reader.ui.library
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,8 +16,10 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -63,6 +66,24 @@ internal fun LibraryBooksContent(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(if (compactLandscape) 6.dp else 8.dp),
         ) {
+            if (books.isNotEmpty() && visibleBooks.isEmpty()) {
+                item(key = "filtered-empty") {
+                    Box(
+                        modifier = Modifier.fillParentMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = stringResource(R.string.library_books_filter_empty),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TextButton(onClick = { onFilterChange(LibraryBookFilter.ALL) }) {
+                                Text(stringResource(R.string.action_clear_filter))
+                            }
+                        }
+                    }
+                }
+            }
             items(visibleBooks, key = { it.id.value }) { book ->
                 LibraryCard(
                     book = book,
