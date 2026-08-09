@@ -1,11 +1,11 @@
 package com.kairo.reader
 
 import android.app.Application
+import android.util.Log
 import androidx.room.Room
 import com.kairo.reader.core.dispatchers.DefaultDispatcherProvider
 import com.kairo.reader.core.rsvp.ComprehensionRsvpEngine
 import com.kairo.reader.core.rsvp.RsvpEngine
-import com.kairo.reader.core.model.ReadingSession
 import com.kairo.reader.data.annotations.SavedAnnotationRepository
 import com.kairo.reader.data.annotations.SavedAnnotationRepositoryImpl
 import com.kairo.reader.data.bookmarks.BookmarkRepository
@@ -44,7 +44,9 @@ import com.kairo.reader.data.search.LibrarySearchRepository
 import com.kairo.reader.data.search.LibrarySearchRepositoryImpl
 import com.kairo.reader.data.seed.SampleSeeder
 import com.kairo.reader.data.sessions.ReadingSessionRepository
+import com.kairo.reader.data.sessions.ReadingSessionCoordinator
 import com.kairo.reader.data.sessions.ReadingSessionRepositoryImpl
+import com.kairo.reader.data.sessions.SystemReadingSessionClock
 import com.kairo.reader.data.token.TokenRepository
 import com.kairo.reader.data.token.TokenRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
@@ -67,6 +69,8 @@ class KairoApplication : Application() {
     lateinit var savedAnnotationRepository: SavedAnnotationRepository
         private set
     lateinit var readingSessionRepository: ReadingSessionRepository
+        private set
+    lateinit var readingSessionCoordinator: ReadingSessionCoordinator
         private set
     lateinit var searchRepository: LibrarySearchRepository
         private set
@@ -129,6 +133,15 @@ class KairoApplication : Application() {
             SavedAnnotationRepositoryImpl(database.savedAnnotationDao())
         readingSessionRepository =
             ReadingSessionRepositoryImpl(database.readingSessionDao())
+        readingSessionCoordinator =
+            ReadingSessionCoordinator(
+                scope = applicationScope,
+                repository = readingSessionRepository,
+                clock = SystemReadingSessionClock(),
+                onError = { failure ->
+                    Log.e(READING_SESSION_LOG_TAG, "Reading-session command failed", failure)
+                },
+            )
         searchRepository =
             LibrarySearchRepositoryImpl(
                 searchDao = database.searchDao(),
@@ -155,10 +168,6 @@ class KairoApplication : Application() {
 
         applicationScope.launch { sampleSeeder.seedIfEmpty() }
     }
-
-    fun recordReadingSession(session: ReadingSession) {
-        applicationScope.launch(dispatcherProvider.io) {
-            readingSessionRepository.add(session)
-        }
-    }
 }
+
+private const val READING_SESSION_LOG_TAG = "ReadingSession"

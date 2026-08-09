@@ -13,13 +13,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
-import com.kairo.reader.core.model.ReadingPosition
-import com.kairo.reader.core.model.ReadingSessionMode
-import com.kairo.reader.data.sessions.ReadingSessionFactory
-import com.kairo.reader.data.sessions.ReadingSessionDraft
+import com.kairo.reader.data.sessions.ReaderProgress
+import com.kairo.reader.data.sessions.ReaderWordBasis
 import com.kairo.reader.data.sessions.ReadingSessionLocation
-import com.kairo.reader.data.sessions.ReadingSessionTracker
-import com.kairo.reader.data.sessions.estimateWordsRead
 import com.kairo.reader.ui.reader.ReaderUiState
 
 @Composable
@@ -30,95 +26,78 @@ internal fun RecordReaderSessionEffect(
     readerState: ReaderUiState,
     lifecycleOwner: LifecycleOwner,
 ) {
-    var sessionCapture by remember(bookId) { mutableStateOf<ReaderSessionCapture?>(null) }
-    LaunchedEffect(hasInitialized, readerState.chapterData) {
-        val chapterData = readerState.chapterData
-        if (hasInitialized && chapterData != null && sessionCapture == null) {
-            val now = System.currentTimeMillis()
-            sessionCapture =
-                ReaderSessionCapture(
-                    startPosition =
-                    ReadingPosition(
-                        bookId = bookId,
-                        chapterIndex = readerState.chapterIndex,
-                        tokenIndex = readerState.focusIndex,
-                        wordIndex = resolveWordIndex(chapterData.wordCountByToken, readerState.focusIndex),
-                    ),
-                    tracker =
-                    ReadingSessionTracker(
-                        startedAt = now,
-                        initiallyActive =
-                        lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
-                    ),
-                )
+    var hasBegun by remember(bookId) { mutableStateOf(false) }
+    var sessionSnapshot by remember(bookId) { mutableStateOf<ReaderSessionSnapshot?>(null) }
+    val latestSessionSnapshot by rememberUpdatedState(sessionSnapshot)
+    val chapterData = readerState.chapterData
+    val wordBasis = remember(readerState.bookWordCounts) {
+        ReaderWordBasis.from(readerState.bookWordCounts)
+    }
+    LaunchedEffect(
+        bookId,
+        hasInitialized,
+        readerState.chapterIndex,
+        readerState.focusIndex,
+        chapterData,
+        wordBasis,
+    ) {
+        if (!hasInitialized || chapterData == null || chapterData.tokens.isEmpty()) {
+            return@LaunchedEffect
+        }
+        val safeTokenIndex = readerState.focusIndex.coerceIn(0, chapterData.tokens.lastIndex)
+        val location =
+            ReadingSessionLocation(
+                chapterIndex = readerState.chapterIndex,
+                tokenIndex = safeTokenIndex,
+                wordIndex = resolveWordIndex(chapterData.wordCountByToken, safeTokenIndex),
+            )
+        val snapshot = ReaderSessionSnapshot(wordBasis.progress(location))
+        sessionSnapshot = snapshot
+        if (!hasBegun) {
+            container.readingSessionCoordinator.beginReader(
+                bookId = bookId,
+                progress = snapshot.progress,
+                active = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+            )
+            hasBegun = true
+        } else {
+            container.readingSessionCoordinator.moveReader(
+                bookId = bookId,
+                progress = snapshot.progress,
+            )
         }
     }
-    val latestReaderState by rememberUpdatedState(readerState)
-    val latestSessionCapture by rememberUpdatedState(sessionCapture)
+
     DisposableEffect(lifecycleOwner, bookId) {
         val observer =
             LifecycleEventObserver { _, event ->
                 when (event) {
-                    Lifecycle.Event.ON_START ->
-                        latestSessionCapture?.tracker?.setActive(true, System.currentTimeMillis())
+                    Lifecycle.Event.ON_START -> {
+                        latestSessionSnapshot?.let { snapshot ->
+                            container.readingSessionCoordinator.beginReader(
+                                bookId = bookId,
+                                progress = snapshot.progress,
+                                active = true,
+                            )
+                        }
+                    }
                     Lifecycle.Event.ON_STOP ->
-                        latestSessionCapture?.tracker?.setActive(false, System.currentTimeMillis())
+                        if (latestSessionSnapshot != null) {
+                            container.readingSessionCoordinator.checkpointReader(bookId)
+                        }
                     else -> Unit
                 }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            recordReaderSession(
-                container = container,
-                bookId = bookId,
-                capture = latestSessionCapture,
-                endState = latestReaderState,
-            )
+            if (latestSessionSnapshot != null) {
+                container.readingSessionCoordinator.checkpointReader(bookId)
+            }
         }
     }
 }
 
-private data class ReaderSessionCapture(
-    val startPosition: ReadingPosition,
-    val tracker: ReadingSessionTracker,
+private data class ReaderSessionSnapshot(
+    val progress: ReaderProgress,
 )
-
-private fun recordReaderSession(
-    container: KairoApplication,
-    bookId: BookId,
-    capture: ReaderSessionCapture?,
-    endState: ReaderUiState,
-) {
-    val finishedCapture = capture ?: return
-    val chapterData = endState.chapterData ?: return
-    val endedAt = System.currentTimeMillis()
-    finishedCapture.tracker.setActive(false, endedAt)
-    val endWordIndex = resolveWordIndex(chapterData.wordCountByToken, endState.focusIndex)
-    val session =
-        ReadingSessionFactory.create(
-            ReadingSessionDraft(
-                bookId = bookId,
-                mode = ReadingSessionMode.READER,
-                startedAt = finishedCapture.tracker.startedAt,
-                endedAt = endedAt,
-                activeDurationMs = finishedCapture.tracker.activeDurationMs(endedAt),
-                start =
-                ReadingSessionLocation(
-                    finishedCapture.startPosition.chapterIndex,
-                    finishedCapture.startPosition.tokenIndex,
-                ),
-                end = ReadingSessionLocation(endState.chapterIndex, endState.focusIndex),
-                wordsRead =
-                estimateWordsRead(
-                    bookWordCounts = endState.bookWordCounts,
-                    startChapterIndex = finishedCapture.startPosition.chapterIndex,
-                    startWordIndex = finishedCapture.startPosition.wordIndex,
-                    endChapterIndex = endState.chapterIndex,
-                    endWordIndex = endWordIndex,
-                ),
-                isWordCountEstimated = true,
-            ),
-        )
-    if (session != null) container.recordReadingSession(session)
-}

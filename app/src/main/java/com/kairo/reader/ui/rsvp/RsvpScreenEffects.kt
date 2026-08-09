@@ -323,6 +323,7 @@ internal fun RsvpPlaybackLoopEffect(
         runtime.nextFrameAtMs = targetMs
         val delayMs = (targetMs - now).coerceAtLeast(MIN_FRAME_DELAY_MS)
         delay(delayMs)
+        context.callbacks.playback.onFrameConsumed(frame)
         if (runtime.frameIndex == frames.lastIndex) {
             if (shouldCompleteAtLoadedFrameBoundary(context)) {
                 completePlayback(context)

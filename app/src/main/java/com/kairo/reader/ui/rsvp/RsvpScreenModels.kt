@@ -6,6 +6,7 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpCustomProfile
 import com.kairo.reader.core.model.RsvpFontFamily
 import com.kairo.reader.core.model.RsvpFontWeight
+import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
@@ -77,6 +78,7 @@ data class RsvpPlaybackCallbacks(
     val onExit: (RsvpResumePoint) -> Unit,
     val onOpenLibrary: (RsvpResumePoint) -> Unit = {},
     val onPlaybackStateChanged: (Boolean) -> Unit = {},
+    val onFrameConsumed: (RsvpFrame) -> Unit = {},
 )
 
 data class RsvpPreferenceCallbacks(
