@@ -7,7 +7,9 @@ import com.kairo.reader.data.local.SavedAnnotationDao
 import com.kairo.reader.data.local.SavedAnnotationEntity
 import com.kairo.reader.data.local.SavedAnnotationWithBookEntity
 import com.kairo.reader.data.local.SearchDao
-import com.kairo.reader.data.local.SearchPassageMatchEntity
+import com.kairo.reader.data.local.SearchPassageBookEntity
+import com.kairo.reader.data.local.SearchPassageChapterPageEntity
+import java.util.Locale
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,7 +27,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibrarySearchRepositoryImplTest {
     @Test
-    fun searchStartsCheapGroupsFirstAndFairlyMergesOffsetOnlyPassages() =
+    fun searchStartsCheapGroupsFirstAndFairlyMergesPassages() =
         runTest {
             var booksStarted = false
             var savedStarted = false
@@ -35,10 +37,11 @@ class LibrarySearchRepositoryImplTest {
                         booksStarted = true
                         listOf(book())
                     },
-                    passageSearch = {
+                    passageBooks = listOf(passageBook()),
+                    passagesByBook = mapOf("book" to listOf(passageChapter())),
+                    beforePassageBooks = {
                         assertTrue(booksStarted)
                         assertTrue(savedStarted)
-                        listOf(passageMatch())
                     },
                 )
             val annotationDao =
@@ -59,8 +62,9 @@ class LibrarySearchRepositoryImplTest {
                 results.map { it.kind },
             )
             val passage = results.single { it.kind == LibrarySearchResultKind.PASSAGE }
-            assertEquals(300_123, passage.matchStartCodePointOffset)
+            assertEquals(7, passage.matchStartCodePointOffset)
             assertEquals("needle".length, passage.matchLengthCodePoints)
+            assertEquals("before needle after", passage.snippet)
             assertEquals(0, passage.tokenIndex)
         }
 
@@ -72,7 +76,9 @@ class LibrarySearchRepositoryImplTest {
                 repository(
                     searchDao =
                     FakeSearchDao(
-                        passageSearch = {
+                        passageBooks = listOf(passageBook()),
+                        passagesByBook = mapOf("book" to listOf(passageChapter())),
+                        beforePassageChapterPage = {
                             passageStarted = true
                             awaitCancellation()
                         },
@@ -89,14 +95,124 @@ class LibrarySearchRepositoryImplTest {
         }
 
     @Test
-    fun supplementaryQueryLengthIsPassedToSqlInCodePoints() =
+    fun expandingLowercasePrefixDoesNotShiftOriginalTextMatch() =
         runTest {
-            val searchDao = FakeSearchDao()
+            val plainText = "İ before needle after"
+            val searchDao =
+                FakeSearchDao(
+                    passageBooks = listOf(passageBook()),
+                    passagesByBook =
+                        mapOf("book" to listOf(passageChapter(plainText = plainText))),
+                )
             val repository = repository(searchDao, FakeSavedAnnotationDao())
 
-            repository.search("😀needle", bookId = "book")
+            val result = repository.search("needle", bookId = "book").single()
 
-            assertEquals(7, searchDao.requestedMatchLengthCodePoints)
+            assertEquals(9, result.matchStartCodePointOffset)
+            assertEquals(6, result.matchLengthCodePoints)
+            assertEquals(plainText, result.snippet)
+            assertEquals("book", searchDao.requestedBookFilters.single())
+            assertEquals(1, searchDao.passageBookQueryCount)
+            assertEquals(1, searchDao.passageChapterPageCallCount)
+        }
+
+    @Test
+    fun supplementaryQueryLengthUsesBothOriginalMatchBoundaries() =
+        runTest {
+            val plainText = "😀 before 😀needle after"
+            val searchDao =
+                FakeSearchDao(
+                    passageBooks = listOf(passageBook()),
+                    passagesByBook =
+                        mapOf("book" to listOf(passageChapter(plainText = plainText))),
+                )
+            val repository = repository(searchDao, FakeSavedAnnotationDao())
+
+            val result = repository.search("😀needle", bookId = "book").single()
+
+            assertEquals(9, result.matchStartCodePointOffset)
+            assertEquals(7, result.matchLengthCodePoints)
+        }
+
+    @Test
+    fun unmatchedEarlierChaptersDoNotPreventLaterMatches() =
+        runTest {
+            val searchDao =
+                FakeSearchDao(
+                    passageBooks = listOf(passageBook()),
+                    passagesByBook =
+                        mapOf(
+                            "book" to
+                                (0..35).map { chapterIndex ->
+                                    passageChapter(
+                                        chapterIndex = chapterIndex,
+                                        plainText =
+                                            if (chapterIndex == 35) {
+                                                "finally needle"
+                                            } else {
+                                                "no match here"
+                                            },
+                                    )
+                                },
+                        ),
+                )
+            val repository = repository(searchDao, FakeSavedAnnotationDao())
+
+            val result = repository.search("needle", bookId = "book").single()
+
+            assertEquals(35, result.chapterIndex)
+            assertEquals(1, searchDao.passageBookQueryCount)
+            assertEquals(5, searchDao.passageChapterPageCallCount)
+        }
+
+    @Test
+    fun passageSearchCapsMatchingChaptersRatherThanAllCandidates() =
+        runTest {
+            val searchDao =
+                FakeSearchDao(
+                    passageBooks = listOf(passageBook()),
+                    passagesByBook =
+                        mapOf(
+                            "book" to
+                                (0 until 40).map { chapterIndex ->
+                                    passageChapter(chapterIndex, plainText = "one needle")
+                                },
+                        ),
+                )
+            val repository = repository(searchDao, FakeSavedAnnotationDao())
+
+            val results = repository.search("needle", bookId = "book")
+
+            assertEquals(32, results.size)
+            assertEquals(1, searchDao.passageBookQueryCount)
+            assertEquals(4, searchDao.passageChapterPageCallCount)
+        }
+
+    @Test
+    fun passageSearchPreservesPerChapterAndResultLimits() =
+        runTest {
+            val searchDao =
+                FakeSearchDao(
+                    passageBooks = listOf(passageBook()),
+                    passagesByBook =
+                        mapOf(
+                            "book" to
+                                (0 until 32).map { chapterIndex ->
+                                    passageChapter(
+                                        chapterIndex,
+                                        plainText = "needle needle needle needle",
+                                    )
+                                },
+                        ),
+                )
+            val repository = repository(searchDao, FakeSavedAnnotationDao())
+
+            val results = repository.search("needle", bookId = "book")
+
+            assertEquals(60, results.size)
+            assertEquals(3, results.count { it.chapterIndex == 0 })
+            assertEquals(1, searchDao.passageBookQueryCount)
+            assertEquals(3, searchDao.passageChapterPageCallCount)
         }
 
     private fun repository(
@@ -112,22 +228,44 @@ class LibrarySearchRepositoryImplTest {
 
 private class FakeSearchDao(
     private val bookSearch: suspend () -> List<BookEntity> = { emptyList() },
-    private val passageSearch: suspend () -> List<SearchPassageMatchEntity> = { emptyList() },
+    private val passageBooks: List<SearchPassageBookEntity> = emptyList(),
+    private val passagesByBook: Map<String, List<SearchPassageChapterPageEntity>> = emptyMap(),
+    private val beforePassageBooks: suspend () -> Unit = {},
+    private val beforePassageChapterPage: suspend () -> Unit = {},
 ) : SearchDao {
-    var requestedMatchLengthCodePoints: Int? = null
+    var passageBookQueryCount = 0
         private set
+    var passageChapterPageCallCount = 0
+        private set
+    val requestedBookFilters = mutableListOf<String?>()
 
-    override suspend fun searchPassageMatches(
-        normalizedQuery: String,
-        matchLengthCodePoints: Int,
-        snippetContextCharacters: Int,
-        matchesPerChapter: Int,
-        chapterLimit: Int,
-        bookId: String?,
-        limit: Int,
-    ): List<SearchPassageMatchEntity> {
-        requestedMatchLengthCodePoints = matchLengthCodePoints
-        return passageSearch()
+    override suspend fun searchPassageBooks(bookId: String?): List<SearchPassageBookEntity> {
+        passageBookQueryCount += 1
+        requestedBookFilters += bookId
+        beforePassageBooks()
+        return passageBooks
+            .filter { bookId == null || it.bookId == bookId }
+            .filter { passagesByBook[it.bookId].orEmpty().isNotEmpty() }
+            .sortedWith(
+                compareBy<SearchPassageBookEntity> { it.bookTitle.lowercase(Locale.ROOT) }
+                    .thenBy { it.bookId },
+            )
+    }
+
+    override suspend fun searchPassageChapterPage(
+        bookId: String,
+        afterChapterIndex: Int,
+        pageSize: Int,
+    ): List<SearchPassageChapterPageEntity> {
+        passageChapterPageCallCount += 1
+        beforePassageChapterPage()
+        return passagesByBook[bookId]
+            .orEmpty()
+            .asSequence()
+            .filter { it.chapterIndex > afterChapterIndex }
+            .sortedBy { it.chapterIndex }
+            .take(pageSize)
+            .toList()
     }
 
     override suspend fun searchBooks(
@@ -171,17 +309,23 @@ private fun book(): BookEntity =
         coverImage = null,
     )
 
-private fun passageMatch(): SearchPassageMatchEntity =
-    SearchPassageMatchEntity(
-        bookId = "book",
-        bookTitle = "Needle Book",
-        chapterIndex = 3,
+private fun passageBook(
+    bookId: String = "book",
+    bookTitle: String = "Needle Book",
+): SearchPassageBookEntity =
+    SearchPassageBookEntity(
+        bookId = bookId,
+        bookTitle = bookTitle,
+    )
+
+private fun passageChapter(
+    chapterIndex: Int = 3,
+    plainText: String = "before needle after",
+): SearchPassageChapterPageEntity =
+    SearchPassageChapterPageEntity(
+        chapterIndex = chapterIndex,
         chapterTitle = "Late chapter",
-        matchStartCodePointOffset = 300_123,
-        matchLengthCodePoints = "needle".length,
-        snippetStartCodePointOffset = 300_100,
-        snippetText = "before needle after",
-        chapterLengthCodePoints = 400_000,
+        plainText = plainText,
     )
 
 private fun savedWithBook(): SavedAnnotationWithBookEntity =

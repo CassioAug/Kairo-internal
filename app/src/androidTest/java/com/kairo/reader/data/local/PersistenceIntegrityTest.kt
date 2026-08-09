@@ -233,22 +233,11 @@ class PersistenceIntegrityTest {
             val plainText = "$prefix needle followed by a short ending"
             insertBook(plainText = plainText)
 
-            val match =
-                database.searchDao()
-                    .searchPassageMatches(
-                        normalizedQuery = "needle",
-                        matchLengthCodePoints = "needle".length,
-                        snippetContextCharacters = 24,
-                        matchesPerChapter = 3,
-                        chapterLimit = 10,
-                        bookId = BOOK_ID,
-                        limit = 10,
-                    ).single()
+            val match = searchPassages("needle").single()
 
             assertEquals(prefix.length + 1, match.matchStartCodePointOffset)
-            assertTrue(match.snippetText.contains("needle"))
-            assertTrue(match.snippetText.length <= "needle".length + 48)
-            assertEquals(plainText.length, match.chapterLengthCodePoints)
+            assertTrue(match.snippet.contains("needle"))
+            assertTrue(match.snippet.length <= MAX_SEARCH_SNIPPET_LENGTH)
         }
 
     @Test
@@ -257,35 +246,63 @@ class PersistenceIntegrityTest {
             val plainText = "😀😀😀 abc needle and 😀query"
             insertBook(plainText = plainText)
 
-            val needle =
-                database.searchDao()
-                    .searchPassageMatches(
-                        normalizedQuery = "needle",
-                        matchLengthCodePoints = 6,
-                        snippetContextCharacters = 12,
-                        matchesPerChapter = 3,
-                        chapterLimit = 10,
-                        bookId = BOOK_ID,
-                        limit = 10,
-                    ).single()
-            val supplementaryQuery =
-                database.searchDao()
-                    .searchPassageMatches(
-                        normalizedQuery = "😀query",
-                        matchLengthCodePoints = 6,
-                        snippetContextCharacters = 12,
-                        matchesPerChapter = 3,
-                        chapterLimit = 10,
-                        bookId = BOOK_ID,
-                        limit = 10,
-                    ).single()
+            val needle = searchPassages("needle").single()
+            val supplementaryQuery = searchPassages("😀query").single()
 
             assertEquals(8, needle.matchStartCodePointOffset)
             assertEquals(11, plainText.indexOf("needle"))
             assertEquals(6, needle.matchLengthCodePoints)
             assertEquals(19, supplementaryQuery.matchStartCodePointOffset)
             assertEquals(6, supplementaryQuery.matchLengthCodePoints)
-            assertEquals(plainText.codePointCount(0, plainText.length), needle.chapterLengthCodePoints)
+        }
+
+    @Test
+    fun passageSearchUsesOriginalOffsetsAfterExpandingLowercaseCharacter() =
+        runBlocking {
+            val plainText = "İ before needle and after"
+            insertBook(plainText = plainText)
+
+            val match = searchPassages("needle").single()
+
+            assertEquals(9, match.matchStartCodePointOffset)
+            assertEquals(6, match.matchLengthCodePoints)
+            assertEquals(plainText, match.snippet)
+        }
+
+    @Test
+    fun passageSearchMatchesGreekFinalSigmaUsingOriginalText() =
+        runBlocking {
+            val plainText = "Before ΟΣ after"
+            insertBook(plainText = plainText)
+
+            val match = searchPassages("οσ").single()
+
+            assertEquals(7, match.matchStartCodePointOffset)
+            assertEquals(2, match.matchLengthCodePoints)
+            assertEquals(plainText, match.snippet)
+        }
+
+    @Test
+    fun passageSearchPagesEachBookInStableGlobalOrder() =
+        runBlocking {
+            insertBookWithChapters(
+                bookId = SAME_TITLE_BOOK_B,
+                title = "Same Title",
+                chapterTexts = (0 until 8).map { "no match $it" } + "needle in b",
+            )
+            insertBookWithChapters(
+                bookId = SAME_TITLE_BOOK_A,
+                title = "same title",
+                chapterTexts = (0 until 8).map { "no match $it" } + "needle in a",
+            )
+
+            val matches = searchPassages("needle", bookId = null)
+
+            assertEquals(
+                listOf(SAME_TITLE_BOOK_A, SAME_TITLE_BOOK_B),
+                matches.map { it.bookId.value },
+            )
+            assertEquals(listOf(8, 8), matches.map { it.chapterIndex })
         }
 
     private suspend fun insertBook(
@@ -332,6 +349,16 @@ class PersistenceIntegrityTest {
 
     private suspend fun searchSaved(query: String): List<SavedAnnotationWithBookEntity> =
         database.savedAnnotationDao().searchWithBook(query.toSqlLikePattern(), limit = 20)
+
+    private suspend fun searchPassages(
+        query: String,
+        bookId: String? = BOOK_ID,
+    ): List<LibrarySearchResult> =
+        LibrarySearchRepositoryImpl(
+            searchDao = database.searchDao(),
+            annotationDao = database.savedAnnotationDao(),
+            dispatcherProvider = AndroidTestDispatcherProvider,
+        ).search(query, bookId = bookId)
 
     private fun rowCount(table: String): Int =
         database.query("SELECT COUNT(*) FROM $table", emptyArray()).use { cursor ->
