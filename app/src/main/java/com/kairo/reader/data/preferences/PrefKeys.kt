@@ -100,4 +100,5 @@ internal object PrefKeys {
     val focusPauseNotifications = booleanPreferencesKey("focus_pause_notifications")
     val focusApplyInReader = booleanPreferencesKey("focus_apply_in_reader")
     val focusApplyInRsvp = booleanPreferencesKey("focus_apply_in_rsvp")
+    val weeklyReadingGoalMinutes = intPreferencesKey("weekly_reading_goal_minutes")
 }

@@ -60,6 +60,7 @@ internal data class ReaderRouteInput(
     val tutorialState: StartingTutorialOverlayState?,
     val initialChapterIndex: Int? = null,
     val initialTokenIndex: Int? = null,
+    val initialSearchCodePointOffset: Int? = null,
     val onShowUserMessage: (String) -> Unit,
     val onTutorialNext: () -> Unit,
     val onTutorialPrevious: () -> Unit,
@@ -74,14 +75,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
         val coroutineScope = rememberCoroutineScope()
         val resources = LocalResources.current
         val lifecycleOwner = LocalLifecycleOwner.current
-        val readerPositionSaver =
-            remember(bookId, lifecycleOwner) {
-                ReaderPositionSaver(
-                    scope = lifecycleOwner.lifecycleScope,
-                    repository = container.readingPositionRepository,
-                    saveDispatcher = dispatcherProvider.io,
-                )
-            }
+        val readerPositionSaver = rememberReaderPositionSaver(bookId, lifecycleOwner, container)
 
         val bookState =
             produceState<ReaderBookLoadState>(
@@ -117,17 +111,8 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
                 }
             }
 
-        val readerViewModel: ReaderViewModel =
-            viewModel(
-                factory =
-                ReaderViewModel.factory(
-                    container.bookRepository,
-                    container.tokenRepository,
-                    dispatcherProvider,
-                ),
-            )
+        val readerViewModel = rememberReaderViewModel(container)
         val uiState by readerViewModel.uiState.collectAsState()
-
         val rsvpResult = rememberReaderRsvpResult(backStackEntry, bookId, uiState)
         ApplyReaderRsvpResult(
             result = rsvpResult,
@@ -144,6 +129,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
                 bookId = bookId,
                 initialChapterIndex = initialChapterIndex,
                 initialTokenIndex = initialTokenIndex,
+                initialSearchCodePointOffset = initialSearchCodePointOffset,
                 container = container,
                 uiState = uiState,
                 readerViewModel = readerViewModel,
@@ -168,8 +154,14 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
                 languageTag = book.languageTag,
             )
         PrefetchReaderFrames(hasInitialized, uiState, resolvedRsvpConfig, container, bookId)
+        val savedBindings =
+            rememberReaderSavedBindings(
+                container = container,
+                bookId = BookId(bookId),
+                chapterIndex = rsvpResult.effectiveUiState.chapterIndex,
+                onShowUserMessage = onShowUserMessage,
+            )
 
-        val focusEnabledInReader = prefs.focusModeEnabled && prefs.focusApplyInReader
         var lastExplicitFocusIndex by remember(bookId) { mutableIntStateOf(-1) }
         val readerCallbacks =
             buildReaderRouteCallbacks(
@@ -195,9 +187,15 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
                 )
             )
 
-        BackHandler(enabled = !tutorialActive) {
-            readerCallbacks.onOpenLibrary()
-        }
+        RecordReaderSessionEffect(
+            container = container,
+            bookId = BookId(bookId),
+            hasInitialized = hasInitialized,
+            readerState = rsvpResult.effectiveUiState,
+            lifecycleOwner = lifecycleOwner,
+        )
+
+        BackHandler(enabled = !tutorialActive, onBack = readerCallbacks.onOpenLibrary)
 
         ReaderScreen(
             book = book,
@@ -211,7 +209,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
             onThemeChange = readerCallbacks.onThemeChange,
             onTextBrightnessChange = readerCallbacks.onTextBrightnessChange,
             onInvertedScrollChange = readerCallbacks.onInvertedScrollChange,
-            focusModeEnabled = focusEnabledInReader,
+            focusModeEnabled = prefs.focusModeEnabled && prefs.focusApplyInReader,
             onFocusModeEnabledChange = readerCallbacks.onFocusModeEnabledChange,
             onAddBookmark = readerCallbacks.onAddBookmark,
             onOpenBookmarks = readerCallbacks.onOpenBookmarks,
@@ -224,6 +222,20 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
             onChapterChange = readerCallbacks.onChapterChange,
             onTableOfContentsTargetSelected = readerCallbacks.onTableOfContentsTargetSelected,
             onViewportMetricsChanged = readerCallbacks.onViewportMetricsChanged,
+            savedAnnotations = savedBindings.annotations,
+            bookSearchState = savedBindings.searchState,
+            onSearchBook = savedBindings.onSearch,
+            onRetryBookSearch = savedBindings.onRetrySearch,
+            onSearchResultSelected = { result ->
+                container.readingSessionCoordinator.rebaseReader(BookId(bookId))
+                readerViewModel.loadChapter(
+                    chapterIndex = result.chapterIndex,
+                    initialFocusIndex =
+                    result.tokenIndex.takeIf { result.matchStartCodePointOffset == null },
+                    initialSearchCodePointOffset = result.matchStartCodePointOffset,
+                )
+            },
+            onSaveAnnotation = savedBindings.onSaveAnnotation,
             tutorialState = tutorialState,
             onTutorialNext = onTutorialNext,
             onTutorialPrevious = onTutorialPrevious,
@@ -233,11 +245,37 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
 }
 
 @Composable
+private fun rememberReaderViewModel(container: KairoApplication): ReaderViewModel =
+    viewModel(
+        factory =
+        ReaderViewModel.factory(
+            container.bookRepository,
+            container.tokenRepository,
+            container.dispatcherProvider,
+        ),
+    )
+
+@Composable
+private fun rememberReaderPositionSaver(
+    bookId: String,
+    lifecycleOwner: LifecycleOwner,
+    container: KairoApplication,
+): ReaderPositionSaver =
+    remember(bookId, lifecycleOwner) {
+        ReaderPositionSaver(
+            scope = lifecycleOwner.lifecycleScope,
+            repository = container.readingPositionRepository,
+            saveDispatcher = container.dispatcherProvider.io,
+        )
+    }
+
+@Composable
 private fun rememberReaderInitialization(
     book: Book,
     bookId: String,
     initialChapterIndex: Int?,
     initialTokenIndex: Int?,
+    initialSearchCodePointOffset: Int?,
     container: KairoApplication,
     uiState: ReaderUiState,
     readerViewModel: ReaderViewModel,
@@ -247,7 +285,10 @@ private fun rememberReaderInitialization(
     LaunchedEffect(book) {
         if (!hasInitialized || uiState.chapterData == null) {
             val savedPosition =
-                if (restoresSavedPosition || hasInitialized) {
+                if (
+                    restoresSavedPosition ||
+                    (hasInitialized && initialSearchCodePointOffset == null)
+                ) {
                     container.readingPositionRepository.getPosition(BookId(bookId))
                 } else {
                     null
@@ -256,6 +297,8 @@ private fun rememberReaderInitialization(
                 book,
                 savedPosition?.chapterIndex ?: initialChapterIndex ?: 0,
                 savedPosition?.tokenIndex ?: initialTokenIndex ?: 0,
+                initialSearchCodePointOffset =
+                if (savedPosition == null) initialSearchCodePointOffset else null,
             )
             hasInitialized = true
         }

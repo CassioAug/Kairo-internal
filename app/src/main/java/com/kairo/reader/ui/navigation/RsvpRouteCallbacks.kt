@@ -9,9 +9,12 @@ import com.kairo.reader.KairoApplication
 import com.kairo.reader.R
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
+import com.kairo.reader.core.model.ReadingSessionMode
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.data.sessions.ReadingSessionLocation
+import com.kairo.reader.data.sessions.completedFrameProgress
 import com.kairo.reader.ui.rsvp.BionicReadingCallbacks
 import com.kairo.reader.ui.rsvp.RsvpBookmarkCallbacks
 import com.kairo.reader.ui.rsvp.RsvpPlaybackCallbacks
@@ -29,6 +32,7 @@ internal data class RsvpRouteCallbackDependencies(
     val prefs: UserPreferences,
     val bookId: String,
     val bookIdValue: BookId,
+    val sessionMode: ReadingSessionMode,
     val chapterIndex: Int,
     val chapterCount: Int,
     val tokens: List<Token>,
@@ -37,6 +41,8 @@ internal data class RsvpRouteCallbackDependencies(
     val coroutineScope: CoroutineScope,
     val resources: Resources,
     val onShowUserMessage: (String) -> Unit,
+    val onSessionFinished: (endTokenIndex: Int) -> Unit,
+    val onSessionActiveChanged: (Boolean) -> Unit,
     val saveRsvpPosition: (
         targetChapterIndex: Int,
         targetTokenIndex: Int,
@@ -109,6 +115,10 @@ private fun buildRsvpBookmarkCallbacks(
             }
         },
         onOpenBookmarks = {
+            dependencies.container.readingSessionCoordinator.finalizeTimed(
+                dependencies.bookIdValue,
+                dependencies.sessionMode,
+            )
             dependencies.navController.navigate(KairoRoutes.libraryBookmarks()) {
                 popUpTo(KairoRoutes.LIBRARY) { inclusive = false }
             }
@@ -120,6 +130,7 @@ private fun buildRsvpPlaybackCallbacks(
 ): RsvpPlaybackCallbacks =
     RsvpPlaybackCallbacks(
         onFinished = { resumePoint ->
+            dependencies.onSessionFinished(resumePoint.tokenIndex)
             val returnTarget =
                 resolveRsvpReturnTarget(
                     resumePoint = resumePoint,
@@ -200,6 +211,7 @@ private fun buildRsvpPlaybackCallbacks(
             }
         },
         onExit = { resumePoint ->
+            dependencies.onSessionFinished(resumePoint.tokenIndex)
             val resumeIndex = dependencies.safeResumeIndex(resumePoint.tokenIndex)
             val wordIndex = resolveWordIndex(dependencies.wordCountByToken, resumeIndex)
             dependencies.saveRsvpPosition(
@@ -230,6 +242,7 @@ private fun buildRsvpPlaybackCallbacks(
             dependencies.navController.popBackStack()
         },
         onOpenLibrary = { resumePoint ->
+            dependencies.onSessionFinished(resumePoint.tokenIndex)
             val resumeIndex = dependencies.safeResumeIndex(resumePoint.tokenIndex)
             val wordIndex = resolveWordIndex(dependencies.wordCountByToken, resumeIndex)
             dependencies.saveRsvpPosition(
@@ -244,10 +257,33 @@ private fun buildRsvpPlaybackCallbacks(
             }
         },
         onPlaybackStateChanged = { isPlaying ->
+            dependencies.onSessionActiveChanged(isPlaying)
             dependencies.backStackEntry.savedStateHandle[
                 KairoSavedStateKeys.RSVP_PLAYBACK_IS_PLAYING
             ] =
                 isPlaying
+        },
+        onFrameConsumed = frameConsumed@{ frame ->
+            val completed = completedFrameProgress(frame, dependencies.tokens)
+            val consumedTokenIndex =
+                completed.lastFullyConsumedOriginalTokenIndex ?: return@frameConsumed
+            val safeTokenIndex =
+                if (dependencies.tokens.isEmpty()) {
+                    consumedTokenIndex.coerceAtLeast(0)
+                } else {
+                    consumedTokenIndex.coerceIn(0, dependencies.tokens.lastIndex)
+                }
+            dependencies.container.readingSessionCoordinator.consumeTimedFrame(
+                bookId = dependencies.bookIdValue,
+                mode = dependencies.sessionMode,
+                location =
+                    ReadingSessionLocation(
+                        chapterIndex = dependencies.chapterIndex,
+                        tokenIndex = safeTokenIndex,
+                        wordIndex = resolveWordIndex(dependencies.wordCountByToken, safeTokenIndex),
+                    ),
+                words = completed.words,
+            )
         },
     )
 

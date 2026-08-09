@@ -26,6 +26,7 @@ internal data class ReaderGestureState(
     val invertedScroll: Boolean,
     val chapterIndex: Int,
     val invertedScrollCommands: MutableSharedFlow<InvertedScrollCommand>,
+    val isPageGestureEnabled: () -> Boolean,
 )
 
 internal data class ReaderGestureActions(
@@ -41,6 +42,7 @@ internal fun Modifier.readerPageGestures(
     pointerInput(state.listStateKey, state.invertedScroll, state.chapterIndex) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            if (!state.isPageGestureEnabled()) return@awaitEachGesture
             val pointerId = down.id
             actions.onSwipePreviewChange(null, 0f)
 
@@ -51,12 +53,16 @@ internal fun Modifier.readerPageGestures(
             var axis = Axis.Horizontal
             var axisResolved = false
             var tracking = true
+            var gestureCancelled = false
             val tracker = VelocityTracker()
             tracker.addPosition(SystemClock.uptimeMillis(), down.position)
 
             while (tracking) {
                 val change = awaitPointerEvent().changes.firstOrNull { it.id == pointerId }
-                if (change == null || !change.pressed) {
+                if (!state.isPageGestureEnabled()) {
+                    gestureCancelled = true
+                    tracking = false
+                } else if (change == null || !change.pressed) {
                     tracking = false
                 } else {
                     val dx = change.position.x - change.previousPosition.x
@@ -94,7 +100,7 @@ internal fun Modifier.readerPageGestures(
                 }
             }
 
-            if (axisResolved) {
+            if (axisResolved && !gestureCancelled) {
                 finishReaderGesture(
                     axis = axis,
                     totalX = totalX,
@@ -103,7 +109,10 @@ internal fun Modifier.readerPageGestures(
                     tracker = tracker,
                     commands = state.invertedScrollCommands,
                     actions = actions,
+                    pageGesturesEnabled = state.isPageGestureEnabled(),
                 )
+            } else {
+                actions.onSwipePreviewChange(null, 0f)
             }
         }
     }
@@ -123,13 +132,15 @@ private fun finishReaderGesture(
     tracker: VelocityTracker,
     commands: MutableSharedFlow<InvertedScrollCommand>,
     actions: ReaderGestureActions,
+    pageGesturesEnabled: Boolean,
 ) {
     actions.onSwipePreviewChange(null, 0f)
     when (axis) {
         Axis.Horizontal ->
-            when {
-                totalX <= -swipeThreshold -> actions.onNextPage()
-                totalX >= swipeThreshold -> actions.onPreviousPage()
+            when (resolveReaderPageSwipeAction(totalX, swipeThreshold, pageGesturesEnabled)) {
+                ReaderPageSwipeAction.NEXT -> actions.onNextPage()
+                ReaderPageSwipeAction.PREVIOUS -> actions.onPreviousPage()
+                null -> Unit
             }
         Axis.Vertical -> {
             if (invertedScroll) {
@@ -141,6 +152,20 @@ private fun finishReaderGesture(
         }
     }
 }
+
+internal enum class ReaderPageSwipeAction { PREVIOUS, NEXT }
+
+internal fun resolveReaderPageSwipeAction(
+    totalX: Float,
+    swipeThreshold: Float,
+    pageGesturesEnabled: Boolean,
+): ReaderPageSwipeAction? =
+    when {
+        !pageGesturesEnabled -> null
+        totalX <= -swipeThreshold -> ReaderPageSwipeAction.NEXT
+        totalX >= swipeThreshold -> ReaderPageSwipeAction.PREVIOUS
+        else -> null
+    }
 
 internal suspend fun performInvertedFling(
     listState: LazyListState,

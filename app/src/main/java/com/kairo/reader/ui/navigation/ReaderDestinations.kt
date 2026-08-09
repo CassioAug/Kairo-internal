@@ -47,6 +47,10 @@ internal fun NavGraphBuilder.readerDestinations(dependencies: ReaderDestinationD
             navArgument(KairoRoutes.ARG_BOOK_ID) { type = NavType.StringType },
             navArgument(KairoRoutes.ARG_CHAPTER_INDEX) { type = NavType.IntType },
             navArgument(KairoRoutes.ARG_TOKEN_INDEX) { type = NavType.IntType },
+            navArgument(KairoRoutes.ARG_SEARCH_CODE_POINT_OFFSET) {
+                type = NavType.IntType
+                defaultValue = -1
+            },
         ),
     ) { backStackEntry ->
         KairoReaderDestination(
@@ -56,6 +60,10 @@ internal fun NavGraphBuilder.readerDestinations(dependencies: ReaderDestinationD
             backStackEntry.arguments?.getInt(KairoRoutes.ARG_CHAPTER_INDEX) ?: 0,
             initialTokenIndex =
             backStackEntry.arguments?.getInt(KairoRoutes.ARG_TOKEN_INDEX) ?: 0,
+            initialSearchCodePointOffset =
+            backStackEntry.arguments
+                ?.getInt(KairoRoutes.ARG_SEARCH_CODE_POINT_OFFSET)
+                ?.takeIf { it >= 0 },
         )
     }
 }
@@ -66,6 +74,7 @@ private fun KairoReaderDestination(
     backStackEntry: NavBackStackEntry,
     initialChapterIndex: Int? = null,
     initialTokenIndex: Int? = null,
+    initialSearchCodePointOffset: Int? = null,
 ) {
     ReaderRoute(
         ReaderRouteInput(
@@ -78,6 +87,7 @@ private fun KairoReaderDestination(
             tutorialState = dependencies.tutorialState,
             initialChapterIndex = initialChapterIndex,
             initialTokenIndex = initialTokenIndex,
+            initialSearchCodePointOffset = initialSearchCodePointOffset,
             onShowUserMessage = dependencies.onShowUserMessage,
             onTutorialNext = dependencies.onTutorialNext,
             onTutorialPrevious = dependencies.onTutorialPrevious,

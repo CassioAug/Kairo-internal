@@ -53,4 +53,11 @@ class PreferencesRepositoryDefaultsTest {
     fun timedReadingModeRestoresBionicSelection() {
         assertEquals(TimedReadingMode.BIONIC, timedReadingModeFromStored("BIONIC"))
     }
+
+    @Test
+    fun weeklyReadingGoalUsesFallbackAndRepairsOutOfRangeValues() {
+        assertEquals(120, normalizeWeeklyReadingGoalMinutes(null, fallback = 120))
+        assertEquals(30, normalizeWeeklyReadingGoalMinutes(1, fallback = 120))
+        assertEquals(1_400, normalizeWeeklyReadingGoalMinutes(2_000, fallback = 120))
+    }
 }

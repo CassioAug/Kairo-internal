@@ -72,5 +72,7 @@ interface PreferencesRepository {
 
     suspend fun updateFocusApplyInRsvp(enabled: Boolean)
 
+    suspend fun updateWeeklyReadingGoalMinutes(minutes: Int)
+
     suspend fun reset()
 }

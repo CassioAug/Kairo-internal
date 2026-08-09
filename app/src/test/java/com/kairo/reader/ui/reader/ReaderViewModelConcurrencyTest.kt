@@ -104,6 +104,50 @@ class ReaderViewModelConcurrencyTest {
 
         assertEquals(1, viewModel.uiState.value.focusIndex)
     }
+
+    @Test
+    fun loadBook_convertsInitialSearchCodePointOffsetBeforeResolvingFocus() =
+        runTest(testDispatcher) {
+            val plainText = "😀😀😀 abc needle"
+            val chapter =
+                Chapter(index = 0, title = "One", htmlContent = "", plainText = plainText)
+            val book =
+                Book(
+                    id = BookId("book-1"),
+                    title = "Test Book",
+                    authors = listOf("Author"),
+                    chapters = listOf(chapter),
+                    coverImage = null,
+                )
+            val tokens =
+                listOf(
+                    Token(text = "😀", type = TokenType.WORD),
+                    Token(text = "😀", type = TokenType.WORD),
+                    Token(text = "😀", type = TokenType.WORD),
+                    Token(text = "abc", type = TokenType.WORD),
+                    Token(text = "needle", type = TokenType.WORD),
+                )
+            val dispatcherProvider =
+                object : DispatcherProvider {
+                    override val default = testDispatcher
+                    override val io = testDispatcher
+                }
+            val viewModel =
+                ReaderViewModel(
+                    FakeBookRepository(book, listOf(chapter)),
+                    FakeTokenRepository(tokens),
+                    dispatcherProvider,
+                )
+
+            viewModel.loadBook(
+                book = book,
+                initialChapterIndex = 0,
+                initialSearchCodePointOffset = 8,
+            )
+            advanceUntilIdle()
+
+            assertEquals(4, viewModel.uiState.value.focusIndex)
+        }
 }
 
 private class FakeBookRepository(private val book: Book, private val chapters: List<Chapter>,) : BookRepository {
@@ -134,14 +178,16 @@ private class FakeBookRepository(private val book: Book, private val chapters: L
     override fun observeBooks(): Flow<List<Book>> = flowOf(listOf(book))
 }
 
-private class FakeTokenRepository : TokenRepository {
+private class FakeTokenRepository(
+    private val tokens: List<Token> =
+    listOf(
+        Token(text = "Hello", type = TokenType.WORD),
+        Token(text = "world", type = TokenType.WORD),
+    ),
+) : TokenRepository {
     override suspend fun getTokens(
         bookId: BookId,
         chapterIndex: Int,
         chapter: Chapter?,
-    ): List<Token> =
-        listOf(
-            Token(text = "Hello", type = TokenType.WORD),
-            Token(text = "world", type = TokenType.WORD),
-        )
+    ): List<Token> = tokens
 }

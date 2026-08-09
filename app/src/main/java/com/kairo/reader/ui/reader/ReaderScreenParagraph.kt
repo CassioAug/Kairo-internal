@@ -1,6 +1,7 @@
 package com.kairo.reader.ui.reader
 
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -14,8 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
@@ -28,25 +29,24 @@ import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.sp
 import com.kairo.reader.R
 import com.kairo.reader.core.model.RsvpConfigConstraints
+import com.kairo.reader.core.model.SavedAnnotation
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.shouldInsertSpaceBeforeToken
 import com.kairo.reader.ui.theme.MerriweatherFontFamily
+import com.kairo.reader.ui.saved.displayColor
 
 // Rich text spans, focus semantics, and tap geometry must be built in one AnnotatedString layout pass.
 @Suppress("LongMethod")
 @Composable
 internal fun ParagraphText(
-    paragraph: Paragraph,
-    focusIndex: Int,
-    fontSizeSp: Float,
-    textBrightness: Float,
-    timedReadingMode: TimedReadingMode,
-    onFocusChange: (Int) -> Unit,
-    onStartTimedReading: (Int) -> Unit,
-    onChapterSelected: ((Int) -> Unit)? = null,
-    nonInteractiveChapterLinkTargets: Set<Int> = emptySet(),
+    state: ParagraphTextState,
+    actions: ParagraphTextActions,
 ) {
+    val paragraph = state.paragraph
+    val focusIndex = state.focusIndex
+    val fontSizeSp = state.fontSizeSp
+    val textBrightness = state.textBrightness
     val baseStyle =
         TextStyle(
             fontFamily = MerriweatherFontFamily,
@@ -90,7 +90,7 @@ internal fun ParagraphText(
                 ?: NO_PARAGRAPH_FOCUS
         }
 
-    val annotated =
+    val visualContent =
         remember(
             paragraph.tokens,
             paragraph.startIndex,
@@ -98,9 +98,13 @@ internal fun ParagraphText(
             focusStyle,
             linkStyle,
             paragraphIndent,
-            nonInteractiveChapterLinkTargets,
+            state.nonInteractiveChapterLinkTargets,
+            state.savedAnnotations,
+            state.selectionRange,
+            state.searchMatchRange,
         ) {
-            buildAnnotatedString {
+            val inlineHighlights = mutableListOf<ReaderInlineHighlightRange>()
+            val text = buildAnnotatedString {
                 paragraph.tokens.forEachIndexed { localIndex, token ->
                     if (token.type == TokenType.PARAGRAPH_BREAK ||
                         token.type == TokenType.PAGE_BREAK
@@ -116,6 +120,7 @@ internal fun ParagraphText(
                     if (needsSpaceBefore) append(" ")
 
                     val start = length
+                    val highlightStart = if (needsSpaceBefore) start - 1 else start
                     append(token.text)
                     val end = length
 
@@ -130,7 +135,7 @@ internal fun ParagraphText(
                     val interactiveChapterLinkTarget =
                         resolveInteractiveChapterLinkTarget(
                             token = token,
-                            nonInteractiveTargets = nonInteractiveChapterLinkTargets,
+                            nonInteractiveTargets = state.nonInteractiveChapterLinkTargets,
                         )
                     if (interactiveChapterLinkTarget != null) {
                         addStringAnnotation(
@@ -142,41 +147,69 @@ internal fun ParagraphText(
                         addStyle(linkStyle, start, end)
                     }
 
+                    state.savedAnnotations
+                        .firstOrNull { globalIndex in it.tokenRange }
+                        ?.let { annotation ->
+                            inlineHighlights.addOrExtendInlineHighlight(
+                                key = "saved:${annotation.id}",
+                                start = highlightStart,
+                                endExclusive = end,
+                                color = annotation.color.displayColor().copy(alpha = SAVED_HIGHLIGHT_ALPHA),
+                            )
+                        }
+
                     if (localIndex == localFocusIndex) addStyle(focusStyle, start, end)
+                    if (state.searchMatchRange?.contains(globalIndex) == true) {
+                        inlineHighlights.addOrExtendInlineHighlight(
+                            key = SEARCH_HIGHLIGHT_KEY,
+                            start = highlightStart,
+                            endExclusive = end,
+                            color = tertiary.copy(alpha = SEARCH_HIGHLIGHT_ALPHA),
+                        )
+                    }
+                    if (state.selectionRange?.contains(globalIndex) == true) {
+                        inlineHighlights.addOrExtendInlineHighlight(
+                            key = SELECTION_HIGHLIGHT_KEY,
+                            start = highlightStart,
+                            endExclusive = end,
+                            color = primary.copy(alpha = SELECTION_HIGHLIGHT_ALPHA),
+                        )
+                    }
                 }
                 addStyle(paragraphIndent, start = 0, end = length)
             }
+            ReaderParagraphVisualContent(text, inlineHighlights)
         }
 
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val currentAnnotated by rememberUpdatedState(annotated)
+    val currentAnnotated by rememberUpdatedState(visualContent.text)
     val currentFocusIndex by rememberUpdatedState(focusIndex)
-    val currentOnFocusChange by rememberUpdatedState(onFocusChange)
-    val currentOnStartTimedReading by rememberUpdatedState(onStartTimedReading)
-    val currentOnChapterSelected by rememberUpdatedState(onChapterSelected)
+    val currentActions by rememberUpdatedState(actions)
+    val currentSelectionRange by rememberUpdatedState(state.selectionRange)
     val timedReadingModeLabel =
         stringResource(
-            when (timedReadingMode) {
+            when (state.timedReadingMode) {
                 TimedReadingMode.RSVP -> R.string.timed_reading_mode_rsvp
                 TimedReadingMode.BIONIC -> R.string.timed_reading_mode_bionic
             },
         )
     val startTimedReadingActionLabel =
         stringResource(R.string.reader_start_timed_reading_action, timedReadingModeLabel)
+    val startSelectionActionLabel = stringResource(R.string.reader_start_selection_action)
+    val extendSelectionBackwardLabel = stringResource(R.string.reader_extend_selection_backward_action)
+    val extendSelectionForwardLabel = stringResource(R.string.reader_extend_selection_forward_action)
+    val cancelSelectionLabel = stringResource(R.string.reader_cancel_selection_action)
 
     Text(
-        text = annotated,
+        text = visualContent.text,
         style = baseStyle,
         modifier =
         Modifier
             .fillMaxWidth()
-            .semantics {
-                role = Role.Button
-                onClick(label = startTimedReadingActionLabel) {
-                    currentOnStartTimedReading(currentFocusIndex)
-                    true
-                }
-            }
+            .drawReaderInlineHighlights(
+                layoutResult = { layoutResult },
+                highlights = { visualContent.highlights },
+            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { position ->
@@ -196,7 +229,7 @@ internal fun ParagraphText(
                             offset,
                             offset
                         ).firstOrNull()
-                        val chapterSelected = currentOnChapterSelected
+                        val chapterSelected = currentActions.onChapterSelected
                         if (linkHit != null && chapterSelected != null) {
                             val chapterIndex = linkHit.item.toIntOrNull()
                             if (chapterIndex != null) {
@@ -214,12 +247,16 @@ internal fun ParagraphText(
                             ).firstOrNull()
                                 ?: return@detectTapGestures
                         val tokenIndex = hit.item.toIntOrNull() ?: return@detectTapGestures
+                        if (currentSelectionRange != null) {
+                            currentActions.onSelectionExtend(tokenIndex)
+                            return@detectTapGestures
+                        }
                         if (tokenIndex ==
                             currentFocusIndex
                         ) {
-                            currentOnStartTimedReading(tokenIndex)
+                            currentActions.onStartTimedReading(tokenIndex)
                         } else {
-                            currentOnFocusChange(tokenIndex)
+                            currentActions.onFocusChange(tokenIndex)
                         }
                     },
                     onLongPress = { position ->
@@ -240,15 +277,78 @@ internal fun ParagraphText(
                             ).firstOrNull()
                                 ?: return@detectTapGestures
                         val tokenIndex = hit.item.toIntOrNull() ?: return@detectTapGestures
-                        if (tokenIndex != currentFocusIndex) currentOnFocusChange(tokenIndex)
-                        currentOnStartTimedReading(tokenIndex)
+                        if (tokenIndex != currentFocusIndex) currentActions.onFocusChange(tokenIndex)
+                        currentActions.onSelectionStart(tokenIndex)
                     },
                 )
+            }
+            .combinedClickable(
+                role = Role.Button,
+                onClickLabel = startTimedReadingActionLabel,
+                onLongClickLabel = startSelectionActionLabel,
+                onClick = {
+                    if (currentFocusIndex >= 0) {
+                        currentActions.onStartTimedReading(currentFocusIndex)
+                    }
+                },
+                onLongClick = {
+                    if (currentFocusIndex >= 0) currentActions.onSelectionStart(currentFocusIndex)
+                },
+            ).semantics {
+                val selectionRange = currentSelectionRange
+                if (selectionRange != null) {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(extendSelectionBackwardLabel) {
+                                val target =
+                                    (selectionRange.first - 1).coerceAtLeast(paragraph.startIndex)
+                                currentActions.onSelectionExtend(target)
+                                true
+                            },
+                            CustomAccessibilityAction(extendSelectionForwardLabel) {
+                                val target =
+                                    (selectionRange.last + 1)
+                                        .coerceAtMost(paragraph.startIndex + paragraph.tokens.lastIndex)
+                                currentActions.onSelectionExtend(target)
+                                true
+                            },
+                            CustomAccessibilityAction(cancelSelectionLabel) {
+                                currentActions.onSelectionCancel()
+                                true
+                            },
+                        )
+                }
             },
         onTextLayout = { layoutResult = it },
     )
 }
 
+internal data class ParagraphTextState(
+    val paragraph: Paragraph,
+    val focusIndex: Int,
+    val fontSizeSp: Float,
+    val textBrightness: Float,
+    val timedReadingMode: TimedReadingMode,
+    val nonInteractiveChapterLinkTargets: Set<Int> = emptySet(),
+    val savedAnnotations: List<SavedAnnotation> = emptyList(),
+    val selectionRange: IntRange? = null,
+    val searchMatchRange: IntRange? = null,
+)
+
+internal data class ParagraphTextActions(
+    val onFocusChange: (Int) -> Unit,
+    val onStartTimedReading: (Int) -> Unit,
+    val onChapterSelected: ((Int) -> Unit)? = null,
+    val onSelectionStart: (Int) -> Unit = {},
+    val onSelectionExtend: (Int) -> Unit = {},
+    val onSelectionCancel: () -> Unit = {},
+)
+
 private const val PARAGRAPH_INDENT_FACTOR = 0.55f
 
 private const val NO_PARAGRAPH_FOCUS = -1
+private const val SAVED_HIGHLIGHT_ALPHA = 0.18f
+private const val SEARCH_HIGHLIGHT_ALPHA = 0.18f
+private const val SELECTION_HIGHLIGHT_ALPHA = 0.22f
+private const val SEARCH_HIGHLIGHT_KEY = "search"
+private const val SELECTION_HIGHLIGHT_KEY = "selection"

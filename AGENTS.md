@@ -1,552 +1,328 @@
-# Kairo – AGENTS
+# Codex Engineering Workflow
+
+## Purpose
+
+Treat the primary Codex thread as the lead engineer and orchestration layer.
+
+For non-trivial coding work, the primary thread should coordinate specialist
+subagents, synthesize evidence, choose the implementation direction, and own
+the final decision.
 
-Kairo is a Kotlin / Android RSVP-first ebook reader that:
+Do not spawn agents merely to increase agent count. Use delegation only when it
+improves correctness, speed, independence of review, or context quality.
 
-- Imports `.epub` and `.mobi` files
-- Presents a scrollable “reader view” with a single enlarged focus word
-- Switches into a minimal RSVP view when the focus word is tapped
-- Provides a customisable RSVP engine and user preferences
+Keep delegation flat: subagents report back to the primary thread and should
+not spawn additional subagents unless the primary thread explicitly requests it.
 
-## Mandatory engineering contract
+## Core principles
 
-This section applies to every human contributor and every automated coding agent. It takes precedence over the module descriptions below.
+1. Understand before editing.
+2. Parallelize independent read-heavy investigation.
+3. Keep one clear owner for source-code changes.
+4. Verify behavior rather than trusting claims.
+5. Review the completed diff independently.
+6. Prefer the smallest coherent change that fully solves the problem.
+7. Preserve existing architecture and conventions unless there is a concrete
+   reason to change them.
+8. Do not weaken tests, validation, types, permissions, or error handling simply
+   to make a task pass.
 
-Before changing the repository:
+## Complexity gate
 
-1. Read this file and `CONTRIBUTING.md` completely.
-2. Inspect the current branch and working tree. Preserve unrelated and pre-existing changes.
-3. Read the nearest implementation and tests before editing; reuse existing domain seams rather than creating parallel systems.
+### Simple tasks
 
-While making changes:
+For obvious, low-risk, narrowly scoped changes, the primary agent may implement
+the work directly without spawning subagents.
 
-- Keep behavior changes, formatting changes, and policy changes logically separable.
-- Use named domain/protocol constants instead of unexplained literals.
-- Prefer typed state, action, request, and result objects over long parameter lists.
-- Split parsing, timing, navigation, and rendering into cohesive stages before they exceed the configured Detekt boundaries.
-- Keep Compose functions declarative and move business logic into testable Kotlin functions or state holders.
-- Add or update focused tests for every behavior change and regression fix.
-- Never add a Detekt or ktlint baseline, set `ignoreFailures`, disable a quality task, or widen a quality threshold merely to make CI pass.
-- Suppress a rule only on the narrowest declaration where the representation is inherently exceptional. Every new suppression must include a nearby reason.
-- Changes to `detekt.yml`, `.editorconfig`, quality Gradle tasks, hooks, or CI require explicit justification and must not reduce enforcement without user approval.
+Examples:
+- typo fixes
+- mechanical renames
+- tiny configuration changes
+- clearly isolated one-line bug fixes
 
-Before declaring work complete:
+Still inspect the relevant code and verify the result.
 
-1. Run `./gradlew qualityCheck` for all Kotlin, resource, Gradle, manifest, or test changes.
-2. Run `./gradlew qualityGate` when changing UI, Android integration, resources, manifests, dependencies, build configuration, or release behavior.
-3. Run `git diff --check` and inspect the final diff for unrelated churn, generated files, debug logging, and accidental API changes.
-4. Report any check that could not run. Do not describe an unexecuted check as passing.
-
-The required CI check is `Quality gate`. Local hooks are installed with `./scripts/setup-dev.sh`, but CI remains authoritative because hooks can be bypassed.
-
-This document defines the core “agents” (modules / responsibilities) that together implement Kairo.
-
----
+### Non-trivial tasks
 
-## Agent 0 – System Architect
+Use the multi-agent workflow when the task includes one or more of:
 
-**Goal**
-Define the high-level architecture, module boundaries, and data flow so that all other agents can work independently and integrate cleanly.
+- ambiguous requirements
+- unfamiliar code
+- multiple modules
+- architecture decisions
+- concurrency or state-management concerns
+- production bugs without a confirmed cause
+- migrations
+- authentication or authorization
+- security-sensitive behavior
+- difficult refactors
+- public API changes
+- significant test failures
+- performance work
+- changes with meaningful regression risk
 
-**Responsibilities**
+## Standard workflow
 
-- Decide high-level stack:
-  - Android, Kotlin, Jetpack Compose UI
-  - Room + DataStore for persistence
-  - Readium (or similar) for EPUB; dedicated MOBI parser / converter for DRM-free MOBI
-- Define core modules:
-  - `core-model`
-  - `core-rsvp`
-  - `data-books`
-  - `data-preferences`
-  - `ui-library`
-  - `ui-reader`
-  - `ui-rsvp`
-  - `ui-settings`
-- Define navigation flow:
-  - Library → Reader → RSVP → Reader
-- Define error handling and logging conventions.
+### Phase 1: Frame the task
 
-**Inputs**
+The primary thread should establish:
 
-- Product requirements
-- Android platform constraints
-- Library capabilities (Readium, MOBI parser)
+- requested outcome
+- relevant constraints
+- acceptance criteria
+- likely risk areas
+- what remains unknown
 
-**Outputs**
+Do not begin broad code changes until the failure mode or desired behavior is
+understood well enough to act deliberately.
 
-- High-level architecture diagram
-- Module list and Gradle config skeleton
-- Shared conventions (naming, package layout, error handling)
+### Phase 2: Investigate
 
----
+Delegate independent investigation where useful.
 
-## Agent 1 – Domain Model & Book Abstractions
+Use `scout` for:
+- locating relevant files and symbols
+- tracing execution paths
+- finding callers/callees
+- mapping state and data flow
+- locating existing tests
+- finding similar implementations
 
-**Goal**
-Represent books, chapters, tokens, reading positions, and RSVP configuration in a clean, format-agnostic way.
+Use `architect` for:
+- difficult design decisions
+- multi-module changes
+- concurrency/state concerns
+- refactor boundaries
+- API shape and migration strategy
 
-**Responsibilities**
+Use `docs_researcher` when behavior depends on:
+- framework APIs
+- library versions
+- external specifications
+- current vendor documentation
+- version-specific behavior
 
-- Define data classes:
+Independent read-heavy investigations may run in parallel.
 
-  ```kotlin
-  data class BookId(val value: String)
+The primary thread must synthesize the returned evidence before implementation.
 
-  data class Book(
-      val id: BookId,
-      val title: String,
-      val authors: List<String>,
-      val chapters: List<Chapter>,
-      val coverImage: ByteArray? = null
-  )
+### Phase 3: Implement
 
-  data class Chapter(
-      val index: Int,
-      val title: String?,
-      val htmlContent: String,
-      val plainText: String
-  )
+For non-trivial changes, prefer `implementer` as the sole source-code owner.
 
-  data class ReadingPosition(
-      val bookId: BookId,
-      val chapterIndex: Int,
-      val tokenIndex: Int
-  )
+Do not have multiple agents concurrently modify overlapping application code.
 
-  enum class TokenType { WORD, PUNCTUATION, PARAGRAPH_BREAK }
+The implementer should receive:
+- the task
+- acceptance criteria
+- relevant investigation findings
+- architectural decisions
+- constraints
+- files or modules likely involved
 
-  data class Token(
-      val text: String,
-      val type: TokenType,
-      val orpIndex: Int? = null,
-      val pauseAfterMs: Long = 0L
-  )
+The primary thread remains responsible for steering the work if implementation
+uncovers new information.
 
-  data class RsvpConfig(
-      val baseWpm: Int,
-      val wordsPerFrame: Int,
-      val maxChunkLength: Int,
-      val punctuationPauseFactor: Double,
-      val paragraphPauseMs: Long,
-      val longWordMultiplier: Double,
-      val orpEnabled: Boolean,
-      val startDelayMs: Long,
-      val endDelayMs: Long
-  )
-  ```
+### Phase 4: Verify
 
-* Ensure domain model is UI-agnostic and parser-agnostic.
-* Provide small helper functions (e.g. ORP index calculation).
+After implementation, use `tester` for independent verification when the change
+is non-trivial.
 
-**Inputs**
+Verification should include the most relevant available checks:
 
-* Requirements from RSVP Engine Agent
-* Requirements from Reader / RSVP UI agents
+- targeted unit tests
+- integration tests
+- end-to-end tests
+- type checks
+- static analysis
+- lint
+- build
+- reproduction of the original failure
+- manual/runtime verification where appropriate
 
-**Outputs**
+Do not treat "the code looks correct" as equivalent to verification.
 
-* Kotlin data classes in `core-model`
-* Utility methods for token and ORP operations
+### Phase 5: Review
 
----
+Run `reviewer` against the completed diff for non-trivial changes.
 
-## Agent 2 – Import & Parsing (EPUB / MOBI)
+The reviewer must be independent from the implementer and must not modify code.
 
-**Goal**
-Load `.epub` and `.mobi` files, parse them into the shared domain model, and persist them.
+For changes involving authentication, authorization, secrets, command execution,
+SQL, uploads, deserialization, crypto, external input, permissions, or trust
+boundaries, also invoke `security_reviewer`.
 
-**Responsibilities**
+### Phase 6: Resolve findings
 
-* Define the parser interface:
+Classify reviewer findings:
 
-  ```kotlin
-  interface BookParser {
-      suspend fun parse(uri: Uri): Book
-      fun supports(extension: String): Boolean
-  }
-  ```
+- material correctness/security/regression issue
+- useful improvement
+- non-material/style-only observation
+- false positive
 
-* Implement:
+Material findings go back to `implementer`.
 
-    * `EpubBookParser` using Readium or equivalent
-    * `MobiBookParser` using a MOBI library or pre-conversion step for DRM-free MOBI
+After fixes:
+- rerun targeted verification
+- rereview affected areas if the fix is meaningful
 
-* Extract:
+Do not loop indefinitely on subjective style disagreements.
 
-    * Metadata (title, authors, cover)
-    * Chapter boundaries and titles
-    * Original HTML content per chapter
+### Phase 7: Completion
 
-* Normalise chapter content:
+Before declaring the task complete, the primary thread should:
 
-    * Strip or simplify HTML into well-formed text
-    * Ensure paragraphs and punctuation are preserved for later tokenisation
+1. inspect the final diff
+2. confirm the requested behavior is implemented
+3. confirm relevant tests/checks passed
+4. confirm material review findings were resolved
+5. ensure no unrelated files were changed unnecessarily
+6. report any remaining uncertainty or unverified behavior
 
-* Implement `BookRepository`:
+## Role boundaries
 
-  ```kotlin
-  interface BookRepository {
-      suspend fun importBook(uri: Uri): Book
-      suspend fun getBook(bookId: BookId): Book
-      suspend fun getChapter(bookId: BookId, chapterIndex: Int): Chapter
-  }
-  ```
+### Primary thread
 
-**Inputs**
+Owns:
+- requirements
+- orchestration
+- synthesis
+- architectural decisions
+- delegation
+- final acceptance
 
-* Raw URIs from Android storage picker
-* Underlying parsing libraries
+Avoid filling the main context with raw search output, huge logs, or repetitive
+test traces when a subagent can summarize them.
 
-**Outputs**
+### scout
 
-* `Book` and `Chapter` instances persisted via Room
-* Errors and status for UI (e.g. unsupported DRM)
+Read-only investigator.
 
----
+Does not:
+- edit files
+- decide final architecture
+- implement fixes
 
-## Agent 3 – Tokenisation & Text Normalisation
+### architect
 
-**Goal**
-Convert chapter text into precise tokens suitable for RSVP, and maintain stable token indices.
+Read-only senior design partner.
 
-**Responsibilities**
+Does not:
+- edit files
+- take implementation ownership
 
-* Implement a tokenizer that:
+### docs_researcher
 
-    * Splits chapter `plainText` into `Token`s
-    * Handles:
+Read-only external-behavior verifier.
 
-        * Words
-        * Sentence-ending punctuation (., !, ?)
-        * Mid-sentence punctuation (, ; :)
-        * Paragraph boundaries
-    * Cleans up extra whitespace.
+Does not:
+- edit files
+- substitute guesses for documentation
 
-* Annotate tokens:
+### implementer
 
-    * `TokenType`
-    * ORP index per word
-    * Extra pause weights (e.g. after full stops or paragraph breaks)
+Primary source-code owner for delegated implementation.
 
-* Provide a `TokenRepository` abstraction:
+Should not:
+- rewrite unrelated code
+- introduce speculative abstractions
+- weaken tests
+- silently broaden scope
 
-  ```kotlin
-  interface TokenRepository {
-      suspend fun getTokens(bookId: BookId, chapterIndex: Int): List<Token>
-  }
-  ```
+### tester
 
-    * Optionally cache tokens per chapter in DB or in-memory.
+Independent verifier.
 
-**Inputs**
+May run commands that create normal build/test artifacts, but should not modify
+application source merely to make verification pass.
 
-* `Chapter` (plain text / basic HTML info)
-* ORP rules from RSVP Engine Agent
+### reviewer
 
-**Outputs**
+Independent correctness reviewer.
 
-* Ordered list of `Token`s per chapter
-* Stable mapping between `ReadingPosition.tokenIndex` and on-screen content
+Does not modify files.
 
----
+### security_reviewer
 
-## Agent 4 – RSVP Engine
+Independent security reviewer for security-sensitive changes.
 
-**Goal**
-Generate a timed sequence of RSVP frames based on tokens and configuration, independent of Android UI.
+Does not modify files.
 
-**Responsibilities**
+## Parallelism rules
 
-* Define frame model:
+Good parallel work:
+- two scouts examining independent subsystems
+- scout + docs research
+- tests/log analysis + code-path mapping
+- independent review categories
 
-  ```kotlin
-  data class RsvpFrame(
-      val tokens: List<Token>,
-      val durationMs: Long
-  )
-  ```
+Avoid:
+- two implementers editing the same feature
+- simultaneous refactors of overlapping files
+- agents making independent architectural decisions and merging them blindly
 
-* Provide `RsvpEngine`:
+Prefer one writer and many readers.
 
-  ```kotlin
-  interface RsvpEngine {
-      fun generateFrames(
-          tokens: List<Token>,
-          startIndex: Int,
-          config: RsvpConfig
-      ): List<RsvpFrame>
-  }
-  ```
+## Evidence quality
 
-* Implement default engine:
+Subagents should clearly distinguish:
 
-    * Compute base `msPerWord` from WPM
-    * Adjust frame duration by:
+- observed facts
+- reasonable inference
+- uncertainty
 
-        * Word length (long words → more time)
-        * Punctuation (pause factors)
-        * Paragraph breaks (extra pause)
-    * Support:
+Important findings should include exact file paths, symbols, commands, test names,
+or documentation references when available.
 
-        * `wordsPerFrame`
-        * `maxChunkLength`
-        * Start / end delays (handled either here or in controller)
+## Change discipline
 
-* Keep implementation pure Kotlin (no Android dependencies).
+Prefer:
+- minimal coherent diffs
+- existing abstractions
+- existing dependency choices
+- existing test patterns
+- explicit error handling
+- reversible changes
 
-**Inputs**
+Avoid:
+- unrelated cleanup
+- gratuitous renaming
+- speculative generalization
+- new dependencies without a concrete need
+- broad exception swallowing
+- behavior changes outside the requested scope
 
-* Tokens from Tokenisation Agent
-* `RsvpConfig` from Settings Agent
+## Git discipline
 
-**Outputs**
+Before substantial work, inspect the current working tree.
 
-* List or sequence of `RsvpFrame`s starting from a given token index
+Do not overwrite unrelated user changes.
 
----
+Do not reset, clean, checkout, or discard work unless explicitly instructed.
 
-## Agent 5 – Reader UI (Scrollable View with Focus Word)
+Review the final diff before completion.
 
-**Goal**
-Display the book like a normal reader while visually emphasising a single “focus word” that maps to the RSVP starting point.
+## Communication
 
-**Responsibilities**
+The primary thread should summarize delegated findings instead of dumping raw
+subagent transcripts.
 
-* Implement `ReaderScreen` in Compose:
+When a subagent discovers a blocker that changes the implementation direction,
+the primary thread should reconsider the plan rather than forcing the original
+approach.
 
-    * Displays chapter content as a scrollable view
-    * Renders tokens in layout that respects line wrapping
-    * Highlights one token as the “focus word”:
+## Default orchestration pattern
 
-        * Larger font size
-        * Colour highlight
-    * Makes focus word tappable:
+For a difficult feature or bug, prefer:
 
-        * Triggers transition into RSVP mode
-
-* Track reading position:
-
-    * Maintain `ReadingPosition` in ViewModel
-    * Update `focusIndex` as user scrolls or moves chapters
-    * Save position back via `ReadingPositionRepository`
-
-* Provide chapter navigation UI:
-
-    * Bottom / top controls for next / previous chapter
-    * Optional chapter picker (TOC)
-
-**Inputs**
-
-* `Book` and `Tokens` from repositories
-* `ReadingPosition` from persistence
-* User font / theme preferences
-
-**Outputs**
-
-* Visual reader experience
-* Events: `OnFocusWordClick(tokenIndex)`, `OnChapterChanged`
-
----
-
-## Agent 6 – RSVP UI & Playback Controller
-
-**Goal**
-Present a clean RSVP reading view and drive frame playback over time.
-
-**Responsibilities**
-
-* Implement `RsvpScreen` in Compose:
-
-    * Large centred text, minimal chrome
-    * Optional:
-
-        * Progress bar / percentage
-        * Remaining time estimate
-    * Tap areas or gesture:
-
-        * Tap to pause / play
-        * Swipe left/right to step frames or adjust speed
-
-* Implement RSVP controller (inside ViewModel or dedicated class):
-
-    * Consume `RsvpFrame`s from the engine
-    * Manage state: playing, paused, stopped
-    * Step through frames via `delay(frame.durationMs)`
-    * Handle exit:
-
-        * Compute final `ReadingPosition` (chapter + token index)
-        * Notify caller so Reader UI can update
-
-* Integrate user preferences:
-
-    * WPM, theme, ORP highlighting
-    * Update engine input when settings change
-
-**Inputs**
-
-* `RsvpFrame`s from engine
-* Current `ReadingPosition`
-* `RsvpConfig` from Settings Agent
-
-**Outputs**
-
-* Real-time RSVP UI
-* Updated `ReadingPosition` when RSVP ends or user exits
-
----
-
-## Agent 7 – Settings & Preferences
-
-**Goal**
-Expose and persist user preferences for RSVP behaviour and reading appearance.
-
-**Responsibilities**
-
-* Define `UserPreferences`:
-
-  ```kotlin
-  data class UserPreferences(
-      val rsvpConfig: RsvpConfig,
-      val readerFontSizeSp: Float,
-      val readerTheme: ReaderTheme
-  )
-
-  enum class ReaderTheme { LIGHT, DARK, SEPIA }
-  ```
-
-* Implement `PreferencesRepository` using DataStore:
-
-    * Get / observe preferences as a Flow
-    * Update WPM, theme, fonts etc.
-
-* Implement `SettingsScreen` in Compose:
-
-    * Sliders for WPM, font size
-    * Toggles for ORP, words per frame
-    * Theme selection (background, text colour)
-    * Option to reset to defaults
-
-**Inputs**
-
-* Product requirements
-* Feedback from RSVP / Reader UI agents
-
-**Outputs**
-
-* Persistent `UserPreferences`
-* Reactive streams feeding Reader and RSVP screens
-
----
-
-## Agent 8 – Persistence & Library Management
-
-**Goal**
-Store books, reading positions, and maintain the user’s library.
-
-**Responsibilities**
-
-* Implement Room entities & DAOs:
-
-    * Books metadata
-    * Chapters (or references to files)
-    * Reading positions
-
-* Implement repositories:
-
-  ```kotlin
-  interface ReadingPositionRepository {
-      suspend fun getPosition(bookId: BookId): ReadingPosition?
-      suspend fun savePosition(position: ReadingPosition)
-  }
-  ```
-
-* Implement `LibraryRepository`:
-
-    * List books with cover, title, authors
-    * Delete books
-    * Provide last-read position for each book
-
-* Provide `LibraryScreen` UI:
-
-    * Grid/list of books
-    * “Import book” action (Storage Access Framework)
-    * Sorting and filtering (optional)
-
-**Inputs**
-
-* Parsed `Book`s from Import Agent
-* `ReadingPosition` updates from Reader / RSVP UI
-
-**Outputs**
-
-* Stable, resumable library
-* Data for Library UI
-
----
-
-## Agent 9 – QA, UX & Performance
-
-**Goal**
-Raise the overall quality of Kairo through tests, UX polish, and performance tuning.
-
-**Responsibilities**
-
-* Testing:
-
-    * Unit tests for:
-
-        * Tokenisation
-        * RSVP engine timing
-        * Reading position updates
-    * Instrumented UI tests for:
-
-        * Reader scroll + focus word behaviour
-        * RSVP playback and resume
-
-* UX and usability:
-
-    * Smooth transitions:
-
-        * Reader → RSVP and back
-    * Accessibility:
-
-        * Font scaling with system settings
-        * High contrast themes
-    * Animation quality (if any)
-
-* Performance:
-
-    * Efficient token caching
-    * Avoid holding entire large books in memory
-    * Precompute RSVP frames in chunks if needed
-
-**Inputs**
-
-* All modules
-* Sample books of various sizes and formats
-
-**Outputs**
-
-* Test suites and coverage
-* UX recommendations and refinements
-* Performance benchmarks and fixes
-
----
-
-## Implementation Order (Recommended)
-
-1. **Agent 0 / 1** – Architecture + domain model
-2. **Agent 2** – EPUB parsing + minimal library import
-3. **Agent 3** – Tokenisation & ORP
-4. **Agent 4** – RSVP engine (pure Kotlin)
-5. **Agent 8** – Persistence & library management
-6. **Agent 5** – Reader UI with focus word
-7. **Agent 6** – RSVP UI & controller
-8. **Agent 7** – Settings & preferences
-9. **Agent 9** – QA, UX and performance pass
-
-Once these are in place, you can iterate on the “revolutionary” RSVP behaviour (extra heuristics, adaptive pacing, experimental layouts) without disturbing the rest of Kairo.
-
-```
-::contentReference[oaicite:0]{index=0}
-```
+Primary/Sol
+  -> scout(s) + docs_researcher + architect as needed
+  -> synthesize
+  -> implementer
+  -> tester
+  -> reviewer
+  -> security_reviewer when applicable
+  -> implementer fixes material findings
+  -> targeted verification
+  -> final primary-thread inspection

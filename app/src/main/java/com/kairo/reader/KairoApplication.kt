@@ -1,10 +1,13 @@
 package com.kairo.reader
 
 import android.app.Application
+import android.util.Log
 import androidx.room.Room
 import com.kairo.reader.core.dispatchers.DefaultDispatcherProvider
 import com.kairo.reader.core.rsvp.ComprehensionRsvpEngine
 import com.kairo.reader.core.rsvp.RsvpEngine
+import com.kairo.reader.data.annotations.SavedAnnotationRepository
+import com.kairo.reader.data.annotations.SavedAnnotationRepositoryImpl
 import com.kairo.reader.data.bookmarks.BookmarkRepository
 import com.kairo.reader.data.bookmarks.BookmarkRepositoryImpl
 import com.kairo.reader.data.books.BookRepository
@@ -21,6 +24,8 @@ import com.kairo.reader.data.library.LibraryRepositoryImpl
 import com.kairo.reader.data.local.KairoDatabase
 import com.kairo.reader.data.local.MIGRATION_1_2
 import com.kairo.reader.data.local.MIGRATION_10_11
+import com.kairo.reader.data.local.MIGRATION_11_12
+import com.kairo.reader.data.local.MIGRATION_12_13
 import com.kairo.reader.data.local.MIGRATION_2_3
 import com.kairo.reader.data.local.MIGRATION_3_4
 import com.kairo.reader.data.local.MIGRATION_4_5
@@ -35,7 +40,13 @@ import com.kairo.reader.data.reading.ReadingPositionRepository
 import com.kairo.reader.data.reading.ReadingPositionRepositoryImpl
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
 import com.kairo.reader.data.rsvp.RsvpFrameRepositoryImpl
+import com.kairo.reader.data.search.LibrarySearchRepository
+import com.kairo.reader.data.search.LibrarySearchRepositoryImpl
 import com.kairo.reader.data.seed.SampleSeeder
+import com.kairo.reader.data.sessions.ReadingSessionRepository
+import com.kairo.reader.data.sessions.ReadingSessionCoordinator
+import com.kairo.reader.data.sessions.ReadingSessionRepositoryImpl
+import com.kairo.reader.data.sessions.SystemReadingSessionClock
 import com.kairo.reader.data.token.TokenRepository
 import com.kairo.reader.data.token.TokenRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
@@ -54,6 +65,14 @@ class KairoApplication : Application() {
     lateinit var readingPositionRepository: ReadingPositionRepository
         private set
     lateinit var bookmarkRepository: BookmarkRepository
+        private set
+    lateinit var savedAnnotationRepository: SavedAnnotationRepository
+        private set
+    lateinit var readingSessionRepository: ReadingSessionRepository
+        private set
+    lateinit var readingSessionCoordinator: ReadingSessionCoordinator
+        private set
+    lateinit var searchRepository: LibrarySearchRepository
         private set
     lateinit var preferencesRepository: PreferencesRepository
         private set
@@ -84,6 +103,8 @@ class KairoApplication : Application() {
                     MIGRATION_8_9,
                     MIGRATION_9_10,
                     MIGRATION_10_11,
+                    MIGRATION_11_12,
+                    MIGRATION_12_13,
                 )
                 .build()
 
@@ -108,6 +129,25 @@ class KairoApplication : Application() {
         tokenRepository = TokenRepositoryImpl(bookRepository, dispatcherProvider)
         readingPositionRepository = ReadingPositionRepositoryImpl(database.readingPositionDao())
         bookmarkRepository = BookmarkRepositoryImpl(database.bookmarkDao())
+        savedAnnotationRepository =
+            SavedAnnotationRepositoryImpl(database.savedAnnotationDao())
+        readingSessionRepository =
+            ReadingSessionRepositoryImpl(database.readingSessionDao())
+        readingSessionCoordinator =
+            ReadingSessionCoordinator(
+                scope = applicationScope,
+                repository = readingSessionRepository,
+                clock = SystemReadingSessionClock(),
+                onError = { failure ->
+                    Log.e(READING_SESSION_LOG_TAG, "Reading-session command failed", failure)
+                },
+            )
+        searchRepository =
+            LibrarySearchRepositoryImpl(
+                searchDao = database.searchDao(),
+                annotationDao = database.savedAnnotationDao(),
+                dispatcherProvider = dispatcherProvider,
+            )
         preferencesRepository = PreferencesRepositoryImpl(this)
         libraryRepository =
             LibraryRepositoryImpl(
@@ -116,6 +156,8 @@ class KairoApplication : Application() {
                 database.bookDao(),
                 database.readingPositionDao(),
                 database.bookmarkDao(),
+                database.savedAnnotationDao(),
+                database.readingSessionDao(),
                 applicationContext,
                 dispatcherProvider,
             )
@@ -125,3 +167,5 @@ class KairoApplication : Application() {
         applicationScope.launch { sampleSeeder.seedIfEmpty() }
     }
 }
+
+private const val READING_SESSION_LOG_TAG = "ReadingSession"

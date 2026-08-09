@@ -18,6 +18,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+AGENTS.md
+.codex/
+md-backup/
 
 .claude
 

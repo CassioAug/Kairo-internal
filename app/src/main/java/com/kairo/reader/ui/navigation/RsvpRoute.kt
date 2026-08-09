@@ -13,10 +13,12 @@ import androidx.navigation.NavHostController
 import com.kairo.reader.KairoApplication
 import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.ReadingPosition
+import com.kairo.reader.core.model.ReadingSessionMode
 import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.buildWordCountByToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.data.sessions.ReadingSessionLocation
 import com.kairo.reader.ui.rsvp.ReadingPresentationMode
 import com.kairo.reader.ui.rsvp.RsvpBookContext
 import com.kairo.reader.ui.rsvp.RsvpLayoutBias
@@ -95,6 +97,27 @@ internal fun RsvpRoute(
             )
         }
     val playbackIsPlaying by playbackIsPlayingFlow.collectAsState(initial = true)
+    val sessionMode =
+        when (presentationMode) {
+            ReadingPresentationMode.RSVP -> ReadingSessionMode.RSVP
+            ReadingPresentationMode.BIONIC -> ReadingSessionMode.BIONIC
+        }
+    val sessionStartIndex =
+        if (tokens.isEmpty()) 0 else safeStartIndex.coerceIn(0, tokens.lastIndex)
+    TrackTimedReadingSessionLifecycle(
+        container = container,
+        bookId = bookIdValue,
+        mode = sessionMode,
+        start =
+            ReadingSessionLocation(
+                chapterIndex = chapterIndex,
+                tokenIndex = sessionStartIndex,
+                wordIndex = resolveWordIndex(wordCountByToken, sessionStartIndex),
+            ),
+        lifecycleOwner = rsvpLifecycleOwner,
+        isPlaying = playbackIsPlaying,
+        enabled = tokens.isNotEmpty(),
+    )
     val resolvedRsvpConfig =
         RsvpConfigResolver.resolve(prefs.rsvpConfig, routeData.languageTag)
     fun saveRsvpPosition(
@@ -115,7 +138,6 @@ internal fun RsvpRoute(
             )
         }
     }
-
     val rsvpState =
         RsvpScreenState(
             book =
@@ -143,31 +165,8 @@ internal fun RsvpRoute(
                 positioningGridEnabled = prefs.rsvpPositioningGridEnabled,
                 positioningGridSnap = prefs.rsvpPositioningGridSnap,
             ),
-            textStyle =
-            if (presentationMode == ReadingPresentationMode.BIONIC) {
-                RsvpTextStyle(
-                    fontSizeSp = prefs.bionicReading.fontSizeSp,
-                    fontFamily = prefs.rsvpFontFamily,
-                    fontWeight = RsvpFontWeight.NORMAL,
-                    textBrightness = prefs.bionicReading.textBrightness,
-                )
-            } else {
-                RsvpTextStyle(
-                    fontSizeSp = prefs.rsvpFontSizeSp,
-                    fontFamily = prefs.rsvpFontFamily,
-                    fontWeight = prefs.rsvpFontWeight,
-                    textBrightness = prefs.rsvpTextBrightness,
-                )
-            },
-            layoutBias =
-            if (presentationMode == ReadingPresentationMode.BIONIC) {
-                RsvpLayoutBias(verticalBias = 0f, horizontalBias = 0f)
-            } else {
-                RsvpLayoutBias(
-                    verticalBias = prefs.rsvpVerticalBias,
-                    horizontalBias = prefs.rsvpHorizontalBias,
-                )
-            },
+            textStyle = resolveRsvpTextStyle(prefs, presentationMode),
+            layoutBias = resolveRsvpLayoutBias(prefs, presentationMode),
         )
     val rsvpCallbacks =
         buildRsvpRouteCallbacks(
@@ -178,6 +177,7 @@ internal fun RsvpRoute(
                 prefs = prefs,
                 bookId = bookId,
                 bookIdValue = bookIdValue,
+                sessionMode = sessionMode,
                 chapterIndex = chapterIndex,
                 chapterCount = routeData.chapterCount,
                 tokens = tokens,
@@ -186,6 +186,20 @@ internal fun RsvpRoute(
                 coroutineScope = coroutineScope,
                 resources = resources,
                 onShowUserMessage = onShowUserMessage,
+                onSessionFinished = {
+                    container.readingSessionCoordinator.finalizeTimed(bookIdValue, sessionMode)
+                },
+                onSessionActiveChanged = { active ->
+                    container.readingSessionCoordinator.setTimedActive(
+                        bookId = bookIdValue,
+                        mode = sessionMode,
+                        active =
+                            active &&
+                                rsvpLifecycleOwner.lifecycle.currentState.isAtLeast(
+                                    androidx.lifecycle.Lifecycle.State.STARTED
+                                ),
+                    )
+                },
                 saveRsvpPosition = ::saveRsvpPosition,
             )
         )
@@ -206,3 +220,36 @@ internal fun RsvpRoute(
         onTutorialSkip = onTutorialSkip,
     )
 }
+
+private fun resolveRsvpTextStyle(
+    preferences: UserPreferences,
+    presentationMode: ReadingPresentationMode,
+): RsvpTextStyle =
+    if (presentationMode == ReadingPresentationMode.BIONIC) {
+        RsvpTextStyle(
+            fontSizeSp = preferences.bionicReading.fontSizeSp,
+            fontFamily = preferences.rsvpFontFamily,
+            fontWeight = RsvpFontWeight.NORMAL,
+            textBrightness = preferences.bionicReading.textBrightness,
+        )
+    } else {
+        RsvpTextStyle(
+            fontSizeSp = preferences.rsvpFontSizeSp,
+            fontFamily = preferences.rsvpFontFamily,
+            fontWeight = preferences.rsvpFontWeight,
+            textBrightness = preferences.rsvpTextBrightness,
+        )
+    }
+
+private fun resolveRsvpLayoutBias(
+    preferences: UserPreferences,
+    presentationMode: ReadingPresentationMode,
+): RsvpLayoutBias =
+    if (presentationMode == ReadingPresentationMode.BIONIC) {
+        RsvpLayoutBias(verticalBias = 0f, horizontalBias = 0f)
+    } else {
+        RsvpLayoutBias(
+            verticalBias = preferences.rsvpVerticalBias,
+            horizontalBias = preferences.rsvpHorizontalBias,
+        )
+    }

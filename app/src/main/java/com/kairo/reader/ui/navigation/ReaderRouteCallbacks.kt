@@ -115,6 +115,9 @@ internal fun buildReaderRouteCallbacks(
         },
         onOpenBookmarks = {
             dependencies.saveCurrentReaderPosition()
+            dependencies.container.readingSessionCoordinator.finalizeReader(
+                dependencies.bookIdValue
+            )
             dependencies.navController.navigate(KairoRoutes.libraryBookmarks())
         },
         onOpenLibrary = {
@@ -170,7 +173,10 @@ internal fun buildReaderRouteCallbacks(
         onChapterChange = { newIndex, focusIndex ->
             dependencies.readerViewModel.loadChapter(newIndex, focusIndex)
         },
-        onTableOfContentsTargetSelected = dependencies.readerViewModel::loadTableOfContentsTarget,
+        onTableOfContentsTargetSelected = { target ->
+            dependencies.container.readingSessionCoordinator.rebaseReader(dependencies.bookIdValue)
+            dependencies.readerViewModel.loadTableOfContentsTarget(target)
+        },
         onViewportMetricsChanged = { resolvedFontSizeSp, viewportHeightDp ->
             dependencies.readerViewModel.updatePaginationMetrics(
                 resolvedFontSizeSp,
@@ -200,6 +206,7 @@ private fun ReaderRouteCallbackDependencies.saveCurrentReaderPosition() {
 }
 
 private fun ReaderRouteCallbackDependencies.navigateReaderToLibrary() {
+    container.readingSessionCoordinator.finalizeReader(bookIdValue)
     val position =
         getLastExplicitFocusIndex()
             .takeIf { it >= 0 }
@@ -223,6 +230,7 @@ private fun ReaderRouteCallbackDependencies.startTimedReading(
     start: Int,
     rememberMode: Boolean,
 ) {
+    container.readingSessionCoordinator.finalizeReader(bookIdValue)
     RsvpLaunchSnapshotStore.put(
         bookId = bookId,
         chapterIndex = uiState.chapterIndex,

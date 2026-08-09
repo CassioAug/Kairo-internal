@@ -12,7 +12,9 @@ import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.data.local.BookDao
 import com.kairo.reader.data.local.BookmarkDao
 import com.kairo.reader.data.local.KairoDatabase
+import com.kairo.reader.data.local.ReadingSessionDao
 import com.kairo.reader.data.local.ReadingPositionDao
+import com.kairo.reader.data.local.SavedAnnotationDao
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -23,6 +25,8 @@ class LibraryRepositoryImpl(
     private val bookDao: BookDao,
     private val positionDao: ReadingPositionDao,
     private val bookmarkDao: BookmarkDao,
+    private val annotationDao: SavedAnnotationDao,
+    private val sessionDao: ReadingSessionDao,
     private val appContext: Context,
     private val dispatcherProvider: DispatcherProvider,
 ) : LibraryRepository {
@@ -53,6 +57,8 @@ class LibraryRepositoryImpl(
             database.withTransaction {
                 positionDao.deleteForBook(bookId)
                 bookmarkDao.deleteForBook(bookId)
+                annotationDao.deleteForBook(bookId)
+                sessionDao.deleteForBook(bookId)
                 bookDao.deleteChaptersForBook(bookId)
                 bookDao.deleteTableOfContentsForBook(bookId)
                 bookDao.deleteBook(bookId)

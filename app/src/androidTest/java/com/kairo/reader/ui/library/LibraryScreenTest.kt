@@ -2,13 +2,16 @@ package com.kairo.reader.ui.library
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kairo.reader.R
 import com.kairo.reader.TestActivity
@@ -17,6 +20,11 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Bookmark
 import com.kairo.reader.core.model.BookmarkItem
 import com.kairo.reader.core.model.Chapter
+import com.kairo.reader.core.model.EditSavedAnnotationRequest
+import com.kairo.reader.core.model.HighlightColor
+import com.kairo.reader.core.model.SavedAnnotation
+import com.kairo.reader.core.model.SavedAnnotationItem
+import com.kairo.reader.core.model.SavedAnnotationKind
 import com.kairo.reader.data.books.TextImportRequest
 import com.kairo.reader.ui.theme.KairoTheme
 import org.junit.Assert.assertEquals
@@ -48,7 +56,7 @@ class LibraryScreenTest {
                     books = listOf(sampleBook),
                     bookmarks = emptyList(),
                     bookProgress = emptyMap(),
-                    initialTab = LibraryTab.Library,
+                    initialTab = LibraryTab.Books,
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
@@ -88,7 +96,7 @@ class LibraryScreenTest {
                     books = listOf(sampleBook),
                     bookmarks = emptyList(),
                     bookProgress = emptyMap(),
-                    initialTab = LibraryTab.Library,
+                    initialTab = LibraryTab.Books,
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
@@ -129,7 +137,8 @@ class LibraryScreenTest {
                     books = listOf(sampleBook, completedBook),
                     bookmarks = emptyList(),
                     bookProgress = emptyMap(),
-                    initialTab = LibraryTab.Completed,
+                    initialTab = LibraryTab.Books,
+                    initialBookFilter = LibraryBookFilter.COMPLETED,
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
@@ -158,7 +167,7 @@ class LibraryScreenTest {
                     books = listOf(sampleBook),
                     bookmarks = emptyList(),
                     bookProgress = emptyMap(),
-                    initialTab = LibraryTab.Library,
+                    initialTab = LibraryTab.Books,
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
@@ -211,7 +220,7 @@ class LibraryScreenTest {
                     books = listOf(sampleBook),
                     bookmarks = listOf(bookmarkItem),
                     bookProgress = emptyMap(),
-                    initialTab = LibraryTab.Bookmarks,
+                    initialTab = LibraryTab.Saved,
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
@@ -251,7 +260,7 @@ class LibraryScreenTest {
                     books = listOf(sampleBook),
                     bookmarks = emptyList(),
                     bookProgress = emptyMap(),
-                    initialTab = LibraryTab.Library,
+                    initialTab = LibraryTab.Books,
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
@@ -286,7 +295,7 @@ class LibraryScreenTest {
                     books = listOf(sampleBook),
                     bookmarks = emptyList(),
                     bookProgress = emptyMap(),
-                    initialTab = LibraryTab.Library,
+                    initialTab = LibraryTab.Books,
                     onOpen = {},
                     onOpenBookmark = { _, _, _ -> },
                     onDeleteBookmark = {},
@@ -317,5 +326,407 @@ class LibraryScreenTest {
                 importedText?.content,
             )
         }
+    }
+
+    @Test
+    fun tabsOpenSavedAndMomentumViews() {
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    bookProgress = emptyMap(),
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_tab_saved),
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.saved_title),
+        ).assertIsDisplayed()
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_tab_momentum),
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.momentum_this_week),
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.momentum_stored_locally),
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun savedViewShowsHighlightAndNote() {
+        val annotation =
+            SavedAnnotationItem(
+                annotation =
+                SavedAnnotation(
+                    id = "note-1",
+                    bookId = sampleBook.id,
+                    chapterIndex = 0,
+                    startTokenIndex = 2,
+                    endTokenIndex = 5,
+                    selectedText = "A highlighted passage",
+                    note = "A useful note",
+                    color = HighlightColor.BLUE,
+                    kind = SavedAnnotationKind.NOTE,
+                    createdAt = 100L,
+                    updatedAt = 100L,
+                ),
+                book = sampleBook,
+                chapterCount = 1,
+            )
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    annotations = listOf(annotation),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Saved,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("A highlighted passage").assertIsDisplayed()
+        composeRule.onNodeWithText("A useful note").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.reader_note_hint),
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.saved_note_passage),
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.reader_chapter_of_total, 1, 1),
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun savedNoteCanBeEdited() {
+        var editRequest: EditSavedAnnotationRequest? = null
+        val annotation = savedAnnotation(kind = SavedAnnotationKind.NOTE, note = "A useful note")
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    annotations = listOf(annotation),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Saved,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onEditAnnotation = { editRequest = it },
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.content_desc_edit_saved),
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.saved_edit_note_title),
+        ).assertIsDisplayed()
+        composeRule.onNode(hasSetTextAction())
+            .assertTextEquals("A useful note")
+            .performTextReplacement("Updated thought")
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.highlight_pink),
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.action_save),
+        ).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                EditSavedAnnotationRequest(
+                    annotationId = "note-1",
+                    note = "Updated thought",
+                    color = HighlightColor.PINK,
+                ),
+                editRequest,
+            )
+        }
+    }
+
+    @Test
+    fun savedHighlightCanChangeColour() {
+        var editRequest: EditSavedAnnotationRequest? = null
+        val annotation = savedAnnotation(kind = SavedAnnotationKind.HIGHLIGHT, note = "")
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    annotations = listOf(annotation),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Saved,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onEditAnnotation = { editRequest = it },
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.content_desc_edit_saved),
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.saved_edit_highlight_title),
+        ).assertIsDisplayed()
+        composeRule.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.highlight_blue),
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.action_save),
+        ).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                EditSavedAnnotationRequest(
+                    annotationId = "note-1",
+                    note = "",
+                    color = HighlightColor.BLUE,
+                ),
+                editRequest,
+            )
+        }
+    }
+
+    private fun savedAnnotation(
+        kind: SavedAnnotationKind,
+        note: String,
+    ): SavedAnnotationItem =
+        SavedAnnotationItem(
+            annotation =
+                SavedAnnotation(
+                    id = "note-1",
+                    bookId = sampleBook.id,
+                    chapterIndex = 0,
+                    startTokenIndex = 2,
+                    endTokenIndex = 5,
+                    selectedText = "A highlighted passage",
+                    note = note,
+                    color = HighlightColor.YELLOW,
+                    kind = kind,
+                    createdAt = 100L,
+                    updatedAt = 100L,
+                ),
+            book = sampleBook,
+            chapterCount = 1,
+        )
+
+    @Test
+    fun searchOverlayDebouncesQuery() {
+        var submittedQuery = ""
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    bookProgress = emptyMap(),
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onSearchQuery = { submittedQuery = it },
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.content_desc_search),
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.search_kairo_title),
+        ).assertIsDisplayed()
+        composeRule.onNode(hasSetTextAction()).performTextInput("flow")
+
+        composeRule.waitUntil(timeoutMillis = 2_000L) { submittedQuery == "flow" }
+    }
+
+    @Test
+    fun savedPassageDeletionRequiresConfirmation() {
+        var deletedAnnotationId: String? = null
+        val annotation = savedAnnotation(kind = SavedAnnotationKind.NOTE, note = "A useful note")
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    annotations = listOf(annotation),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Saved,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteAnnotation = { deletedAnnotationId = it },
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        val deleteDescription = composeRule.activity.getString(R.string.content_desc_delete_saved)
+        val dialogTitle = composeRule.activity.getString(R.string.saved_delete_title)
+        composeRule.onNodeWithContentDescription(deleteDescription).performClick()
+        composeRule.onNodeWithText(dialogTitle).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.action_cancel)
+        ).performClick()
+        composeRule.runOnIdle { assertEquals(null, deletedAnnotationId) }
+
+        composeRule.onNodeWithContentDescription(deleteDescription).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.action_delete)
+        ).performClick()
+        composeRule.runOnIdle { assertEquals("note-1", deletedAnnotationId) }
+    }
+
+    @Test
+    fun clearBookFilterRevealsUnderlyingBooks() {
+        val completedBook = sampleBook.copy(isCompleted = true)
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(completedBook),
+                    bookmarks = emptyList(),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Books,
+                    initialBookFilter = LibraryBookFilter.READING,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.library_books_filter_empty)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.action_clear_filter)
+        ).performClick()
+        composeRule.onNodeWithText(sampleBook.title).assertIsDisplayed()
+    }
+
+    @Test
+    fun clearSavedFilterRevealsUnderlyingSavedItems() {
+        val annotation = savedAnnotation(kind = SavedAnnotationKind.NOTE, note = "A useful note")
+        composeRule.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    annotations = listOf(annotation),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Saved,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.saved_filter_highlights)
+        ).performClick()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.saved_filter_empty)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.action_clear_filter)
+        ).performClick()
+        composeRule.onNodeWithText("A useful note").assertIsDisplayed()
+    }
+
+    @Test
+    fun savedEditorAndDraftSurviveSavedStateRestoration() {
+        val restorationTester = StateRestorationTester(composeRule)
+        val annotation = savedAnnotation(kind = SavedAnnotationKind.NOTE, note = "A useful note")
+        restorationTester.setContent {
+            KairoTheme {
+                LibraryScreen(
+                    books = listOf(sampleBook),
+                    bookmarks = emptyList(),
+                    annotations = listOf(annotation),
+                    bookProgress = emptyMap(),
+                    initialTab = LibraryTab.Saved,
+                    onOpen = {},
+                    onOpenBookmark = { _, _, _ -> },
+                    onDeleteBookmark = {},
+                    onDeleteBookmarksForBook = {},
+                    onImportFile = {},
+                    onImportUrl = {},
+                    onSettings = {},
+                    onSetCompleted = { _, _ -> },
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.content_desc_edit_saved)
+        ).performClick()
+        composeRule.onNode(hasSetTextAction()).performTextReplacement("Unsaved draft")
+        restorationTester.emulateSavedInstanceStateRestore()
+
+        composeRule.onNode(hasSetTextAction()).assertTextEquals("Unsaved draft")
     }
 }
