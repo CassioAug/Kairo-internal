@@ -89,7 +89,7 @@ The reader, tokenizer, persistence layer, and RSVP engine all work toward the sa
 
 ## Built With
 
-- Kotlin 2.1
+- Kotlin 2.3.10
 - Jetpack Compose
 - AndroidX Navigation
 - Room
@@ -97,7 +97,7 @@ The reader, tokenizer, persistence layer, and RSVP engine all work toward the sa
 - Coil
 - KSP
 - Detekt and Ktlint
-- Gradle Wrapper 8.13
+- Gradle Wrapper 9.6.1
 
 ## Requirements
 
@@ -141,7 +141,7 @@ Install the debug build on a connected device or running emulator:
 
 Release builds do not use the debug suffix or dev label. They retain the
 production application ID `com.kairo.reader` and app name `Kairo`; follow
-[`docs/release-branch-strategy.md`](docs/release-branch-strategy.md) when
+[`docs/branching-and-releases.md`](docs/branching-and-releases.md) when
 preparing a Play Store build.
 
 Run unit tests:
