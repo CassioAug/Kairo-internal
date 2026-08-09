@@ -146,8 +146,6 @@ class KairoApplication : Application() {
             LibrarySearchRepositoryImpl(
                 searchDao = database.searchDao(),
                 annotationDao = database.savedAnnotationDao(),
-                bookRepository = bookRepository,
-                tokenRepository = tokenRepository,
                 dispatcherProvider = dispatcherProvider,
             )
         preferencesRepository = PreferencesRepositoryImpl(this)

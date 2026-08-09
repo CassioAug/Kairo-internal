@@ -10,6 +10,12 @@ data class LibrarySearchResult(
     val chapterIndex: Int,
     val chapterTitle: String?,
     val tokenIndex: Int,
+    val endTokenIndex: Int = tokenIndex,
+    val matchStartCodePointOffset: Int? = null,
+    val matchLengthCodePoints: Int = 0,
     val title: String,
     val snippet: String,
-)
+) {
+    val tokenRange: IntRange
+        get() = minOf(tokenIndex, endTokenIndex)..maxOf(tokenIndex, endTokenIndex)
+}
