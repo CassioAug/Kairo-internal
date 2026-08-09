@@ -10,7 +10,7 @@ interface SavedAnnotationRepository {
 
     fun observeForBook(bookId: BookId): Flow<List<SavedAnnotation>>
 
-    suspend fun save(annotation: SavedAnnotation)
+    suspend fun save(annotation: SavedAnnotation): Boolean
 
     suspend fun delete(annotationId: String)
 

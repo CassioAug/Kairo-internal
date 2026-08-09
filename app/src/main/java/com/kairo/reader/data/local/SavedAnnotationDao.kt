@@ -5,6 +5,7 @@ import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 data class SavedAnnotationWithBookEntity(
@@ -15,8 +16,18 @@ data class SavedAnnotationWithBookEntity(
 
 @Dao
 interface SavedAnnotationDao {
+    @Transaction
+    suspend fun upsert(entity: SavedAnnotationEntity): Boolean {
+        if (!bookExists(entity.bookId)) return false
+        upsertInternal(entity)
+        return true
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(entity: SavedAnnotationEntity)
+    suspend fun upsertInternal(entity: SavedAnnotationEntity)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM books WHERE id = :bookId)")
+    suspend fun bookExists(bookId: String): Boolean
 
     @Query("DELETE FROM saved_annotations WHERE id = :annotationId")
     suspend fun delete(annotationId: String)
@@ -32,8 +43,8 @@ interface SavedAnnotationDao {
 
     @Query(
         SAVED_ANNOTATIONS_WITH_BOOK_QUERY +
-            " AND (lower(saved_annotations.selectedText) LIKE :pattern " +
-            "OR lower(saved_annotations.note) LIKE :pattern) " +
+            " AND (lower(saved_annotations.selectedText) LIKE :pattern ESCAPE '\\' " +
+            "OR lower(saved_annotations.note) LIKE :pattern ESCAPE '\\') " +
             "ORDER BY saved_annotations.updatedAt DESC LIMIT :limit",
     )
     suspend fun searchWithBook(
@@ -60,10 +71,7 @@ private const val SAVED_ANNOTATIONS_WITH_BOOK_QUERY =
         books.title AS book_title,
         books.authors AS book_authors,
         books.languageTag AS book_languageTag,
-        CASE
-            WHEN books.coverImage IS NOT NULL AND length(books.coverImage) <= 1900000 THEN books.coverImage
-            ELSE NULL
-        END AS book_coverImage,
+        NULL AS book_coverImage,
         books.isCompleted AS book_isCompleted,
         books.importFingerprint AS book_importFingerprint,
         (SELECT COUNT(*) FROM chapters WHERE chapters.bookId = books.id) AS chapterCount

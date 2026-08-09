@@ -1,6 +1,7 @@
 package com.kairo.reader.data.local
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -104,6 +105,14 @@ data class BookmarkEntity(
 
 @Entity(
     tableName = "saved_annotations",
+    foreignKeys = [
+        ForeignKey(
+            entity = BookEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["bookId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
     indices = [
         Index(value = ["bookId"]),
         Index(value = ["updatedAt"]),
@@ -126,6 +135,14 @@ data class SavedAnnotationEntity(
 
 @Entity(
     tableName = "reading_sessions",
+    foreignKeys = [
+        ForeignKey(
+            entity = BookEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["bookId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
     indices = [
         Index(value = ["bookId"]),
         Index(value = ["startedAt"]),
@@ -145,4 +162,39 @@ data class ReadingSessionEntity(
     val wordsRead: Int,
     val effectiveWpm: Int,
     val isWordCountEstimated: Boolean,
+)
+
+@Entity(
+    tableName = "reading_session_checkpoints",
+    foreignKeys = [
+        ForeignKey(
+            entity = BookEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["bookId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [
+        Index(value = ["bookId"]),
+        Index(value = ["sessionKey"]),
+    ],
+)
+data class ReadingSessionCheckpointEntity(
+    @PrimaryKey val id: String,
+    val sessionKey: String,
+    val logicalSessionId: String,
+    val bookId: String,
+    val mode: String,
+    val logicalStartedAt: Long,
+    val dayStartedAt: Long,
+    val startedAt: Long,
+    val endedAt: Long,
+    val activeDurationMs: Long,
+    val startChapterIndex: Int,
+    val startTokenIndex: Int,
+    val endChapterIndex: Int,
+    val endTokenIndex: Int,
+    val wordsRead: Int,
+    val isWordCountEstimated: Boolean,
+    val lastReaderWordIndex: Int?,
 )

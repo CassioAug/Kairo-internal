@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -15,7 +16,13 @@ interface BookDao {
         chapters: List<ChapterEntity>,
         tableOfContentsEntries: List<TableOfContentsEntryEntity>,
     ) {
-        insertBookInternal(book)
+        val inserted = insertBookIfAbsent(book)
+        if (inserted == INSERT_CONFLICT) {
+            val existingCompleted = getCompletedForUpdate(book.id) ?: book.isCompleted
+            check(updateBookInternal(book.copy(isCompleted = existingCompleted)) == 1) {
+                "Book metadata update failed for ${book.id}"
+            }
+        }
         deleteChaptersForBook(book.id)
         deleteTableOfContentsForBook(book.id)
         insertChapters(chapters)
@@ -24,8 +31,14 @@ interface BookDao {
         }
     }
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBookInternal(book: BookEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertBookIfAbsent(book: BookEntity): Long
+
+    @Update
+    suspend fun updateBookInternal(book: BookEntity): Int
+
+    @Query("SELECT isCompleted FROM books WHERE id = :bookId LIMIT 1")
+    suspend fun getCompletedForUpdate(bookId: String): Boolean?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChapters(chapters: List<ChapterEntity>)
@@ -207,4 +220,8 @@ interface BookDao {
 
     @Query("DELETE FROM books WHERE id = :bookId")
     suspend fun deleteBook(bookId: String)
+
+    private companion object {
+        const val INSERT_CONFLICT = -1L
+    }
 }

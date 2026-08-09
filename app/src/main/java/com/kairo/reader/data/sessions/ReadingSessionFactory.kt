@@ -53,4 +53,5 @@ data class ReadingSessionDraft(
 data class ReadingSessionLocation(
     val chapterIndex: Int,
     val tokenIndex: Int,
+    val wordIndex: Int = -1,
 )

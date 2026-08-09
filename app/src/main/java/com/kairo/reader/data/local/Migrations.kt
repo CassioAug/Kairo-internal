@@ -191,3 +191,126 @@ val MIGRATION_11_12 =
             )
         }
     }
+
+val MIGRATION_12_13 =
+    object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "DELETE FROM saved_annotations WHERE bookId NOT IN (SELECT id FROM books)",
+            )
+            db.execSQL(
+                "DELETE FROM reading_sessions WHERE bookId NOT IN (SELECT id FROM books)",
+            )
+            migrateSavedAnnotationsWithBookForeignKey(db)
+            migrateReadingSessionsWithBookForeignKey(db)
+            createReadingSessionCheckpoints(db)
+        }
+    }
+
+private fun migrateSavedAnnotationsWithBookForeignKey(db: SupportSQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE saved_annotations_new (
+            id TEXT NOT NULL PRIMARY KEY,
+            bookId TEXT NOT NULL,
+            chapterIndex INTEGER NOT NULL,
+            startTokenIndex INTEGER NOT NULL,
+            endTokenIndex INTEGER NOT NULL,
+            selectedText TEXT NOT NULL,
+            note TEXT NOT NULL,
+            color TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            FOREIGN KEY(bookId) REFERENCES books(id) ON UPDATE NO ACTION ON DELETE CASCADE
+        )
+        """.trimIndent(),
+    )
+    db.execSQL(
+        """
+        INSERT INTO saved_annotations_new
+        SELECT id, bookId, chapterIndex, startTokenIndex, endTokenIndex, selectedText,
+               note, color, kind, createdAt, updatedAt
+        FROM saved_annotations
+        """.trimIndent(),
+    )
+    db.execSQL("DROP TABLE saved_annotations")
+    db.execSQL("ALTER TABLE saved_annotations_new RENAME TO saved_annotations")
+    db.execSQL("CREATE INDEX index_saved_annotations_bookId ON saved_annotations(bookId)")
+    db.execSQL("CREATE INDEX index_saved_annotations_updatedAt ON saved_annotations(updatedAt)")
+    db.execSQL(
+        "CREATE INDEX index_saved_annotations_bookId_chapterIndex_startTokenIndex " +
+            "ON saved_annotations(bookId, chapterIndex, startTokenIndex)",
+    )
+}
+
+private fun migrateReadingSessionsWithBookForeignKey(db: SupportSQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE reading_sessions_new (
+            id TEXT NOT NULL PRIMARY KEY,
+            bookId TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            startedAt INTEGER NOT NULL,
+            endedAt INTEGER NOT NULL,
+            activeDurationMs INTEGER NOT NULL,
+            startChapterIndex INTEGER NOT NULL,
+            startTokenIndex INTEGER NOT NULL,
+            endChapterIndex INTEGER NOT NULL,
+            endTokenIndex INTEGER NOT NULL,
+            wordsRead INTEGER NOT NULL,
+            effectiveWpm INTEGER NOT NULL,
+            isWordCountEstimated INTEGER NOT NULL,
+            FOREIGN KEY(bookId) REFERENCES books(id) ON UPDATE NO ACTION ON DELETE CASCADE
+        )
+        """.trimIndent(),
+    )
+    db.execSQL(
+        """
+        INSERT INTO reading_sessions_new
+        SELECT id, bookId, mode, startedAt, endedAt, activeDurationMs,
+               startChapterIndex, startTokenIndex, endChapterIndex, endTokenIndex,
+               wordsRead, effectiveWpm, isWordCountEstimated
+        FROM reading_sessions
+        """.trimIndent(),
+    )
+    db.execSQL("DROP TABLE reading_sessions")
+    db.execSQL("ALTER TABLE reading_sessions_new RENAME TO reading_sessions")
+    db.execSQL("CREATE INDEX index_reading_sessions_bookId ON reading_sessions(bookId)")
+    db.execSQL("CREATE INDEX index_reading_sessions_startedAt ON reading_sessions(startedAt)")
+}
+
+private fun createReadingSessionCheckpoints(db: SupportSQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE reading_session_checkpoints (
+            id TEXT NOT NULL PRIMARY KEY,
+            sessionKey TEXT NOT NULL,
+            logicalSessionId TEXT NOT NULL,
+            bookId TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            logicalStartedAt INTEGER NOT NULL,
+            dayStartedAt INTEGER NOT NULL,
+            startedAt INTEGER NOT NULL,
+            endedAt INTEGER NOT NULL,
+            activeDurationMs INTEGER NOT NULL,
+            startChapterIndex INTEGER NOT NULL,
+            startTokenIndex INTEGER NOT NULL,
+            endChapterIndex INTEGER NOT NULL,
+            endTokenIndex INTEGER NOT NULL,
+            wordsRead INTEGER NOT NULL,
+            isWordCountEstimated INTEGER NOT NULL,
+            lastReaderWordIndex INTEGER,
+            FOREIGN KEY(bookId) REFERENCES books(id) ON UPDATE NO ACTION ON DELETE CASCADE
+        )
+        """.trimIndent(),
+    )
+    db.execSQL(
+        "CREATE INDEX index_reading_session_checkpoints_bookId " +
+            "ON reading_session_checkpoints(bookId)",
+    )
+    db.execSQL(
+        "CREATE INDEX index_reading_session_checkpoints_sessionKey " +
+            "ON reading_session_checkpoints(sessionKey)",
+    )
+}

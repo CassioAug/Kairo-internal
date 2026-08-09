@@ -13,8 +13,9 @@ import androidx.room.TypeConverters
         BookmarkEntity::class,
         SavedAnnotationEntity::class,
         ReadingSessionEntity::class,
+        ReadingSessionCheckpointEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
