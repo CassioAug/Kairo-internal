@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.kairo.reader.core.model.ReadingSessionMode
 import kotlinx.coroutines.flow.Flow
 
 data class ReadingSessionWithBookEntity(
@@ -51,7 +52,21 @@ interface ReadingSessionDao {
         sessionKey: String,
         entities: List<ReadingSessionCheckpointEntity>,
     ): Boolean {
-        if (entities.isNotEmpty() && !bookExists(entities.first().bookId)) return false
+        if (entities.isNotEmpty()) {
+            val first = entities.first()
+            if (
+                entities.any {
+                    it.sessionKey != sessionKey ||
+                        it.bookId != first.bookId ||
+                        it.mode != first.mode
+                } || expectedSessionKey(first.bookId, first.mode) != sessionKey
+            ) {
+                return false
+            }
+            val stored = getCheckpoints(sessionKey)
+            if (stored.any { it.bookId != first.bookId || it.mode != first.mode }) return false
+            if (!bookExists(first.bookId)) return false
+        }
         deleteCheckpoints(sessionKey)
         if (entities.isNotEmpty()) insertCheckpointsInternal(entities)
         return true
@@ -62,9 +77,15 @@ interface ReadingSessionDao {
         sessionKey: String,
         sessions: List<ReadingSessionEntity>,
     ): Boolean {
-        if (sessions.isNotEmpty() && !bookExists(sessions.first().bookId)) {
-            deleteCheckpoints(sessionKey)
-            return false
+        if (sessions.isNotEmpty()) {
+            val first = sessions.first()
+            if (
+                sessions.any { it.bookId != first.bookId || it.mode != first.mode } ||
+                expectedSessionKey(first.bookId, first.mode) != sessionKey
+            ) return false
+            val stored = getCheckpoints(sessionKey)
+            if (stored.any { it.bookId != first.bookId || it.mode != first.mode }) return false
+            if (!bookExists(first.bookId)) return false
         }
         if (sessions.isNotEmpty()) insertAllInternal(sessions)
         deleteCheckpoints(sessionKey)
@@ -92,3 +113,15 @@ interface ReadingSessionDao {
     )
     fun observeWithBook(): Flow<List<ReadingSessionWithBookEntity>>
 }
+
+private fun expectedSessionKey(
+    bookId: String,
+    mode: String,
+): String? =
+    when (mode) {
+        ReadingSessionMode.READER.name -> "reader:$bookId"
+        ReadingSessionMode.RSVP.name,
+        ReadingSessionMode.BIONIC.name,
+        -> "timed:$mode:$bookId"
+        else -> null
+    }
