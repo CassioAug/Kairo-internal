@@ -1,7 +1,7 @@
 package com.kairo.reader.ui.reader
 
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -12,11 +12,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
@@ -33,8 +42,8 @@ import com.kairo.reader.core.model.SavedAnnotation
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.model.shouldInsertSpaceBeforeToken
-import com.kairo.reader.ui.theme.MerriweatherFontFamily
 import com.kairo.reader.ui.saved.displayColor
+import com.kairo.reader.ui.theme.MerriweatherFontFamily
 
 // Rich text spans, focus semantics, and tap geometry must be built in one AnnotatedString layout pass.
 @Suppress("LongMethod")
@@ -282,19 +291,32 @@ internal fun ParagraphText(
                     },
                 )
             }
-            .combinedClickable(
-                role = Role.Button,
-                onClickLabel = startTimedReadingActionLabel,
-                onLongClickLabel = startSelectionActionLabel,
-                onClick = {
+            .onKeyEvent { event ->
+                handleParagraphActivationKey(
+                    event = event,
+                    focusIndex = currentFocusIndex,
+                    onStartTimedReading = currentActions.onStartTimedReading,
+                )
+            }
+            .focusable()
+            .semantics {
+                role = Role.Button
+                onClick(label = startTimedReadingActionLabel) {
                     if (currentFocusIndex >= 0) {
                         currentActions.onStartTimedReading(currentFocusIndex)
+                        true
+                    } else {
+                        false
                     }
-                },
-                onLongClick = {
-                    if (currentFocusIndex >= 0) currentActions.onSelectionStart(currentFocusIndex)
-                },
-            ).semantics {
+                }
+                onLongClick(label = startSelectionActionLabel) {
+                    if (currentFocusIndex >= 0) {
+                        currentActions.onSelectionStart(currentFocusIndex)
+                        true
+                    } else {
+                        false
+                    }
+                }
                 val selectionRange = currentSelectionRange
                 if (selectionRange != null) {
                     customActions =
@@ -321,6 +343,21 @@ internal fun ParagraphText(
             },
         onTextLayout = { layoutResult = it },
     )
+}
+
+private fun handleParagraphActivationKey(
+    event: KeyEvent,
+    focusIndex: Int,
+    onStartTimedReading: (Int) -> Unit,
+): Boolean {
+    val isActivationKey =
+        event.key == Key.Enter ||
+            event.key == Key.NumPadEnter ||
+            event.key == Key.Spacebar ||
+            event.key == Key.DirectionCenter
+    if (!isActivationKey || focusIndex < 0) return false
+    if (event.type == KeyEventType.KeyUp) onStartTimedReading(focusIndex)
+    return true
 }
 
 internal data class ParagraphTextState(
