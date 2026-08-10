@@ -1,5 +1,11 @@
 package com.kairo.reader.data.books
 
+internal data class EpubMarkupParseResult(
+    val document: EpubMarkupDocument,
+    val complete: Boolean,
+    val limitExceeded: Boolean,
+)
+
 internal class EpubMarkupParser(private val tokenizer: EpubMarkupTokenizer = EpubMarkupTokenizer(),) {
     companion object {
         private val VOID_ELEMENTS =
@@ -19,58 +25,87 @@ internal class EpubMarkupParser(private val tokenizer: EpubMarkupTokenizer = Epu
                 "track",
                 "wbr",
             )
+        private const val MAX_AST_NODES = 100_000
+        private const val MAX_OPEN_ELEMENTS = 256
     }
 
-    fun parse(input: String): EpubMarkupDocument {
+    fun parse(input: String): EpubMarkupDocument = parseWithResult(input).document
+
+    fun parseWithResult(input: String): EpubMarkupParseResult {
         val document = EpubMarkupDocument()
-        val stack = ArrayDeque<EpubMarkupElementNode>()
+        val openElements = mutableListOf<EpubMarkupElementNode>()
+        val openIndexesByTag = mutableMapOf<String, ArrayDeque<Int>>()
+        val tokenization = tokenizer.tokenize(input)
+        var nodeCount = 0
+        var limitExceeded = false
+        var unmatchedEndTag = false
 
         fun appendNode(node: EpubMarkupNode) {
-            if (stack.isEmpty()) {
+            if (openElements.isEmpty()) {
                 document.children.add(node)
             } else {
-                stack.last().children.add(node)
+                openElements.last().children.add(node)
             }
         }
 
-        tokenizer.tokenize(input).forEach { token ->
+        fun popThrough(targetIndex: Int) {
+            while (openElements.size > targetIndex) {
+                val popped = openElements.removeAt(openElements.lastIndex)
+                openIndexesByTag[popped.name]?.let { indexes ->
+                    indexes.removeLast()
+                    if (indexes.isEmpty()) openIndexesByTag.remove(popped.name)
+                }
+            }
+        }
+
+        for (token in tokenization.tokens) {
             when (token) {
                 is EpubTextToken -> {
-                    if (token.text.isNotEmpty()) {
-                        appendNode(EpubMarkupTextNode(token.text))
+                    if (token.text.isEmpty()) continue
+                    if (nodeCount >= MAX_AST_NODES) {
+                        limitExceeded = true
+                        break
                     }
+                    appendNode(EpubMarkupTextNode(token.text))
+                    nodeCount += 1
                 }
                 is EpubStartTagToken -> {
+                    val opensElement = !token.selfClosing && token.name !in VOID_ELEMENTS
+                    if (nodeCount >= MAX_AST_NODES ||
+                        (opensElement && openElements.size >= MAX_OPEN_ELEMENTS)
+                    ) {
+                        limitExceeded = true
+                        break
+                    }
                     val element =
                         EpubMarkupElementNode(
                             name = token.name,
                             attributes = token.attributes,
                         )
                     appendNode(element)
-                    if (!token.selfClosing && !VOID_ELEMENTS.contains(token.name)) {
-                        stack.addLast(element)
+                    nodeCount += 1
+                    if (opensElement) {
+                        val index = openElements.size
+                        openElements.add(element)
+                        openIndexesByTag.getOrPut(token.name, ::ArrayDeque).addLast(index)
                     }
                 }
                 is EpubEndTagToken -> {
-                    popUntilMatchingTag(stack, token.name)
+                    val matchIndex = openIndexesByTag[token.name]?.lastOrNull()
+                    if (matchIndex == null) {
+                        unmatchedEndTag = true
+                    } else {
+                        popThrough(matchIndex)
+                    }
                 }
             }
         }
 
-        return document
-    }
-
-    private fun popUntilMatchingTag(
-        stack: ArrayDeque<EpubMarkupElementNode>,
-        targetTag: String,
-    ) {
-        // A stray end tag with no matching open element must be ignored; popping the whole
-        // stack would re-parent the rest of the chapter to the document root (leaking <head>
-        // content into plain text and losing paragraph structure).
-        val matchIndex = stack.indexOfLast { it.name == targetTag }
-        if (matchIndex == -1) return
-        while (stack.size > matchIndex) {
-            stack.removeAt(stack.lastIndex)
-        }
+        val exceeded = limitExceeded || tokenization.limitExceeded
+        return EpubMarkupParseResult(
+            document = document,
+            complete = tokenization.complete && !exceeded && !unmatchedEndTag && openElements.isEmpty(),
+            limitExceeded = exceeded,
+        )
     }
 }
