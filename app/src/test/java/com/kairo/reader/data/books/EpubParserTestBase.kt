@@ -68,12 +68,14 @@ internal abstract class EpubParserTestBase {
         imageRelativePathByEpubPathLower: Map<String, String>,
         preferredChapterPathsLower: List<String>,
         preservedNavigationPathsLower: Set<String> = emptySet(),
+        htmlOverridesByPathLower: Map<String, String> = emptyMap(),
     ): FallbackChapterBuildResult =
         chapterBuilder.buildWithResult(
             zipTextEntries = zipTextEntries,
             imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
             preferredChapterPathsLower = preferredChapterPathsLower,
             preservedNavigationPathsLower = preservedNavigationPathsLower,
+            htmlOverridesByPathLower = htmlOverridesByPathLower,
         )
 
     protected fun parsedChapterPath(parsedChapter: ParsedChapter): String = parsedChapter.pathLower

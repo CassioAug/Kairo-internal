@@ -184,7 +184,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     navigationPath = navigationPathLower,
                 )
             val orderedChapterPathsLower = readerChapterPlan.paths
-            val navigationReferences =
+            val navigationParseResult =
                 navigationPathLower
                     ?.let { path -> decodedTextEntry(path, zipTextEntries, decodedTextEntries) }
                     ?.let { document ->
@@ -192,6 +192,12 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                             document = document,
                             isNcx = navigationPathLower.endsWith(".ncx", ignoreCase = true),
                         )
+                    } ?: EpubNavigationParseResult(emptyList())
+            val navigationReferences = navigationParseResult.references
+            val readerHtmlOverridesByPathLower =
+                navigationPathLower
+                    ?.let { path ->
+                        navigationParseResult.readerHtml?.let { html -> mapOf(path to html) }
                     }.orEmpty()
 
             // Determine which image assets we need (cover + any chapter <img> references).
@@ -214,8 +220,10 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                 }
 
             chapterPathsForImageScan.forEach { chapterPathLower ->
-                val html = decodedTextEntry(chapterPathLower, zipTextEntries, decodedTextEntries)
-                    ?: return@forEach
+                val html =
+                    readerHtmlOverridesByPathLower[chapterPathLower]
+                        ?: decodedTextEntry(chapterPathLower, zipTextEntries, decodedTextEntries)
+                        ?: return@forEach
                 val chapterDir = chapterPathLower.substringBeforeLast('/', "")
                 val imageSrcs = contentRewriter.extractImageSrcs(html)
                 if (imageSrcs.isNotEmpty()) {
@@ -304,6 +312,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                     decodedTextEntries = decodedTextEntries,
                     chapterImageSrcsByPathLower = chapterImageSrcsByPathLower,
                     preservedNavigationPathsLower = readerChapterPlan.preservedNavigationPaths,
+                    htmlOverridesByPathLower = readerHtmlOverridesByPathLower,
                 )
             diagnostics.navigationFilteredChapters += primaryFallbackBuild.navigationFilteredCount
             diagnostics.navigationFilterSuppressed =
@@ -326,6 +335,7 @@ class EpubBookParser(private val dispatcherProvider: DispatcherProvider) : BookP
                             decodedTextEntries = emptyMap(),
                             chapterImageSrcsByPathLower = emptyMap(),
                             preservedNavigationPathsLower = readerChapterPlan.preservedNavigationPaths,
+                            htmlOverridesByPathLower = readerHtmlOverridesByPathLower,
                         )
                     diagnostics.navigationFilteredChapters += secondaryFallbackBuild.navigationFilteredCount
                     diagnostics.navigationFilterSuppressed =
