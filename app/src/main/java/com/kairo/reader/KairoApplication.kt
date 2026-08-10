@@ -121,10 +121,11 @@ class KairoApplication : Application() {
         bookRepository =
             BookRepositoryImpl(
                 database.bookDao(),
+                database.epubNavigationDao(),
                 parsers,
                 WebArticleExtractor(dispatcherProvider),
-                applicationContext,
-                dispatcherProvider,
+                appContext = applicationContext,
+                dispatcherProvider = dispatcherProvider,
             )
         tokenRepository = TokenRepositoryImpl(bookRepository, dispatcherProvider)
         readingPositionRepository = ReadingPositionRepositoryImpl(database.readingPositionDao())
@@ -149,6 +150,7 @@ class KairoApplication : Application() {
                 dispatcherProvider = dispatcherProvider,
             )
         preferencesRepository = PreferencesRepositoryImpl(this)
+        rsvpFrameRepository = RsvpFrameRepositoryImpl(tokenRepository, rsvpEngine, dispatcherProvider)
         libraryRepository =
             LibraryRepositoryImpl(
                 bookRepository,
@@ -158,10 +160,17 @@ class KairoApplication : Application() {
                 database.bookmarkDao(),
                 database.savedAnnotationDao(),
                 database.readingSessionDao(),
-                applicationContext,
-                dispatcherProvider,
+                invalidateBookCaches = { bookId ->
+                    tokenRepository.invalidateBook(bookId)
+                    rsvpFrameRepository.invalidateBook(bookId)
+                },
+                invalidateAllCaches = {
+                    tokenRepository.clearCache()
+                    rsvpFrameRepository.clearCache()
+                },
+                appContext = applicationContext,
+                dispatcherProvider = dispatcherProvider,
             )
-        rsvpFrameRepository = RsvpFrameRepositoryImpl(tokenRepository, rsvpEngine, dispatcherProvider)
         sampleSeeder = SampleSeeder(database.bookDao())
 
         applicationScope.launch { sampleSeeder.seedIfEmpty() }

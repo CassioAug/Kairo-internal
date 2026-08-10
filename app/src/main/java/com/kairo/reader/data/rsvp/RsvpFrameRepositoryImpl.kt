@@ -12,14 +12,11 @@ import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,6 +36,7 @@ class RsvpFrameRepositoryImpl(
         val timingConfig: RsvpConfig,
         val startIndex: Int,
         val mode: CacheMode,
+        val generation: Long,
     )
 
     private val cache =
@@ -53,8 +51,9 @@ class RsvpFrameRepositoryImpl(
                 size > MAX_CACHED_FRAME_SETS
         }
 
-    private val mutex = Mutex()
+    private val cacheLock = Any()
     private val inFlight = mutableMapOf<CacheKey, Deferred<RsvpFrameSet>>()
+    private val bookGenerations = mutableMapOf<String, Long>()
     private val engineDispatcher = dispatcherProvider.default.limitedParallelism(1)
     private val previewDispatcher = dispatcherProvider.default
     private val scope = CoroutineScope(SupervisorJob() + dispatcherProvider.default)
@@ -68,6 +67,7 @@ class RsvpFrameRepositoryImpl(
         val safeStartIndex = startIndex.coerceAtLeast(0)
         val segmentStartIndex = safeStartIndex.segmentStartIndex()
         val baseConfig = config.withoutSessionRamps()
+        val generation = currentGeneration(bookId)
         val baseKey =
             CacheKey(
                 bookId.value,
@@ -75,6 +75,7 @@ class RsvpFrameRepositoryImpl(
                 baseConfig.frameTimingKey(),
                 segmentStartIndex,
                 CacheMode.SEGMENT_BASE,
+                generation,
             )
         val baseFrameSet =
             ensureFramesAsync(
@@ -94,6 +95,7 @@ class RsvpFrameRepositoryImpl(
                 config.frameTimingKey(),
                 safeStartIndex,
                 CacheMode.EXACT_PLAYBACK,
+                generation,
             )
         return ensureFramesAsync(exactKey, bookId, chapterIndex, config, safeStartIndex).await()
     }
@@ -107,6 +109,7 @@ class RsvpFrameRepositoryImpl(
         val safeStartIndex = startIndex.coerceAtLeast(0)
         val segmentStartIndex = safeStartIndex.segmentStartIndex()
         val baseConfig = config.withoutSessionRamps()
+        val generation = currentGeneration(bookId)
         val key =
             CacheKey(
                 bookId.value,
@@ -114,9 +117,10 @@ class RsvpFrameRepositoryImpl(
                 baseConfig.frameTimingKey(),
                 segmentStartIndex,
                 CacheMode.SEGMENT_BASE,
+                generation,
             )
         scope.launch {
-            val cached = mutex.withLock { cache.containsKey(key) }
+            val cached = synchronized(cacheLock) { cache.containsKey(key) }
             if (cached) return@launch
             runCatching {
                 ensureFramesAsync(key, bookId, chapterIndex, baseConfig, segmentStartIndex)
@@ -154,14 +158,14 @@ class RsvpFrameRepositoryImpl(
         return RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
     }
 
-    private suspend fun ensureFramesAsync(
+    private fun ensureFramesAsync(
         key: CacheKey,
         bookId: BookId,
         chapterIndex: Int,
         config: RsvpConfig,
         startIndex: Int,
     ): Deferred<RsvpFrameSet> =
-        mutex.withLock {
+        synchronized(cacheLock) {
             cache[key]?.let { cached -> CompletableDeferred(cached) }
                 ?: inFlight[key]?.takeIf { it.isActive }
                 ?: scope.async {
@@ -183,12 +187,12 @@ class RsvpFrameRepositoryImpl(
                     engine.generateFrames(tokens, startIndex = startIndex, config = config)
                 }
             val frameSet = RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
-            mutex.withLock {
-                cache[key] = frameSet
+            synchronized(cacheLock) {
+                if (generationOfLocked(bookId.value) == key.generation) cache[key] = frameSet
             }
             frameSet
         } finally {
-            mutex.withLock { inFlight.remove(key) }
+            synchronized(cacheLock) { inFlight.remove(key) }
         }
     }
 
@@ -239,14 +243,41 @@ class RsvpFrameRepositoryImpl(
         )
 
     override fun clearCache() {
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            mutex.withLock {
+        val deferredToCancel =
+            synchronized(cacheLock) {
+                val affectedBookIds =
+                    buildSet {
+                        addAll(bookGenerations.keys)
+                        addAll(cache.keys.map { key -> key.bookId })
+                        addAll(inFlight.keys.map { key -> key.bookId })
+                    }
+                affectedBookIds.forEach { bookId ->
+                    bookGenerations[bookId] = generationOfLocked(bookId) + 1L
+                }
                 cache.clear()
-                inFlight.values.forEach { deferred -> deferred.cancel() }
-                inFlight.clear()
+                inFlight.values.toList().also { inFlight.clear() }
             }
-        }
+        deferredToCancel.forEach { deferred -> deferred.cancel() }
     }
+
+    override fun invalidateBook(bookId: BookId) {
+        val deferredToCancel =
+            synchronized(cacheLock) {
+                bookGenerations[bookId.value] = generationOfLocked(bookId.value) + 1L
+                cache.keys.removeAll { key -> key.bookId == bookId.value }
+                inFlight
+                    .filterKeys { key -> key.bookId == bookId.value }
+                    .values
+                    .toList()
+                    .also { inFlight.keys.removeAll { key -> key.bookId == bookId.value } }
+            }
+        deferredToCancel.forEach { deferred -> deferred.cancel() }
+    }
+
+    private fun currentGeneration(bookId: BookId): Long =
+        synchronized(cacheLock) { generationOfLocked(bookId.value) }
+
+    private fun generationOfLocked(bookId: String): Long = bookGenerations[bookId] ?: 0L
 
     private companion object {
         private const val CACHE_INITIAL_CAPACITY = 12

@@ -22,6 +22,8 @@ import androidx.room.TypeConverters
 abstract class KairoDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
 
+    abstract fun epubNavigationDao(): EpubNavigationDao
+
     abstract fun readingPositionDao(): ReadingPositionDao
 
     abstract fun bookmarkDao(): BookmarkDao

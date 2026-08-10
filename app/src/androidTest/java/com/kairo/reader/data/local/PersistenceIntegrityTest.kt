@@ -5,10 +5,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.kairo.reader.core.dispatchers.DispatcherProvider
 import com.kairo.reader.core.model.LibrarySearchResult
+import com.kairo.reader.data.books.EpubReaderNavigationContent
 import com.kairo.reader.data.search.LibrarySearchRepositoryImpl
 import com.kairo.reader.data.search.toSqlLikePattern
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -83,6 +85,315 @@ class PersistenceIntegrityTest {
             assertEquals(1, rowCount("saved_annotations"))
             assertEquals(1, rowCount("reading_sessions"))
             assertNull(searchSaved("passage").single().book.coverImage)
+        }
+
+    @Test
+    fun markerlessNavigationCandidatesAreBroadBoundedAndSkipCanonicalMarkup() =
+        runBlocking {
+            insertLegacyNavigationBook()
+
+            assertEquals(
+                listOf(0),
+                database.epubNavigationDao().getMarkerlessNavigationCandidates(
+                    bookId = BOOK_ID,
+                    canonicalMarker = EpubReaderNavigationContent.MARKER,
+                    maxHtmlCharacters = MAX_NAVIGATION_HTML_CHARACTERS,
+                    limit = 17,
+                ).map { candidate -> candidate.chapterIndex },
+            )
+
+            insertBookWithHtml(
+                "<html><body><nav ${EpubReaderNavigationContent.MARKER} epub:type=\"toc\">" +
+                    "<ol><li><a href=\"chapter.xhtml\">Chapter</a></li></ol></nav></body></html>",
+            )
+            assertTrue(
+                database.epubNavigationDao().getMarkerlessNavigationCandidates(
+                    bookId = BOOK_ID,
+                    canonicalMarker = EpubReaderNavigationContent.MARKER,
+                    maxHtmlCharacters = MAX_NAVIGATION_HTML_CHARACTERS,
+                    limit = 17,
+                ).isEmpty(),
+            )
+
+            insertBookWithHtml(
+                "<html><body><script>const fake = '<nav>text</nav>';</script>" +
+                    "<nav><ol><li><a href=\"next.xhtml\">Next</a></li></ol></nav></body></html>",
+            )
+            assertEquals(
+                listOf(0),
+                database.epubNavigationDao().getMarkerlessNavigationCandidates(
+                    bookId = BOOK_ID,
+                    canonicalMarker = EpubReaderNavigationContent.MARKER,
+                    maxHtmlCharacters = MAX_NAVIGATION_HTML_CHARACTERS,
+                    limit = 17,
+                ).map { candidate -> candidate.chapterIndex },
+            )
+        }
+
+    @Test
+    fun canonicalNavigationUpdatePreservesCoordinatesAndResetsActivePosition() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            database.bookDao().setCompleted(BOOK_ID, true)
+            database.readingPositionDao().savePosition(
+                ReadingPositionEntity(
+                    bookId = BOOK_ID,
+                    chapterIndex = 0,
+                    tokenIndex = 9,
+                    wordIndex = 7,
+                    rsvpResumeCursor = 4,
+                ),
+            )
+            val beforeBook = requireNotNull(database.bookDao().getBook(BOOK_ID))
+            val beforeToc = database.bookDao().getTableOfContentsEntries(BOOK_ID)
+            val beforeStory = requireNotNull(database.bookDao().getChapter(BOOK_ID, 1))
+            val candidate = legacyNavigationCandidate()
+
+            val updated = canonicalizeNavigation(candidate)
+
+            assertTrue(updated)
+            val navigation = requireNotNull(database.bookDao().getChapter(BOOK_ID, 0))
+            assertEquals(0, navigation.index)
+            assertEquals("Contents", navigation.title)
+            assertEquals(CANONICAL_NAVIGATION_HTML, navigation.htmlContent)
+            assertEquals(CANONICAL_NAVIGATION_TEXT, navigation.plainText)
+            assertEquals(CANONICAL_NAVIGATION_WORD_COUNT, navigation.wordCount)
+            assertEquals(LEGACY_NAVIGATION_IMAGE_PATHS, navigation.imagePaths)
+            assertEquals(beforeBook, database.bookDao().getBook(BOOK_ID))
+            assertEquals(beforeToc, database.bookDao().getTableOfContentsEntries(BOOK_ID))
+            assertEquals(beforeStory, database.bookDao().getChapter(BOOK_ID, 1))
+            assertEquals(
+                ReadingPositionEntity(
+                    bookId = BOOK_ID,
+                    chapterIndex = 0,
+                    tokenIndex = 0,
+                    wordIndex = 0,
+                    rsvpResumeCursor = -1,
+                ),
+                database.readingPositionDao().getPosition(BOOK_ID),
+            )
+        }
+
+    @Test
+    fun canonicalNavigationUpdateSkipsBookmarkAndSavedAnnotationCoordinates() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            database.bookmarkDao().upsert(
+                BookmarkEntity(
+                    id = "navigation-bookmark",
+                    bookId = BOOK_ID,
+                    chapterIndex = 0,
+                    tokenIndex = 2,
+                    previewText = "Chapter",
+                    createdAt = 1L,
+                ),
+            )
+
+            assertFalse(canonicalizeNavigation(legacyNavigationCandidate()))
+            assertEquals(LEGACY_NAVIGATION_HTML, database.bookDao().getChapter(BOOK_ID, 0)?.htmlContent)
+
+            database.bookmarkDao().delete("navigation-bookmark")
+            assertTrue(database.savedAnnotationDao().upsert(annotation("navigation-note", "Chapter")))
+
+            assertFalse(canonicalizeNavigation(legacyNavigationCandidate()))
+            assertEquals(LEGACY_NAVIGATION_HTML, database.bookDao().getChapter(BOOK_ID, 0)?.htmlContent)
+        }
+
+    @Test
+    fun canonicalNavigationUpdateSkipsTableOfContentsCoordinates() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            database.epubNavigationDao().insertTableOfContentsEntries(
+                listOf(
+                    TableOfContentsEntryEntity(
+                        bookId = BOOK_ID,
+                        entryIndex = 1,
+                        label = "Contents",
+                        depth = 0,
+                        chapterIndex = 0,
+                        characterOffset = 2,
+                    ),
+                ),
+            )
+
+            assertCanonicalNavigationBlocked()
+        }
+
+    @Test
+    fun canonicalNavigationUpdateSkipsReadingSessionStartCoordinates() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            assertTrue(
+                database.readingSessionDao().insert(
+                    session(
+                        id = "starts-in-navigation",
+                        startChapterIndex = 0,
+                        endChapterIndex = 1,
+                    ),
+                ),
+            )
+
+            assertCanonicalNavigationBlocked()
+        }
+
+    @Test
+    fun canonicalNavigationUpdateSkipsReadingSessionEndCoordinates() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            assertTrue(
+                database.readingSessionDao().insert(
+                    session(
+                        id = "ends-in-navigation",
+                        startChapterIndex = 1,
+                        endChapterIndex = 0,
+                    ),
+                ),
+            )
+
+            assertCanonicalNavigationBlocked()
+        }
+
+    @Test
+    fun canonicalNavigationUpdateSkipsCheckpointStartAndReaderEndCoordinates() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            assertTrue(
+                database.readingSessionDao().replaceCheckpoints(
+                    SESSION_KEY,
+                    listOf(
+                        checkpoint(
+                            id = "starts-in-navigation",
+                            startChapterIndex = 0,
+                            endChapterIndex = 1,
+                            lastReaderWordIndex = null,
+                        ),
+                    ),
+                ),
+            )
+            assertCanonicalNavigationBlocked()
+
+            assertTrue(
+                database.readingSessionDao().replaceCheckpoints(
+                    SESSION_KEY,
+                    listOf(
+                        checkpoint(
+                            id = "reader-progress-in-navigation",
+                            startChapterIndex = 1,
+                            endChapterIndex = 0,
+                            lastReaderWordIndex = 7,
+                        ),
+                    ),
+                ),
+            )
+            assertCanonicalNavigationBlocked()
+        }
+
+    @Test
+    fun canonicalNavigationUpdateRevalidatesExactTargetHtml() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            val candidate = legacyNavigationCandidate()
+            assertEquals(
+                1,
+                database.epubNavigationDao().updateCanonicalNavigationChapter(
+                    bookId = BOOK_ID,
+                    chapterIndex = candidate.chapterIndex,
+                    expectedHtmlContent = candidate.htmlContent,
+                    htmlContent = candidate.htmlContent + " ",
+                    plainText = "changed",
+                    wordCount = 1,
+                ),
+            )
+
+            assertFalse(canonicalizeNavigation(candidate))
+            assertEquals(LEGACY_NAVIGATION_HTML + " ", database.bookDao().getChapter(BOOK_ID, 0)?.htmlContent)
+        }
+
+    @Test
+    fun tocOnlyReplacementPreservesAllBookCoordinatesAndDependentRows() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            database.bookmarkDao().upsert(
+                BookmarkEntity(
+                    id = "bookmark",
+                    bookId = BOOK_ID,
+                    chapterIndex = 0,
+                    tokenIndex = 3,
+                    previewText = "Chapter One",
+                    createdAt = 4L,
+                ),
+            )
+            assertTrue(database.savedAnnotationDao().upsert(annotation("annotation", "Chapter One")))
+            database.readingPositionDao().savePosition(
+                ReadingPositionEntity(BOOK_ID, chapterIndex = 1, tokenIndex = 7, wordIndex = 6),
+            )
+            assertTrue(database.readingSessionDao().insert(session("session")))
+            assertTrue(database.readingSessionDao().replaceCheckpoints(SESSION_KEY, listOf(checkpoint())))
+
+            val beforeBook = requireNotNull(database.bookDao().getBook(BOOK_ID))
+            val beforeChapters = database.bookDao().getChaptersWithContent(BOOK_ID)
+            val beforeBookmarks = database.bookmarkDao().observeForBook(BOOK_ID).first()
+            val beforeAnnotations = database.savedAnnotationDao().observeForBook(BOOK_ID).first()
+            val beforePosition = database.readingPositionDao().getPosition(BOOK_ID)
+            val beforeSessions = database.readingSessionDao().observeWithBook().first().map { it.session }
+            val beforeCheckpoints = database.readingSessionDao().getAllCheckpoints()
+            val coordinates = database.epubNavigationDao().getChapterCoordinates(BOOK_ID)
+            val replacement =
+                listOf(
+                    TableOfContentsEntryEntity(
+                        bookId = BOOK_ID,
+                        entryIndex = 0,
+                        label = "Part One",
+                        depth = 0,
+                        chapterIndex = null,
+                        characterOffset = null,
+                    ),
+                    TableOfContentsEntryEntity(
+                        bookId = BOOK_ID,
+                        entryIndex = 1,
+                        label = "Chapter One",
+                        depth = 1,
+                        chapterIndex = 1,
+                        characterOffset = 2,
+                    ),
+                )
+
+            assertTrue(
+                database.epubNavigationDao().replaceTableOfContentsIfCoordinatesMatch(
+                    bookId = BOOK_ID,
+                    expectedCoordinates = coordinates,
+                    entries = replacement,
+                ),
+            )
+
+            assertEquals(replacement, database.bookDao().getTableOfContentsEntries(BOOK_ID))
+            assertEquals(beforeBook, database.bookDao().getBook(BOOK_ID))
+            assertEquals(beforeChapters, database.bookDao().getChaptersWithContent(BOOK_ID))
+            assertEquals(beforeBookmarks, database.bookmarkDao().observeForBook(BOOK_ID).first())
+            assertEquals(beforeAnnotations, database.savedAnnotationDao().observeForBook(BOOK_ID).first())
+            assertEquals(beforePosition, database.readingPositionDao().getPosition(BOOK_ID))
+            assertEquals(beforeSessions, database.readingSessionDao().observeWithBook().first().map { it.session })
+            assertEquals(beforeCheckpoints, database.readingSessionDao().getAllCheckpoints())
+        }
+
+    @Test
+    fun tocOnlyReplacementRejectsCoordinateChangesWithoutDeletingExistingEntries() =
+        runBlocking {
+            insertLegacyNavigationBook()
+            val before = database.bookDao().getTableOfContentsEntries(BOOK_ID)
+            val staleCoordinates =
+                database.epubNavigationDao().getChapterCoordinates(BOOK_ID).map { coordinate ->
+                    if (coordinate.chapterIndex == 1) coordinate.copy(plainText = "changed") else coordinate
+                }
+
+            assertFalse(
+                database.epubNavigationDao().replaceTableOfContentsIfCoordinatesMatch(
+                    bookId = BOOK_ID,
+                    expectedCoordinates = staleCoordinates,
+                    entries = emptyList(),
+                ),
+            )
+            assertEquals(before, database.bookDao().getTableOfContentsEntries(BOOK_ID))
         }
 
     @Test
@@ -347,6 +658,104 @@ class PersistenceIntegrityTest {
         )
     }
 
+    private suspend fun insertBookWithHtml(htmlContent: String) {
+        database.bookDao().insertBook(
+            book =
+                BookEntity(
+                    id = BOOK_ID,
+                    title = "Book",
+                    authors = listOf("Author"),
+                    languageTag = "en",
+                    coverImage = null,
+                ),
+            chapters =
+                listOf(
+                    ChapterEntity(
+                        bookId = BOOK_ID,
+                        index = 0,
+                        title = "Contents",
+                        htmlContent = htmlContent,
+                        plainText = "Chapter",
+                    ),
+                ),
+            tableOfContentsEntries = emptyList(),
+        )
+    }
+
+    private suspend fun insertLegacyNavigationBook() {
+        val chapters =
+            buildList {
+                add(
+                    ChapterEntity(
+                        bookId = BOOK_ID,
+                        index = 0,
+                        title = "Contents",
+                        htmlContent = LEGACY_NAVIGATION_HTML,
+                        plainText = "Contents\n\nChapter One\n\n1",
+                        imagePaths = LEGACY_NAVIGATION_IMAGE_PATHS,
+                        wordCount = 4,
+                    ),
+                )
+                add(
+                    ChapterEntity(
+                        bookId = BOOK_ID,
+                        index = 1,
+                        title = "Chapter One",
+                        htmlContent = "<h1>Chapter One</h1><p>Story text.</p>",
+                        plainText = "Chapter One\n\nStory text.",
+                        imagePaths = "kairo_epub_assets/$BOOK_ID/images/story.png",
+                        wordCount = 4,
+                    ),
+                )
+            }
+        database.bookDao().insertBook(
+            book =
+                BookEntity(
+                    id = BOOK_ID,
+                    title = "Book",
+                    authors = listOf("Author"),
+                    languageTag = "en",
+                    coverImage = ByteArray(16) { 3 },
+                ),
+            chapters = chapters,
+            tableOfContentsEntries =
+                listOf(
+                    TableOfContentsEntryEntity(
+                        bookId = BOOK_ID,
+                        entryIndex = 0,
+                        label = "Chapter One",
+                        depth = 0,
+                        chapterIndex = 1,
+                        characterOffset = 0,
+                    ),
+                ),
+        )
+    }
+
+    private suspend fun legacyNavigationCandidate(): EpubNavigationChapterCandidate =
+        database.epubNavigationDao()
+            .getMarkerlessNavigationCandidates(
+                bookId = BOOK_ID,
+                canonicalMarker = EpubReaderNavigationContent.MARKER,
+                maxHtmlCharacters = MAX_NAVIGATION_HTML_CHARACTERS,
+                limit = 17,
+            ).single()
+
+    private suspend fun canonicalizeNavigation(candidate: EpubNavigationChapterCandidate): Boolean =
+        database.epubNavigationDao().canonicalizeLegacyNavigationChapter(
+            bookId = BOOK_ID,
+            chapterIndex = candidate.chapterIndex,
+            expectedHtmlContent = candidate.htmlContent,
+            htmlContent = CANONICAL_NAVIGATION_HTML,
+            plainText = CANONICAL_NAVIGATION_TEXT,
+            wordCount = CANONICAL_NAVIGATION_WORD_COUNT,
+        )
+
+    private suspend fun assertCanonicalNavigationBlocked() {
+        assertFalse(canonicalizeNavigation(legacyNavigationCandidate()))
+        assertEquals(LEGACY_NAVIGATION_HTML, database.bookDao().getChapter(BOOK_ID, 0)?.htmlContent)
+    }
+
     private suspend fun searchSaved(query: String): List<SavedAnnotationWithBookEntity> =
         database.savedAnnotationDao().searchWithBook(query.toSqlLikePattern(), limit = 20)
 
@@ -388,6 +797,8 @@ class PersistenceIntegrityTest {
         id: String,
         bookId: String = BOOK_ID,
         mode: String = "READER",
+        startChapterIndex: Int = 0,
+        endChapterIndex: Int = 0,
     ): ReadingSessionEntity =
         ReadingSessionEntity(
             id = id,
@@ -396,9 +807,9 @@ class PersistenceIntegrityTest {
             startedAt = 1L,
             endedAt = 300_001L,
             activeDurationMs = 300_000L,
-            startChapterIndex = 0,
+            startChapterIndex = startChapterIndex,
             startTokenIndex = 0,
-            endChapterIndex = 0,
+            endChapterIndex = endChapterIndex,
             endTokenIndex = 20,
             wordsRead = 20,
             effectiveWpm = 4,
@@ -410,6 +821,9 @@ class PersistenceIntegrityTest {
         bookId: String = BOOK_ID,
         sessionKey: String = "reader:$bookId",
         mode: String = "READER",
+        startChapterIndex: Int = 0,
+        endChapterIndex: Int = 0,
+        lastReaderWordIndex: Int? = 1,
     ): ReadingSessionCheckpointEntity =
         ReadingSessionCheckpointEntity(
             id = id,
@@ -422,13 +836,13 @@ class PersistenceIntegrityTest {
             startedAt = 1L,
             endedAt = 2L,
             activeDurationMs = 1L,
-            startChapterIndex = 0,
+            startChapterIndex = startChapterIndex,
             startTokenIndex = 0,
-            endChapterIndex = 0,
+            endChapterIndex = endChapterIndex,
             endTokenIndex = 1,
             wordsRead = 1,
             isWordCountEstimated = true,
-            lastReaderWordIndex = 1,
+            lastReaderWordIndex = lastReaderWordIndex,
         )
 
     private companion object {
@@ -440,6 +854,26 @@ class PersistenceIntegrityTest {
         const val SAME_TITLE_BOOK_A = "same-title-a"
         const val SAME_TITLE_BOOK_B = "same-title-b"
         const val MAX_SEARCH_SNIPPET_LENGTH = 120
+        const val MAX_NAVIGATION_HTML_CHARACTERS = 5 * 1024 * 1024
+        const val LEGACY_NAVIGATION_IMAGE_PATHS = "kairo_epub_assets/book/images/toc.png"
+        const val CANONICAL_NAVIGATION_TEXT = "Contents\n\nChapter One"
+        const val CANONICAL_NAVIGATION_WORD_COUNT = 3
+        val LEGACY_NAVIGATION_HTML =
+            """
+            <html><body>
+              <nav epub:type="toc">
+                <h1>Contents</h1>
+                <ol><li><a href="kairo://chapter/1">Chapter One</a></li></ol>
+              </nav>
+              <nav epub:type="page-list">
+                <ol><li><a href="kairo://chapter/1#page-1">1</a></li></ol>
+              </nav>
+            </body></html>
+            """.trimIndent()
+        val CANONICAL_NAVIGATION_HTML =
+            "<html><body><nav ${EpubReaderNavigationContent.MARKER}>" +
+                "<h1>Contents</h1><ol><li data-kairo-depth=\"0\">" +
+                "<a href=\"kairo://chapter/1\">Chapter One</a></li></ol></nav></body></html>"
     }
 }
 

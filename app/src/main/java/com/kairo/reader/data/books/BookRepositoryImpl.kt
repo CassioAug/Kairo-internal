@@ -12,6 +12,9 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.countWords
 import com.kairo.reader.data.local.BookDao
+import com.kairo.reader.data.local.BookEntity
+import com.kairo.reader.data.local.EpubChapterCoordinate
+import com.kairo.reader.data.local.EpubNavigationDao
 import com.kairo.reader.data.local.toDomain
 import com.kairo.reader.data.local.toEntity
 import java.io.ByteArrayOutputStream
@@ -25,6 +28,7 @@ import kotlinx.coroutines.sync.withLock
 
 class BookRepositoryImpl(
     private val bookDao: BookDao,
+    private val epubNavigationDao: EpubNavigationDao,
     private val parsers: List<BookParser>,
     private val webArticleExtractor: WebArticleExtractor,
     private val appContext: android.content.Context,
@@ -32,6 +36,8 @@ class BookRepositoryImpl(
 ) : BookRepository {
     // Mutex to prevent concurrent import operations which can crash the app
     private val importMutex = Mutex()
+    private val persistedNavigationRepairResolver = PersistedEpubNavigationRepairResolver()
+    private val persistedNavigationContentRewriter = EpubContentRewriter()
 
     override suspend fun importBook(uri: Uri): BookImportResult =
         importMutex.withLock {
@@ -59,23 +65,29 @@ class BookRepositoryImpl(
                     sourceFingerprint?.let { fingerprint ->
                         bookDao.getBookByImportFingerprint(fingerprint)
                     }
-                if (existingByFingerprint != null &&
-                    !shouldRefreshEpubNavigation(existingByFingerprint.id, extension)
-                ) {
-                    val existing = existingByFingerprint
-                    return@withLock BookImportResult(
-                        book =
-                            existing.toDomain(
-                                chapters = bookDao.getChapters(existing.id),
-                                tableOfContentsEntries = bookDao.getTableOfContentsEntries(existing.id),
-                            ),
-                        alreadyImported = true,
+                if (existingByFingerprint != null) {
+                    val navigationRepaired =
+                        repairPersistedEpubNavigation(
+                            bookId = existingByFingerprint.id,
+                            extension = extension,
+                        )
+                    if (extension in BookImportFormats.epub.extensions &&
+                        bookDao.getTableOfContentsEntries(existingByFingerprint.id).isEmpty()
+                    ) {
+                        refreshMissingEpubTableOfContents(
+                            existing = existingByFingerprint,
+                            parser = parser,
+                            importSource = importSource,
+                        )?.let { refreshed -> return@withLock refreshed }
+                    }
+                    return@withLock existingBookImportResult(
+                        existing = existingByFingerprint,
+                        includeChapterContent = navigationRepaired,
                     )
                 }
 
                 val bookId =
-                    existingByFingerprint?.id?.let(::BookId)
-                        ?: sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
+                    sourceFingerprint?.let(ImportFingerprint::bookIdForFingerprint)
                         ?: BookId(UUID.randomUUID().toString())
                 var importCompleted = false
                 try {
@@ -90,7 +102,7 @@ class BookRepositoryImpl(
                     importCompleted = true
                     return@withLock result
                 } finally {
-                    if (!importCompleted && existingByFingerprint == null) {
+                    if (!importCompleted) {
                         deleteBookAssets(bookId.value)
                     }
                 }
@@ -99,12 +111,105 @@ class BookRepositoryImpl(
             }
         }
 
-    private suspend fun shouldRefreshEpubNavigation(
+    private suspend fun repairPersistedEpubNavigation(
         bookId: String,
         extension: String,
-    ): Boolean =
-        extension in BookImportFormats.epub.extensions &&
-            bookDao.getTableOfContentsEntries(bookId).isEmpty()
+    ): Boolean {
+        if (extension !in BookImportFormats.epub.extensions) return false
+        val candidates =
+            epubNavigationDao.getMarkerlessNavigationCandidates(
+                bookId = bookId,
+                canonicalMarker = EpubReaderNavigationContent.MARKER,
+                maxHtmlCharacters = MAX_PERSISTED_NAVIGATION_HTML_CHARACTERS,
+                limit = MAX_LEGACY_NAVIGATION_CANDIDATES + 1,
+            )
+        if (candidates.isEmpty() || candidates.size > MAX_LEGACY_NAVIGATION_CANDIDATES) return false
+        val validChapterIndexes =
+            epubNavigationDao.getChapterCoordinates(bookId).mapTo(mutableSetOf()) { coordinate ->
+                coordinate.chapterIndex
+            }
+        val repair =
+            persistedNavigationRepairResolver.resolve(candidates, validChapterIndexes) ?: return false
+        val candidate = repair.candidate
+        val canonicalHtml = repair.canonicalHtml
+        val plainText = persistedNavigationContentRewriter.extractPlainText(canonicalHtml)
+        if (plainText.isBlank()) return false
+        return epubNavigationDao.canonicalizeLegacyNavigationChapter(
+            bookId = bookId,
+            chapterIndex = candidate.chapterIndex,
+            expectedHtmlContent = candidate.htmlContent,
+            htmlContent = canonicalHtml,
+            plainText = plainText,
+            wordCount = countWords(plainText),
+        )
+    }
+
+    private suspend fun refreshMissingEpubTableOfContents(
+        existing: BookEntity,
+        parser: BookParser,
+        importSource: PreparedImportSource,
+    ): BookImportResult? {
+        val existingChapters =
+            bookDao.getChaptersWithContent(existing.id).map { chapter -> chapter.toDomain() }
+        val probeBookId = BookId(UUID.randomUUID().toString())
+        val probeBook =
+            try {
+                parser.parse(
+                    context = appContext,
+                    uri = importSource.parseUri,
+                    bookId = probeBookId,
+                    sourceDisplayName = importSource.sourceDisplayName,
+                )
+            } finally {
+                deleteBookAssets(probeBookId.value)
+            }
+        if (probeBook.tableOfContents.isEmpty()) return null
+        if (!hasCompatibleEpubTocCoordinates(
+                existingChapters = existingChapters,
+                probedChapters = probeBook.chapters,
+                probedTableOfContents = probeBook.tableOfContents,
+            )
+        ) {
+            return null
+        }
+
+        val existingBookId = BookId(existing.id)
+        val expectedCoordinates =
+            existingChapters.map { chapter ->
+                EpubChapterCoordinate(chapterIndex = chapter.index, plainText = chapter.plainText)
+            }
+        val entries =
+            probeBook.tableOfContents.mapIndexed { index, entry ->
+                entry.toEntity(existingBookId, index)
+            }
+        if (!epubNavigationDao.replaceTableOfContentsIfCoordinatesMatch(
+                bookId = existing.id,
+                expectedCoordinates = expectedCoordinates,
+                entries = entries,
+            )
+        ) {
+            return null
+        }
+        return existingBookImportResult(existing, includeChapterContent = false)
+    }
+
+    private suspend fun existingBookImportResult(
+        existing: BookEntity,
+        includeChapterContent: Boolean,
+    ): BookImportResult =
+        BookImportResult(
+            book =
+                existing.toDomain(
+                    chapters =
+                        if (includeChapterContent) {
+                            bookDao.getChaptersWithContent(existing.id)
+                        } else {
+                            bookDao.getChapters(existing.id)
+                        },
+                    tableOfContentsEntries = bookDao.getTableOfContentsEntries(existing.id),
+                ),
+            alreadyImported = true,
+        )
 
     private fun findParserMatch(extensionCandidates: List<String>): Pair<BookParser, String>? =
         extensionCandidates.firstNotNullOfOrNull { extension ->
@@ -489,6 +594,8 @@ class BookRepositoryImpl(
     }
 
     private companion object {
+        const val MAX_LEGACY_NAVIGATION_CANDIDATES = 16
+        const val MAX_PERSISTED_NAVIGATION_HTML_CHARACTERS = 5 * 1024 * 1024
         private const val DEFAULT_EXTENSION = "epub"
         private const val IMPORT_CACHE_DIR_NAME = "book_imports"
         private const val IMPORT_CACHE_FILE_PREFIX = "kairo-import-"
