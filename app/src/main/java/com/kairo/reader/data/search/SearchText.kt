@@ -41,8 +41,22 @@ internal fun buildSearchSnippet(
     matchLength: Int,
     contextCharacters: Int,
 ): String {
-    val start = (matchOffset - contextCharacters).coerceAtLeast(0)
-    val end = (matchOffset + matchLength + contextCharacters).coerceAtMost(text.length)
+    val boundedMatchOffset = matchOffset.coerceIn(0, text.length)
+    val boundedMatchEnd =
+        (boundedMatchOffset.toLong() + matchLength.coerceAtLeast(0))
+            .coerceAtMost(text.length.toLong())
+            .toInt()
+    val boundedContextCharacters = contextCharacters.coerceAtLeast(0)
+    val start =
+        text.offsetByCodePoints(
+            boundedMatchOffset,
+            -minOf(boundedContextCharacters, text.codePointCount(0, boundedMatchOffset)),
+        )
+    val end =
+        text.offsetByCodePoints(
+            boundedMatchEnd,
+            minOf(boundedContextCharacters, text.codePointCount(boundedMatchEnd, text.length)),
+        )
     val body = text.substring(start, end).replace(Regex("\\s+"), " ").trim()
     return buildString {
         if (start > 0) append(ELLIPSIS)

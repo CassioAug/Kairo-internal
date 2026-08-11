@@ -11,27 +11,33 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TokenRepositoryImpl(private val bookRepository: BookRepository, private val dispatcherProvider: DispatcherProvider,) :
     TokenRepository {
-    // LRU cache with max 10 chapters to prevent unbounded memory growth
+    private data class CacheKey(
+        val bookId: String,
+        val chapterIndex: Int,
+        val languageTag: String?,
+    )
+
+    // LRU cache with max 10 chapters to prevent unbounded memory growth.
     private val cache =
-        object : LinkedHashMap<String, List<Token>>(
+        object : LinkedHashMap<CacheKey, List<Token>>(
             CACHE_INITIAL_CAPACITY,
             CACHE_LOAD_FACTOR,
             true,
         ) {
             override fun removeEldestEntry(
-                eldest: MutableMap.MutableEntry<String, List<Token>>?
-            ): Boolean =
-                size > MAX_CACHED_CHAPTERS
+                eldest: MutableMap.MutableEntry<CacheKey, List<Token>>?
+            ): Boolean = size > MAX_CACHED_CHAPTERS
         }
-    private val mutex = Mutex()
+    private val cacheLock = Any()
     private val languageTagCache = mutableMapOf<String, String?>()
+    private val bookGenerations = mutableMapOf<String, Long>()
+    private var globalGeneration = 0L
+    private var generationCounter = 0L
     private val tokenizationDispatcher = dispatcherProvider.default.limitedParallelism(1)
     private val prefetchScope = CoroutineScope(SupervisorJob() + dispatcherProvider.io)
 
@@ -40,11 +46,12 @@ class TokenRepositoryImpl(private val bookRepository: BookRepository, private va
         chapterIndex: Int,
         chapter: Chapter?,
     ): List<Token> {
-        val languageTag = resolveLanguageTag(bookId)
-        val key = buildCacheKey(bookId, chapterIndex, languageTag)
-        val cached = mutex.withLock { cache[key] }
+        val generation = currentGeneration(bookId)
+        val languageTag = resolveLanguageTag(bookId, generation)
+        val key = CacheKey(bookId.value, chapterIndex, languageTag)
+        val cached = synchronized(cacheLock) { cache[key] }
         if (cached != null) {
-            prefetchNextChapter(bookId, chapterIndex + 1, languageTag)
+            prefetchNextChapter(bookId, chapterIndex + 1, languageTag, generation)
             return cached
         }
 
@@ -57,9 +64,13 @@ class TokenRepositoryImpl(private val bookRepository: BookRepository, private va
             withContext(tokenizationDispatcher) {
                 TokenizerRegistry.resolve(languageTag).tokenize(resolvedChapter)
             }
-        updateChapterWordCount(bookId, chapterIndex, tokens)
-        mutex.withLock { cache[key] = tokens }
-        prefetchNextChapter(bookId, chapterIndex + 1, languageTag)
+        if (isCurrentGeneration(bookId, generation)) {
+            updateChapterWordCount(bookId, chapterIndex, tokens)
+            synchronized(cacheLock) {
+                if (generationOfLocked(bookId.value) == generation) cache[key] = tokens
+            }
+            prefetchNextChapter(bookId, chapterIndex + 1, languageTag, generation)
+        }
         return tokens
     }
 
@@ -67,12 +78,16 @@ class TokenRepositoryImpl(private val bookRepository: BookRepository, private va
         bookId: BookId,
         nextIndex: Int,
         languageTag: String?,
+        generation: Long,
     ) {
-        val key = buildCacheKey(bookId, nextIndex, languageTag)
+        val key = CacheKey(bookId.value, nextIndex, languageTag)
         prefetchScope.launch {
             runCatching {
-                val cached = mutex.withLock { cache.containsKey(key) }
-                if (cached) return@runCatching
+                val shouldLoad =
+                    synchronized(cacheLock) {
+                        generationOfLocked(bookId.value) == generation && !cache.containsKey(key)
+                    }
+                if (!shouldLoad) return@runCatching
                 val chapter =
                     withContext(dispatcherProvider.io) {
                         bookRepository.getChapter(bookId, nextIndex)
@@ -81,8 +96,11 @@ class TokenRepositoryImpl(private val bookRepository: BookRepository, private va
                     withContext(tokenizationDispatcher) {
                         TokenizerRegistry.resolve(languageTag).tokenize(chapter)
                     }
+                if (!isCurrentGeneration(bookId, generation)) return@runCatching
                 updateChapterWordCount(bookId, nextIndex, tokens)
-                mutex.withLock { cache[key] = tokens }
+                synchronized(cacheLock) {
+                    if (generationOfLocked(bookId.value) == generation) cache[key] = tokens
+                }
             }
         }
     }
@@ -98,19 +116,29 @@ class TokenRepositoryImpl(private val bookRepository: BookRepository, private va
         bookRepository.updateChapterWordCount(bookId, chapterIndex, wordCount)
     }
 
-    @Suppress("unused")
-    fun clearCache() {
-        prefetchScope.launch {
-            mutex.withLock {
-                cache.clear()
-                languageTagCache.clear()
-            }
+    override fun invalidateBook(bookId: BookId) {
+        synchronized(cacheLock) {
+            bookGenerations[bookId.value] = nextGenerationLocked()
+            cache.keys.removeAll { key -> key.bookId == bookId.value }
+            languageTagCache.remove(bookId.value)
         }
     }
 
-    private suspend fun resolveLanguageTag(bookId: BookId): String? {
+    override fun clearCache() {
+        synchronized(cacheLock) {
+            globalGeneration = nextGenerationLocked()
+            bookGenerations.clear()
+            cache.clear()
+            languageTagCache.clear()
+        }
+    }
+
+    private suspend fun resolveLanguageTag(
+        bookId: BookId,
+        generation: Long,
+    ): String? {
         val cached =
-            mutex.withLock {
+            synchronized(cacheLock) {
                 if (languageTagCache.containsKey(bookId.value)) {
                     Pair(true, languageTagCache[bookId.value])
                 } else {
@@ -119,17 +147,27 @@ class TokenRepositoryImpl(private val bookRepository: BookRepository, private va
             }
         if (cached.first) return cached.second
         val resolved = bookRepository.getBookLanguageTag(bookId)
-        mutex.withLock { languageTagCache[bookId.value] = resolved }
+        synchronized(cacheLock) {
+            if (generationOfLocked(bookId.value) == generation) {
+                languageTagCache[bookId.value] = resolved
+            }
+        }
         return resolved
     }
 
-    private fun buildCacheKey(
+    private fun currentGeneration(bookId: BookId): Long =
+        synchronized(cacheLock) { generationOfLocked(bookId.value) }
+
+    private fun isCurrentGeneration(
         bookId: BookId,
-        chapterIndex: Int,
-        languageTag: String?,
-    ): String {
-        val tag = languageTag ?: "default"
-        return "${bookId.value}-$chapterIndex-$tag"
+        generation: Long,
+    ): Boolean = synchronized(cacheLock) { generationOfLocked(bookId.value) == generation }
+
+    private fun generationOfLocked(bookId: String): Long = bookGenerations[bookId] ?: globalGeneration
+
+    private fun nextGenerationLocked(): Long {
+        generationCounter += 1L
+        return generationCounter
     }
 
     companion object {

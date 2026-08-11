@@ -56,4 +56,57 @@ class EpubMarkupParserTest {
 
         assertEquals("Chapter One", title?.replace(Regex("\\s+"), " ")?.trim())
     }
+
+    @Test
+    fun rawTextElementsDoNotTokenizeEmbeddedMarkup() {
+        val html =
+            "<html><body><script>const fake = '<nav><ol><li>bad</li></ol></nav>';</script>" +
+                "<style>.x::after { content: '<nav>bad</nav>'; }</style><p>Readable</p></body></html>"
+
+        val result = parser.parseWithResult(html)
+
+        assertTrue(result.complete)
+        assertEquals(0, EpubMarkupInspector.countTagOccurrences(result.document, "nav", limit = 1))
+        assertTrue(EpubMarkupInspector.renderPlainText(result.document).contains("Readable"))
+    }
+
+    @Test
+    fun rejectsOversizedInputTagAndAttributeFlood() {
+        val oversizedInput = parser.parseWithResult("x".repeat(5 * 1024 * 1024 + 1))
+        val oversizedTag = parser.parseWithResult("<div ${"x".repeat(33_000)}>")
+        val oversizedUnclosedTag = parser.parseWithResult("<div ${"x".repeat(33_000)}")
+        val attributeFlood =
+            parser.parseWithResult(
+                buildString {
+                    append("<nav")
+                    repeat(129) { index -> append(" a$index=\"x\"") }
+                    append("></nav>")
+                },
+            )
+
+        assertFalse(oversizedInput.complete)
+        assertTrue(oversizedInput.limitExceeded)
+        assertFalse(oversizedTag.complete)
+        assertTrue(oversizedTag.limitExceeded)
+        assertFalse(oversizedUnclosedTag.complete)
+        assertTrue(oversizedUnclosedTag.limitExceeded)
+        assertFalse(attributeFlood.complete)
+        assertTrue(attributeFlood.limitExceeded)
+    }
+
+    @Test
+    fun rejectsTokenFloodDeepOpenStackAndUnmatchedEndTagWithoutOverflow() {
+        val tokenization = EpubMarkupTokenizer().tokenize("<br/>".repeat(100_001))
+        val emittedTokens = tokenization.tokens.count()
+        val deep = parser.parseWithResult("<div>".repeat(5_000))
+        val unmatched = parser.parseWithResult("<div>text</span></div>")
+
+        assertEquals(100_000, emittedTokens)
+        assertFalse(tokenization.complete)
+        assertTrue(tokenization.limitExceeded)
+        assertFalse(deep.complete)
+        assertTrue(deep.limitExceeded)
+        assertFalse(unmatched.complete)
+        assertFalse(unmatched.limitExceeded)
+    }
 }

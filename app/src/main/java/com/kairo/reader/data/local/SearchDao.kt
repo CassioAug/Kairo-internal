@@ -3,133 +3,49 @@ package com.kairo.reader.data.local
 import androidx.room.Dao
 import androidx.room.Query
 
-data class SearchPassageMatchEntity(
+data class SearchPassageBookEntity(
     val bookId: String,
     val bookTitle: String,
+)
+
+data class SearchPassageChapterPageEntity(
     val chapterIndex: Int,
     val chapterTitle: String?,
-    val matchStartCodePointOffset: Int,
-    val matchLengthCodePoints: Int,
-    val snippetStartCodePointOffset: Int,
-    val snippetText: String,
-    val chapterLengthCodePoints: Int,
+    val plainText: String,
 )
 
 @Dao
 interface SearchDao {
     @Query(
         """
-        WITH RECURSIVE candidate_chapters(
-            bookId,
-            bookTitle,
-            chapterIndex,
-            chapterTitle,
-            plainText,
-            chapterLengthCodePoints
-        ) AS (
-            SELECT
-                chapters.bookId,
-                books.title,
-                chapters.`index`,
-                chapters.title,
-                chapters.plainText,
-                length(chapters.plainText)
-            FROM chapters
-            JOIN books ON chapters.bookId = books.id
-            WHERE (:bookId IS NULL OR chapters.bookId = :bookId)
-              AND instr(lower(chapters.plainText), :normalizedQuery) > 0
-            ORDER BY lower(books.title), chapters.`index`
-            LIMIT :chapterLimit
-        ),
-        chapter_matches(
-            bookId,
-            bookTitle,
-            chapterIndex,
-            chapterTitle,
-            plainText,
-            chapterLengthCodePoints,
-            searchStartCodePoint,
-            relativeOffsetCodePoint,
-            matchNumber
-        ) AS (
-            SELECT
-                bookId,
-                bookTitle,
-                chapterIndex,
-                chapterTitle,
-                plainText,
-                chapterLengthCodePoints,
-                1,
-                instr(lower(plainText), :normalizedQuery),
-                1
-            FROM candidate_chapters
-
-            UNION ALL
-
-            SELECT
-                bookId,
-                bookTitle,
-                chapterIndex,
-                chapterTitle,
-                plainText,
-                chapterLengthCodePoints,
-                searchStartCodePoint + relativeOffsetCodePoint + :matchLengthCodePoints - 1,
-                instr(
-                    substr(
-                        lower(plainText),
-                        searchStartCodePoint + relativeOffsetCodePoint + :matchLengthCodePoints - 1
-                    ),
-                    :normalizedQuery
-                ),
-                matchNumber + 1
-            FROM chapter_matches
-            WHERE relativeOffsetCodePoint > 0
-              AND matchNumber < :matchesPerChapter
-              AND searchStartCodePoint + relativeOffsetCodePoint + :matchLengthCodePoints - 1 <=
-                    chapterLengthCodePoints
-              AND instr(
-                    substr(
-                        lower(plainText),
-                        searchStartCodePoint + relativeOffsetCodePoint + :matchLengthCodePoints - 1
-                    ),
-                    :normalizedQuery
-                  ) > 0
-        )
         SELECT
-            bookId,
-            bookTitle,
-            chapterIndex,
-            chapterTitle,
-            searchStartCodePoint + relativeOffsetCodePoint - 2 AS matchStartCodePointOffset,
-            :matchLengthCodePoints AS matchLengthCodePoints,
-            max(
-                0,
-                searchStartCodePoint + relativeOffsetCodePoint - 2 - :snippetContextCharacters
-            ) AS snippetStartCodePointOffset,
-            substr(
-                plainText,
-                max(
-                    1,
-                    searchStartCodePoint + relativeOffsetCodePoint - 1 - :snippetContextCharacters
-                ),
-                :matchLengthCodePoints + (2 * :snippetContextCharacters)
-            ) AS snippetText,
-            chapterLengthCodePoints
-        FROM chapter_matches
-        WHERE relativeOffsetCodePoint > 0
-        ORDER BY lower(bookTitle), chapterIndex, matchStartCodePointOffset
-        LIMIT :limit
+            books.id AS bookId,
+            books.title AS bookTitle
+        FROM books
+        WHERE (:bookId IS NULL OR books.id = :bookId)
+          AND EXISTS (SELECT 1 FROM chapters WHERE chapters.bookId = books.id)
+        ORDER BY lower(books.title), books.id
         """,
     )
-    suspend fun searchPassageMatches(
-        normalizedQuery: String,
-        matchLengthCodePoints: Int,
-        snippetContextCharacters: Int,
-        matchesPerChapter: Int,
-        chapterLimit: Int,
-        bookId: String?,
-        limit: Int,
-    ): List<SearchPassageMatchEntity>
+    suspend fun searchPassageBooks(bookId: String?): List<SearchPassageBookEntity>
+
+    @Query(
+        """
+        SELECT
+            `index` AS chapterIndex,
+            title AS chapterTitle,
+            plainText
+        FROM chapters
+        WHERE bookId = :bookId AND `index` > :afterChapterIndex
+        ORDER BY `index`
+        LIMIT :pageSize
+        """,
+    )
+    suspend fun searchPassageChapterPage(
+        bookId: String,
+        afterChapterIndex: Int,
+        pageSize: Int,
+    ): List<SearchPassageChapterPageEntity>
 
     @Query(
         """

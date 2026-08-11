@@ -10,8 +10,8 @@ import com.kairo.reader.core.rsvp.RsvpEngine
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -22,11 +22,47 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class RsvpFrameRepositoryImplTest {
     @Test
-    fun clearCacheWaitsForLockedMutexAndClearsEntries() = runTest {
+    fun invalidateBookSynchronouslyClearsOnlyThatBooksFrames() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
+        val engine = CountingEngine()
         val repository =
             RsvpFrameRepositoryImpl(
                 tokenRepository = CountingTokenRepository(),
+                engine = engine,
+                dispatcherProvider =
+                object : DispatcherProvider {
+                    override val default: CoroutineDispatcher = dispatcher
+                    override val io: CoroutineDispatcher = dispatcher
+                },
+            )
+        val bookId = BookId("book")
+        val otherBookId = BookId("other")
+        val config = RsvpConfig()
+
+        val firstRequest = backgroundScope.launch { repository.getFrames(bookId, 0, config) }
+        val otherRequest = backgroundScope.launch { repository.getFrames(otherBookId, 0, config) }
+        advanceUntilIdle()
+        firstRequest.join()
+        otherRequest.join()
+        assertEquals(2, repository.cacheSize())
+
+        repository.invalidateBook(bookId)
+        assertEquals(1, repository.cacheSize())
+
+        val refreshed = backgroundScope.launch { repository.getFrames(bookId, 0, config) }
+        advanceUntilIdle()
+        refreshed.join()
+
+        assertEquals(3, engine.startIndexes.size)
+    }
+
+    @Test
+    fun invalidationPreventsInFlightFramesFromPopulatingCache() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val tokens = BlockingTokenRepository()
+        val repository =
+            RsvpFrameRepositoryImpl(
+                tokenRepository = tokens,
                 engine = CountingEngine(),
                 dispatcherProvider =
                 object : DispatcherProvider {
@@ -35,22 +71,17 @@ class RsvpFrameRepositoryImplTest {
                 },
             )
         val bookId = BookId("book")
-        val config = RsvpConfig()
 
-        val firstRequest = backgroundScope.launch { repository.getFrames(bookId, 0, config) }
+        val stale = backgroundScope.async { repository.getFrames(bookId, 0, RsvpConfig()) }
         advanceUntilIdle()
-        firstRequest.join()
-        assertEquals(1, repository.cacheSize())
+        tokens.started.await()
 
-        val mutex = repository.mutex()
-        mutex.lock()
-        repository.clearCache()
-        assertEquals(1, repository.cacheSize())
-
-        mutex.unlock()
+        repository.invalidateBook(bookId)
+        tokens.release.complete(Unit)
         advanceUntilIdle()
 
         assertEquals(0, repository.cacheSize())
+        stale.cancel()
     }
 
     @Test
@@ -254,6 +285,21 @@ class RsvpFrameRepositoryImplTest {
             }
     }
 
+    private class BlockingTokenRepository : TokenRepository {
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+        override suspend fun getTokens(
+            bookId: BookId,
+            chapterIndex: Int,
+            chapter: com.kairo.reader.core.model.Chapter?,
+        ): List<Token> {
+            started.complete(Unit)
+            release.await()
+            return listOf(Token(text = "word", type = TokenType.WORD))
+        }
+    }
+
     private class CountingEngine : RsvpEngine {
         val startIndexes = mutableListOf<Int>()
         val tokenCounts = mutableListOf<Int>()
@@ -322,9 +368,4 @@ class RsvpFrameRepositoryImplTest {
         return cache.size
     }
 
-    private fun RsvpFrameRepositoryImpl.mutex(): Mutex {
-        val field = javaClass.getDeclaredField("mutex")
-        field.isAccessible = true
-        return field.get(this) as Mutex
-    }
 }

@@ -17,6 +17,11 @@ class SearchTextTest {
     }
 
     @Test
+    fun findsGreekFinalSigmaCaseInsensitively() {
+        assertEquals(listOf(0), findSearchMatchOffsets("ΟΣ", "οσ", limit = 1))
+    }
+
+    @Test
     fun snippetAddsEllipsesAndNormalizesWhitespace() {
         val text = "Before words\n\nThe searched phrase appears after words"
 
@@ -29,6 +34,22 @@ class SearchTextTest {
             )
 
         assertEquals("…The searched phra…", snippet)
+    }
+
+    @Test
+    fun snippetContextDoesNotSplitSupplementaryCharacters() {
+        val text = "😀" + "a".repeat(55) + "needle"
+
+        val snippet =
+            buildSearchSnippet(
+                text = text,
+                matchOffset = text.indexOf("needle"),
+                matchLength = "needle".length,
+                contextCharacters = 56,
+            )
+
+        assertEquals(text, snippet)
+        assertEquals(0x1F600, snippet.codePointAt(0))
     }
 
     @Test

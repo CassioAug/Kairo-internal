@@ -1,5 +1,7 @@
 package com.kairo.reader.data.books
 
+import com.kairo.reader.core.model.TokenType
+import com.kairo.reader.core.tokenization.Tokenizer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -184,6 +186,62 @@ internal class EpubChapterBuilderTest : EpubParserTestBase() {
             result.chapters.map(::parsedChapterPath),
         )
         assertEquals(0, result.navigationFilteredCount)
+    }
+
+    @Test
+    fun canonicalNavigationOverrideDrivesReaderTextAndRetainsRewritableLinks() {
+        val navigationDocument =
+            """
+            <html><body>
+              <nav epub:type="toc">
+                <h1>Contents</h1>
+                <ol><li><a href="chapter1.xhtml">Chapter One</a></li></ol>
+              </nav>
+              <nav epub:type="page-list">
+                <ol><li><a href="chapter1.xhtml#page-1">1</a></li></ol>
+              </nav>
+            </body></html>
+            """.trimIndent()
+        val canonicalNavigation =
+            requireNotNull(EpubNavigationParser().parse(navigationDocument, isNcx = false).readerHtml)
+        val entries =
+            linkedMapOf(
+                "oebps/nav.xhtml" to navigationDocument.toByteArray(),
+                "oebps/chapter1.xhtml" to
+                    "<html><body><h1>Chapter One</h1><p>Story.</p></body></html>".toByteArray(),
+            )
+
+        val result =
+            invokeBuildFallbackChaptersWithResult(
+                zipTextEntries = entries,
+                imageRelativePathByEpubPathLower = emptyMap(),
+                preferredChapterPathsLower = entries.keys.toList(),
+                preservedNavigationPathsLower = setOf("oebps/nav.xhtml"),
+                htmlOverridesByPathLower = mapOf("oebps/nav.xhtml" to canonicalNavigation),
+            )
+        val navigationChapter = parsedChapter(result.chapters.first())
+        val rewrittenHtml =
+            invokeRewriteHtmlAnchorHrefs(
+                html = navigationChapter.htmlContent,
+                baseDir = "oebps",
+                chapterIndexByPathLower =
+                    result.chapters.associate { parsed ->
+                        parsedChapterPath(parsed) to parsedChapter(parsed).index
+                    },
+                currentChapterPath = "oebps/nav.xhtml",
+            )
+        val linkedTokens =
+            Tokenizer().tokenize(navigationChapter.copy(htmlContent = rewrittenHtml))
+
+        assertEquals("Contents\n\nChapter One", navigationChapter.plainText)
+        assertTrue(navigationChapter.htmlContent.contains(EpubReaderNavigationContent.MARKER))
+        assertFalse(navigationChapter.htmlContent.contains("page-1"))
+        assertTrue(rewrittenHtml.contains("kairo://chapter/1"))
+        assertTrue(
+            linkedTokens
+                .filter { token -> token.type == TokenType.WORD && token.text in setOf("Chapter", "One") }
+                .all { token -> token.linkChapterIndex == 1 },
+        )
     }
 
     @Test

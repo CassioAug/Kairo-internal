@@ -38,6 +38,10 @@ interface RsvpFrameRepository {
 
     fun clearCache()
 
+    fun invalidateBook(bookId: BookId) {
+        // Optional for stateless implementations.
+    }
+
     companion object {
         const val DEFAULT_PREVIEW_TOKEN_COUNT = 320
     }

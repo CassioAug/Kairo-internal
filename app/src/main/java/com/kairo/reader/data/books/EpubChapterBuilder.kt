@@ -26,6 +26,7 @@ internal class EpubChapterBuilder(
         imageRelativePathByEpubPathLower: Map<String, String>,
         preferredChapterPathsLower: List<String>,
         preservedNavigationPathsLower: Set<String> = emptySet(),
+        htmlOverridesByPathLower: Map<String, String> = emptyMap(),
     ): FallbackChapterBuildResult =
         buildWithResult(
             zipTextEntries = zipTextEntries,
@@ -34,6 +35,7 @@ internal class EpubChapterBuilder(
             decodedTextEntries = emptyMap(),
             chapterImageSrcsByPathLower = emptyMap(),
             preservedNavigationPathsLower = preservedNavigationPathsLower,
+            htmlOverridesByPathLower = htmlOverridesByPathLower,
         )
 
     fun buildWithResult(
@@ -43,7 +45,10 @@ internal class EpubChapterBuilder(
         decodedTextEntries: Map<String, String>,
         chapterImageSrcsByPathLower: Map<String, List<String>>,
         preservedNavigationPathsLower: Set<String> = emptySet(),
+        htmlOverridesByPathLower: Map<String, String> = emptyMap(),
     ): FallbackChapterBuildResult {
+        val normalizedHtmlOverrides =
+            htmlOverridesByPathLower.mapKeys { (path, _) -> path.lowercase(Locale.ROOT) }
         val preferredCandidates =
             preferredChapterPathsLower
                 .asSequence()
@@ -71,14 +76,23 @@ internal class EpubChapterBuilder(
         val parsed =
             candidates.mapNotNull { pathLower ->
                 val chapterContent = zipTextEntries[pathLower] ?: return@mapNotNull null
-                val originalHtml = decodedTextEntries[pathLower] ?: EpubTextDecoder.decodeTextEntry(chapterContent)
+                val htmlOverride = normalizedHtmlOverrides[pathLower]
+                val originalHtml =
+                    htmlOverride
+                        ?: decodedTextEntries[pathLower]
+                        ?: EpubTextDecoder.decodeTextEntry(chapterContent)
                 val originalDocument = contentRewriter.parseMarkupDocument(originalHtml)
                 val chapterDir = pathLower.substringBeforeLast('/', "")
                 val imagePaths = contentRewriter.buildChapterImagePaths(
                     html = originalHtml,
                     baseDir = chapterDir,
                     imageRelativePathByEpubPathLower = imageRelativePathByEpubPathLower,
-                    chapterSrcs = chapterImageSrcsByPathLower[pathLower],
+                    chapterSrcs =
+                        if (htmlOverride == null) {
+                            chapterImageSrcsByPathLower[pathLower]
+                        } else {
+                            emptyList()
+                        },
                 )
                 val resolvedHtml = contentRewriter.rewriteHtmlImageSrcs(
                     html = originalHtml,

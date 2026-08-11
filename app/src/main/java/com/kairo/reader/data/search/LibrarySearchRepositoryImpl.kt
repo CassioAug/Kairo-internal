@@ -6,8 +6,8 @@ import com.kairo.reader.core.model.LibrarySearchResult
 import com.kairo.reader.core.model.LibrarySearchResultKind
 import com.kairo.reader.data.local.SavedAnnotationDao
 import com.kairo.reader.data.local.SearchDao
-import com.kairo.reader.data.local.SearchPassageMatchEntity
-import java.util.Locale
+import com.kairo.reader.data.local.SearchPassageBookEntity
+import com.kairo.reader.data.local.SearchPassageChapterPageEntity
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -63,53 +63,88 @@ class LibrarySearchRepositoryImpl(
         query: String,
         bookId: String?,
     ): List<LibrarySearchResult> {
-        val normalizedQuery = query.lowercase(Locale.ROOT)
-        val matchLengthCodePoints =
-            normalizedQuery.codePointCount(0, normalizedQuery.length)
-        return searchDao
-            .searchPassageMatches(
-                normalizedQuery = normalizedQuery,
-                matchLengthCodePoints = matchLengthCodePoints,
-                snippetContextCharacters = SNIPPET_CONTEXT_CHARS,
-                matchesPerChapter = MATCHES_PER_CHAPTER,
-                chapterLimit = PASSAGE_CHAPTER_LIMIT,
-                bookId = bookId,
-                limit = PASSAGE_RESULT_LIMIT,
-            ).map { match ->
+        val results = mutableListOf<LibrarySearchResult>()
+        var matchingChapterCount = 0
+        val books = searchDao.searchPassageBooks(bookId)
+        for (book in books) {
+            currentCoroutineContext().ensureActive()
+            var afterChapterIndex = INITIAL_CHAPTER_INDEX_CURSOR
+            while (true) {
                 currentCoroutineContext().ensureActive()
-                match.toSearchResult()
+                val page =
+                    searchDao.searchPassageChapterPage(
+                        bookId = book.bookId,
+                        afterChapterIndex = afterChapterIndex,
+                        pageSize = PASSAGE_PAGE_SIZE,
+                    )
+                if (page.isEmpty()) break
+                currentCoroutineContext().ensureActive()
+                for (chapter in page) {
+                    currentCoroutineContext().ensureActive()
+                    if (appendChapterMatches(results, book, chapter, query)) matchingChapterCount += 1
+                    if (
+                        results.size >= PASSAGE_RESULT_LIMIT ||
+                        matchingChapterCount >= PASSAGE_MATCHING_CHAPTER_LIMIT
+                    ) {
+                        return results
+                    }
+                }
+                if (page.size < PASSAGE_PAGE_SIZE) break
+                afterChapterIndex = page.last().chapterIndex
             }
+        }
+        return results
     }
 
-    private fun SearchPassageMatchEntity.toSearchResult(): LibrarySearchResult =
-        LibrarySearchResult(
-            id = "passage:$bookId:$chapterIndex:$matchStartCodePointOffset",
+    private suspend fun appendChapterMatches(
+        results: MutableList<LibrarySearchResult>,
+        book: SearchPassageBookEntity,
+        chapter: SearchPassageChapterPageEntity,
+        query: String,
+    ): Boolean {
+        val matchOffsets =
+            findSearchMatchOffsets(chapter.plainText, query, MATCHES_PER_CHAPTER)
+        if (matchOffsets.isEmpty()) return false
+        for (matchOffset in matchOffsets) {
+            currentCoroutineContext().ensureActive()
+            results += chapter.toSearchResult(book, query, matchOffset)
+            if (results.size >= PASSAGE_RESULT_LIMIT) break
+        }
+        return true
+    }
+
+    private fun SearchPassageChapterPageEntity.toSearchResult(
+        book: SearchPassageBookEntity,
+        query: String,
+        matchStartUtf16Offset: Int,
+    ): LibrarySearchResult {
+        val matchEndUtf16Offset =
+            (matchStartUtf16Offset.toLong() + query.length).coerceAtMost(plainText.length.toLong())
+                .toInt()
+        val matchStartCodePointOffset =
+            plainText.codePointCount(0, matchStartUtf16Offset)
+        val matchEndCodePointOffset =
+            plainText.codePointCount(0, matchEndUtf16Offset)
+        return LibrarySearchResult(
+            id = "passage:${book.bookId}:$chapterIndex:$matchStartCodePointOffset",
             kind = LibrarySearchResultKind.PASSAGE,
-            bookId = BookId(bookId),
-            bookTitle = bookTitle,
+            bookId = BookId(book.bookId),
+            bookTitle = book.bookTitle,
             chapterIndex = chapterIndex,
             chapterTitle = chapterTitle,
             tokenIndex = 0,
             endTokenIndex = 0,
             matchStartCodePointOffset = matchStartCodePointOffset,
-            matchLengthCodePoints = matchLengthCodePoints,
-            title = chapterTitle?.takeIf(String::isNotBlank) ?: bookTitle,
-            snippet = boundedSnippet(),
+            matchLengthCodePoints = matchEndCodePointOffset - matchStartCodePointOffset,
+            title = chapterTitle?.takeIf(String::isNotBlank) ?: book.bookTitle,
+            snippet =
+                buildSearchSnippet(
+                    text = plainText,
+                    matchOffset = matchStartUtf16Offset,
+                    matchLength = query.length,
+                    contextCharacters = SNIPPET_CONTEXT_CHARS,
+                ),
         )
-
-    private fun SearchPassageMatchEntity.boundedSnippet(): String {
-        val body = snippetText.replace(WHITESPACE, " ").trim()
-        return buildString {
-            if (snippetStartCodePointOffset > 0) append(ELLIPSIS)
-            append(body)
-            val snippetLengthCodePoints = snippetText.codePointCount(0, snippetText.length)
-            if (
-                snippetStartCodePointOffset + snippetLengthCodePoints <
-                chapterLengthCodePoints
-            ) {
-                append(ELLIPSIS)
-            }
-        }
     }
 
     private suspend fun searchSaved(pattern: String): List<LibrarySearchResult> =
@@ -132,11 +167,11 @@ class LibrarySearchRepositoryImpl(
     private companion object {
         const val BOOK_RESULT_LIMIT = 20
         const val PASSAGE_RESULT_LIMIT = 60
-        const val PASSAGE_CHAPTER_LIMIT = 32
+        const val PASSAGE_MATCHING_CHAPTER_LIMIT = 32
+        const val PASSAGE_PAGE_SIZE = 8
         const val SAVED_RESULT_LIMIT = 20
         const val MATCHES_PER_CHAPTER = 3
         const val SNIPPET_CONTEXT_CHARS = 56
-        const val ELLIPSIS = "…"
-        val WHITESPACE = Regex("\\s+")
+        const val INITIAL_CHAPTER_INDEX_CURSOR = -1
     }
 }

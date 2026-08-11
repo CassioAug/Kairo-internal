@@ -10,4 +10,12 @@ interface TokenRepository {
         chapterIndex: Int,
         chapter: Chapter? = null,
     ): List<Token>
+
+    fun invalidateBook(bookId: BookId) {
+        // Optional for stateless implementations.
+    }
+
+    fun clearCache() {
+        // Optional for stateless implementations.
+    }
 }
