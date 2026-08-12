@@ -27,6 +27,14 @@ data class ReadingMomentumDay(
     val sessionCount: Int = 0,
 )
 
+data class ReadingMomentumWeek(
+    val startedAt: Long,
+    val endedAt: Long,
+    val activeDurationMs: Long,
+    val wordsRead: Int,
+    val activeDays: Int,
+)
+
 data class ReadingMomentum(
     val sessions: List<ReadingSessionItem> = emptyList(),
     val weekDurationMs: Long = 0L,
@@ -35,6 +43,8 @@ data class ReadingMomentum(
     val averageEffectiveWpm: Int? = null,
     val preferredMode: ReadingSessionMode? = null,
     val dailyActivity: List<ReadingMomentumDay> = emptyList(),
+    val todayStartedAt: Long = 0L,
+    val previousWeeks: List<ReadingMomentumWeek> = emptyList(),
 ) {
     companion object {
         const val DAYS_PER_WEEK = 7

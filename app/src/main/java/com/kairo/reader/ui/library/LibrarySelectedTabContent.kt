@@ -40,6 +40,7 @@ internal fun LibrarySelectedTabContent(
                 momentum = state.momentum,
                 weeklyGoalMinutes = state.weeklyGoalMinutes,
                 onWeeklyGoalChange = actions.onWeeklyGoalChange,
+                onResetMomentum = actions.onResetMomentum,
             )
     }
 }

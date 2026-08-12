@@ -6,6 +6,7 @@ import com.kairo.reader.core.model.ReadingSession
 import com.kairo.reader.core.model.ReadingSessionItem
 import com.kairo.reader.core.model.ReadingSessionMode
 import java.util.Calendar
+import java.util.Locale
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,7 +33,7 @@ class LibraryMomentumUiStateTest {
     }
 
     @Test
-    fun missingDailyActivityGetsASevenDayWindowEndingToday() {
+    fun missingDailyActivityGetsTheLocaleCalendarWeek() {
         val timeZone = TimeZone.getTimeZone("Europe/London")
         val now =
             Calendar.getInstance(timeZone).apply {
@@ -40,14 +41,46 @@ class LibraryMomentumUiStateTest {
                 set(2026, Calendar.AUGUST, 4, 15, 30)
             }.timeInMillis
 
-        val days = momentumDaysForDisplay(emptyList(), now, timeZone)
+        val days = momentumDaysForDisplay(emptyList(), now, timeZone, Locale.UK)
 
         assertEquals(7, days.size)
-        assertEquals(Calendar.JULY, calendar(days.first().startedAt, timeZone).get(Calendar.MONTH))
-        assertEquals(29, calendar(days.first().startedAt, timeZone).get(Calendar.DAY_OF_MONTH))
-        assertEquals(4, calendar(days.last().startedAt, timeZone).get(Calendar.DAY_OF_MONTH))
+        assertEquals(Calendar.AUGUST, calendar(days.first().startedAt, timeZone).get(Calendar.MONTH))
+        assertEquals(3, calendar(days.first().startedAt, timeZone).get(Calendar.DAY_OF_MONTH))
+        assertEquals(9, calendar(days.last().startedAt, timeZone).get(Calendar.DAY_OF_MONTH))
         assertTrue(days.all { it.activeDurationMs == 0L })
         assertFalse(days.any { it.sessionCount > 0 })
+    }
+
+    @Test
+    fun todayIndexUsesTheActualDayInsideTheCalendarWeek() {
+        val timeZone = TimeZone.getTimeZone("UTC")
+        val now =
+            Calendar.getInstance(timeZone).apply {
+                clear()
+                set(2026, Calendar.AUGUST, 5, 15, 30)
+            }.timeInMillis
+        val days = momentumDaysForDisplay(emptyList(), now, timeZone, Locale.UK)
+
+        assertEquals(
+            2,
+            momentumTodayDayIndex(
+                days = days,
+                todayStartedAt = 0L,
+                now = now,
+                timeZone = timeZone,
+                locale = Locale.UK,
+            ),
+        )
+    }
+
+    @Test
+    fun customGoalValidationRejectsEmptyNonNumericAndOutOfRangeInput() {
+        assertEquals(null, validatedWeeklyGoalMinutes(""))
+        assertEquals(null, validatedWeeklyGoalMinutes("minutes"))
+        assertEquals(null, validatedWeeklyGoalMinutes("29"))
+        assertEquals(null, validatedWeeklyGoalMinutes("1401"))
+        assertEquals(30, validatedWeeklyGoalMinutes("30"))
+        assertEquals(1_400, validatedWeeklyGoalMinutes("1400"))
     }
 
     private fun session(id: Long): ReadingSessionItem =

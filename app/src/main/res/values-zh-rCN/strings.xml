@@ -519,7 +519,7 @@
     <string name="momentum_minutes_read">已阅读 %1$d 分钟</string>
     <string name="momentum_words_read">%1$s 字</string>
     <string name="momentum_goal_progress">目标 %2$d 分钟，已完成 %1$d 分钟</string>
-    <string name="momentum_consistency">过去 7 天中有 %1$d 天</string>
+    <string name="momentum_consistency">本周阅读日数：%1$d</string>
     <string name="momentum_consistency_title">连续性</string>
     <string name="momentum_today">今天</string>
     <string name="momentum_total_reading">总阅读时间</string>
@@ -537,10 +537,30 @@
     <string name="momentum_recent_sessions_limit">仅显示最近 %1$d 个阅读会话。</string>
     <string name="momentum_no_sessions">阅读至少五分钟即可开始建立 Momentum。</string>
     <string name="momentum_goal_title">每周目标</string>
+    <string name="momentum_custom_goal">自定义</string>
+    <string name="momentum_custom_goal_value">自定义 · %1$d 分钟</string>
+    <string name="momentum_custom_goal_title">设置自定义目标</string>
+    <string name="momentum_custom_goal_field">每周分钟数</string>
+    <string name="momentum_custom_goal_range">请输入 %1$d–%2$d 分钟。</string>
+    <string name="momentum_custom_goal_error">请输入 %1$d 到 %2$d 之间的整数。</string>
+    <string name="momentum_previous_weeks">往周记录</string>
+    <string name="momentum_previous_weeks_collapsed">往周记录已收起</string>
+    <string name="momentum_previous_weeks_expanded">往周记录已展开</string>
+    <string name="momentum_no_previous_weeks">暂无往周记录</string>
+    <string name="momentum_reset_this_week">重置本周</string>
+    <string name="momentum_reset_title">重置本周？</string>
+    <string name="momentum_reset_message">这会从现在起清空本周的 Momentum 统计。你的阅读历史仍会保留，并在本周结束后显示在往周记录中。</string>
+    <string name="momentum_reset_confirm">重置</string>
     <string name="momentum_session_summary">%1$d 分钟 • %2$s 字 • %3$s</string>
     <string name="momentum_estimated_suffix">（估算）</string>
     <plurals name="momentum_sessions_count">
         <item quantity="other">%1$d 个会话</item>
+    </plurals>
+    <plurals name="momentum_previous_weeks_count">
+        <item quantity="other">有阅读记录的周数：%1$d</item>
+    </plurals>
+    <plurals name="momentum_active_days_count">
+        <item quantity="other">%1$d 个阅读日</item>
     </plurals>
     <string name="search_kairo_title">搜索 Kairo</string>
     <string name="search_this_book_title">搜索此书</string>

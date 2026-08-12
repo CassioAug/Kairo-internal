@@ -519,7 +519,7 @@
     <string name="momentum_minutes_read">%1$d min lidos</string>
     <string name="momentum_words_read">%1$s palavras</string>
     <string name="momentum_goal_progress">%1$d de %2$d minutos da meta</string>
-    <string name="momentum_consistency">%1$d dos últimos 7 dias</string>
+    <string name="momentum_consistency">Dias ativos nesta semana: %1$d</string>
     <string name="momentum_consistency_title">Consistência</string>
     <string name="momentum_today">Hoje</string>
     <string name="momentum_total_reading">Tempo total de leitura</string>
@@ -537,11 +537,33 @@
     <string name="momentum_recent_sessions_limit">Apenas as %1$d sessões mais recentes são exibidas.</string>
     <string name="momentum_no_sessions">Leia por pelo menos cinco minutos para começar a criar Momentum.</string>
     <string name="momentum_goal_title">Meta semanal</string>
+    <string name="momentum_custom_goal">Personalizada</string>
+    <string name="momentum_custom_goal_value">Personalizada · %1$d min</string>
+    <string name="momentum_custom_goal_title">Definir uma meta personalizada</string>
+    <string name="momentum_custom_goal_field">Minutos por semana</string>
+    <string name="momentum_custom_goal_range">Digite de %1$d a %2$d minutos.</string>
+    <string name="momentum_custom_goal_error">Digite um número inteiro de %1$d a %2$d.</string>
+    <string name="momentum_previous_weeks">Semanas anteriores</string>
+    <string name="momentum_previous_weeks_collapsed">Semanas anteriores recolhidas</string>
+    <string name="momentum_previous_weeks_expanded">Semanas anteriores expandidas</string>
+    <string name="momentum_no_previous_weeks">Ainda não há semanas anteriores</string>
+    <string name="momentum_reset_this_week">Redefinir esta semana</string>
+    <string name="momentum_reset_title">Redefinir esta semana?</string>
+    <string name="momentum_reset_message">Isso zera os totais do Momentum desta semana a partir de agora. Seu histórico de leitura é preservado e aparecerá em Semanas anteriores após o fim da semana.</string>
+    <string name="momentum_reset_confirm">Redefinir</string>
     <string name="momentum_session_summary">%1$d min • %2$s palavras • %3$s</string>
     <string name="momentum_estimated_suffix"> estimadas</string>
     <plurals name="momentum_sessions_count">
         <item quantity="one">%1$d sessão</item>
         <item quantity="other">%1$d sessões</item>
+    </plurals>
+    <plurals name="momentum_previous_weeks_count">
+        <item quantity="one">%1$d semana com leitura</item>
+        <item quantity="other">%1$d semanas com leitura</item>
+    </plurals>
+    <plurals name="momentum_active_days_count">
+        <item quantity="one">%1$d dia ativo</item>
+        <item quantity="other">%1$d dias ativos</item>
     </plurals>
     <string name="search_kairo_title">Pesquisar no Kairo</string>
     <string name="search_this_book_title">Pesquisar neste livro</string>

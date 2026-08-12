@@ -3,7 +3,12 @@ package com.kairo.reader.ui.library
 import com.kairo.reader.core.model.ReadingMomentum
 import com.kairo.reader.core.model.ReadingMomentumDay
 import com.kairo.reader.core.model.ReadingSessionItem
+import com.kairo.reader.data.preferences.MAX_WEEKLY_READING_GOAL_MINUTES
+import com.kairo.reader.data.preferences.MIN_WEEKLY_READING_GOAL_MINUTES
+import com.kairo.reader.data.sessions.localDayStartedAt
+import com.kairo.reader.data.sessions.localWeekPeriod
 import java.util.Calendar
+import java.util.Locale
 import java.util.TimeZone
 
 internal data class MomentumDurationValue(
@@ -29,23 +34,36 @@ internal fun momentumDaysForDisplay(
     dailyActivity: List<ReadingMomentumDay>,
     now: Long = System.currentTimeMillis(),
     timeZone: TimeZone = TimeZone.getDefault(),
+    locale: Locale = Locale.getDefault(),
 ): List<ReadingMomentumDay> {
     if (dailyActivity.size == ReadingMomentum.DAYS_PER_WEEK) return dailyActivity
+    val period = localWeekPeriod(now, timeZone, locale)
     val start =
-        Calendar.getInstance(timeZone).apply {
-            timeInMillis = now
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-            add(Calendar.DAY_OF_YEAR, -(ReadingMomentum.DAYS_PER_WEEK - 1))
-        }
+        Calendar.getInstance(timeZone, locale).apply { timeInMillis = period.startedAt }
     return List(ReadingMomentum.DAYS_PER_WEEK) { index ->
         val day = start.clone() as Calendar
         day.add(Calendar.DAY_OF_YEAR, index)
         ReadingMomentumDay(startedAt = day.timeInMillis)
     }
 }
+
+internal fun momentumTodayDayIndex(
+    days: List<ReadingMomentumDay>,
+    todayStartedAt: Long,
+    now: Long = System.currentTimeMillis(),
+    timeZone: TimeZone = TimeZone.getDefault(),
+    locale: Locale = Locale.getDefault(),
+): Int {
+    val today =
+        todayStartedAt.takeIf { it > 0L }
+            ?: localDayStartedAt(now, timeZone, locale)
+    return days.indexOfFirst { it.startedAt == today }.takeIf { it >= 0 } ?: days.lastIndex
+}
+
+internal fun validatedWeeklyGoalMinutes(input: String): Int? =
+    input
+        .toIntOrNull()
+        ?.takeIf { it in MIN_WEEKLY_READING_GOAL_MINUTES..MAX_WEEKLY_READING_GOAL_MINUTES }
 
 internal const val RECENT_SESSION_LIMIT = 5
 private const val MINUTES_PER_HOUR = 60L

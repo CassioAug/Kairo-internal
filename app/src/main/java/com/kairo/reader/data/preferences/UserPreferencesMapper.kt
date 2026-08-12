@@ -192,6 +192,11 @@ internal class UserPreferencesMapper(
                 value = prefs[keys.weeklyReadingGoalMinutes],
                 fallback = defaults.weeklyReadingGoalMinutes,
             ),
+            momentumResetCutoffAt =
+            prefs.readOrDefault(
+                keys.momentumResetCutoffAt,
+                defaults.momentumResetCutoffAt,
+            ),
         )
 
     private fun systemDefaultUserPreferences(): UserPreferences =
