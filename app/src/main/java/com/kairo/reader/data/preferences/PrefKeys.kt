@@ -101,4 +101,5 @@ internal object PrefKeys {
     val focusApplyInReader = booleanPreferencesKey("focus_apply_in_reader")
     val focusApplyInRsvp = booleanPreferencesKey("focus_apply_in_rsvp")
     val weeklyReadingGoalMinutes = intPreferencesKey("weekly_reading_goal_minutes")
+    val momentumResetCutoffAt = longPreferencesKey("momentum_reset_cutoff_at")
 }

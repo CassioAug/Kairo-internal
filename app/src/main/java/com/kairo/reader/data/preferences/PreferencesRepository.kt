@@ -74,5 +74,7 @@ interface PreferencesRepository {
 
     suspend fun updateWeeklyReadingGoalMinutes(minutes: Int)
 
+    suspend fun updateMomentumResetCutoffAt(cutoffAt: Long)
+
     suspend fun reset()
 }

@@ -440,6 +440,10 @@ class PreferencesRepositoryImpl(private val context: Context,) : PreferencesRepo
         }
     }
 
+    override suspend fun updateMomentumResetCutoffAt(cutoffAt: Long) {
+        context.dataStore.edit { prefs -> prefs[keys.momentumResetCutoffAt] = cutoffAt }
+    }
+
     override suspend fun reset() {
         context.dataStore.edit { it.clear() }
     }
