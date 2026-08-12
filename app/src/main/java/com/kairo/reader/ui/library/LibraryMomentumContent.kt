@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -24,7 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,9 +57,12 @@ internal fun LibraryMomentumContent(
     momentum: ReadingMomentum,
     weeklyGoalMinutes: Int,
     onWeeklyGoalChange: (Int) -> Unit,
+    onResetMomentum: () -> Unit = {},
 ) {
     val weekMinutes = (momentum.weekDurationMs / MILLIS_PER_MINUTE).toInt()
     val visibleSessions = visibleMomentumSessions(momentum.sessions)
+    var previousWeeksExpanded by rememberSaveable { mutableStateOf(false) }
+    var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
     val goalProgress =
         (weekMinutes.toFloat() / weeklyGoalMinutes.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
     LazyColumn(
@@ -78,6 +81,22 @@ internal fun LibraryMomentumContent(
         item(key = "momentum_profile") {
             MomentumProfileCard(momentum)
         }
+        item(key = "momentum_history_header") {
+            MomentumHistoryHeader(
+                previousWeekCount = momentum.previousWeeks.size,
+                expanded = previousWeeksExpanded,
+                onToggle = { previousWeeksExpanded = !previousWeeksExpanded },
+                onReset = { showResetConfirmation = true },
+            )
+        }
+        if (previousWeeksExpanded) {
+            items(
+                items = momentum.previousWeeks,
+                key = { "momentum_week_${it.startedAt}" },
+            ) { week ->
+                MomentumPreviousWeekRow(week)
+            }
+        }
         item(key = "momentum_recent_title") {
             MomentumRecentSessionsHeader(momentum.sessions.size, visibleSessions.size)
         }
@@ -94,6 +113,15 @@ internal fun LibraryMomentumContent(
                 MomentumSessionRow(item)
             }
         }
+    }
+    if (showResetConfirmation) {
+        MomentumResetConfirmationDialog(
+            onConfirm = {
+                onResetMomentum()
+                showResetConfirmation = false
+            },
+            onDismiss = { showResetConfirmation = false },
+        )
     }
 }
 
@@ -133,11 +161,11 @@ private fun MomentumSummaryCard(
             )
             Text(
                 text =
-                stringResource(
-                    R.string.momentum_goal_progress,
-                    weekMinutes,
-                    weeklyGoalMinutes,
-                ),
+                    stringResource(
+                        R.string.momentum_goal_progress,
+                        weekMinutes,
+                        weeklyGoalMinutes,
+                    ),
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
@@ -155,31 +183,12 @@ private fun MomentumMetric(value: String) {
 }
 
 @Composable
-private fun MomentumGoalSelector(
-    weeklyGoalMinutes: Int,
-    onWeeklyGoalChange: (Int) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(text = stringResource(R.string.momentum_goal_title), style = MaterialTheme.typography.labelLarge)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            WEEKLY_GOAL_OPTIONS.forEach { minutes ->
-                FilterChip(
-                    selected = weeklyGoalMinutes == minutes,
-                    onClick = { onWeeklyGoalChange(minutes) },
-                    label = { Text(stringResource(R.string.momentum_minutes_read, minutes)) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun MomentumConsistencyCard(momentum: ReadingMomentum) {
     val days = remember(momentum.dailyActivity) { momentumDaysForDisplay(momentum.dailyActivity) }
-    var selectedDayIndex by remember(days) { mutableIntStateOf(days.lastIndex) }
+    val todayIndex = remember(days, momentum.todayStartedAt) {
+        momentumTodayDayIndex(days, momentum.todayStartedAt)
+    }
+    var selectedDayIndex by remember(days, todayIndex) { mutableIntStateOf(todayIndex) }
     val selectedDay = days[selectedDayIndex.coerceIn(days.indices)]
     Surface(
         shape = RoundedCornerShape(14.dp),
@@ -206,7 +215,7 @@ private fun MomentumConsistencyCard(momentum: ReadingMomentum) {
             )
             MomentumDaySummary(
                 day = selectedDay,
-                isToday = selectedDayIndex == days.lastIndex,
+                isToday = selectedDayIndex == todayIndex,
             )
         }
     }
@@ -382,7 +391,7 @@ private fun MomentumRecentSessionsHeader(
 }
 
 @Composable
-private fun momentumDurationText(durationMs: Long): String {
+internal fun momentumDurationText(durationMs: Long): String {
     val value = momentumDurationValue(durationMs)
     return when {
         value.isLessThanMinute -> stringResource(R.string.momentum_duration_less_than_minute)
@@ -521,13 +530,4 @@ private const val DAY_CHART_HEIGHT_DP = 96
 private const val DAY_BAR_WIDTH_DP = 16
 private const val UNSELECTED_BAR_ALPHA = 0.48f
 private const val SHORT_DAY_PATTERN = "EEE"
-private const val SHORT_WEEKLY_GOAL_MINUTES = 60
-private const val STANDARD_WEEKLY_GOAL_MINUTES = 120
-private const val EXTENDED_WEEKLY_GOAL_MINUTES = 180
-private val WEEKLY_GOAL_OPTIONS =
-    listOf(
-        SHORT_WEEKLY_GOAL_MINUTES,
-        STANDARD_WEEKLY_GOAL_MINUTES,
-        EXTENDED_WEEKLY_GOAL_MINUTES,
-    )
 private const val MILLIS_PER_MINUTE = 60_000L

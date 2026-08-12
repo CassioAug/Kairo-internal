@@ -518,7 +518,7 @@
     <string name="momentum_minutes_read">%1$d min read</string>
     <string name="momentum_words_read">%1$s words</string>
     <string name="momentum_goal_progress">%1$d of %2$d goal minutes</string>
-    <string name="momentum_consistency">%1$d of the last 7 days</string>
+    <string name="momentum_consistency">Active days this week: %1$d</string>
     <string name="momentum_consistency_title">Consistency</string>
     <string name="momentum_today">Today</string>
     <string name="momentum_total_reading">Total reading</string>
@@ -536,11 +536,33 @@
     <string name="momentum_recent_sessions_limit">Only the latest %1$d sessions are shown.</string>
     <string name="momentum_no_sessions">Read for at least five minutes to start building Momentum.</string>
     <string name="momentum_goal_title">Weekly goal</string>
+    <string name="momentum_custom_goal">Custom</string>
+    <string name="momentum_custom_goal_value">Custom · %1$d min</string>
+    <string name="momentum_custom_goal_title">Set a custom goal</string>
+    <string name="momentum_custom_goal_field">Minutes per week</string>
+    <string name="momentum_custom_goal_range">Enter %1$d–%2$d minutes.</string>
+    <string name="momentum_custom_goal_error">Enter a whole number from %1$d to %2$d.</string>
+    <string name="momentum_previous_weeks">Previous weeks</string>
+    <string name="momentum_previous_weeks_collapsed">Previous weeks collapsed</string>
+    <string name="momentum_previous_weeks_expanded">Previous weeks expanded</string>
+    <string name="momentum_no_previous_weeks">No earlier weeks yet</string>
+    <string name="momentum_reset_this_week">Reset this week</string>
+    <string name="momentum_reset_title">Reset this week?</string>
+    <string name="momentum_reset_message">This clears this week’s Momentum totals from now on. Your reading history is preserved and will appear in Previous weeks after this week ends.</string>
+    <string name="momentum_reset_confirm">Reset</string>
     <string name="momentum_session_summary">%1$d min • %2$s words • %3$s</string>
     <string name="momentum_estimated_suffix"> estimated</string>
     <plurals name="momentum_sessions_count">
         <item quantity="one">%1$d session</item>
         <item quantity="other">%1$d sessions</item>
+    </plurals>
+    <plurals name="momentum_previous_weeks_count">
+        <item quantity="one">%1$d week with reading</item>
+        <item quantity="other">%1$d weeks with reading</item>
+    </plurals>
+    <plurals name="momentum_active_days_count">
+        <item quantity="one">%1$d active day</item>
+        <item quantity="other">%1$d active days</item>
     </plurals>
     <string name="search_kairo_title">Search Kairo</string>
     <string name="search_this_book_title">Search this book</string>

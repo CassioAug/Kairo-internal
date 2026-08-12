@@ -62,7 +62,14 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
         val sessions by container.readingSessionRepository.observeSessions().collectAsState(
             initial = emptyList(),
         )
-        val momentum = remember(sessions) { buildReadingMomentum(sessions) }
+        val currentLocalDayKey = rememberCurrentLocalDayKey()
+        val momentum =
+            remember(sessions, currentLocalDayKey, prefs.momentumResetCutoffAt) {
+                buildReadingMomentum(
+                    sessions = sessions,
+                    resetCutoffAt = prefs.momentumResetCutoffAt,
+                )
+            }
         val searchController = remember(container.searchRepository, coroutineScope) {
             LibrarySearchController(container.searchRepository, coroutineScope)
         }
@@ -190,6 +197,13 @@ internal fun LibraryRoute(input: LibraryRouteInput) =
             onWeeklyGoalChange = { minutes ->
                 coroutineScope.launch {
                     container.preferencesRepository.updateWeeklyReadingGoalMinutes(minutes)
+                }
+            },
+            onResetMomentum = {
+                coroutineScope.launch {
+                    container.preferencesRepository.updateMomentumResetCutoffAt(
+                        System.currentTimeMillis(),
+                    )
                 }
             },
             onImportFile = onImportFile,

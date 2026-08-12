@@ -519,7 +519,7 @@
     <string name="momentum_minutes_read">%1$d 分読書</string>
     <string name="momentum_words_read">%1$s 語</string>
     <string name="momentum_goal_progress">目標 %2$d 分中 %1$d 分</string>
-    <string name="momentum_consistency">過去7日中%1$d日</string>
+    <string name="momentum_consistency">今週の読書日数：%1$d</string>
     <string name="momentum_consistency_title">継続度</string>
     <string name="momentum_today">今日</string>
     <string name="momentum_total_reading">合計読書時間</string>
@@ -537,10 +537,30 @@
     <string name="momentum_recent_sessions_limit">最新の%1$dセッションのみ表示しています。</string>
     <string name="momentum_no_sessions">5分以上読むとMomentumの記録が始まります。</string>
     <string name="momentum_goal_title">週間目標</string>
+    <string name="momentum_custom_goal">カスタム</string>
+    <string name="momentum_custom_goal_value">カスタム · %1$d分</string>
+    <string name="momentum_custom_goal_title">カスタム目標を設定</string>
+    <string name="momentum_custom_goal_field">1週間の分数</string>
+    <string name="momentum_custom_goal_range">%1$d～%2$d分で入力してください。</string>
+    <string name="momentum_custom_goal_error">%1$d～%2$dの整数を入力してください。</string>
+    <string name="momentum_previous_weeks">過去の週</string>
+    <string name="momentum_previous_weeks_collapsed">過去の週を閉じています</string>
+    <string name="momentum_previous_weeks_expanded">過去の週を開いています</string>
+    <string name="momentum_no_previous_weeks">過去の週の記録はまだありません</string>
+    <string name="momentum_reset_this_week">今週をリセット</string>
+    <string name="momentum_reset_title">今週をリセットしますか？</string>
+    <string name="momentum_reset_message">今週のMomentum合計を現時点からゼロにします。読書履歴は保持され、今週が終わると「過去の週」に表示されます。</string>
+    <string name="momentum_reset_confirm">リセット</string>
     <string name="momentum_session_summary">%1$d 分 • %2$s 語 • %3$s</string>
     <string name="momentum_estimated_suffix">（推定）</string>
     <plurals name="momentum_sessions_count">
         <item quantity="other">%1$dセッション</item>
+    </plurals>
+    <plurals name="momentum_previous_weeks_count">
+        <item quantity="other">読書記録のある週：%1$d週</item>
+    </plurals>
+    <plurals name="momentum_active_days_count">
+        <item quantity="other">読書日数：%1$d日</item>
     </plurals>
     <string name="search_kairo_title">Kairoを検索</string>
     <string name="search_this_book_title">この本を検索</string>
