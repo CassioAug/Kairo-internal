@@ -32,6 +32,10 @@ import com.kairo.reader.core.rsvp.engine.applyBlinkSeparation
 import com.kairo.reader.core.rsvp.engine.applySessionRamps
 import com.kairo.reader.core.rsvp.engine.buildUnit
 import com.kairo.reader.core.rsvp.engine.normalizedForPlayback
+import com.kairo.reader.core.rsvp.segmentation.RsvpAtomStream
+import com.kairo.reader.core.rsvp.segmentation.RsvpDialogueRole
+import com.kairo.reader.core.rsvp.segmentation.RsvpDpSegmenter
+import com.kairo.reader.core.rsvp.segmentation.RsvpSegmentationDecision
 import com.kairo.reader.core.rsvp.text.boundaryBefore
 import com.kairo.reader.core.rsvp.text.boundaryBeforeForPunctuation
 import com.kairo.reader.core.rsvp.text.breakMarkerToken
@@ -55,6 +59,13 @@ interface RsvpEngine {
         startIndex: Int,
         config: RsvpConfig,
     ): List<RsvpFrame>
+
+    fun generateFrames(
+        tokens: List<Token>,
+        startIndex: Int,
+        config: RsvpConfig,
+        options: RsvpGenerationOptions,
+    ): List<RsvpFrame> = generateFrames(tokens, startIndex, config)
 }
 
 /**
@@ -73,10 +84,24 @@ class ComprehensionRsvpEngine : RsvpEngine {
         startIndex: Int,
         config: RsvpConfig,
     ): List<RsvpFrame> =
+        generateFrames(
+            tokens = tokens,
+            startIndex = startIndex,
+            config = config,
+            options = RsvpGenerationOptions.LEGACY,
+        )
+
+    override fun generateFrames(
+        tokens: List<Token>,
+        startIndex: Int,
+        config: RsvpConfig,
+        options: RsvpGenerationOptions,
+    ): List<RsvpFrame> =
         generateFramesWithNormalizedConfig(
             tokens = tokens,
             startIndex = startIndex,
             config = config.normalizedForPlayback(),
+            options = options,
         )
 }
 
@@ -84,6 +109,8 @@ private data class RsvpGenerationContext(
     val tokens: List<Token>,
     val expanded: List<ExpandedToken>,
     val config: RsvpConfig,
+    val options: RsvpGenerationOptions,
+    val atomStream: RsvpAtomStream?,
     val analysis: RsvpTokenAnalysis,
     val frames: MutableList<RsvpFrame>,
     val state: ContextState,
@@ -96,6 +123,7 @@ private fun generateFramesWithNormalizedConfig(
     tokens: List<Token>,
     startIndex: Int,
     config: RsvpConfig,
+    options: RsvpGenerationOptions,
 ): List<RsvpFrame> {
     if (tokens.isEmpty()) return emptyList()
 
@@ -107,6 +135,18 @@ private fun generateFramesWithNormalizedConfig(
             tokens = tokens,
             expanded = expanded,
             config = config,
+            options = options,
+            atomStream =
+                if (options.usesScoredSegmentation(config)) {
+                    RsvpAtomStream.build(
+                        expandedTokens = expanded,
+                        languagePolicy = options.languagePolicy,
+                        useDialogueDetection = config.useDialogueDetection,
+                        useParentheticalAside = config.useParentheticalAside,
+                    )
+                } else {
+                    null
+                },
             analysis = analyzeExpandedTokens(expanded, config),
             frames = mutableListOf(),
             state = ContextState(),
@@ -344,6 +384,7 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
     val wordCursor = findFirstWordCursor(expanded, cursor)
     if (wordCursor >= expanded.size) return null
     val frameStartCursor = cursor
+    val scoredSelection = selectScoredFrame(cursor)
     val contextBefore = state.snapshot()
     val (frameTokens, frameOriginalIndex, nextCursor) =
         buildUnit(
@@ -351,6 +392,7 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
             startCursor = cursor,
             config = config,
             state = state,
+            selectedWordCursors = scoredSelection?.selectedWordCursors,
         )
 
     val durationMs =
@@ -374,6 +416,10 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
                 pairedEmDashInUnit =
                 (frameStartCursor until nextCursor).any { it in analysis.pairedEmDashIndices },
                 afterPairedEmDash = followsPairedEmDash(wordCursor),
+                rhythmBoundaryStrengthMilli =
+                    scoredSelection?.boundaryStrengthBeforeMilli ?: 0,
+                explicitSpeakerTag =
+                    scoredSelection?.dialogueRole == RsvpDialogueRole.SPEAKER_TAG,
             ),
         )
 
@@ -397,6 +443,18 @@ private fun RsvpGenerationContext.appendReadingFrame(cursor: Int): Int? {
         )
 
     return consumeContextPunctuation(nextCursor)
+}
+
+private fun RsvpGenerationContext.selectScoredFrame(cursor: Int): RsvpSegmentationDecision? {
+    if (!options.usesScoredSegmentation(config)) return null
+    val atoms = atomStream ?: return null
+    return RsvpDpSegmenter
+        .selectWordCount(
+            atomStream = atoms,
+            startCursor = cursor,
+            config = config,
+            languagePolicy = options.languagePolicy,
+        )
 }
 
 /**

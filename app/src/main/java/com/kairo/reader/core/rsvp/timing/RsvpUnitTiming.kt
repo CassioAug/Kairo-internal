@@ -61,6 +61,8 @@ internal data class RsvpUnitTimingInput(
     val prose: ProseState? = null,
     val pairedEmDashInUnit: Boolean = false,
     val afterPairedEmDash: Boolean = false,
+    val rhythmBoundaryStrengthMilli: Int = 0,
+    val explicitSpeakerTag: Boolean = false,
 )
 
 private class RsvpUnitTimingContext(input: RsvpUnitTimingInput) {
@@ -81,6 +83,8 @@ private class RsvpUnitTimingContext(input: RsvpUnitTimingInput) {
     val prose = input.prose
     val pairedEmDashInUnit = input.pairedEmDashInUnit
     val afterPairedEmDash = input.afterPairedEmDash
+    val rhythmBoundaryStrengthMilli = input.rhythmBoundaryStrengthMilli
+    val explicitSpeakerTag = input.explicitSpeakerTag
     val msPerWord = config.tempoMsPerWord.toDouble()
     val pauseScale = pauseScale(msPerWord, config)
     val clausePauseScale =
@@ -175,6 +179,7 @@ private class RsvpUnitTimingContext(input: RsvpUnitTimingInput) {
             nextWord = nextWord,
             config = config,
             speedStrength = speedStrength,
+            explicitSpeakerTag = explicitSpeakerTag,
         )
 }
 
@@ -454,7 +459,12 @@ internal fun computeUnitDurationMs(input: RsvpUnitTimingInput): Long =
                 isBoundary = hardBoundary,
             )
 
-        val smoothedWordDuration = rhythm.apply(duration, isBoundary = hardBoundary)
+        val smoothedWordDuration =
+            rhythm.apply(
+                rawMs = duration,
+                isBoundary = hardBoundary,
+                boundaryStrengthMilli = rhythmBoundaryStrengthMilli,
+            )
 
         // Now add punctuation pauses on top of the smoothed word duration.
         // These pauses are intentionally NOT smoothed so they remain prominent.
