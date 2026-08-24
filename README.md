@@ -1,3 +1,5 @@
+> This is an internal fork of Kairo by Steadyx. It is not affiliated with, endorsed by, or maintained by the original authors. All original copyrights apply. I have forked this to lock in version 1.2.0 and to consider adding internal patches.
+
 # <p align="center">Kairo</p>
 
 <p align="center">
