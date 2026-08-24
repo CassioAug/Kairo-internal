@@ -1,0 +1,37 @@
+package com.kairo.reader.core.rsvp.segmentation
+
+internal object RsvpSegmentationWeightsV2 {
+    const val VERSION = 2
+    const val FIXED_POINT_SCALE = 1000
+
+    const val TIGHT_PAIR_AFFINITY = 520
+    const val PRONOUN_AUXILIARY_AFFINITY = 430
+    const val AUXILIARY_CONTENT_AFFINITY = 310
+    const val COHERENCE_AFFINITY_MAX = 260
+    const val GENERAL_SHORT_PAIR_AFFINITY = 150
+    const val GLUE_PAIR_AFFINITY = 80
+    const val COMMON_PAIR_AFFINITY = 50
+
+    const val UNIVERSAL_SHORT_PAIR_AFFINITY = 170
+    const val CJK_SHORT_UNITS_AFFINITY = 440
+    const val ENTITY_INTERNAL_AFFINITY = 900
+    const val CASE_SHAPE_COHESION_AFFINITY = 240
+    const val DIALOGUE_COHESION_AFFINITY = 220
+    const val SPEAKER_TAG_AFFINITY = 520
+    const val PARENTHETICAL_COHESION_AFFINITY = 160
+    const val DIALOGUE_ROLE_TRANSITION_PENALTY = 260
+
+    const val ENGLISH_CHARACTER_LOAD = 12
+    const val UNIVERSAL_CHARACTER_LOAD = 55
+    const val CJK_CHARACTER_LOAD = 180
+    const val FRAME_LOAD_BUDGET = 900
+    const val LOAD_EXCESS_PENALTY = 2
+    const val DIFFICULT_WORD_THRESHOLD = 250
+    const val DIFFICULT_COLLISION_BASE_PENALTY = 550
+    const val DIFFICULT_COLLISION_EXCESS_DIVISOR = 2
+    const val CUT_AFFINITY_DIVISOR = 2
+
+    const val UNIVERSAL_SHORT_PAIR_MAX_VISIBLE_CODE_POINTS = 11
+    const val CJK_SHORT_PAIR_MAX_VISIBLE_CODE_POINTS = 6
+    const val HORIZON_WORDS = 6
+}
