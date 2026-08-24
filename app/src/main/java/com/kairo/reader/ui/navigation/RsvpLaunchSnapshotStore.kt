@@ -8,7 +8,13 @@ internal object RsvpLaunchSnapshotStore {
 
     private data class SnapshotKey(val bookId: String, val chapterIndex: Int,)
 
-    private data class Snapshot(val tokens: List<Token>, val createdAtMs: Long,)
+    internal data class LaunchSnapshot(val tokens: List<Token>, val languageTag: String?,)
+
+    private data class Snapshot(
+        val tokens: List<Token>,
+        val languageTag: String?,
+        val createdAtMs: Long,
+    )
 
     private val snapshots = LinkedHashMap<SnapshotKey, Snapshot>()
 
@@ -16,6 +22,7 @@ internal object RsvpLaunchSnapshotStore {
         bookId: String,
         chapterIndex: Int,
         tokens: List<Token>,
+        languageTag: String? = null,
     ) {
         val key = SnapshotKey(bookId, chapterIndex)
         if (tokens.isEmpty()) {
@@ -24,7 +31,12 @@ internal object RsvpLaunchSnapshotStore {
         }
         pruneExpired()
         snapshots.remove(key)
-        snapshots[key] = Snapshot(tokens = tokens, createdAtMs = System.currentTimeMillis())
+        snapshots[key] =
+            Snapshot(
+                tokens = tokens,
+                languageTag = languageTag,
+                createdAtMs = System.currentTimeMillis(),
+            )
         trimToMaxSize()
     }
 
@@ -34,6 +46,16 @@ internal object RsvpLaunchSnapshotStore {
     ): List<Token> {
         pruneExpired()
         return snapshots[SnapshotKey(bookId, chapterIndex)]?.tokens.orEmpty()
+    }
+
+    fun snapshotFor(
+        bookId: String,
+        chapterIndex: Int,
+    ): LaunchSnapshot? {
+        pruneExpired()
+        return snapshots[SnapshotKey(bookId, chapterIndex)]?.let { snapshot ->
+            LaunchSnapshot(tokens = snapshot.tokens, languageTag = snapshot.languageTag)
+        }
     }
 
     fun clear(

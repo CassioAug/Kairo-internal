@@ -17,7 +17,11 @@ internal data class RsvpRouteData(
     val chapterCount: Int,
     val savedResumePosition: ReadingPosition?,
     val languageTag: String?,
-)
+    val tokensResolved: Boolean,
+    val languageResolved: Boolean,
+) {
+    val isReady: Boolean get() = tokensResolved && languageResolved
+}
 
 @Composable
 internal fun rememberRsvpRouteData(
@@ -27,9 +31,9 @@ internal fun rememberRsvpRouteData(
     safeStartIndex: Int,
 ): RsvpRouteData {
     val bookIdValue = remember(bookId) { BookId(bookId) }
-    val launchSnapshotTokens =
+    val launchSnapshot =
         remember(bookId, chapterIndex) {
-            RsvpLaunchSnapshotStore.tokensFor(bookId, chapterIndex)
+            RsvpLaunchSnapshotStore.snapshotFor(bookId, chapterIndex)
         }
     DisposableEffect(bookId, chapterIndex) {
         onDispose {
@@ -38,10 +42,12 @@ internal fun rememberRsvpRouteData(
     }
     val initialRouteData =
         RsvpRouteData(
-            tokens = launchSnapshotTokens,
+            tokens = launchSnapshot?.tokens.orEmpty(),
             chapterCount = chapterIndex + 1,
             savedResumePosition = null,
-            languageTag = null,
+            languageTag = launchSnapshot?.languageTag,
+            tokensResolved = launchSnapshot != null,
+            languageResolved = launchSnapshot != null,
         )
 
     val routeData by produceState(
@@ -53,10 +59,14 @@ internal fun rememberRsvpRouteData(
         value = initialRouteData
         coroutineScope {
             val loadedTokensDeferred =
-                async {
-                    runCatching {
-                        container.tokenRepository.getTokens(bookIdValue, chapterIndex)
-                    }.getOrElse { emptyList() }
+                if (launchSnapshot == null) {
+                    async {
+                        runCatching {
+                            container.tokenRepository.getTokens(bookIdValue, chapterIndex)
+                        }.getOrElse { emptyList() }
+                    }
+                } else {
+                    null
                 }
             val chapterCountDeferred =
                 async {
@@ -71,28 +81,40 @@ internal fun rememberRsvpRouteData(
                     }.getOrNull()
                 }
             val languageTagDeferred =
-                async {
-                    runCatching {
-                        container.bookRepository.getBookLanguageTag(bookIdValue)
-                    }.getOrNull()
+                if (launchSnapshot == null) {
+                    async {
+                        runCatching {
+                            container.bookRepository.getBookLanguageTag(bookIdValue)
+                        }.getOrNull()
+                    }
+                } else {
+                    null
                 }
 
-            val loadedTokens = loadedTokensDeferred.await()
-            if (loadedTokens.isNotEmpty() || value.tokens.isEmpty()) {
-                value = value.copy(tokens = loadedTokens)
-            }
-            if (loadedTokens.isNotEmpty()) {
-                RsvpLaunchSnapshotStore.clear(bookId, chapterIndex)
+            if (loadedTokensDeferred != null && languageTagDeferred != null) {
+                val loadedTokens = loadedTokensDeferred.await()
+                val loadedLanguageTag = languageTagDeferred.await()
+                value = value.withResolvedContent(loadedTokens, loadedLanguageTag)
             }
 
             value =
                 value.copy(
                     chapterCount = chapterCountDeferred.await(),
                     savedResumePosition = savedResumePositionDeferred.await(),
-                    languageTag = languageTagDeferred.await(),
                 )
         }
     }
 
     return routeData
 }
+
+internal fun RsvpRouteData.withResolvedContent(
+    loadedTokens: List<Token>,
+    loadedLanguageTag: String?,
+): RsvpRouteData =
+    copy(
+        tokens = loadedTokens.takeIf { it.isNotEmpty() } ?: tokens,
+        languageTag = loadedLanguageTag,
+        tokensResolved = true,
+        languageResolved = true,
+    )

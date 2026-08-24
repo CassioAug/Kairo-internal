@@ -361,6 +361,7 @@ private fun rememberFrameLoadState(
         book.bookId,
         book.chapterIndex,
         book.startIndex,
+        book.generationOptions,
         loadConfigKey,
         instantFrameTokenCount,
     ) {
@@ -374,13 +375,31 @@ private fun rememberFrameLoadState(
             )?.let { frameSet -> LoadedRsvpFrameSet(frameSet = frameSet, isComplete = false) },
         )
     }
-    var isFramesLoading by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
+    var isFramesLoading by remember(
+        book.bookId,
+        book.chapterIndex,
+        book.startIndex,
+        book.generationOptions,
+        loadConfigKey,
+    ) {
         mutableStateOf(true)
     }
-    var frameLoadFailed by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
+    var frameLoadFailed by remember(
+        book.bookId,
+        book.chapterIndex,
+        book.startIndex,
+        book.generationOptions,
+        loadConfigKey,
+    ) {
         mutableStateOf(false)
     }
-    var loadAttempt by remember(book.bookId, book.chapterIndex, book.startIndex, loadConfigKey) {
+    var loadAttempt by remember(
+        book.bookId,
+        book.chapterIndex,
+        book.startIndex,
+        book.generationOptions,
+        loadConfigKey,
+    ) {
         mutableIntStateOf(0)
     }
 
@@ -388,6 +407,7 @@ private fun rememberFrameLoadState(
         book.bookId,
         book.chapterIndex,
         book.startIndex,
+        book.generationOptions,
         loadConfigKey,
         instantFrameTokenCount,
         loadAttempt,
@@ -410,6 +430,7 @@ private fun rememberFrameLoadState(
                         tokens = book.tokens,
                         startIndex = loadStartIndex,
                         config = profile.config,
+                        options = book.generationOptions,
                     )
                 }.onFailure { error ->
                     if (error is CancellationException) {
@@ -428,6 +449,7 @@ private fun rememberFrameLoadState(
                     book.chapterIndex,
                     profile.config,
                     startIndex = loadStartIndex,
+                    options = book.generationOptions,
                 )
             }.onFailure { error ->
                 if (error is CancellationException) {

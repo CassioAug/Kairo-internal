@@ -18,10 +18,12 @@ import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.buildWordCountByToken
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.core.rsvp.RsvpSegmentationRolloutResolver
 import com.kairo.reader.data.sessions.ReadingSessionLocation
 import com.kairo.reader.ui.rsvp.ReadingPresentationMode
 import com.kairo.reader.ui.rsvp.RsvpBookContext
 import com.kairo.reader.ui.rsvp.RsvpLayoutBias
+import com.kairo.reader.ui.rsvp.RsvpLoadingState
 import com.kairo.reader.ui.rsvp.RsvpProfileContext
 import com.kairo.reader.ui.rsvp.RsvpScreen
 import com.kairo.reader.ui.rsvp.RsvpScreenDependencies
@@ -77,6 +79,10 @@ internal fun RsvpRoute(
             chapterIndex = chapterIndex,
             safeStartIndex = safeStartIndex,
         )
+    if (!routeData.isReady) {
+        RsvpLoadingState(presentationMode)
+        return
+    }
     val tokens = routeData.tokens
     val wordCountByToken = remember(tokens) { buildWordCountByToken(tokens) }
     val startResumeCursor =
@@ -120,6 +126,14 @@ internal fun RsvpRoute(
     )
     val resolvedRsvpConfig =
         RsvpConfigResolver.resolve(prefs.rsvpConfig, routeData.languageTag)
+    val generationOptions =
+        remember(routeData.languageTag, resolvedRsvpConfig) {
+            RsvpSegmentationRolloutResolver.resolve(
+                languageTag = routeData.languageTag,
+                config = resolvedRsvpConfig,
+                isDebugBuild = container.isDebuggableBuild(),
+            )
+        }
     fun saveRsvpPosition(
         targetChapterIndex: Int,
         targetTokenIndex: Int,
@@ -148,6 +162,7 @@ internal fun RsvpRoute(
                 startIndex = safeStartIndex,
                 startResumeCursor = startResumeCursor,
                 sessionStartIndex = startIndex.coerceAtLeast(0),
+                generationOptions = generationOptions,
             ),
             profile =
             RsvpProfileContext(
