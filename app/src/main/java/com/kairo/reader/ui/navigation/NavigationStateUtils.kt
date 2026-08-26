@@ -11,6 +11,7 @@ import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.model.wordIndexForToken
 import com.kairo.reader.core.rsvp.RsvpEstimatedReadingPace
+import com.kairo.reader.core.rsvp.RsvpPaceEstimationOptions
 import com.kairo.reader.ui.rsvp.RsvpResumePoint
 import kotlinx.coroutines.withContext
 
@@ -30,12 +31,14 @@ internal fun rememberReaderEstimatedWpm(
     fallbackEstimatedWpm: Int,
     dispatcherProvider: DispatcherProvider,
     languageTag: String? = null,
+    paceOptions: RsvpPaceEstimationOptions = RsvpPaceEstimationOptions.LEGACY,
 ): Int {
     val estimatedWpm by produceState(
         initialValue = fallbackEstimatedWpm,
         baseConfig,
         fallbackEstimatedWpm,
         languageTag,
+        paceOptions,
     ) {
         value =
             withContext(dispatcherProvider.default) {
@@ -43,6 +46,7 @@ internal fun rememberReaderEstimatedWpm(
                     config = baseConfig,
                     fallbackEstimatedWpm = fallbackEstimatedWpm,
                     languageTag = languageTag,
+                    paceOptions = paceOptions,
                 )
             }
     }

@@ -45,6 +45,8 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.UserPreferences
 import com.kairo.reader.core.model.nearestWordIndex
 import com.kairo.reader.core.rsvp.RsvpConfigResolver
+import com.kairo.reader.core.rsvp.RsvpGenerationOptions
+import com.kairo.reader.core.rsvp.RsvpSegmentationRolloutResolver
 import com.kairo.reader.ui.reader.ReaderScreen
 import com.kairo.reader.ui.reader.ReaderUiState
 import com.kairo.reader.ui.reader.ReaderViewModel
@@ -146,14 +148,17 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
         )
 
         val resolvedRsvpConfig = RsvpConfigResolver.resolve(prefs.rsvpConfig, book.languageTag)
+        val rsvpGenerationOptions =
+            rememberReaderRsvpGenerationOptions(container, book.languageTag, resolvedRsvpConfig)
         val readerEstimatedWpm =
             rememberReaderEstimatedWpm(
                 baseConfig = resolvedRsvpConfig,
                 fallbackEstimatedWpm = estimatedWpm,
                 dispatcherProvider = dispatcherProvider,
                 languageTag = book.languageTag,
+                paceOptions = rsvpGenerationOptions.asPaceEstimationOptions(),
             )
-        PrefetchReaderFrames(hasInitialized, uiState, resolvedRsvpConfig, container, bookId)
+        PrefetchReaderFrames(hasInitialized, uiState, resolvedRsvpConfig, rsvpGenerationOptions, container, bookId)
         val savedBindings =
             rememberReaderSavedBindings(
                 container = container,
@@ -171,6 +176,7 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
                     prefs = prefs,
                     bookId = bookId,
                     bookIdValue = BookId(bookId),
+                    languageTag = book.languageTag,
                     dispatcherProvider = dispatcherProvider,
                     coroutineScope = coroutineScope,
                     lifecycleScope = lifecycleOwner.lifecycleScope,
@@ -243,6 +249,20 @@ internal fun ReaderRoute(input: ReaderRouteInput) {
         )
     }
 }
+
+@Composable
+private fun rememberReaderRsvpGenerationOptions(
+    container: KairoApplication,
+    languageTag: String?,
+    config: RsvpConfig,
+): RsvpGenerationOptions =
+    remember(languageTag, config) {
+        RsvpSegmentationRolloutResolver.resolve(
+            languageTag = languageTag,
+            config = config,
+            isDebugBuild = container.isDebuggableBuild(),
+        )
+    }
 
 @Composable
 private fun rememberReaderViewModel(container: KairoApplication): ReaderViewModel =
@@ -351,10 +371,17 @@ private fun PrefetchReaderFrames(
     hasInitialized: Boolean,
     uiState: ReaderUiState,
     config: RsvpConfig,
+    generationOptions: RsvpGenerationOptions,
     container: KairoApplication,
     bookId: String,
 ) {
-    LaunchedEffect(uiState.chapterIndex, uiState.chapterData, uiState.focusIndex, config) {
+    LaunchedEffect(
+        uiState.chapterIndex,
+        uiState.chapterData,
+        uiState.focusIndex,
+        config,
+        generationOptions,
+    ) {
         if (!hasInitialized) return@LaunchedEffect
         val tokens = uiState.chapterData?.tokens?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
         val safeStartIndex = tokens.nearestWordIndex(uiState.focusIndex).coerceIn(0, tokens.lastIndex)
@@ -363,6 +390,7 @@ private fun PrefetchReaderFrames(
             uiState.chapterIndex,
             config,
             startIndex = safeStartIndex,
+            options = generationOptions,
         )
     }
 }

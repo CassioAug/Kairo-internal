@@ -171,6 +171,7 @@ internal fun speakerTagMultiplier(
     nextWord: Token?,
     config: RsvpConfig,
     speedStrength: Double,
+    explicitSpeakerTag: Boolean = false,
 ): Double {
     if (!config.useDialogueDetection) return 1.0
 
@@ -181,6 +182,7 @@ internal fun speakerTagMultiplier(
     val prevText = prevWord?.text
     val nextText = nextWord?.text
     val hasSpeakerVerb =
+        explicitSpeakerTag ||
         wordsInFrame.any { DialogueAnalyzer.isSpeakerVerb(it.text) } ||
             (prevText != null && DialogueAnalyzer.isSpeakerVerb(prevText)) ||
             (nextText != null && DialogueAnalyzer.isSpeakerVerb(nextText))
@@ -207,7 +209,7 @@ internal fun speakerTagMultiplier(
         }
     }
 
-    val matchesTag = candidates.any { DialogueAnalyzer.isSpeakerTag(it) }
+    val matchesTag = explicitSpeakerTag || candidates.any { DialogueAnalyzer.isSpeakerTag(it) }
     return if (matchesTag) {
         val dialogueSpeedStrength =
             max(
@@ -454,10 +456,50 @@ internal fun multiWordPenalty(wordCount: Int): Double =
         else -> MULTI_WORD_FRAME_PENALTY
     }
 
-internal fun isPhraseChunkCandidate(
+internal enum class PhraseChunkReason {
+    TIGHT_PAIR,
+    PRONOUN_AUXILIARY,
+    AUXILIARY_CONTENT,
+    COHERENT_SHORT_PAIR,
+    GENERAL_SHORT_PAIR,
+    SUBWORD,
+    TRAILING_HYPHEN,
+    CLAUSE_BOUNDARY,
+    COORDINATING_CONJUNCTION,
+    SEMANTIC_ANCHOR,
+    NO_AFFINITY,
+}
+
+internal data class PhraseChunkPairFeatures(
+    val legacyCompatible: Boolean,
+    val tightPair: Boolean,
+    val pronounAuxiliaryBridge: Boolean,
+    val auxiliaryContentBridge: Boolean,
+    val coherentShortPair: Boolean,
+    val generalShortPair: Boolean,
+    val gluePair: Boolean,
+    val bothCommon: Boolean,
+    val coherenceScoreMilli: Int,
+    val reasons: List<PhraseChunkReason>,
+)
+
+private data class PhraseChunkDecisionEvidence(
+    val tightPair: Boolean,
+    val pronounAuxiliaryBridge: Boolean,
+    val auxiliaryContentBridge: Boolean,
+    val coherentShortPair: Boolean,
+    val generalShortPair: Boolean,
+    val hasSubword: Boolean,
+    val trailingHyphen: Boolean,
+    val clauseBoundary: Boolean,
+    val coordinatingConjunction: Boolean,
+    val semanticAnchor: Boolean,
+)
+
+internal fun analyzePhraseChunkPair(
     prev: Token,
     next: Token,
-): Boolean {
+): PhraseChunkPairFeatures {
     val prevLower = prev.text.lowercase()
     val nextLower = next.text.lowercase()
     val pairKey = "$prevLower $nextLower"
@@ -487,21 +529,69 @@ internal fun isPhraseChunkCandidate(
             next.frequencyScore >= COMMON_WORD_FREQUENCY_THRESHOLD
 
     val generalShortPair = (glue && bothShort) || (bothShort && bothCommon)
-    val disqualified =
-        prev.isSubwordChunk ||
-            next.isSubwordChunk ||
-            prev.text.endsWith("-") ||
-            prev.isClauseBoundary ||
-            next.isClauseBoundary ||
-            ClauseDetector.isCoordinatingConjunction(prevLower)
+    val tightPair = pairKey in TIGHT_PAIR_HINTS
+    val hasSubword = prev.isSubwordChunk || next.isSubwordChunk
+    val trailingHyphen = prev.text.endsWith("-")
+    val clauseBoundary = prev.isClauseBoundary || next.isClauseBoundary
+    val coordinatingConjunction = ClauseDetector.isCoordinatingConjunction(prevLower)
+    val semanticAnchor = nextLower in SEMANTIC_ANCHOR_WORDS
+    val decisionEvidence =
+        PhraseChunkDecisionEvidence(
+            tightPair = tightPair,
+            pronounAuxiliaryBridge = pronounAuxiliaryBridge,
+            auxiliaryContentBridge = auxiliaryContentBridge,
+            coherentShortPair = coherentShortPair,
+            generalShortPair = generalShortPair,
+            hasSubword = hasSubword,
+            trailingHyphen = trailingHyphen,
+            clauseBoundary = clauseBoundary,
+            coordinatingConjunction = coordinatingConjunction,
+            semanticAnchor = semanticAnchor,
+        )
+    return PhraseChunkPairFeatures(
+        legacyCompatible = decisionEvidence.isLegacyCompatible(),
+        tightPair = tightPair,
+        pronounAuxiliaryBridge = pronounAuxiliaryBridge,
+        auxiliaryContentBridge = auxiliaryContentBridge,
+        coherentShortPair = coherentShortPair,
+        generalShortPair = generalShortPair,
+        gluePair = glue,
+        bothCommon = bothCommon,
+        coherenceScoreMilli = (coherenceScore.coerceIn(0.0, 1.0) * FIXED_POINT_SCALE).toInt(),
+        reasons = decisionEvidence.reasons(),
+    )
+}
+
+private fun PhraseChunkDecisionEvidence.isLegacyCompatible(): Boolean {
+    val disqualified = hasSubword || trailingHyphen || clauseBoundary || coordinatingConjunction
     return when {
         disqualified -> false
-        pairKey in TIGHT_PAIR_HINTS -> true
-        nextLower in SEMANTIC_ANCHOR_WORDS -> false
+        tightPair -> true
+        semanticAnchor -> false
         pronounAuxiliaryBridge || auxiliaryContentBridge -> true
         else -> coherentShortPair || generalShortPair
     }
 }
+
+private fun PhraseChunkDecisionEvidence.reasons(): List<PhraseChunkReason> =
+    buildList {
+        if (tightPair) add(PhraseChunkReason.TIGHT_PAIR)
+        if (pronounAuxiliaryBridge) add(PhraseChunkReason.PRONOUN_AUXILIARY)
+        if (auxiliaryContentBridge) add(PhraseChunkReason.AUXILIARY_CONTENT)
+        if (coherentShortPair) add(PhraseChunkReason.COHERENT_SHORT_PAIR)
+        if (generalShortPair) add(PhraseChunkReason.GENERAL_SHORT_PAIR)
+        if (hasSubword) add(PhraseChunkReason.SUBWORD)
+        if (trailingHyphen) add(PhraseChunkReason.TRAILING_HYPHEN)
+        if (clauseBoundary) add(PhraseChunkReason.CLAUSE_BOUNDARY)
+        if (coordinatingConjunction) add(PhraseChunkReason.COORDINATING_CONJUNCTION)
+        if (semanticAnchor) add(PhraseChunkReason.SEMANTIC_ANCHOR)
+        if (isEmpty()) add(PhraseChunkReason.NO_AFFINITY)
+    }
+
+internal fun isPhraseChunkCandidate(
+    prev: Token,
+    next: Token,
+): Boolean = analyzePhraseChunkPair(prev, next).legacyCompatible
 
 internal fun terminalWordMultiplier(
     wordIndex: Int,
@@ -601,6 +691,7 @@ private const val MAX_COHERENT_CHUNK_NEXT_CHARS = 8
 private const val MAX_GENERAL_CHUNK_PREV_CHARS = 4
 private const val MAX_GENERAL_CHUNK_NEXT_CHARS = 7
 private const val COMMON_WORD_FREQUENCY_THRESHOLD = 0.7
+private const val FIXED_POINT_SCALE = 1000
 private const val WORD_EASE_BASE_CHARS = 4
 private const val WORD_EASE_LENGTH_SCALE = 8.0
 private const val WORD_EASE_SYLLABLE_SCALE = 4.0

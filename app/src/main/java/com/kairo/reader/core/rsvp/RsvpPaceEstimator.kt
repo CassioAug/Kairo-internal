@@ -19,7 +19,10 @@ object RsvpPaceEstimator {
     private val tokenizer = Tokenizer()
     private val engine = ComprehensionRsvpEngine()
 
-    fun estimateWpm(config: RsvpConfig): Int {
+    fun estimateWpm(
+        config: RsvpConfig,
+        options: RsvpPaceEstimationOptions = RsvpPaceEstimationOptions.LEGACY,
+    ): Int {
         val steadyConfig =
             config.copy(
                 startDelayMs = 0L,
@@ -39,7 +42,13 @@ object RsvpPaceEstimator {
             )
 
         val wordCount = tokens.count { it.type == TokenType.WORD }.coerceAtLeast(1)
-        val frames = engine.generateFrames(tokens, startIndex = 0, config = steadyConfig)
+        val frames =
+            engine.generateFrames(
+                tokens = tokens,
+                startIndex = 0,
+                config = steadyConfig,
+                options = options.asGenerationOptions(),
+            )
         val totalMs =
             frames.sumOf { frame ->
                 if (shouldSkipBlinkFrame(

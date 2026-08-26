@@ -1,6 +1,6 @@
 package com.kairo.reader.core.rsvp
 
-import com.kairo.reader.core.language.LanguageTagNormalizer
+import com.kairo.reader.core.language.LanguageFamilyClassifier
 import com.kairo.reader.core.model.BlinkMode
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
@@ -23,6 +23,7 @@ object RsvpEstimatedReadingPace {
         sessionTempoMsPerWord: Long? = null,
         fallbackEstimatedWpm: Int = 0,
         languageTag: String? = null,
+        paceOptions: RsvpPaceEstimationOptions = RsvpPaceEstimationOptions.LEGACY,
     ): Int {
         val effectiveConfig =
             sessionTempoMsPerWord
@@ -32,12 +33,18 @@ object RsvpEstimatedReadingPace {
         val cacheKey =
             EstimatedWpmCacheKey(
                 timingConfig = effectiveConfig.estimatedWpmTimingKey(),
-                languageTag = normalizedLanguageTag(languageTag),
+                paceOptions = paceOptions,
+                targetLanguageTag = LanguageFamilyClassifier.classify(languageTag).normalizedTag,
             )
         cachedEstimate(cacheKey)?.let { return it }
 
         val estimatedWpm =
-            runCatching { RsvpPaceEstimator.estimateWpm(effectiveConfig) }
+            runCatching {
+                RsvpPaceEstimator.estimateWpm(
+                    config = effectiveConfig,
+                    options = paceOptions,
+                )
+            }
                 .getOrNull()
         if (estimatedWpm != null) {
             cacheEstimate(cacheKey, estimatedWpm)
@@ -89,6 +96,7 @@ object RsvpEstimatedReadingPace {
         sessionTempoMsPerWord: Long?,
         fallbackEstimatedWpm: Int = 0,
         languageTag: String? = null,
+        paceOptions: RsvpPaceEstimationOptions = RsvpPaceEstimationOptions.LEGACY,
     ): Int {
         val effectiveTempoMsPerWord =
             sessionTempoMsPerWord
@@ -102,6 +110,7 @@ object RsvpEstimatedReadingPace {
                     config = config,
                     sessionTempoMsPerWord = sessionTempoMsPerWord,
                     languageTag = languageTag,
+                    paceOptions = paceOptions,
                 )
         }
 
@@ -137,6 +146,7 @@ object RsvpEstimatedReadingPace {
                     config = config,
                     sessionTempoMsPerWord = sessionTempoMsPerWord,
                     languageTag = languageTag,
+                    paceOptions = paceOptions,
                 )
         }
 
@@ -167,11 +177,13 @@ object RsvpEstimatedReadingPace {
             rampDownFrames = 0,
         )
 
-    private fun normalizedLanguageTag(languageTag: String?): String? =
-        LanguageTagNormalizer.normalize(languageTag)?.lowercase()
 }
 
-private data class EstimatedWpmCacheKey(val timingConfig: RsvpConfig, val languageTag: String?,)
+internal data class EstimatedWpmCacheKey(
+    val timingConfig: RsvpConfig,
+    val paceOptions: RsvpPaceEstimationOptions,
+    val targetLanguageTag: String?,
+)
 
 private val estimateCacheLock = Any()
 private val estimatedWpmCache =

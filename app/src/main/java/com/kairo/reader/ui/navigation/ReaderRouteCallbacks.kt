@@ -44,6 +44,7 @@ internal data class ReaderRouteCallbackDependencies(
     val prefs: UserPreferences,
     val bookId: String,
     val bookIdValue: BookId,
+    val languageTag: String?,
     val dispatcherProvider: DispatcherProvider,
     val coroutineScope: CoroutineScope,
     val lifecycleScope: CoroutineScope,
@@ -235,6 +236,7 @@ private fun ReaderRouteCallbackDependencies.startTimedReading(
         bookId = bookId,
         chapterIndex = uiState.chapterIndex,
         tokens = uiState.chapterData?.tokens.orEmpty(),
+        languageTag = languageTag,
     )
     val wordIndex = resolveWordIndex(uiState.chapterData?.wordCountByToken, start)
     val launchTempoMsPerWord =

@@ -4,6 +4,7 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
+import com.kairo.reader.core.rsvp.RsvpGenerationOptions
 
 data class RsvpFrameSet(
     val frames: List<RsvpFrame>,
@@ -19,6 +20,14 @@ interface RsvpFrameRepository {
         startIndex: Int = 0,
     ): RsvpFrameSet
 
+    suspend fun getFrames(
+        bookId: BookId,
+        chapterIndex: Int,
+        config: RsvpConfig,
+        startIndex: Int = 0,
+        options: RsvpGenerationOptions,
+    ): RsvpFrameSet = getFrames(bookId, chapterIndex, config, startIndex)
+
     fun prefetchFrames(
         bookId: BookId,
         chapterIndex: Int,
@@ -28,6 +37,16 @@ interface RsvpFrameRepository {
         // Optional optimization; default no-op for implementations without prefetching.
     }
 
+    fun prefetchFrames(
+        bookId: BookId,
+        chapterIndex: Int,
+        config: RsvpConfig,
+        startIndex: Int = 0,
+        options: RsvpGenerationOptions,
+    ) {
+        prefetchFrames(bookId, chapterIndex, config, startIndex)
+    }
+
     suspend fun getPreviewFrames(
         tokens: List<Token>,
         startIndex: Int,
@@ -35,6 +54,14 @@ interface RsvpFrameRepository {
         maxTokenCount: Int = DEFAULT_PREVIEW_TOKEN_COUNT,
     ): RsvpFrameSet =
         RsvpFrameSet(frames = emptyList(), baseTempoMs = config.tempoMsPerWord)
+
+    suspend fun getPreviewFrames(
+        tokens: List<Token>,
+        startIndex: Int,
+        config: RsvpConfig,
+        maxTokenCount: Int = DEFAULT_PREVIEW_TOKEN_COUNT,
+        options: RsvpGenerationOptions,
+    ): RsvpFrameSet = getPreviewFrames(tokens, startIndex, config, maxTokenCount)
 
     fun clearCache()
 
