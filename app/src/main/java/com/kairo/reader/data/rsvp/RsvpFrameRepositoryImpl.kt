@@ -5,10 +5,13 @@ import com.kairo.reader.core.model.BookId
 import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.Token
+import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.rsvp.RsvpEngine
+import com.kairo.reader.core.rsvp.RsvpGenerationOptions
 import com.kairo.reader.core.rsvp.engine.frameTimingKey
 import com.kairo.reader.core.rsvp.resolveAnalysisStartIndex
 import com.kairo.reader.core.rsvp.timing.RsvpSessionTimingPolicy
+import com.kairo.reader.core.rsvp.usesScoredSegmentation
 import com.kairo.reader.data.token.TokenRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +39,7 @@ class RsvpFrameRepositoryImpl(
         val timingConfig: RsvpConfig,
         val startIndex: Int,
         val mode: CacheMode,
+        val options: RsvpGenerationOptions,
         val generation: Long,
     )
 
@@ -63,6 +67,21 @@ class RsvpFrameRepositoryImpl(
         chapterIndex: Int,
         config: RsvpConfig,
         startIndex: Int,
+    ): RsvpFrameSet =
+        getFrames(
+            bookId = bookId,
+            chapterIndex = chapterIndex,
+            config = config,
+            startIndex = startIndex,
+            options = RsvpGenerationOptions.LEGACY,
+        )
+
+    override suspend fun getFrames(
+        bookId: BookId,
+        chapterIndex: Int,
+        config: RsvpConfig,
+        startIndex: Int,
+        options: RsvpGenerationOptions,
     ): RsvpFrameSet {
         val safeStartIndex = startIndex.coerceAtLeast(0)
         val segmentStartIndex = safeStartIndex.segmentStartIndex()
@@ -75,6 +94,7 @@ class RsvpFrameRepositoryImpl(
                 baseConfig.frameTimingKey(),
                 segmentStartIndex,
                 CacheMode.SEGMENT_BASE,
+                options,
                 generation,
             )
         val baseFrameSet =
@@ -84,6 +104,7 @@ class RsvpFrameRepositoryImpl(
                 chapterIndex = chapterIndex,
                 config = baseConfig,
                 startIndex = segmentStartIndex,
+                options = options,
             ).await()
         val playbackFrameSet = baseFrameSet.asPlaybackFrameSet(safeStartIndex, config)
         if (!playbackFrameSet.startsBefore(safeStartIndex)) return playbackFrameSet
@@ -95,9 +116,17 @@ class RsvpFrameRepositoryImpl(
                 config.frameTimingKey(),
                 safeStartIndex,
                 CacheMode.EXACT_PLAYBACK,
+                options,
                 generation,
             )
-        return ensureFramesAsync(exactKey, bookId, chapterIndex, config, safeStartIndex).await()
+        return ensureFramesAsync(
+            exactKey,
+            bookId,
+            chapterIndex,
+            config,
+            safeStartIndex,
+            options,
+        ).await()
     }
 
     override fun prefetchFrames(
@@ -105,6 +134,22 @@ class RsvpFrameRepositoryImpl(
         chapterIndex: Int,
         config: RsvpConfig,
         startIndex: Int,
+    ) {
+        prefetchFrames(
+            bookId = bookId,
+            chapterIndex = chapterIndex,
+            config = config,
+            startIndex = startIndex,
+            options = RsvpGenerationOptions.LEGACY,
+        )
+    }
+
+    override fun prefetchFrames(
+        bookId: BookId,
+        chapterIndex: Int,
+        config: RsvpConfig,
+        startIndex: Int,
+        options: RsvpGenerationOptions,
     ) {
         val safeStartIndex = startIndex.coerceAtLeast(0)
         val segmentStartIndex = safeStartIndex.segmentStartIndex()
@@ -117,13 +162,21 @@ class RsvpFrameRepositoryImpl(
                 baseConfig.frameTimingKey(),
                 segmentStartIndex,
                 CacheMode.SEGMENT_BASE,
+                options,
                 generation,
             )
         scope.launch {
             val cached = synchronized(cacheLock) { cache.containsKey(key) }
             if (cached) return@launch
             runCatching {
-                ensureFramesAsync(key, bookId, chapterIndex, baseConfig, segmentStartIndex)
+                ensureFramesAsync(
+                    key,
+                    bookId,
+                    chapterIndex,
+                    baseConfig,
+                    segmentStartIndex,
+                    options,
+                )
             }
         }
     }
@@ -133,15 +186,42 @@ class RsvpFrameRepositoryImpl(
         startIndex: Int,
         config: RsvpConfig,
         maxTokenCount: Int,
+    ): RsvpFrameSet =
+        getPreviewFrames(
+            tokens = tokens,
+            startIndex = startIndex,
+            config = config,
+            maxTokenCount = maxTokenCount,
+            options = RsvpGenerationOptions.LEGACY,
+        )
+
+    override suspend fun getPreviewFrames(
+        tokens: List<Token>,
+        startIndex: Int,
+        config: RsvpConfig,
+        maxTokenCount: Int,
+        options: RsvpGenerationOptions,
     ): RsvpFrameSet {
         if (tokens.isEmpty()) {
             return RsvpFrameSet(frames = emptyList(), baseTempoMs = config.tempoMsPerWord)
         }
         val safeStartIndex = startIndex.coerceIn(0, tokens.lastIndex)
-        val endExclusive = (safeStartIndex + maxTokenCount.coerceAtLeast(1)).coerceAtMost(tokens.size)
-        if (safeStartIndex >= endExclusive) {
+        val visibleEndExclusive =
+            (safeStartIndex + maxTokenCount.coerceAtLeast(1)).coerceAtMost(tokens.size)
+        if (safeStartIndex >= visibleEndExclusive) {
             return RsvpFrameSet(frames = emptyList(), baseTempoMs = config.tempoMsPerWord)
         }
+        val useScoredSegmentation = options.usesScoredSegmentation(config)
+        val endExclusive =
+            if (useScoredSegmentation) {
+                previewLookaheadEndExclusive(
+                    tokens = tokens,
+                    visibleEndExclusive = visibleEndExclusive,
+                    requiredWordCount = previewLookaheadWordCount(config),
+                )
+            } else {
+                visibleEndExclusive
+            }
         val contextStartIndex = resolveAnalysisStartIndex(tokens, safeStartIndex)
         val previewTokens = tokens.subList(contextStartIndex, endExclusive)
         val relativeStartIndex = safeStartIndex - contextStartIndex
@@ -151,9 +231,23 @@ class RsvpFrameRepositoryImpl(
                     tokens = previewTokens,
                     startIndex = relativeStartIndex,
                     config = config,
+                    options = options,
                 )
             }.map { frame ->
-                frame.asPreviewFrame(originalIndexOffset = contextStartIndex, tokenCount = tokens.size)
+                frame.asPreviewFrame(
+                    originalIndexOffset = contextStartIndex,
+                    tokenCount = tokens.size,
+                    visibleEndExclusive =
+                        visibleEndExclusive.takeIf { useScoredSegmentation },
+                )
+            }.let { previewFrames ->
+                if (useScoredSegmentation) {
+                    previewFrames.filter { frame ->
+                        frame.displayOriginalEndExclusive <= visibleEndExclusive
+                    }
+                } else {
+                    previewFrames
+                }
             }
         return RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
     }
@@ -164,12 +258,13 @@ class RsvpFrameRepositoryImpl(
         chapterIndex: Int,
         config: RsvpConfig,
         startIndex: Int,
+        options: RsvpGenerationOptions,
     ): Deferred<RsvpFrameSet> =
         synchronized(cacheLock) {
             cache[key]?.let { cached -> CompletableDeferred(cached) }
                 ?: inFlight[key]?.takeIf { it.isActive }
                 ?: scope.async {
-                    buildFrameSet(key, bookId, chapterIndex, config, startIndex)
+                    buildFrameSet(key, bookId, chapterIndex, config, startIndex, options)
                 }.also { inFlight[key] = it }
         }
 
@@ -179,12 +274,18 @@ class RsvpFrameRepositoryImpl(
         chapterIndex: Int,
         config: RsvpConfig,
         startIndex: Int,
+        options: RsvpGenerationOptions,
     ): RsvpFrameSet {
         return try {
             val tokens = tokenRepository.getTokens(bookId, chapterIndex)
             val frames =
                 withContext(engineDispatcher) {
-                    engine.generateFrames(tokens, startIndex = startIndex, config = config)
+                    engine.generateFrames(
+                        tokens = tokens,
+                        startIndex = startIndex,
+                        config = config,
+                        options = options,
+                    )
                 }
             val frameSet = RsvpFrameSet(frames = frames, baseTempoMs = config.tempoMsPerWord)
             synchronized(cacheLock) {
@@ -231,14 +332,17 @@ class RsvpFrameRepositoryImpl(
     private fun RsvpFrame.asPreviewFrame(
         originalIndexOffset: Int,
         tokenCount: Int,
+        visibleEndExclusive: Int? = null,
     ): RsvpFrame =
         copy(
             originalTokenIndex = (originalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
-            nextOriginalTokenIndex = (nextOriginalTokenIndex + originalIndexOffset).coerceIn(0, tokenCount),
+            nextOriginalTokenIndex =
+                (nextOriginalTokenIndex + originalIndexOffset)
+                    .coerceIn(0, minOf(tokenCount, visibleEndExclusive ?: tokenCount)),
             displayOriginalStartIndex =
-            (displayOriginalStartIndex + originalIndexOffset).coerceIn(0, tokenCount),
+                (displayOriginalStartIndex + originalIndexOffset).coerceIn(0, tokenCount),
             displayOriginalEndExclusive =
-            (displayOriginalEndExclusive + originalIndexOffset).coerceIn(0, tokenCount),
+                (displayOriginalEndExclusive + originalIndexOffset).coerceIn(0, tokenCount),
             resumeCursor = -1,
         )
 
@@ -286,3 +390,33 @@ class RsvpFrameRepositoryImpl(
         private const val MAX_CACHED_FRAME_SETS = 8
     }
 }
+
+private fun previewLookaheadWordCount(config: RsvpConfig): Int =
+    PREVIEW_MIN_LOOKAHEAD_WORDS +
+        (
+            config.rampDownFrames.coerceAtLeast(0) *
+                config.maxWordsPerUnit.coerceIn(1, PREVIEW_MAX_SCORED_WORDS_PER_FRAME)
+            )
+
+private fun previewLookaheadEndExclusive(
+    tokens: List<Token>,
+    visibleEndExclusive: Int,
+    requiredWordCount: Int,
+): Int {
+    var cursor = visibleEndExclusive.coerceIn(0, tokens.size)
+    var wordCount = 0
+    while (cursor < tokens.size && wordCount < requiredWordCount) {
+        if (tokens[cursor].type == TokenType.WORD) wordCount++
+        cursor++
+    }
+    while (
+        cursor < tokens.size &&
+        tokens[cursor].type == TokenType.PUNCTUATION
+    ) {
+        cursor++
+    }
+    return cursor
+}
+
+private const val PREVIEW_MIN_LOOKAHEAD_WORDS = 5
+private const val PREVIEW_MAX_SCORED_WORDS_PER_FRAME = 3

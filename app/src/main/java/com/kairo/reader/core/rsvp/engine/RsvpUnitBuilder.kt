@@ -4,6 +4,7 @@ import com.kairo.reader.core.model.RsvpConfig
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.model.TokenType
 import com.kairo.reader.core.rsvp.analysis.isPhraseChunkCandidate
+import com.kairo.reader.core.rsvp.segmentation.visibleCodePointCount
 import com.kairo.reader.core.rsvp.text.isHardBoundaryPunctuation
 import com.kairo.reader.core.rsvp.text.isOpeningPunctuation
 import com.kairo.reader.core.rsvp.text.isQuoteChar
@@ -13,12 +14,17 @@ internal fun buildUnit(
     startCursor: Int,
     config: RsvpConfig,
     state: ContextState,
+    selectedWordCursors: List<Int>? = null,
 ): UnitBuildResult {
     val cursor = UnitCursor(expandedTokens, state, startCursor)
     cursor.consumeLeadingPunctuation()
     val firstWord = cursor.consumeFirstWord()
         ?: return UnitBuildResult(cursor.unitTokens, startCursor, cursor.index)
-    cursor.consumePhraseWords(firstWord.token, config)
+    if (selectedWordCursors == null) {
+        cursor.consumePhraseWords(firstWord.token, config)
+    } else {
+        cursor.consumeSelectedPhraseWords(firstWord, config, selectedWordCursors)
+    }
     cursor.consumeTrailingPunctuation()
     return UnitBuildResult(
         tokens = cursor.unitTokens,
@@ -81,6 +87,39 @@ private class UnitCursor(private val expandedTokens: List<ExpandedToken>, privat
                 words += 1
                 characters = combinedCharacters
             }
+        }
+    }
+
+    fun consumeSelectedPhraseWords(
+        firstWord: ExpandedToken,
+        config: RsvpConfig,
+        selectedWordCursors: List<Int>,
+    ) {
+        if (selectedWordCursors.firstOrNull() != firstWord.expandedIndex) return
+        val targetWords =
+            selectedWordCursors.size
+                .coerceAtLeast(1)
+                .coerceAtMost(config.maxWordsPerUnit.coerceAtLeast(1))
+        if (!config.enablePhraseChunking || targetWords <= 1) return
+        val maxChars = config.maxCharsPerUnit.coerceAtLeast(1)
+        var words = 1
+        var characters = visibleCodePointCount(firstWord.token.text)
+        while (words < targetWords) {
+            val candidateExpanded = expandedTokens.getOrNull(index) ?: return
+            if (candidateExpanded.expandedIndex != selectedWordCursors[words]) return
+            val candidate = candidateExpanded.token
+            val previousWord = unitTokens.lastOrNull { it.type == TokenType.WORD } ?: return
+            val combinedCharacters = characters + visibleCodePointCount(candidate.text)
+            val canConsume =
+                candidate.type == TokenType.WORD &&
+                    combinedCharacters <= maxChars &&
+                    !previousWord.isSubwordChunk &&
+                    !candidate.isSubwordChunk &&
+                    !previousWord.text.endsWith("-")
+            if (!canConsume) return
+            consume(candidate)
+            words += 1
+            characters = combinedCharacters
         }
     }
 

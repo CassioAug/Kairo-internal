@@ -135,8 +135,10 @@ internal class RhythmState {
     fun apply(
         rawMs: Double,
         isBoundary: Boolean,
+        boundaryStrengthMilli: Int = 0,
     ): Double {
-        if (isBoundary) {
+        val boundaryStrength = boundaryStrengthMilli.coerceIn(0, RHYTHM_BOUNDARY_SCALE)
+        if (isBoundary || boundaryStrength == RHYTHM_BOUNDARY_SCALE) {
             ema = rawMs
             return rawMs
         }
@@ -146,7 +148,18 @@ internal class RhythmState {
             if (prev == null) {
                 rawMs
             } else {
-                val mixed = prev + (smoothingAlpha * (rawMs - prev))
+                val effectiveAlpha =
+                    if (boundaryStrength == 0) {
+                        smoothingAlpha
+                    } else {
+                        val partialReseed =
+                            (1.0 - smoothingAlpha) *
+                                PARTIAL_BOUNDARY_RESEED_MAX *
+                                boundaryStrength /
+                                RHYTHM_BOUNDARY_SCALE
+                        smoothingAlpha + partialReseed
+                    }
+                val mixed = prev + (effectiveAlpha * (rawMs - prev))
                 val minAllowed = prev / maxSpeedupFactor
                 val maxAllowed = prev * maxSlowdownFactor
                 mixed.coerceIn(minAllowed, maxAllowed)
@@ -160,6 +173,9 @@ internal class RhythmState {
         ema = null
     }
 }
+
+private const val RHYTHM_BOUNDARY_SCALE = 1000
+private const val PARTIAL_BOUNDARY_RESEED_MAX = 0.25
 
 internal class FlowState(
     private val alpha: Double,

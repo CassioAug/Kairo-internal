@@ -9,6 +9,7 @@ import com.kairo.reader.core.model.RsvpFontWeight
 import com.kairo.reader.core.model.RsvpFrame
 import com.kairo.reader.core.model.TimedReadingMode
 import com.kairo.reader.core.model.Token
+import com.kairo.reader.core.rsvp.RsvpGenerationOptions
 import com.kairo.reader.data.rsvp.RsvpFrameRepository
 
 data class RsvpScreenState(
@@ -30,6 +31,7 @@ data class RsvpBookContext(
     val startIndex: Int,
     val startResumeCursor: Int = -1,
     val sessionStartIndex: Int = startIndex,
+    val generationOptions: RsvpGenerationOptions = RsvpGenerationOptions.LEGACY,
 )
 
 data class RsvpProfileContext(val config: RsvpConfig, val selectedProfileId: String, val customProfiles: List<RsvpCustomProfile>,)

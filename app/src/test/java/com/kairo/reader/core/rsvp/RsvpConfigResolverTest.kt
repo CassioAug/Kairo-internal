@@ -50,4 +50,35 @@ class RsvpConfigResolverTest {
         assertEquals(55L, resolved.minWordMs)
         assertEquals(130L, resolved.longWordMinMs)
     }
+
+    @Test
+    fun isoAliasesUseTheSameConfigAndTempoAdjustmentsAsCanonicalLanguages() {
+        val base =
+            RsvpConfig(
+                tempoMsPerWord = 100L,
+                minWordMs = 40L,
+                longWordMinMs = 100L,
+            )
+        mapOf(
+            "eng" to "en",
+            "jpn" to "ja",
+            "zho" to "zh",
+            "chi" to "zh",
+            "cmn" to "zh",
+            "kor" to "ko",
+            "ara" to "ar",
+            "arb" to "ar",
+            "heb" to "he",
+            "iw" to "he",
+        ).forEach { (alias, canonical) ->
+            assertEquals(
+                RsvpConfigResolver.resolve(base, canonical),
+                RsvpConfigResolver.resolve(base, alias),
+            )
+            assertEquals(
+                RsvpConfigResolver.toBaseTempoMs(180L, canonical),
+                RsvpConfigResolver.toBaseTempoMs(180L, alias),
+            )
+        }
+    }
 }

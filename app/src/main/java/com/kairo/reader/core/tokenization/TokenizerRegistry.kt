@@ -1,6 +1,7 @@
 package com.kairo.reader.core.tokenization
 
-import com.kairo.reader.core.language.LanguageTagNormalizer
+import com.kairo.reader.core.language.LanguageFamily
+import com.kairo.reader.core.language.LanguageFamilyClassifier
 import com.kairo.reader.core.model.Chapter
 import com.kairo.reader.core.model.Token
 import com.kairo.reader.core.tokenization.cjk.CjkSegmenterConfig
@@ -41,15 +42,19 @@ object TokenizerRegistry {
     private val rtlTokenizer = RtlTokenizer()
 
     fun resolve(languageTag: String?): ChapterTokenizer {
-        val normalized = LanguageTagNormalizer.normalize(languageTag)?.lowercase()
-        return when {
-            normalized == null -> defaultTokenizer
-            normalized.startsWith("ja") -> jaTokenizer
-            normalized.startsWith("zh") -> zhTokenizer
-            normalized.startsWith("ko") -> koTokenizer
-            normalized.startsWith("ar") -> rtlTokenizer
-            normalized.startsWith("he") -> rtlTokenizer
-            else -> defaultTokenizer
+        val classification = LanguageFamilyClassifier.classify(languageTag)
+        return when (classification.family) {
+            LanguageFamily.CJK ->
+                when (classification.primaryLanguage) {
+                    "ja" -> jaTokenizer
+                    "zh" -> zhTokenizer
+                    "ko" -> koTokenizer
+                    else -> defaultTokenizer
+                }
+            LanguageFamily.RTL -> rtlTokenizer
+            LanguageFamily.ENGLISH,
+            LanguageFamily.DEFAULT_NON_ENGLISH,
+            LanguageFamily.UNKNOWN -> defaultTokenizer
         }
     }
 }
